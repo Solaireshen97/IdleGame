@@ -41,9 +41,23 @@ public class BattleService(GameDbContext dbContext)
             };
         }
 
-        room.Status = RoomStatus.InBattle;
+        if (monster.Hp <= 0)
+        {
+            logs.Add("Monster is already defeated. Please reset the room.");
+            return new BattleResult
+            {
+                RoomId = room.Id,
+                CharacterHp = character.Hp,
+                CharacterMaxHp = character.MaxHp,
+                MonsterHp = monster.Hp,
+                MonsterMaxHp = monster.MaxHp,
+                IsVictory = true,
+                IsCharacterDead = character.Hp <= 0,
+                Logs = logs
+            };
+        }
 
-        monster.Hp = monster.MaxHp;
+        room.Status = RoomStatus.InBattle;
 
         var characterDamage = Math.Max(1, character.Attack - monster.Defense);
         monster.Hp = Math.Max(0, monster.Hp - characterDamage);
