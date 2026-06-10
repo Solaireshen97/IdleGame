@@ -6,4 +6,5 @@ public class RoomMember
     public int RoomId { get; set; }
     public int PlayerId { get; set; }
     public int CharacterId { get; set; }
+    public bool IsOwner { get; set; }
 }

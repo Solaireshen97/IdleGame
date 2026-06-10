@@ -36,7 +36,7 @@ public class RoomService(GameDbContext dbContext)
         return await BuildRoomDetailAsync(room);
     }
 
-    public async Task<RoomSummaryResponse?> CreateRoomAsync(string monsterType)
+    public async Task<RoomDetailResponse?> CreateRoomAsync(string monsterType)
     {
         var monster = CreateMonster(monsterType);
 
@@ -52,7 +52,26 @@ public class RoomService(GameDbContext dbContext)
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
 
-        return await BuildRoomSummaryAsync(room);
+        var player = await dbContext.Players.FirstOrDefaultAsync();
+        var character = await dbContext.Characters.FirstOrDefaultAsync();
+
+        if (player is null || character is null)
+        {
+            return null;
+        }
+
+        var ownerMember = new RoomMember
+        {
+            RoomId = room.Id,
+            PlayerId = player.Id,
+            CharacterId = character.Id,
+            IsOwner = true
+        };
+
+        dbContext.RoomMembers.Add(ownerMember);
+        await dbContext.SaveChangesAsync();
+
+        return await BuildRoomDetailAsync(room);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId)
@@ -108,9 +127,18 @@ public class RoomService(GameDbContext dbContext)
             return (false, "NotFound");
         }
 
-        if (room.Status != RoomStatus.Idle)
+        var currentPlayer = await dbContext.Players.FirstOrDefaultAsync();
+        if (currentPlayer is null)
         {
-            return (false, "Room is currently in battle and cannot be deleted.");
+            return (false, "PlayerNotFound");
+        }
+
+        var ownerMember = await dbContext.RoomMembers
+            .FirstOrDefaultAsync(x => x.RoomId == roomId && x.PlayerId == currentPlayer.Id && x.IsOwner);
+
+        if (ownerMember is null)
+        {
+            return (false, "NotOwner");
         }
 
         var members = await dbContext.RoomMembers.Where(x => x.RoomId == roomId).ToListAsync();
@@ -147,7 +175,8 @@ public class RoomService(GameDbContext dbContext)
                 MonsterHp = monster.Hp,
                 MonsterMaxHp = monster.MaxHp,
                 RoomStatus = room.Status,
-                HasPlayer = false
+                HasPlayer = false,
+                IsCurrentPlayerOwner = false
             };
         }
 
@@ -165,7 +194,8 @@ public class RoomService(GameDbContext dbContext)
             PlayerName = player?.Name,
             CharacterName = character?.Name,
             CharacterHp = character?.Hp,
-            CharacterMaxHp = character?.MaxHp
+            CharacterMaxHp = character?.MaxHp,
+            IsCurrentPlayerOwner = member.IsOwner
         };
     }
 

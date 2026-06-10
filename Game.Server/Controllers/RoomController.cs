@@ -31,13 +31,13 @@ public class RoomController(RoomService roomService) : ControllerBase
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
         var monsterType = request?.MonsterType ?? "Slime";
-        var roomSummary = await roomService.CreateRoomAsync(monsterType);
-        if (roomSummary is null)
+        var roomDetail = await roomService.CreateRoomAsync(monsterType);
+        if (roomDetail is null)
         {
             return BadRequest("Failed to create room.");
         }
 
-        return Ok(roomSummary);
+        return Ok(roomDetail);
     }
 
     [HttpPost("{roomId:int}/join")]
@@ -73,6 +73,11 @@ public class RoomController(RoomService roomService) : ControllerBase
             if (error == "NotFound")
             {
                 return NotFound();
+            }
+
+            if (error == "NotOwner")
+            {
+                return StatusCode(403, "Only the room owner can dismiss the room.");
             }
 
             return BadRequest(error);
