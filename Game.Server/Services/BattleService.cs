@@ -23,7 +23,7 @@ public class BattleService(GameDbContext dbContext)
                 RoomId = roomId,
                 IsVictory = false,
                 IsCharacterDead = false,
-                Logs = new List<string> { "No player has joined this room yet." }
+                Logs = new List<string> { "No user has joined this room yet." }
             };
         }
 
@@ -135,7 +135,7 @@ public class BattleService(GameDbContext dbContext)
         var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId);
         if (member is null)
         {
-            return (false, "No player has joined this room yet.");
+            return (false, "No user has joined this room yet.");
         }
 
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
@@ -150,4 +150,3 @@ public class BattleService(GameDbContext dbContext)
         return (true, null);
     }
 }
-

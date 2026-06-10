@@ -38,22 +38,22 @@ public class RoomService(GameDbContext dbContext)
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType)
     {
-        var player = await dbContext.Players.FirstOrDefaultAsync();
-        if (player is null)
+        var user = await dbContext.Users.FirstOrDefaultAsync();
+        if (user is null)
         {
-            return (null, "DefaultPlayerNotFound");
+            return (null, "UserNotFound");
         }
 
-        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.PlayerId == player.Id);
+        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.UserId == user.Id);
         if (existingMembership is not null)
         {
-            return (null, "PlayerAlreadyInRoom");
+            return (null, "UserAlreadyInRoom");
         }
 
         var character = await dbContext.Characters.FirstOrDefaultAsync();
         if (character is null)
         {
-            return (null, "DefaultCharacterNotFound");
+            return (null, "CharacterNotFound");
         }
 
         var monster = CreateMonster(monsterType);
@@ -73,7 +73,7 @@ public class RoomService(GameDbContext dbContext)
         var ownerMember = new RoomMember
         {
             RoomId = room.Id,
-            PlayerId = player.Id,
+            UserId = user.Id,
             CharacterId = character.Id,
             IsOwner = true
         };
@@ -98,18 +98,18 @@ public class RoomService(GameDbContext dbContext)
             return (null, "RoomAlreadyHasMember");
         }
 
-        var player = await dbContext.Players.FirstOrDefaultAsync();
+        var user = await dbContext.Users.FirstOrDefaultAsync();
         var character = await dbContext.Characters.FirstOrDefaultAsync();
 
-        if (player is null || character is null)
+        if (user is null || character is null)
         {
-            return (null, "DefaultPlayerOrCharacterNotFound");
+            return (null, "UserOrCharacterNotFound");
         }
 
         var member = new RoomMember
         {
             RoomId = roomId,
-            PlayerId = player.Id,
+            UserId = user.Id,
             CharacterId = character.Id
         };
 
@@ -137,14 +137,14 @@ public class RoomService(GameDbContext dbContext)
             return (false, "NotFound");
         }
 
-        var currentPlayer = await dbContext.Players.FirstOrDefaultAsync();
-        if (currentPlayer is null)
+        var currentUser = await dbContext.Users.FirstOrDefaultAsync();
+        if (currentUser is null)
         {
-            return (false, "PlayerNotFound");
+            return (false, "UserNotFound");
         }
 
         var ownerMember = await dbContext.RoomMembers
-            .FirstOrDefaultAsync(x => x.RoomId == roomId && x.PlayerId == currentPlayer.Id && x.IsOwner);
+            .FirstOrDefaultAsync(x => x.RoomId == roomId && x.UserId == currentUser.Id && x.IsOwner);
 
         if (ownerMember is null)
         {
@@ -185,12 +185,12 @@ public class RoomService(GameDbContext dbContext)
                 MonsterHp = monster.Hp,
                 MonsterMaxHp = monster.MaxHp,
                 RoomStatus = room.Status,
-                HasPlayer = false,
+                HasUser = false,
                 IsCurrentPlayerOwner = false
             };
         }
 
-        var player = await dbContext.Players.FirstOrDefaultAsync(x => x.Id == member.PlayerId);
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == member.UserId);
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
 
         return new RoomDetailResponse
@@ -200,8 +200,8 @@ public class RoomService(GameDbContext dbContext)
             MonsterHp = monster.Hp,
             MonsterMaxHp = monster.MaxHp,
             RoomStatus = room.Status,
-            HasPlayer = true,
-            PlayerName = player?.Name,
+            HasUser = true,
+            UserName = user?.UserName,
             CharacterName = character?.Name,
             CharacterHp = character?.Hp,
             CharacterMaxHp = character?.MaxHp,

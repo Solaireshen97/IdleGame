@@ -86,7 +86,7 @@ else
         var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedMonsterType);
         if (roomDetail is null)
         {
-            _message = errorMessage == "Player is already in a room. Please dissolve the current room first."
+            _message = errorMessage == "User is already in a room. Please dissolve the current room first."
                 ? "你已在当前房间中，请先解散当前房间后再创建新的房间。"
                 : errorMessage ?? "创建房间失败。";
             _isLoading = false;

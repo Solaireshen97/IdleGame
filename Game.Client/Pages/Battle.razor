@@ -14,11 +14,11 @@
 {
     <p>Loading room...</p>
 }
-else if (!_roomDetail.HasPlayer)
+else if (!_roomDetail.HasUser)
 {
     <h2>房间 #@_roomDetail.RoomId</h2>
     <p><strong>怪物：</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
-    <p><em>当前还没有玩家加入战斗。</em></p>
+    <p><em>当前还没有用户加入战斗。</em></p>
     <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入战斗</button>
 
     @if (_message is not null)
@@ -28,7 +28,7 @@ else if (!_roomDetail.HasPlayer)
 }
 else
 {
-    <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
+    <p><strong>User:</strong> @_roomDetail.UserName</p>
     <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
     <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
     <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>

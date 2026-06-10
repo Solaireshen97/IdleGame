@@ -44,10 +44,8 @@
 | Wolf   | 65 | 65    | 15     | 3       |
 
 ### 初始化数据
-- 首次运行自动创建 SQLite 数据库并写入默认数据：
-  - Player: `TestPlayer`
-  - Character: `Knight`（100/100, Atk 20, Def 5）
-- 不再自动创建默认房间，由用户通过创建房间接口动态创建
+- 首次运行自动创建 SQLite 数据库
+- 当前不再自动创建默认用户、默认角色或默认房间
 
 ### API
 - `GET /api/rooms` 获取所有房间列表（返回 `RoomSummaryResponse`，不含玩家/角色信息）
