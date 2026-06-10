@@ -5,9 +5,31 @@ namespace Game.Client.Services;
 
 public class ApiService(HttpClient httpClient)
 {
+    public async Task<List<RoomStateResponse>?> GetRoomsAsync()
+    {
+        return await httpClient.GetFromJsonAsync<List<RoomStateResponse>>("api/rooms");
+    }
+
     public async Task<RoomStateResponse?> GetRoomStateAsync(int roomId)
     {
         return await httpClient.GetFromJsonAsync<RoomStateResponse>($"api/rooms/{roomId}");
+    }
+
+    public async Task<RoomStateResponse?> CreateRoomAsync()
+    {
+        var response = await httpClient.PostAsync("api/rooms", null);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<RoomStateResponse>();
+    }
+
+    public async Task<bool> DeleteRoomAsync(int roomId)
+    {
+        var response = await httpClient.DeleteAsync($"api/rooms/{roomId}");
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<BattleResult?> StartBattleAsync(int roomId)
