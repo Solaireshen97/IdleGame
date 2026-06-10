@@ -13,6 +13,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
+builder.Services.AddScoped<UserService>();
 
 builder.Services.AddCors(options =>
 {
