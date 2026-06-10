@@ -1,0 +1,118 @@
+@page "/"
+@page "/rooms"
+@using Game.Client.Services
+@using Game.Shared.Dtos
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+
+<PageTitle>房间列表</PageTitle>
+
+<h1>IdleGame V0.2 — 房间列表</h1>
+
+<button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+
+@if (_isLoading)
+{
+    <p>加载中...</p>
+}
+else if (_rooms is null || _rooms.Count == 0)
+{
+    <p>暂无房间，请点击"创建房间"开始游戏。</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>房间ID</th>
+                <th>玩家</th>
+                <th>角色</th>
+                <th>角色HP</th>
+                <th>怪物</th>
+                <th>怪物HP</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var room in _rooms)
+            {
+                <tr>
+                    <td>@room.RoomId</td>
+                    <td>@room.PlayerName</td>
+                    <td>@room.CharacterName</td>
+                    <td>@room.CharacterHp / @room.CharacterMaxHp</td>
+                    <td>@room.MonsterName</td>
+                    <td>@room.MonsterHp / @room.MonsterMaxHp</td>
+                    <td>@room.RoomStatus</td>
+                    <td>
+                        <button @onclick="() => EnterBattle(room.RoomId)">进入战斗</button>
+                        <button @onclick="() => DeleteRoomAsync(room.RoomId)" disabled="@_isLoading">删除房间</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_message is not null)
+{
+    <p><em>@_message</em></p>
+}
+
+@code {
+    private List<RoomStateResponse>? _rooms;
+    private bool _isLoading;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoomsAsync();
+    }
+
+    private async Task LoadRoomsAsync()
+    {
+        _isLoading = true;
+        _rooms = await ApiService.GetRoomsAsync();
+        _isLoading = false;
+    }
+
+    private async Task CreateRoomAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        var room = await ApiService.CreateRoomAsync();
+        if (room is null)
+        {
+            _message = "创建房间失败。";
+        }
+        else
+        {
+            _message = $"房间 {room.RoomId} 创建成功。";
+            await LoadRoomsAsync();
+        }
+        _isLoading = false;
+    }
+
+    private async Task DeleteRoomAsync(int roomId)
+    {
+        _isLoading = true;
+        _message = null;
+        var success = await ApiService.DeleteRoomAsync(roomId);
+        if (!success)
+        {
+            _message = $"删除房间 {roomId} 失败（房间可能正在战斗中）。";
+        }
+        else
+        {
+            _message = $"房间 {roomId} 已删除。";
+            await LoadRoomsAsync();
+        }
+        _isLoading = false;
+    }
+
+    private void EnterBattle(int roomId)
+    {
+        Navigation.NavigateTo($"/battle/{roomId}");
+    }
+}

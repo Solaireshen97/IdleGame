@@ -1,12 +1,14 @@
-@page "/"
-@page "/battle"
+@page "/battle/{roomId:int}"
 @using Game.Client.Services
 @using Game.Shared.Dtos
 @inject ApiService ApiService
+@inject NavigationManager Navigation
 
 <PageTitle>Battle</PageTitle>
 
-<h1>IdleGame V0 Battle</h1>
+<h1>IdleGame V0.2 Battle</h1>
+
+<button @onclick="GoToRoomsAsync">← 返回房间列表</button>
 
 @if (_roomState is null)
 {
@@ -40,7 +42,9 @@ else
 }
 
 @code {
-    private const int RoomId = 1;
+    [Parameter]
+    public int RoomId { get; set; }
+
     private RoomStateResponse? _roomState;
     private readonly List<string> _logs = new();
     private bool _isBattling;
@@ -112,5 +116,10 @@ else
     private async Task RefreshRoomStateAsync()
     {
         _roomState = await ApiService.GetRoomStateAsync(RoomId);
+    }
+
+    private void GoToRoomsAsync()
+    {
+        Navigation.NavigateTo("/rooms");
     }
 }

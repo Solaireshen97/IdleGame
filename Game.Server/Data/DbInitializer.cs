@@ -1,4 +1,3 @@
-using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,27 +32,7 @@ public static class DbInitializer
             Defense = 5
         };
 
-        var monster = new Monster
-        {
-            Name = "Slime",
-            Hp = 50,
-            MaxHp = 50,
-            Attack = 8,
-            Defense = 2
-        };
-
         dbContext.Characters.Add(character);
-        dbContext.Monsters.Add(monster);
-        await dbContext.SaveChangesAsync();
-
-        dbContext.Rooms.Add(new Room
-        {
-            PlayerId = player.Id,
-            CharacterId = character.Id,
-            MonsterId = monster.Id,
-            Status = RoomStatus.Idle
-        });
-
         await dbContext.SaveChangesAsync();
     }
 }
