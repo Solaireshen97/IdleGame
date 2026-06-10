@@ -9,4 +9,5 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Character> Characters => Set<Character>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
+    public DbSet<RoomMember> RoomMembers => Set<RoomMember>();
 }

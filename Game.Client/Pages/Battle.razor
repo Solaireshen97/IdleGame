@@ -6,24 +6,36 @@
 
 <PageTitle>Battle</PageTitle>
 
-<h1>IdleGame V0.2 Battle</h1>
+<h1>IdleGame V0.4 Battle</h1>
 
-<button @onclick="GoToRoomsAsync">← 返回房间列表</button>
+<button @onclick="GoToRooms">← 返回房间列表</button>
 
-@if (_roomState is null)
+@if (_roomDetail is null)
 {
     <p>Loading room...</p>
 }
+else if (!_roomDetail.HasPlayer)
+{
+    <h2>房间 #@_roomDetail.RoomId</h2>
+    <p><strong>怪物：</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
+    <p><em>当前还没有玩家加入房间。</em></p>
+    <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入房间</button>
+
+    @if (_message is not null)
+    {
+        <p><em>@_message</em></p>
+    }
+}
 else
 {
-    <p><strong>Player:</strong> @_roomState.PlayerName</p>
-    <p><strong>Character:</strong> @_roomState.CharacterName (@_roomState.CharacterHp / @_roomState.CharacterMaxHp)</p>
-    <p><strong>Monster:</strong> @_roomState.MonsterName (@_roomState.MonsterHp / @_roomState.MonsterMaxHp)</p>
-    <p><strong>Room Status:</strong> @_roomState.RoomStatus</p>
+    <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
+    <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
+    <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
+    <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
 
-    <button @onclick="StartBattleAsync" disabled="@_isBattling">开始战斗</button>
-    <button @onclick="ResetBattleAsync" disabled="@_isBattling">重置战斗</button>
-    <button @onclick="HealAsync" disabled="@_isBattling">恢复10HP</button>
+    <button @onclick="StartBattleAsync" disabled="@_isBusy">开始战斗</button>
+    <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+    <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
 
     <h3>战斗日志</h3>
     @if (_logs.Count == 0)
@@ -45,18 +57,35 @@ else
     [Parameter]
     public int RoomId { get; set; }
 
-    private RoomStateResponse? _roomState;
+    private RoomDetailResponse? _roomDetail;
     private readonly List<string> _logs = new();
-    private bool _isBattling;
+    private bool _isBusy;
+    private string? _message;
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshRoomStateAsync();
+        await RefreshRoomDetailAsync();
+    }
+
+    private async Task JoinRoomAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        var detail = await ApiService.JoinRoomAsync(RoomId);
+        if (detail is null)
+        {
+            _message = "加入房间失败（房间可能已有成员或不存在）。";
+        }
+        else
+        {
+            _roomDetail = detail;
+        }
+        _isBusy = false;
     }
 
     private async Task StartBattleAsync()
     {
-        _isBattling = true;
+        _isBusy = true;
         var result = await ApiService.StartBattleAsync(RoomId);
         _logs.Clear();
 
@@ -69,57 +98,56 @@ else
             _logs.AddRange(result.Logs);
         }
 
-        await RefreshRoomStateAsync();
-        _isBattling = false;
+        await RefreshRoomDetailAsync();
+        _isBusy = false;
     }
 
     private async Task ResetBattleAsync()
     {
-        _isBattling = true;
-        var roomState = await ApiService.ResetBattleAsync(RoomId);
+        _isBusy = true;
+        var roomDetail = await ApiService.ResetBattleAsync(RoomId);
         _logs.Clear();
 
-        if (roomState is null)
+        if (roomDetail is null)
         {
             _logs.Add("Reset request failed.");
         }
         else
         {
-            _roomState = roomState;
+            _roomDetail = roomDetail;
             _logs.Add("Battle reset.");
         }
 
-        await RefreshRoomStateAsync();
-        _isBattling = false;
+        _isBusy = false;
     }
 
     private async Task HealAsync()
     {
-        _isBattling = true;
-        var roomState = await ApiService.HealAsync(RoomId);
+        _isBusy = true;
+        var roomDetail = await ApiService.HealAsync(RoomId);
         _logs.Clear();
 
-        if (roomState is null)
+        if (roomDetail is null)
         {
             _logs.Add("Heal request failed.");
         }
         else
         {
-            _roomState = roomState;
+            _roomDetail = roomDetail;
             _logs.Add("Recovered 10 HP.");
         }
 
-        await RefreshRoomStateAsync();
-        _isBattling = false;
+        _isBusy = false;
     }
 
-    private async Task RefreshRoomStateAsync()
+    private async Task RefreshRoomDetailAsync()
     {
-        _roomState = await ApiService.GetRoomStateAsync(RoomId);
+        _roomDetail = await ApiService.GetRoomDetailAsync(RoomId);
     }
 
-    private void GoToRoomsAsync()
+    private void GoToRooms()
     {
         Navigation.NavigateTo("/rooms");
     }
 }
+

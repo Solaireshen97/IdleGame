@@ -25,7 +25,7 @@ public class RoomService(GameDbContext dbContext)
         return result;
     }
 
-    public async Task<RoomStateResponse?> GetRoomStateAsync(int roomId)
+    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null)
@@ -33,19 +33,11 @@ public class RoomService(GameDbContext dbContext)
             return null;
         }
 
-        return await BuildRoomStateAsync(room);
+        return await BuildRoomDetailAsync(room);
     }
 
     public async Task<RoomSummaryResponse?> CreateRoomAsync(string monsterType)
     {
-        var player = await dbContext.Players.FirstOrDefaultAsync();
-        var character = await dbContext.Characters.FirstOrDefaultAsync();
-
-        if (player is null || character is null)
-        {
-            return null;
-        }
-
         var monster = CreateMonster(monsterType);
 
         dbContext.Monsters.Add(monster);
@@ -53,8 +45,6 @@ public class RoomService(GameDbContext dbContext)
 
         var room = new Room
         {
-            PlayerId = player.Id,
-            CharacterId = character.Id,
             MonsterId = monster.Id,
             Status = RoomStatus.Idle
         };
@@ -63,6 +53,41 @@ public class RoomService(GameDbContext dbContext)
         await dbContext.SaveChangesAsync();
 
         return await BuildRoomSummaryAsync(room);
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId)
+    {
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
+        if (room is null)
+        {
+            return (null, "NotFound");
+        }
+
+        var existingMember = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId);
+        if (existingMember is not null)
+        {
+            return (null, "RoomAlreadyHasMember");
+        }
+
+        var player = await dbContext.Players.FirstOrDefaultAsync();
+        var character = await dbContext.Characters.FirstOrDefaultAsync();
+
+        if (player is null || character is null)
+        {
+            return (null, "DefaultPlayerOrCharacterNotFound");
+        }
+
+        var member = new RoomMember
+        {
+            RoomId = roomId,
+            PlayerId = player.Id,
+            CharacterId = character.Id
+        };
+
+        dbContext.RoomMembers.Add(member);
+        await dbContext.SaveChangesAsync();
+
+        return (await BuildRoomDetailAsync(room), null);
     }
 
     private static Monster CreateMonster(string monsterType)
@@ -88,6 +113,9 @@ public class RoomService(GameDbContext dbContext)
             return (false, "Room is currently in battle and cannot be deleted.");
         }
 
+        var members = await dbContext.RoomMembers.Where(x => x.RoomId == roomId).ToListAsync();
+        dbContext.RoomMembers.RemoveRange(members);
+
         var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
 
         dbContext.Rooms.Remove(room);
@@ -100,28 +128,44 @@ public class RoomService(GameDbContext dbContext)
         return (true, null);
     }
 
-    private async Task<RoomStateResponse?> BuildRoomStateAsync(Room room)
+    private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room)
     {
-        var player = await dbContext.Players.FirstOrDefaultAsync(x => x.Id == room.PlayerId);
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == room.CharacterId);
         var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
-
-        if (player is null || character is null || monster is null)
+        if (monster is null)
         {
             return null;
         }
 
-        return new RoomStateResponse
+        var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == room.Id);
+
+        if (member is null)
+        {
+            return new RoomDetailResponse
+            {
+                RoomId = room.Id,
+                MonsterName = monster.Name,
+                MonsterHp = monster.Hp,
+                MonsterMaxHp = monster.MaxHp,
+                RoomStatus = room.Status,
+                HasPlayer = false
+            };
+        }
+
+        var player = await dbContext.Players.FirstOrDefaultAsync(x => x.Id == member.PlayerId);
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
+
+        return new RoomDetailResponse
         {
             RoomId = room.Id,
-            PlayerName = player.Name,
-            CharacterName = character.Name,
-            CharacterHp = character.Hp,
-            CharacterMaxHp = character.MaxHp,
             MonsterName = monster.Name,
             MonsterHp = monster.Hp,
             MonsterMaxHp = monster.MaxHp,
-            RoomStatus = room.Status
+            RoomStatus = room.Status,
+            HasPlayer = true,
+            PlayerName = player?.Name,
+            CharacterName = character?.Name,
+            CharacterHp = character?.Hp,
+            CharacterMaxHp = character?.MaxHp
         };
     }
 
@@ -144,3 +188,4 @@ public class RoomService(GameDbContext dbContext)
         };
     }
 }
+
