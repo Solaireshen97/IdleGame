@@ -26,7 +26,7 @@
    ```
 4. 打开前端页面后进入房间列表，点击"创建房间"，再点击"进入战斗"进行游戏。
 
-## 当前实现范围（V0.3）
+## 当前实现范围（V0.4）
 
 ### 房间系统
 - 支持动态创建和删除多个房间，不再依赖固定的默认房间
@@ -46,8 +46,13 @@
 ### 初始化数据
 - 首次运行自动创建 SQLite 数据库
 - 当前不再自动创建默认用户、默认角色或默认房间
+- 新用户可通过注册接口创建，注册成功后会自动生成默认角色 `Knight`
 
 ### API
+- `POST /api/user/register` 注册用户并返回 token（自动创建默认角色）
+- `POST /api/user/login` 登录并返回 token
+- `GET /api/user/me` 使用 `Authorization: Bearer <token>` 请求头获取当前用户
+- `POST /api/user/logout` 也需要 `Authorization: Bearer <token>`
 - `GET /api/rooms` 获取所有房间列表（返回 `RoomSummaryResponse`，不含玩家/角色信息）
 - `POST /api/rooms` 创建新房间（请求体含 `monsterType`，返回 `RoomSummaryResponse`）
 - `GET /api/rooms/{roomId}` 获取指定房间完整状态（含玩家/角色信息，供战斗页使用）
