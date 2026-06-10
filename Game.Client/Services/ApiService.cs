@@ -10,9 +10,9 @@ public class ApiService(HttpClient httpClient)
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
     }
 
-    public async Task<RoomStateResponse?> GetRoomStateAsync(int roomId)
+    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
     {
-        return await httpClient.GetFromJsonAsync<RoomStateResponse>($"api/rooms/{roomId}");
+        return await httpClient.GetFromJsonAsync<RoomDetailResponse>($"api/rooms/{roomId}");
     }
 
     public async Task<RoomSummaryResponse?> CreateRoomAsync(string monsterType)
@@ -24,6 +24,17 @@ public class ApiService(HttpClient httpClient)
         }
 
         return await response.Content.ReadFromJsonAsync<RoomSummaryResponse>();
+    }
+
+    public async Task<RoomDetailResponse?> JoinRoomAsync(int roomId)
+    {
+        var response = await httpClient.PostAsync($"api/rooms/{roomId}/join", null);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)
@@ -43,7 +54,7 @@ public class ApiService(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<BattleResult>();
     }
 
-    public async Task<RoomStateResponse?> ResetBattleAsync(int roomId)
+    public async Task<RoomDetailResponse?> ResetBattleAsync(int roomId)
     {
         var response = await httpClient.PostAsJsonAsync("api/battle/reset", new BattleRequest { RoomId = roomId });
         if (!response.IsSuccessStatusCode)
@@ -51,10 +62,10 @@ public class ApiService(HttpClient httpClient)
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomStateResponse>();
+        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
     }
 
-    public async Task<RoomStateResponse?> HealAsync(int roomId)
+    public async Task<RoomDetailResponse?> HealAsync(int roomId)
     {
         var response = await httpClient.PostAsJsonAsync("api/battle/heal", new BattleRequest { RoomId = roomId });
         if (!response.IsSuccessStatusCode)
@@ -62,6 +73,7 @@ public class ApiService(HttpClient httpClient)
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomStateResponse>();
+        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
     }
 }
+

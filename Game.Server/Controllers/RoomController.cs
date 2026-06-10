@@ -18,13 +18,13 @@ public class RoomController(RoomService roomService) : ControllerBase
     [HttpGet("{roomId:int}")]
     public async Task<IActionResult> GetRoom(int roomId)
     {
-        var roomState = await roomService.GetRoomStateAsync(roomId);
-        if (roomState is null)
+        var roomDetail = await roomService.GetRoomDetailAsync(roomId);
+        if (roomDetail is null)
         {
             return NotFound();
         }
 
-        return Ok(roomState);
+        return Ok(roomDetail);
     }
 
     [HttpPost]
@@ -34,10 +34,33 @@ public class RoomController(RoomService roomService) : ControllerBase
         var roomSummary = await roomService.CreateRoomAsync(monsterType);
         if (roomSummary is null)
         {
-            return BadRequest("Failed to create room. Default player or character not found.");
+            return BadRequest("Failed to create room.");
         }
 
         return Ok(roomSummary);
+    }
+
+    [HttpPost("{roomId:int}/join")]
+    public async Task<IActionResult> JoinRoom(int roomId)
+    {
+        var (detail, error) = await roomService.JoinRoomAsync(roomId);
+
+        if (error == "NotFound")
+        {
+            return NotFound();
+        }
+
+        if (error == "RoomAlreadyHasMember")
+        {
+            return BadRequest("Room already has a member.");
+        }
+
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        return Ok(detail);
     }
 
     [HttpDelete("{roomId:int}")]
@@ -58,3 +81,4 @@ public class RoomController(RoomService roomService) : ControllerBase
         return NoContent();
     }
 }
+

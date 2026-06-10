@@ -29,30 +29,36 @@ public class BattleController(BattleService battleService, RoomService roomServi
             return NotFound();
         }
 
-        var roomState = await roomService.GetRoomStateAsync(request.RoomId);
-        if (roomState is null)
+        var roomDetail = await roomService.GetRoomDetailAsync(request.RoomId);
+        if (roomDetail is null)
         {
             return NotFound();
         }
 
-        return Ok(roomState);
+        return Ok(roomDetail);
     }
 
     [HttpPost("heal")]
     public async Task<IActionResult> Heal([FromBody] BattleRequest request)
     {
-        var success = await battleService.HealCharacterAsync(request.RoomId);
+        var (success, error) = await battleService.HealCharacterAsync(request.RoomId);
         if (!success)
         {
-            return NotFound();
+            if (error == "NotFound")
+            {
+                return NotFound();
+            }
+
+            return BadRequest(error);
         }
 
-        var roomState = await roomService.GetRoomStateAsync(request.RoomId);
-        if (roomState is null)
+        var roomDetail = await roomService.GetRoomDetailAsync(request.RoomId);
+        if (roomDetail is null)
         {
             return NotFound();
         }
 
-        return Ok(roomState);
+        return Ok(roomDetail);
     }
 }
+

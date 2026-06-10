@@ -15,7 +15,19 @@ public class BattleService(GameDbContext dbContext)
             return null;
         }
 
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == room.CharacterId);
+        var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId);
+        if (member is null)
+        {
+            return new BattleResult
+            {
+                RoomId = roomId,
+                IsVictory = false,
+                IsCharacterDead = false,
+                Logs = new List<string> { "No player has joined this room yet." }
+            };
+        }
+
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
         var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
 
         if (character is null || monster is null)
@@ -112,23 +124,30 @@ public class BattleService(GameDbContext dbContext)
         return true;
     }
 
-    public async Task<bool> HealCharacterAsync(int roomId, int amount = 10)
+    public async Task<(bool Success, string? Error)> HealCharacterAsync(int roomId, int amount = 10)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null)
         {
-            return false;
+            return (false, "NotFound");
         }
 
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == room.CharacterId);
+        var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId);
+        if (member is null)
+        {
+            return (false, "No player has joined this room yet.");
+        }
+
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
         if (character is null)
         {
-            return false;
+            return (false, "Character not found.");
         }
 
         character.Hp = Math.Min(character.MaxHp, character.Hp + amount);
 
         await dbContext.SaveChangesAsync();
-        return true;
+        return (true, null);
     }
 }
+
