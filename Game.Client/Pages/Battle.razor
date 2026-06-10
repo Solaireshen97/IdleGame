@@ -6,7 +6,7 @@
 
 <PageTitle>房间</PageTitle>
 
-<h1>IdleGame V0.4 — 房间</h1>
+<h1>IdleGame V0.5 — 房间</h1>
 
 <button @onclick="GoToRooms">← 返回房间列表</button>
 
@@ -33,9 +33,19 @@ else
     <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
     <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
 
+    @if (_roomDetail.IsCurrentPlayerOwner)
+    {
+        <p><em>你是房主</em></p>
+    }
+
     <button @onclick="StartBattleAsync" disabled="@_isBusy">开始战斗</button>
     <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
     <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
+
+    @if (_roomDetail.IsCurrentPlayerOwner)
+    {
+        <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
+    }
 
     <h3>战斗日志</h3>
     @if (_logs.Count == 0)
@@ -50,6 +60,11 @@ else
                 <li>@log</li>
             }
         </ul>
+    }
+
+    @if (_message is not null)
+    {
+        <p><em>@_message</em></p>
     }
 }
 
@@ -138,6 +153,22 @@ else
         }
 
         _isBusy = false;
+    }
+
+    private async Task DismissRoomAsync()
+    {
+        _isBusy = true;
+        _message = null;
+        var success = await ApiService.DeleteRoomAsync(RoomId);
+        if (!success)
+        {
+            _message = "解散房间失败。";
+            _isBusy = false;
+        }
+        else
+        {
+            Navigation.NavigateTo("/rooms");
+        }
     }
 
     private async Task RefreshRoomDetailAsync()

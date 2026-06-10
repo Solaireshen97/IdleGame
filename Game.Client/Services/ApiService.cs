@@ -15,15 +15,21 @@ public class ApiService(HttpClient httpClient)
         return await httpClient.GetFromJsonAsync<RoomDetailResponse>($"api/rooms/{roomId}");
     }
 
-    public async Task<RoomSummaryResponse?> CreateRoomAsync(string monsterType)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(string monsterType)
     {
         var response = await httpClient.PostAsJsonAsync("api/rooms", new CreateRoomRequest { MonsterType = monsterType });
         if (!response.IsSuccessStatusCode)
         {
-            return null;
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "创建房间失败。";
+            }
+
+            return (null, errorMessage);
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomSummaryResponse>();
+        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
     public async Task<RoomDetailResponse?> JoinRoomAsync(int roomId)
@@ -76,4 +82,3 @@ public class ApiService(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
     }
 }
-
