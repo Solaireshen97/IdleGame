@@ -14,11 +14,11 @@
 {
     <p>Loading room...</p>
 }
-else if (!_roomDetail.HasUser)
+else if (!_roomDetail.HasPlayer)
 {
     <h2>房间 #@_roomDetail.RoomId</h2>
     <p><strong>怪物：</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
-    <p><em>当前还没有用户加入战斗。</em></p>
+    <p><em>当前还没有玩家加入战斗。</em></p>
     <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入战斗</button>
 
     @if (_message is not null)
@@ -28,12 +28,12 @@ else if (!_roomDetail.HasUser)
 }
 else
 {
-    <p><strong>User:</strong> @_roomDetail.UserName</p>
+    <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
     <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
     <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
     <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
 
-    @if (_roomDetail.IsCurrentUserOwner)
+    @if (_roomDetail.IsCurrentPlayerOwner)
     {
         <p><em>你是房主</em></p>
     }
@@ -42,7 +42,7 @@ else
     <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
     <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
 
-    @if (_roomDetail.IsCurrentUserOwner)
+    @if (_roomDetail.IsCurrentPlayerOwner)
     {
         <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
     }

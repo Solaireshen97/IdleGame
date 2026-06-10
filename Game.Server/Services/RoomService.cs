@@ -189,8 +189,8 @@ public class RoomService(GameDbContext dbContext)
                 MonsterHp = monster.Hp,
                 MonsterMaxHp = monster.MaxHp,
                 RoomStatus = room.Status,
-                HasUser = false,
-                IsCurrentUserOwner = false
+                HasPlayer = false,
+                IsCurrentPlayerOwner = false
             };
         }
 
@@ -204,12 +204,12 @@ public class RoomService(GameDbContext dbContext)
             MonsterHp = monster.Hp,
             MonsterMaxHp = monster.MaxHp,
             RoomStatus = room.Status,
-            HasUser = true,
-            UserName = user?.UserName,
+            HasPlayer = true,
+            PlayerName = user?.UserName,
             CharacterName = character?.Name,
             CharacterHp = character?.Hp,
             CharacterMaxHp = character?.MaxHp,
-            IsCurrentUserOwner = member.IsOwner
+            IsCurrentPlayerOwner = member.IsOwner
         };
     }
 
