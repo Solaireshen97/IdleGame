@@ -50,7 +50,7 @@ public class RoomService(GameDbContext dbContext)
             return (null, "UserAlreadyInRoom");
         }
 
-        var character = await dbContext.Characters.FirstOrDefaultAsync();
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.UserId == user.Id);
         if (character is null)
         {
             return (null, "CharacterNotFound");
@@ -99,9 +99,13 @@ public class RoomService(GameDbContext dbContext)
         }
 
         var user = await dbContext.Users.FirstOrDefaultAsync();
-        var character = await dbContext.Characters.FirstOrDefaultAsync();
+        if (user is null)
+        {
+            return (null, "UserOrCharacterNotFound");
+        }
 
-        if (user is null || character is null)
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.UserId == user.Id);
+        if (character is null)
         {
             return (null, "UserOrCharacterNotFound");
         }
@@ -186,7 +190,7 @@ public class RoomService(GameDbContext dbContext)
                 MonsterMaxHp = monster.MaxHp,
                 RoomStatus = room.Status,
                 HasUser = false,
-                IsCurrentPlayerOwner = false
+                IsCurrentUserOwner = false
             };
         }
 
@@ -205,7 +209,7 @@ public class RoomService(GameDbContext dbContext)
             CharacterName = character?.Name,
             CharacterHp = character?.Hp,
             CharacterMaxHp = character?.MaxHp,
-            IsCurrentPlayerOwner = member.IsOwner
+            IsCurrentUserOwner = member.IsOwner
         };
     }
 

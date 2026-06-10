@@ -14,5 +14,5 @@ public class RoomDetailResponse
     public string? CharacterName { get; set; }
     public int? CharacterHp { get; set; }
     public int? CharacterMaxHp { get; set; }
-    public bool IsCurrentPlayerOwner { get; set; }
+    public bool IsCurrentUserOwner { get; set; }
 }

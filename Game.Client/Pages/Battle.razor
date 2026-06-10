@@ -33,7 +33,7 @@ else
     <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
     <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
 
-    @if (_roomDetail.IsCurrentPlayerOwner)
+    @if (_roomDetail.IsCurrentUserOwner)
     {
         <p><em>你是房主</em></p>
     }
@@ -42,7 +42,7 @@ else
     <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
     <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
 
-    @if (_roomDetail.IsCurrentPlayerOwner)
+    @if (_roomDetail.IsCurrentUserOwner)
     {
         <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
     }
