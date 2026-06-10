@@ -51,8 +51,8 @@
 ### API
 - `POST /api/user/register` 注册用户并返回 token（自动创建默认角色）
 - `POST /api/user/login` 登录并返回 token
-- `GET /api/user/me` 使用 ****** 请求头获取当前用户
-- `POST /api/user/logout` 登出当前 token
+- `GET /api/user/me` 使用 `Authorization: ****** 请求头获取当前用户
+- `POST /api/user/logout` 需要 `Authorization: ****** 请求头登出当前 token
 - `GET /api/rooms` 获取所有房间列表（返回 `RoomSummaryResponse`，不含玩家/角色信息）
 - `POST /api/rooms` 创建新房间（请求体含 `monsterType`，返回 `RoomSummaryResponse`）
 - `GET /api/rooms/{roomId}` 获取指定房间完整状态（含玩家/角色信息，供战斗页使用）

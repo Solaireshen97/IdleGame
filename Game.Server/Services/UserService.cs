@@ -147,6 +147,8 @@ public class UserService(GameDbContext dbContext)
 
         if (session.ExpireAt <= DateTime.UtcNow)
         {
+            dbContext.UserLoginSessions.Remove(session);
+            await dbContext.SaveChangesAsync();
             return null;
         }
 
