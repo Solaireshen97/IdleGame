@@ -32,12 +32,12 @@ public class RoomController(RoomService roomService) : ControllerBase
     {
         var monsterType = request?.MonsterType ?? "Slime";
         var (roomDetail, error) = await roomService.CreateRoomAsync(monsterType);
-        if (error == "PlayerAlreadyInRoom")
+        if (error == "UserAlreadyInRoom")
         {
             return BadRequest("Player is already in a room. Please dissolve the current room first.");
         }
 
-        if (error == "DefaultPlayerNotFound" || error == "DefaultCharacterNotFound")
+        if (error == "UserNotFound" || error == "CharacterNotFound")
         {
             return BadRequest("Failed to create room because the default player or character was not found.");
         }
