@@ -8,17 +8,17 @@ namespace Game.Server.Services;
 
 public class RoomService(GameDbContext dbContext)
 {
-    public async Task<List<RoomStateResponse>> GetRoomsAsync()
+    public async Task<List<RoomSummaryResponse>> GetRoomsAsync()
     {
         var rooms = await dbContext.Rooms.ToListAsync();
-        var result = new List<RoomStateResponse>();
+        var result = new List<RoomSummaryResponse>();
 
         foreach (var room in rooms)
         {
-            var state = await BuildRoomStateAsync(room);
-            if (state is not null)
+            var summary = await BuildRoomSummaryAsync(room);
+            if (summary is not null)
             {
-                result.Add(state);
+                result.Add(summary);
             }
         }
 
@@ -36,7 +36,7 @@ public class RoomService(GameDbContext dbContext)
         return await BuildRoomStateAsync(room);
     }
 
-    public async Task<RoomStateResponse?> CreateRoomAsync()
+    public async Task<RoomSummaryResponse?> CreateRoomAsync(string monsterType)
     {
         var player = await dbContext.Players.FirstOrDefaultAsync();
         var character = await dbContext.Characters.FirstOrDefaultAsync();
@@ -46,14 +46,7 @@ public class RoomService(GameDbContext dbContext)
             return null;
         }
 
-        var monster = new Monster
-        {
-            Name = "Slime",
-            Hp = 50,
-            MaxHp = 50,
-            Attack = 8,
-            Defense = 2
-        };
+        var monster = CreateMonster(monsterType);
 
         dbContext.Monsters.Add(monster);
         await dbContext.SaveChangesAsync();
@@ -69,7 +62,17 @@ public class RoomService(GameDbContext dbContext)
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
 
-        return await BuildRoomStateAsync(room);
+        return await BuildRoomSummaryAsync(room);
+    }
+
+    private static Monster CreateMonster(string monsterType)
+    {
+        return monsterType switch
+        {
+            "Goblin" => new Monster { Name = "Goblin", Hp = 80, MaxHp = 80, Attack = 12, Defense = 4 },
+            "Wolf"   => new Monster { Name = "Wolf",   Hp = 65, MaxHp = 65, Attack = 15, Defense = 3 },
+            _        => new Monster { Name = "Slime",  Hp = 50, MaxHp = 50, Attack = 8,  Defense = 2 }
+        };
     }
 
     public async Task<(bool Success, string? Error)> DeleteRoomAsync(int roomId)
@@ -115,6 +118,25 @@ public class RoomService(GameDbContext dbContext)
             CharacterName = character.Name,
             CharacterHp = character.Hp,
             CharacterMaxHp = character.MaxHp,
+            MonsterName = monster.Name,
+            MonsterHp = monster.Hp,
+            MonsterMaxHp = monster.MaxHp,
+            RoomStatus = room.Status
+        };
+    }
+
+    private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
+    {
+        var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
+
+        if (monster is null)
+        {
+            return null;
+        }
+
+        return new RoomSummaryResponse
+        {
+            RoomId = room.Id,
             MonsterName = monster.Name,
             MonsterHp = monster.Hp,
             MonsterMaxHp = monster.MaxHp,

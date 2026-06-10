@@ -7,9 +7,17 @@
 
 <PageTitle>房间列表</PageTitle>
 
-<h1>IdleGame V0.2 — 房间列表</h1>
+<h1>IdleGame V0.3 — 房间列表</h1>
 
-<button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+<div>
+    <label for="monsterSelect">选择怪物：</label>
+    <select id="monsterSelect" @bind="_selectedMonsterType">
+        <option value="Slime">Slime（史莱姆）</option>
+        <option value="Goblin">Goblin（哥布林）</option>
+        <option value="Wolf">Wolf（狼）</option>
+    </select>
+    <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+</div>
 
 @if (_isLoading)
 {
@@ -17,7 +25,7 @@
 }
 else if (_rooms is null || _rooms.Count == 0)
 {
-    <p>暂无房间，请点击"创建房间"开始游戏。</p>
+    <p>暂无房间，请选择怪物类型并点击"创建房间"开始游戏。</p>
 }
 else
 {
@@ -25,9 +33,6 @@ else
         <thead>
             <tr>
                 <th>房间ID</th>
-                <th>玩家</th>
-                <th>角色</th>
-                <th>角色HP</th>
                 <th>怪物</th>
                 <th>怪物HP</th>
                 <th>状态</th>
@@ -39,9 +44,6 @@ else
             {
                 <tr>
                     <td>@room.RoomId</td>
-                    <td>@room.PlayerName</td>
-                    <td>@room.CharacterName</td>
-                    <td>@room.CharacterHp / @room.CharacterMaxHp</td>
                     <td>@room.MonsterName</td>
                     <td>@room.MonsterHp / @room.MonsterMaxHp</td>
                     <td>@room.RoomStatus</td>
@@ -61,9 +63,10 @@ else
 }
 
 @code {
-    private List<RoomStateResponse>? _rooms;
+    private List<RoomSummaryResponse>? _rooms;
     private bool _isLoading;
     private string? _message;
+    private string _selectedMonsterType = "Slime";
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,14 +84,14 @@ else
     {
         _isLoading = true;
         _message = null;
-        var room = await ApiService.CreateRoomAsync();
+        var room = await ApiService.CreateRoomAsync(_selectedMonsterType);
         if (room is null)
         {
             _message = "创建房间失败。";
         }
         else
         {
-            _message = $"房间 {room.RoomId} 创建成功。";
+            _message = $"房间 {room.RoomId} 创建成功（怪物：{room.MonsterName}）。";
             await LoadRoomsAsync();
         }
         _isLoading = false;

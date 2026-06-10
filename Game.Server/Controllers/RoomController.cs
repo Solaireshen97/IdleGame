@@ -1,4 +1,5 @@
 using Game.Server.Services;
+using Game.Shared.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Game.Server.Controllers;
@@ -27,15 +28,16 @@ public class RoomController(RoomService roomService) : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateRoom()
+    public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var roomState = await roomService.CreateRoomAsync();
-        if (roomState is null)
+        var monsterType = request?.MonsterType ?? "Slime";
+        var roomSummary = await roomService.CreateRoomAsync(monsterType);
+        if (roomSummary is null)
         {
             return BadRequest("Failed to create room. Default player or character not found.");
         }
 
-        return Ok(roomState);
+        return Ok(roomSummary);
     }
 
     [HttpDelete("{roomId:int}")]
