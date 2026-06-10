@@ -90,4 +90,45 @@ public class BattleService(GameDbContext dbContext)
             Logs = logs
         };
     }
+
+    public async Task<bool> ResetBattleAsync(int roomId)
+    {
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
+        if (room is null)
+        {
+            return false;
+        }
+
+        var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
+        if (monster is null)
+        {
+            return false;
+        }
+
+        monster.Hp = monster.MaxHp;
+        room.Status = RoomStatus.Idle;
+
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> HealCharacterAsync(int roomId, int amount = 10)
+    {
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
+        if (room is null)
+        {
+            return false;
+        }
+
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == room.CharacterId);
+        if (character is null)
+        {
+            return false;
+        }
+
+        character.Hp = Math.Min(character.MaxHp, character.Hp + amount);
+
+        await dbContext.SaveChangesAsync();
+        return true;
+    }
 }

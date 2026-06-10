@@ -18,11 +18,11 @@
    ```
 2. 启动后端（默认 `http://localhost:5115`）：
    ```bash
-   dotnet run --project /tmp/workspace/Solaireshen97/IdleGame/Game.Server/Game.Server.csproj
+   dotnet run --project Game.Server/Game.Server.csproj
    ```
 3. 启动前端（默认 `http://localhost:5154`）：
    ```bash
-   dotnet run --project /tmp/workspace/Solaireshen97/IdleGame/Game.Client/Game.Client.csproj
+   dotnet run --project Game.Client/Game.Client.csproj
    ```
 4. 打开前端页面后会加载 `roomId=1`，点击“开始战斗”可触发单次战斗并显示日志。
 
@@ -37,6 +37,8 @@
 - API：
   - `GET /api/rooms/{roomId}` 获取房间状态
   - `POST /api/battle/start` 发起一次战斗
+  - `POST /api/battle/reset` 重置当前房间怪物血量
+  - `POST /api/battle/heal` 为当前角色恢复 10 HP
 - 战斗规则：
   - 角色死亡时拒绝战斗并返回日志
   - 玩家与怪物 HP 都会在房间内持续保存
@@ -45,6 +47,7 @@
   - 角色先手，怪物存活则反击
   - 角色与怪物 HP 持久化到数据库
 - 前端页面展示：玩家、角色 HP、怪物 HP、房间状态、开始战斗按钮、战斗日志
+- 提供最小辅助操作：重置战斗、恢复10HP
 
 ## 当前未实现（明确超范围）
 

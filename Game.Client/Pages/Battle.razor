@@ -20,6 +20,8 @@ else
     <p><strong>Room Status:</strong> @_roomState.RoomStatus</p>
 
     <button @onclick="StartBattleAsync" disabled="@_isBattling">开始战斗</button>
+    <button @onclick="ResetBattleAsync" disabled="@_isBattling">重置战斗</button>
+    <button @onclick="HealAsync" disabled="@_isBattling">恢复10HP</button>
 
     <h3>战斗日志</h3>
     @if (_logs.Count == 0)
@@ -61,6 +63,46 @@ else
         else
         {
             _logs.AddRange(result.Logs);
+        }
+
+        await RefreshRoomStateAsync();
+        _isBattling = false;
+    }
+
+    private async Task ResetBattleAsync()
+    {
+        _isBattling = true;
+        var roomState = await ApiService.ResetBattleAsync(RoomId);
+        _logs.Clear();
+
+        if (roomState is null)
+        {
+            _logs.Add("Reset request failed.");
+        }
+        else
+        {
+            _roomState = roomState;
+            _logs.Add("Battle reset.");
+        }
+
+        await RefreshRoomStateAsync();
+        _isBattling = false;
+    }
+
+    private async Task HealAsync()
+    {
+        _isBattling = true;
+        var roomState = await ApiService.HealAsync(RoomId);
+        _logs.Clear();
+
+        if (roomState is null)
+        {
+            _logs.Add("Heal request failed.");
+        }
+        else
+        {
+            _roomState = roomState;
+            _logs.Add("Recovered 10 HP.");
         }
 
         await RefreshRoomStateAsync();
