@@ -1,0 +1,116 @@
+@page "/"
+@page "/battle"
+@using Game.Client.Services
+@using Game.Shared.Dtos
+@inject ApiService ApiService
+
+<PageTitle>Battle</PageTitle>
+
+<h1>IdleGame V0 Battle</h1>
+
+@if (_roomState is null)
+{
+    <p>Loading room...</p>
+}
+else
+{
+    <p><strong>Player:</strong> @_roomState.PlayerName</p>
+    <p><strong>Character:</strong> @_roomState.CharacterName (@_roomState.CharacterHp / @_roomState.CharacterMaxHp)</p>
+    <p><strong>Monster:</strong> @_roomState.MonsterName (@_roomState.MonsterHp / @_roomState.MonsterMaxHp)</p>
+    <p><strong>Room Status:</strong> @_roomState.RoomStatus</p>
+
+    <button @onclick="StartBattleAsync" disabled="@_isBattling">开始战斗</button>
+    <button @onclick="ResetBattleAsync" disabled="@_isBattling">重置战斗</button>
+    <button @onclick="HealAsync" disabled="@_isBattling">恢复10HP</button>
+
+    <h3>战斗日志</h3>
+    @if (_logs.Count == 0)
+    {
+        <p>暂无日志</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var log in _logs)
+            {
+                <li>@log</li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    private const int RoomId = 1;
+    private RoomStateResponse? _roomState;
+    private readonly List<string> _logs = new();
+    private bool _isBattling;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshRoomStateAsync();
+    }
+
+    private async Task StartBattleAsync()
+    {
+        _isBattling = true;
+        var result = await ApiService.StartBattleAsync(RoomId);
+        _logs.Clear();
+
+        if (result is null)
+        {
+            _logs.Add("Battle request failed.");
+        }
+        else
+        {
+            _logs.AddRange(result.Logs);
+        }
+
+        await RefreshRoomStateAsync();
+        _isBattling = false;
+    }
+
+    private async Task ResetBattleAsync()
+    {
+        _isBattling = true;
+        var roomState = await ApiService.ResetBattleAsync(RoomId);
+        _logs.Clear();
+
+        if (roomState is null)
+        {
+            _logs.Add("Reset request failed.");
+        }
+        else
+        {
+            _roomState = roomState;
+            _logs.Add("Battle reset.");
+        }
+
+        await RefreshRoomStateAsync();
+        _isBattling = false;
+    }
+
+    private async Task HealAsync()
+    {
+        _isBattling = true;
+        var roomState = await ApiService.HealAsync(RoomId);
+        _logs.Clear();
+
+        if (roomState is null)
+        {
+            _logs.Add("Heal request failed.");
+        }
+        else
+        {
+            _roomState = roomState;
+            _logs.Add("Recovered 10 HP.");
+        }
+
+        await RefreshRoomStateAsync();
+        _isBattling = false;
+    }
+
+    private async Task RefreshRoomStateAsync()
+    {
+        _roomState = await ApiService.GetRoomStateAsync(RoomId);
+    }
+}
