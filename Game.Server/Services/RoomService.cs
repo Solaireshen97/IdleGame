@@ -36,8 +36,26 @@ public class RoomService(GameDbContext dbContext)
         return await BuildRoomDetailAsync(room);
     }
 
-    public async Task<RoomDetailResponse?> CreateRoomAsync(string monsterType)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType)
     {
+        var player = await dbContext.Players.FirstOrDefaultAsync();
+        if (player is null)
+        {
+            return (null, "DefaultPlayerNotFound");
+        }
+
+        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.PlayerId == player.Id);
+        if (existingMembership is not null)
+        {
+            return (null, "PlayerAlreadyInRoom");
+        }
+
+        var character = await dbContext.Characters.FirstOrDefaultAsync();
+        if (character is null)
+        {
+            return (null, "DefaultCharacterNotFound");
+        }
+
         var monster = CreateMonster(monsterType);
 
         dbContext.Monsters.Add(monster);
@@ -52,14 +70,6 @@ public class RoomService(GameDbContext dbContext)
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
 
-        var player = await dbContext.Players.FirstOrDefaultAsync();
-        var character = await dbContext.Characters.FirstOrDefaultAsync();
-
-        if (player is null || character is null)
-        {
-            return null;
-        }
-
         var ownerMember = new RoomMember
         {
             RoomId = room.Id,
@@ -71,7 +81,7 @@ public class RoomService(GameDbContext dbContext)
         dbContext.RoomMembers.Add(ownerMember);
         await dbContext.SaveChangesAsync();
 
-        return await BuildRoomDetailAsync(room);
+        return (await BuildRoomDetailAsync(room), null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId)
@@ -218,4 +228,3 @@ public class RoomService(GameDbContext dbContext)
         };
     }
 }
-
