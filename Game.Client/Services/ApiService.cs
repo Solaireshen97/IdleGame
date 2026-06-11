@@ -70,9 +70,16 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<BattleResult?> StartBattleAsync(int roomId)
     {
-        var response = await httpClient.PostAsJsonAsync("api/battle/start", new BattleRequest { RoomId = roomId });
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/start", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
             return null;
         }
 
@@ -81,9 +88,16 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<RoomDetailResponse?> ResetBattleAsync(int roomId)
     {
-        var response = await httpClient.PostAsJsonAsync("api/battle/reset", new BattleRequest { RoomId = roomId });
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
             return null;
         }
 
@@ -92,9 +106,16 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<RoomDetailResponse?> HealAsync(int roomId)
     {
-        var response = await httpClient.PostAsJsonAsync("api/battle/heal", new BattleRequest { RoomId = roomId });
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/heal", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
             return null;
         }
 
