@@ -57,9 +57,9 @@
 - `POST /api/rooms` 创建新房间（请求体含 `monsterType`，返回 `RoomSummaryResponse`）
 - `GET /api/rooms/{roomId}` 获取指定房间完整状态（含玩家/角色信息，供战斗页使用）
 - `DELETE /api/rooms/{roomId}` 删除指定房间（仅限 Idle 状态）
-- `POST /api/battle/start` 推进一次战斗（基于 roomId）
-- `POST /api/battle/reset` 重置当前房间怪物血量
-- `POST /api/battle/heal` 为当前角色恢复 10 HP
+- `POST /api/battle/start` 需要登录后调用，推进当前用户在该房间中的一次战斗（基于 roomId）
+- `POST /api/battle/reset` 需要登录后调用，重置当前房间怪物血量
+- `POST /api/battle/heal` 需要登录后调用，为当前用户在该房间中的角色恢复 10 HP
 
 #### 创建房间请求示例
 ```json
