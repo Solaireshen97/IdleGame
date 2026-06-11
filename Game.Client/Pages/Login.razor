@@ -1,0 +1,76 @@
+@page "/login"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Auth
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+
+<PageTitle>登录</PageTitle>
+
+<h1>登录</h1>
+
+@if (_isCheckingLoginState)
+{
+    <p>检查登录状态中...</p>
+}
+else
+{
+    <div>
+        <label for="userName">用户名：</label>
+        <input id="userName" @bind="_request.UserName" />
+    </div>
+
+    <div>
+        <label for="password">密码：</label>
+        <input id="password" type="password" @bind="_request.Password" />
+    </div>
+
+    <div>
+        <button @onclick="LoginAsync" disabled="@_isSubmitting">登录</button>
+        <button @onclick="GoToRegister" disabled="@_isSubmitting">去注册</button>
+    </div>
+
+    @if (_errorMessage is not null)
+    {
+        <p><em>@_errorMessage</em></p>
+    }
+}
+
+@code {
+    private readonly LoginRequest _request = new();
+    private bool _isCheckingLoginState = true;
+    private bool _isSubmitting;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var currentUser = await ApiService.GetCurrentUserAsync();
+        if (currentUser is not null)
+        {
+            Navigation.NavigateTo("/rooms", replace: true);
+            return;
+        }
+
+        _isCheckingLoginState = false;
+    }
+
+    private async Task LoginAsync()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        var (_, errorMessage) = await ApiService.LoginAsync(_request);
+        if (errorMessage is not null)
+        {
+            _errorMessage = errorMessage;
+            _isSubmitting = false;
+            return;
+        }
+
+        Navigation.NavigateTo("/rooms", replace: true);
+    }
+
+    private void GoToRegister()
+    {
+        Navigation.NavigateTo("/register");
+    }
+}
