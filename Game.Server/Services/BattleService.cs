@@ -89,7 +89,7 @@ public class BattleService(GameDbContext dbContext)
 
     public async Task<(bool Success, string? Error)> ResetBattleAsync(int roomId, string? token)
     {
-        var (room, _, _, monster, error) = await GetBattleContextAsync(roomId, token, requireCharacter: false);
+        var (room, _, _, monster, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null)
         {
             return (false, error);
