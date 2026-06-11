@@ -79,6 +79,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var currentUser = await ApiService.GetCurrentUserAsync();
+        if (currentUser is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
         await RefreshRoomDetailAsync();
     }
 

@@ -2,6 +2,7 @@
 @page "/rooms"
 @using Game.Client.Services
 @using Game.Shared.Dtos
+@using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 
@@ -9,51 +10,63 @@
 
 <h1>IdleGame V0.5 — 房间列表</h1>
 
-<div>
-    <label for="monsterSelect">选择怪物：</label>
-    <select id="monsterSelect" @bind="_selectedMonsterType">
-        <option value="Slime">Slime（史莱姆）</option>
-        <option value="Goblin">Goblin（哥布林）</option>
-        <option value="Wolf">Wolf（狼）</option>
-    </select>
-    <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
-</div>
-
-@if (_isLoading)
+@if (_isCheckingLoginState)
 {
-    <p>加载中...</p>
-}
-else if (_rooms is null || _rooms.Count == 0)
-{
-    <p>暂无房间，请选择怪物类型并点击"创建房间"开始游戏。</p>
+    <p>检查登录状态中...</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>房间ID</th>
-                <th>怪物</th>
-                <th>怪物HP</th>
-                <th>状态</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var room in _rooms)
-            {
+    <div>
+        <p>当前用户：@_currentUser?.UserName</p>
+        <button @onclick="LogoutAsync" disabled="@_isLoading">退出登录</button>
+    </div>
+
+    <div>
+        <label for="monsterSelect">选择怪物：</label>
+        <select id="monsterSelect" @bind="_selectedMonsterType">
+            <option value="Slime">Slime（史莱姆）</option>
+            <option value="Goblin">Goblin（哥布林）</option>
+            <option value="Wolf">Wolf（狼）</option>
+        </select>
+        <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <p>加载中...</p>
+    }
+    else if (_rooms is null || _rooms.Count == 0)
+    {
+        <p>暂无房间，请选择怪物类型并点击"创建房间"开始游戏。</p>
+    }
+    else
+    {
+        <table>
+            <thead>
                 <tr>
-                    <td>@room.RoomId</td>
-                    <td>@room.MonsterName</td>
-                    <td>@room.MonsterHp / @room.MonsterMaxHp</td>
-                    <td>@room.RoomStatus</td>
-                    <td>
-                        <button @onclick="() => EnterRoom(room.RoomId)">进入房间</button>
-                    </td>
+                    <th>房间ID</th>
+                    <th>怪物</th>
+                    <th>怪物HP</th>
+                    <th>状态</th>
+                    <th>操作</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var room in _rooms)
+                {
+                    <tr>
+                        <td>@room.RoomId</td>
+                        <td>@room.MonsterName</td>
+                        <td>@room.MonsterHp / @room.MonsterMaxHp</td>
+                        <td>@room.RoomStatus</td>
+                        <td>
+                            <button @onclick="() => EnterRoom(room.RoomId)">进入房间</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 }
 
 @if (_message is not null)
@@ -63,12 +76,22 @@ else
 
 @code {
     private List<RoomSummaryResponse>? _rooms;
+    private CurrentUserResponse? _currentUser;
+    private bool _isCheckingLoginState = true;
     private bool _isLoading;
     private string? _message;
     private string _selectedMonsterType = "Slime";
 
     protected override async Task OnInitializedAsync()
     {
+        _currentUser = await ApiService.GetCurrentUserAsync();
+        if (_currentUser is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _isCheckingLoginState = false;
         await LoadRoomsAsync();
     }
 
@@ -100,5 +123,12 @@ else
     private void EnterRoom(int roomId)
     {
         Navigation.NavigateTo($"/battle/{roomId}");
+    }
+
+    private async Task LogoutAsync()
+    {
+        _isLoading = true;
+        await ApiService.LogoutAsync();
+        Navigation.NavigateTo("/login", replace: true);
     }
 }
