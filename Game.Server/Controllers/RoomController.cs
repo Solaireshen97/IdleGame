@@ -18,7 +18,7 @@ public class RoomController(RoomService roomService) : ControllerBase
     [HttpGet("{roomId:int}")]
     public async Task<IActionResult> GetRoom(int roomId)
     {
-        var roomDetail = await roomService.GetRoomDetailAsync(roomId);
+        var roomDetail = await roomService.GetRoomDetailAsync(roomId, GetBearerToken());
         if (roomDetail is null)
         {
             return NotFound();
@@ -31,20 +31,17 @@ public class RoomController(RoomService roomService) : ControllerBase
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
         var monsterType = request?.MonsterType ?? "Slime";
-        var (roomDetail, error) = await roomService.CreateRoomAsync(monsterType);
-        if (error == "UserAlreadyInRoom")
+        var (roomDetail, error) = await roomService.CreateRoomAsync(monsterType, GetBearerToken());
+        if (roomDetail is null || error is not null)
         {
-            return BadRequest("Player is already in a room. Please dissolve the current room first.");
-        }
-
-        if (error == "UserNotFound" || error == "CharacterNotFound")
-        {
-            return BadRequest("Failed to create room because the default player or character was not found.");
-        }
-
-        if (roomDetail is null)
-        {
-            return BadRequest("Failed to create room.");
+            return error switch
+            {
+                "Unauthorized" => Unauthorized(),
+                "UserNotFound" => NotFound("User not found."),
+                "CharacterNotFound" => NotFound("Character not found."),
+                "UserAlreadyInRoom" => BadRequest("Player is already in a room. Please dissolve the current room first."),
+                _ => BadRequest("Failed to create room.")
+            };
         }
 
         return Ok(roomDetail);
@@ -53,21 +50,19 @@ public class RoomController(RoomService roomService) : ControllerBase
     [HttpPost("{roomId:int}/join")]
     public async Task<IActionResult> JoinRoom(int roomId)
     {
-        var (detail, error) = await roomService.JoinRoomAsync(roomId);
-
-        if (error == "NotFound")
+        var (detail, error) = await roomService.JoinRoomAsync(roomId, GetBearerToken());
+        if (detail is null || error is not null)
         {
-            return NotFound();
-        }
-
-        if (error == "RoomAlreadyHasMember")
-        {
-            return BadRequest("Room already has a member.");
-        }
-
-        if (error is not null)
-        {
-            return BadRequest(error);
+            return error switch
+            {
+                "Unauthorized" => Unauthorized(),
+                "NotFound" => NotFound(),
+                "UserNotFound" => NotFound("User not found."),
+                "CharacterNotFound" => NotFound("Character not found."),
+                "RoomAlreadyHasMember" => BadRequest("Room already has a member."),
+                "UserAlreadyInRoom" => BadRequest("Player is already in a room. Please dissolve the current room first."),
+                _ => BadRequest(error)
+            };
         }
 
         return Ok(detail);
@@ -76,13 +71,23 @@ public class RoomController(RoomService roomService) : ControllerBase
     [HttpDelete("{roomId:int}")]
     public async Task<IActionResult> DeleteRoom(int roomId)
     {
-        var (success, error) = await roomService.DeleteRoomAsync(roomId);
+        var (success, error) = await roomService.DeleteRoomAsync(roomId, GetBearerToken());
 
         if (!success)
         {
+            if (error == "Unauthorized")
+            {
+                return Unauthorized();
+            }
+
             if (error == "NotFound")
             {
                 return NotFound();
+            }
+
+            if (error == "UserNotFound" || error == "CharacterNotFound")
+            {
+                return NotFound(error);
             }
 
             if (error == "NotOwner")
@@ -94,5 +99,17 @@ public class RoomController(RoomService roomService) : ControllerBase
         }
 
         return NoContent();
+    }
+
+    private string? GetBearerToken()
+    {
+        const string prefix = "Bearer ";
+        var authorization = Request.Headers.Authorization.ToString();
+        if (!authorization.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return authorization[prefix.Length..].Trim();
     }
 }

@@ -15,12 +15,26 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
     {
-        return await httpClient.GetFromJsonAsync<RoomDetailResponse>($"api/rooms/{roomId}");
+        var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(string monsterType)
     {
-        var response = await httpClient.PostAsJsonAsync("api/rooms", new CreateRoomRequest { MonsterType = monsterType });
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
+        request.Content = JsonContent.Create(new CreateRoomRequest { MonsterType = monsterType });
+        var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -37,7 +51,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<RoomDetailResponse?> JoinRoomAsync(int roomId)
     {
-        var response = await httpClient.PostAsync($"api/rooms/{roomId}/join", null);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             return null;
@@ -48,7 +63,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<bool> DeleteRoomAsync(int roomId)
     {
-        var response = await httpClient.DeleteAsync($"api/rooms/{roomId}");
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
         return response.IsSuccessStatusCode;
     }
 

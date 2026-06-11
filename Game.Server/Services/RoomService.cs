@@ -25,7 +25,7 @@ public class RoomService(GameDbContext dbContext)
         return result;
     }
 
-    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
+    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId, string? token = null)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null)
@@ -33,27 +33,23 @@ public class RoomService(GameDbContext dbContext)
             return null;
         }
 
-        return await BuildRoomDetailAsync(room);
+        var currentUserId = await GetCurrentUserIdAsync(token);
+        return await BuildRoomDetailAsync(room, currentUserId);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token)
     {
-        var user = await dbContext.Users.FirstOrDefaultAsync();
-        if (user is null)
+        var (user, character, error) = await GetCurrentUserAndCharacterAsync(token);
+
+        if (error is not null)
         {
-            return (null, "UserNotFound");
+            return (null, error);
         }
 
-        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.UserId == user.Id);
+        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.UserId == user!.Id);
         if (existingMembership is not null)
         {
             return (null, "UserAlreadyInRoom");
-        }
-
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.UserId == user.Id);
-        if (character is null)
-        {
-            return (null, "CharacterNotFound");
         }
 
         var monster = CreateMonster(monsterType);
@@ -73,23 +69,35 @@ public class RoomService(GameDbContext dbContext)
         var ownerMember = new RoomMember
         {
             RoomId = room.Id,
-            UserId = user.Id,
-            CharacterId = character.Id,
+            UserId = user!.Id,
+            CharacterId = character!.Id,
             IsOwner = true
         };
 
         dbContext.RoomMembers.Add(ownerMember);
         await dbContext.SaveChangesAsync();
 
-        return (await BuildRoomDetailAsync(room), null);
+        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId, string? token)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null)
         {
             return (null, "NotFound");
+        }
+
+        var (user, character, error) = await GetCurrentUserAndCharacterAsync(token);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.UserId == user!.Id);
+        if (existingMembership is not null)
+        {
+            return (null, "UserAlreadyInRoom");
         }
 
         var existingMember = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId);
@@ -98,29 +106,17 @@ public class RoomService(GameDbContext dbContext)
             return (null, "RoomAlreadyHasMember");
         }
 
-        var user = await dbContext.Users.FirstOrDefaultAsync();
-        if (user is null)
-        {
-            return (null, "UserOrCharacterNotFound");
-        }
-
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.UserId == user.Id);
-        if (character is null)
-        {
-            return (null, "UserOrCharacterNotFound");
-        }
-
         var member = new RoomMember
         {
             RoomId = roomId,
-            UserId = user.Id,
-            CharacterId = character.Id
+            UserId = user!.Id,
+            CharacterId = character!.Id
         };
 
         dbContext.RoomMembers.Add(member);
         await dbContext.SaveChangesAsync();
 
-        return (await BuildRoomDetailAsync(room), null);
+        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
     private static Monster CreateMonster(string monsterType)
@@ -133,7 +129,7 @@ public class RoomService(GameDbContext dbContext)
         };
     }
 
-    public async Task<(bool Success, string? Error)> DeleteRoomAsync(int roomId)
+    public async Task<(bool Success, string? Error)> DeleteRoomAsync(int roomId, string? token)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null)
@@ -141,10 +137,10 @@ public class RoomService(GameDbContext dbContext)
             return (false, "NotFound");
         }
 
-        var currentUser = await dbContext.Users.FirstOrDefaultAsync();
+        var currentUser = await GetCurrentUserAsync(token);
         if (currentUser is null)
         {
-            return (false, "UserNotFound");
+            return (false, await GetCurrentUserErrorAsync(token));
         }
 
         var ownerMember = await dbContext.RoomMembers
@@ -170,7 +166,7 @@ public class RoomService(GameDbContext dbContext)
         return (true, null);
     }
 
-    private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room)
+    private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room, int? currentUserId = null)
     {
         var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
         if (monster is null)
@@ -209,7 +205,7 @@ public class RoomService(GameDbContext dbContext)
             CharacterName = character?.Name,
             CharacterHp = character?.Hp,
             CharacterMaxHp = character?.MaxHp,
-            IsCurrentPlayerOwner = member.IsOwner
+            IsCurrentPlayerOwner = currentUserId.HasValue && member.IsOwner && member.UserId == currentUserId.Value
         };
     }
 
@@ -230,5 +226,83 @@ public class RoomService(GameDbContext dbContext)
             MonsterMaxHp = monster.MaxHp,
             RoomStatus = room.Status
         };
+    }
+
+    private async Task<(User? User, Character? Character, string? Error)> GetCurrentUserAndCharacterAsync(string? token)
+    {
+        var user = await GetCurrentUserAsync(token);
+        if (user is null)
+        {
+            return (null, null, await GetCurrentUserErrorAsync(token));
+        }
+
+        var character = await dbContext.Characters
+            .Where(x => x.UserId == user.Id)
+            .OrderBy(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        if (character is null)
+        {
+            return (user, null, "CharacterNotFound");
+        }
+
+        return (user, character, null);
+    }
+
+    private async Task<User?> GetCurrentUserAsync(string? token)
+    {
+        var session = await GetValidSessionAsync(token);
+        if (session is null)
+        {
+            return null;
+        }
+
+        return await dbContext.Users.FirstOrDefaultAsync(x => x.Id == session.UserId);
+    }
+
+    private async Task<int?> GetCurrentUserIdAsync(string? token)
+    {
+        var user = await GetCurrentUserAsync(token);
+        return user?.Id;
+    }
+
+    private async Task<string> GetCurrentUserErrorAsync(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return "Unauthorized";
+        }
+
+        var session = await GetValidSessionAsync(token);
+        if (session is null)
+        {
+            return "Unauthorized";
+        }
+
+        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
+        return userExists ? "Unauthorized" : "UserNotFound";
+    }
+
+    private async Task<UserLoginSession?> GetValidSessionAsync(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var session = await dbContext.UserLoginSessions.FirstOrDefaultAsync(x => x.Token == token);
+        if (session is null)
+        {
+            return null;
+        }
+
+        if (session.ExpireAt <= DateTime.UtcNow)
+        {
+            dbContext.UserLoginSessions.Remove(session);
+            await dbContext.SaveChangesAsync();
+            return null;
+        }
+
+        return session;
     }
 }

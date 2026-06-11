@@ -138,6 +138,7 @@ else
         {
             _roomDetail = roomDetail;
             _logs.Add("Battle reset.");
+            await RefreshRoomDetailAsync();
         }
 
         _isBusy = false;
@@ -157,6 +158,7 @@ else
         {
             _roomDetail = roomDetail;
             _logs.Add("Recovered 10 HP.");
+            await RefreshRoomDetailAsync();
         }
 
         _isBusy = false;
