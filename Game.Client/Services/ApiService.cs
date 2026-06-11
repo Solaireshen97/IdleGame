@@ -151,6 +151,23 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
     }
 
+    public async Task<CurrentCharacterResponse?> GetCurrentCharacterAsync()
+    {
+        var request = await CreateRequestAsync(HttpMethod.Get, "api/user/character", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<CurrentCharacterResponse>();
+    }
+
     public async Task<bool> LogoutAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true);
