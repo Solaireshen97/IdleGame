@@ -19,6 +19,11 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
             return null;
         }
 
