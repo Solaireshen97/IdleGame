@@ -10,76 +10,79 @@ public class BattleService(GameDbContext dbContext)
 {
     public async Task<(BattleResult? Result, string? Error)> ExecuteBattleAsync(int roomId, string? token)
     {
-        var (room, member, character, monster, error) = await GetBattleContextAsync(roomId, token);
+        var (room, _, character, monster, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null)
         {
             return (null, error);
         }
 
+        var activeRoom = room!;
+        var activeCharacter = character!;
+        var activeMonster = monster!;
         var logs = new List<string>();
 
-        if (character.Hp <= 0)
+        if (activeCharacter.Hp <= 0)
         {
             logs.Add("Character is defeated and cannot battle.");
-            return new BattleResult
+            return (new BattleResult
             {
-                RoomId = room!.Id,
-                CharacterHp = character.Hp,
-                CharacterMaxHp = character.MaxHp,
-                MonsterHp = monster.Hp,
-                MonsterMaxHp = monster.MaxHp,
+                RoomId = activeRoom.Id,
+                CharacterHp = activeCharacter.Hp,
+                CharacterMaxHp = activeCharacter.MaxHp,
+                MonsterHp = activeMonster.Hp,
+                MonsterMaxHp = activeMonster.MaxHp,
                 IsVictory = false,
                 IsCharacterDead = true,
                 Logs = logs
             }, null);
         }
 
-        if (monster.Hp <= 0)
+        if (activeMonster.Hp <= 0)
         {
             logs.Add("Monster is already defeated. Please reset the room.");
-            return new BattleResult
+            return (new BattleResult
             {
-                RoomId = room!.Id,
-                CharacterHp = character.Hp,
-                CharacterMaxHp = character.MaxHp,
-                MonsterHp = monster.Hp,
-                MonsterMaxHp = monster.MaxHp,
+                RoomId = activeRoom.Id,
+                CharacterHp = activeCharacter.Hp,
+                CharacterMaxHp = activeCharacter.MaxHp,
+                MonsterHp = activeMonster.Hp,
+                MonsterMaxHp = activeMonster.MaxHp,
                 IsVictory = true,
-                IsCharacterDead = character.Hp <= 0,
+                IsCharacterDead = activeCharacter.Hp <= 0,
                 Logs = logs
             }, null);
         }
 
-        room!.Status = RoomStatus.InBattle;
+        activeRoom.Status = RoomStatus.InBattle;
 
-        var characterDamage = Math.Max(1, character.Attack - monster.Defense);
-        monster.Hp = Math.Max(0, monster.Hp - characterDamage);
-        logs.Add($"{character.Name} attacks {monster.Name} for {characterDamage} damage.");
+        var characterDamage = Math.Max(1, activeCharacter.Attack - activeMonster.Defense);
+        activeMonster.Hp = Math.Max(0, activeMonster.Hp - characterDamage);
+        logs.Add($"{activeCharacter.Name} attacks {activeMonster.Name} for {characterDamage} damage.");
 
-        if (monster.Hp <= 0)
+        if (activeMonster.Hp <= 0)
         {
-            logs.Add($"{monster.Name} is defeated.");
+            logs.Add($"{activeMonster.Name} is defeated.");
         }
         else
         {
-            var monsterDamage = Math.Max(1, monster.Attack - character.Defense);
-            character.Hp = Math.Max(0, character.Hp - monsterDamage);
-            logs.Add($"{monster.Name} attacks {character.Name} for {monsterDamage} damage.");
+            var monsterDamage = Math.Max(1, activeMonster.Attack - activeCharacter.Defense);
+            activeCharacter.Hp = Math.Max(0, activeCharacter.Hp - monsterDamage);
+            logs.Add($"{activeMonster.Name} attacks {activeCharacter.Name} for {monsterDamage} damage.");
         }
 
-        room.Status = RoomStatus.Idle;
+        activeRoom.Status = RoomStatus.Idle;
 
         await dbContext.SaveChangesAsync();
 
         return (new BattleResult
         {
-            RoomId = room.Id,
-            CharacterHp = character.Hp,
-            CharacterMaxHp = character.MaxHp,
-            MonsterHp = monster.Hp,
-            MonsterMaxHp = monster.MaxHp,
-            IsVictory = monster.Hp <= 0,
-            IsCharacterDead = character.Hp <= 0,
+            RoomId = activeRoom.Id,
+            CharacterHp = activeCharacter.Hp,
+            CharacterMaxHp = activeCharacter.MaxHp,
+            MonsterHp = activeMonster.Hp,
+            MonsterMaxHp = activeMonster.MaxHp,
+            IsVictory = activeMonster.Hp <= 0,
+            IsCharacterDead = activeCharacter.Hp <= 0,
             Logs = logs
         }, null);
     }
@@ -92,8 +95,10 @@ public class BattleService(GameDbContext dbContext)
             return (false, error);
         }
 
-        monster.Hp = monster.MaxHp;
-        room.Status = RoomStatus.Idle;
+        var activeRoom = room!;
+        var activeMonster = monster!;
+        activeMonster.Hp = activeMonster.MaxHp;
+        activeRoom.Status = RoomStatus.Idle;
 
         await dbContext.SaveChangesAsync();
         return (true, null);
@@ -107,7 +112,8 @@ public class BattleService(GameDbContext dbContext)
             return (false, error);
         }
 
-        character.Hp = Math.Min(character.MaxHp, character.Hp + amount);
+        var activeCharacter = character!;
+        activeCharacter.Hp = Math.Min(activeCharacter.MaxHp, activeCharacter.Hp + amount);
 
         await dbContext.SaveChangesAsync();
         return (true, null);
