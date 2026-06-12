@@ -2,7 +2,6 @@
 @page "/rooms"
 @using Game.Client.Services
 @using Game.Shared.Dtos
-@using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 
@@ -18,11 +17,7 @@ else
 {
     <div>
         <p>当前用户：@_currentUser?.UserName</p>
-        @if (_currentCharacter is not null)
-        {
-            <p>当前角色：@_currentCharacter.Name</p>
-            <p>角色属性：HP @_currentCharacter.Hp / @_currentCharacter.MaxHp，Attack @_currentCharacter.Attack，Defense @_currentCharacter.Defense</p>
-        }
+        <CurrentCharacterPanel />
         <button @onclick="LogoutAsync" disabled="@_isLoading">退出登录</button>
     </div>
 
@@ -82,7 +77,6 @@ else
 @code {
     private List<RoomSummaryResponse>? _rooms;
     private CurrentUserResponse? _currentUser;
-    private CurrentCharacterResponse? _currentCharacter;
     private bool _isCheckingLoginState = true;
     private bool _isLoading;
     private string? _message;
@@ -95,12 +89,6 @@ else
         {
             Navigation.NavigateTo("/login", replace: true);
             return;
-        }
-
-        _currentCharacter = await ApiService.GetCurrentCharacterAsync();
-        if (_currentCharacter is null)
-        {
-            _message = "当前角色信息获取失败。";
         }
 
         _isCheckingLoginState = false;
