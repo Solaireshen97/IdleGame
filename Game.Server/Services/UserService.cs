@@ -143,6 +143,37 @@ public class UserService(GameDbContext dbContext)
         }, null);
     }
 
+    public async Task<(List<CharacterSummaryResponse>? Response, string? Error)> GetCurrentCharactersAsync(string? token)
+    {
+        var session = await GetValidSessionAsync(token);
+        if (session is null)
+        {
+            return (null, "Unauthorized");
+        }
+
+        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
+        if (!userExists)
+        {
+            return (null, "UserNotFound");
+        }
+
+        var characters = await dbContext.Characters
+            .Where(x => x.UserId == session.UserId)
+            .OrderBy(x => x.Id)
+            .Select(x => new CharacterSummaryResponse
+            {
+                CharacterId = x.Id,
+                Name = x.Name,
+                Hp = x.Hp,
+                MaxHp = x.MaxHp,
+                Attack = x.Attack,
+                Defense = x.Defense
+            })
+            .ToListAsync();
+
+        return (characters, null);
+    }
+
     public async Task<(bool Success, string? Error)> LogoutAsync(string? token)
     {
         var session = await GetValidSessionAsync(token);
