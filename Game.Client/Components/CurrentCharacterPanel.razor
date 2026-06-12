@@ -15,8 +15,11 @@ else
         <CharacterCard Character="character"
                        IsCurrent="@character.IsCurrent"
                        CanDelete="@(_characters.Count > 1)"
+                       IsInteractionDisabled="@_isSubmitting"
                        IsSelecting="@(_isSubmitting && _selectingCharacterId == character.CharacterId)"
                        IsDeleting="@(_isSubmitting && _deletingCharacterId == character.CharacterId)"
+                       SelectDisabledReason="@GetSelectDisabledReason(character)"
+                       DeleteDisabledReason="@GetDeleteDisabledReason(character)"
                        OnSelect="@(() => SelectCharacterAsync(character))"
                        OnDelete="@(() => DeleteCharacterAsync(character))" />
     }
@@ -35,26 +38,37 @@ else
                    @bind:event="oninput"
                    disabled="@_isSubmitting" />
             <div class="character-create-card__actions">
-                <button @onclick="CreateCharacterAsync" disabled="@_isSubmitting">创建</button>
+                <button @onclick="CreateCharacterAsync" disabled="@_isSubmitting">@CreateSubmitText</button>
                 <button @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
             </div>
         </article>
     }
     else
     {
-        <button type="button" class="character-create-card" @onclick="ShowCreateForm">
+        <button type="button"
+                class="character-create-card"
+                @onclick="ShowCreateForm"
+                disabled="@_isSubmitting"
+                title="@GetCreateDisabledReason()">
             <span class="character-create-card__plus">+</span>
-            <span class="character-create-card__text">创建角色</span>
+            <span class="character-create-card__text">@CreateEntryText</span>
         </button>
     }
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
-        <p class="current-character-panel__message">@_message</p>
+        <p class="@MessageClassName">@_message</p>
     }
 }
 
 @code {
+    private enum CharacterOperation
+    {
+        Create,
+        Delete,
+        Select
+    }
+
     private List<CharacterSummaryResponse> _characters = [];
     private bool _isLoading = true;
     private bool _isCreating;
@@ -63,6 +77,15 @@ else
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
     private string? _message;
+    private bool _isMessageError;
+    private CharacterOperation? _activeOperation;
+
+    private bool IsCreatingSubmission => _isSubmitting && _activeOperation == CharacterOperation.Create;
+    private string CreateSubmitText => IsCreatingSubmission ? "创建中..." : "创建";
+    private string CreateEntryText => _isSubmitting ? GetSubmittingText() : "创建角色";
+    private string MessageClassName => _isMessageError
+        ? "current-character-panel__message current-character-panel__message--error"
+        : "current-character-panel__message current-character-panel__message--success";
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,99 +114,233 @@ else
 
     private void ShowCreateForm()
     {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
         _isCreating = true;
-        _message = null;
+        ClearMessage();
         _newCharacterName = string.Empty;
     }
 
     private void CancelCreate()
     {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
         _isCreating = false;
-        _message = null;
+        ClearMessage();
         _newCharacterName = string.Empty;
     }
 
     private async Task CreateCharacterAsync()
     {
-        _isSubmitting = true;
-        _deletingCharacterId = null;
-        _selectingCharacterId = null;
-        _message = null;
+        if (_isSubmitting)
+        {
+            return;
+        }
+
+        BeginSubmission(CharacterOperation.Create);
 
         try
         {
             var (character, errorMessage) = await ApiService.CreateCharacterAsync(_newCharacterName);
             if (character is null)
             {
-                _message = errorMessage ?? "创建角色失败。";
+                SetFailureMessage("创建", errorMessage);
                 return;
             }
 
             await LoadCharactersAsync();
             _isCreating = false;
             _newCharacterName = string.Empty;
+            SetSuccessMessage($"已创建角色“{character.Name}”。");
         }
         finally
         {
-            _isSubmitting = false;
+            EndSubmission();
         }
     }
 
     private async Task DeleteCharacterAsync(CharacterSummaryResponse character)
     {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
+        if (_characters.Count <= 1)
+        {
+            SetFailureMessage("删除", "至少保留一个角色。");
+            return;
+        }
+
         var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"确定删除角色“{character.Name}”吗？");
         if (!confirmed)
         {
             return;
         }
 
-        _isSubmitting = true;
-        _deletingCharacterId = character.CharacterId;
-        _selectingCharacterId = null;
-        _message = null;
+        BeginSubmission(CharacterOperation.Delete, character.CharacterId);
 
         try
         {
             var (success, errorMessage) = await ApiService.DeleteCharacterAsync(character.CharacterId);
             if (!success)
             {
-                _message = errorMessage ?? "删除角色失败。";
+                SetFailureMessage("删除", errorMessage);
                 return;
             }
 
             await LoadCharactersAsync();
-            _message = "角色已删除。";
+            SetSuccessMessage($"已删除角色“{character.Name}”。");
         }
         finally
         {
-            _deletingCharacterId = null;
-            _isSubmitting = false;
+            EndSubmission();
         }
     }
 
     private async Task SelectCharacterAsync(CharacterSummaryResponse character)
     {
-        _isSubmitting = true;
-        _selectingCharacterId = character.CharacterId;
-        _deletingCharacterId = null;
-        _message = null;
+        if (_isSubmitting || character.IsCurrent)
+        {
+            return;
+        }
+
+        BeginSubmission(CharacterOperation.Select, character.CharacterId);
 
         try
         {
             var (selectedCharacter, errorMessage) = await ApiService.SelectCurrentCharacterAsync(character.CharacterId);
             if (selectedCharacter is null)
             {
-                _message = errorMessage ?? "切换当前角色失败。";
+                SetFailureMessage("切换", errorMessage);
                 return;
             }
 
             await LoadCharactersAsync();
-            _message = $"当前角色已切换为“{character.Name}”。";
+            SetSuccessMessage($"已切换当前角色为“{selectedCharacter.Name}”。");
         }
         finally
         {
-            _selectingCharacterId = null;
-            _isSubmitting = false;
+            EndSubmission();
         }
+    }
+
+    private void BeginSubmission(CharacterOperation operation, int? characterId = null)
+    {
+        _isSubmitting = true;
+        _activeOperation = operation;
+        _deletingCharacterId = operation == CharacterOperation.Delete ? characterId : null;
+        _selectingCharacterId = operation == CharacterOperation.Select ? characterId : null;
+        ClearMessage();
+    }
+
+    private void EndSubmission()
+    {
+        _activeOperation = null;
+        _deletingCharacterId = null;
+        _selectingCharacterId = null;
+        _isSubmitting = false;
+    }
+
+    private void ClearMessage()
+    {
+        _message = null;
+        _isMessageError = false;
+    }
+
+    private void SetSuccessMessage(string message)
+    {
+        _message = message;
+        _isMessageError = false;
+    }
+
+    private void SetFailureMessage(string actionName, string? errorMessage)
+    {
+        var detail = GetFriendlyErrorMessage(errorMessage);
+        _message = string.IsNullOrWhiteSpace(detail)
+            ? $"{actionName}失败。"
+            : $"{actionName}失败：{detail}";
+        _isMessageError = true;
+    }
+
+    private string? GetCreateDisabledReason()
+    {
+        if (!_isSubmitting)
+        {
+            return null;
+        }
+
+        return _activeOperation switch
+        {
+            CharacterOperation.Create => "正在创建角色。",
+            CharacterOperation.Delete => "删除角色进行中，请稍候。",
+            CharacterOperation.Select => "切换当前角色进行中，请稍候。",
+            _ => "操作进行中，请稍候。"
+        };
+    }
+
+    private string? GetSelectDisabledReason(CharacterSummaryResponse character)
+    {
+        if (character.IsCurrent)
+        {
+            return null;
+        }
+
+        return _isSubmitting
+            ? "操作进行中，请稍候。"
+            : null;
+    }
+
+    private string? GetDeleteDisabledReason(CharacterSummaryResponse character)
+    {
+        if (_characters.Count <= 1)
+        {
+            return "至少保留一个角色。";
+        }
+
+        return _isSubmitting
+            ? "操作进行中，请稍候。"
+            : null;
+    }
+
+    private string GetSubmittingText() => _activeOperation switch
+    {
+        CharacterOperation.Create => "创建中...",
+        CharacterOperation.Delete => "删除中...",
+        CharacterOperation.Select => "切换中...",
+        _ => "处理中..."
+    };
+
+    private static string? GetFriendlyErrorMessage(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return null;
+        }
+
+        return errorMessage.Trim() switch
+        {
+            "Character name cannot be empty." => "角色名不能为空。",
+            "Character not found." => "角色不存在。",
+            "Character does not belong to current user." => "该角色不属于当前用户。",
+            "Cannot delete the last character." => "至少保留一个角色。",
+            "Character is still in a room." => "角色仍在房间中。",
+            "User not found." => "用户不存在。",
+            "Request body is required." => "请求无效。",
+            _ => EnsureSentence(errorMessage.Trim())
+        };
+    }
+
+    private static string EnsureSentence(string message)
+    {
+        return message[^1] is '。' or '.' or '！' or '!' or '？' or '?'
+            ? message
+            : $"{message}。";
     }
 }

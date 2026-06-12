@@ -6,8 +6,15 @@
 
 .current-character-panel__message {
     margin: 0;
-    color: #6c757d;
     font-size: 0.95rem;
+}
+
+.current-character-panel__message--success {
+    color: #198754;
+}
+
+.current-character-panel__message--error {
+    color: #dc3545;
 }
 
 .character-create-card {
@@ -27,6 +34,12 @@
 
 button.character-create-card {
     cursor: pointer;
+}
+
+button.character-create-card:disabled,
+.character-create-card__actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .character-create-card--editing {
@@ -75,4 +88,8 @@ button.character-create-card {
 .character-create-card__actions {
     display: flex;
     gap: 0.5rem;
+}
+
+.character-create-card__actions button {
+    min-width: 5.5rem;
 }
