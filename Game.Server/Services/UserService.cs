@@ -133,7 +133,7 @@ public class UserService(GameDbContext dbContext)
             .OrderBy(x => x.Id)
             .ToListAsync();
 
-        var currentCharacter = await ResolveActiveCharacterAsync(user, characters);
+        var currentCharacter = await ResolveActiveCharacterAsync(user!, characters);
         var response = characters
             .Select(x => BuildCharacterSummary(x, currentCharacter?.Id == x.Id))
             .ToList();
