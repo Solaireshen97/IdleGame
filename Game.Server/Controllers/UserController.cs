@@ -104,6 +104,27 @@ public class UserController(UserService userService) : ControllerBase
         };
     }
 
+    [HttpDelete("characters/{characterId:int}")]
+    public async Task<IActionResult> DeleteCharacter(int characterId)
+    {
+        var (success, error) = await userService.DeleteCurrentCharacterAsync(GetBearerToken(), characterId);
+        if (success)
+        {
+            return NoContent();
+        }
+
+        return error switch
+        {
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" => NotFound("User not found."),
+            "CharacterNotFound" => NotFound("Character not found."),
+            "NotOwner" => StatusCode(403, "Character does not belong to current user."),
+            "CannotDeleteLastCharacter" => BadRequest("Cannot delete the last character."),
+            "CharacterInRoom" => BadRequest("Character is still in a room."),
+            _ => BadRequest()
+        };
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {

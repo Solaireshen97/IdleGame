@@ -3,10 +3,18 @@
 <article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
     <div class="character-card__header">
         <h3 class="character-card__name">@Character.Name</h3>
-        @if (IsCurrent)
-        {
-            <span class="character-card__badge">当前角色</span>
-        }
+        <div class="character-card__header-actions">
+            @if (IsCurrent)
+            {
+                <span class="character-card__badge">当前角色</span>
+            }
+            <button type="button"
+                    class="character-card__delete"
+                    @onclick="OnDelete"
+                    disabled="@(!CanDelete || IsDeleting)">
+                删除
+            </button>
+        </div>
     </div>
 
     <dl class="character-card__stats">
@@ -31,4 +39,13 @@
 
     [Parameter]
     public bool IsCurrent { get; set; }
+
+    [Parameter]
+    public bool CanDelete { get; set; } = true;
+
+    [Parameter]
+    public bool IsDeleting { get; set; }
+
+    [Parameter]
+    public EventCallback OnDelete { get; set; }
 }
