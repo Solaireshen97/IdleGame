@@ -1,0 +1,34 @@
+@using Game.Shared.Dtos.Auth
+
+<article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
+    <div class="character-card__header">
+        <h3 class="character-card__name">@Character.Name</h3>
+        @if (IsCurrent)
+        {
+            <span class="character-card__badge">当前角色</span>
+        }
+    </div>
+
+    <dl class="character-card__stats">
+        <div>
+            <dt>HP</dt>
+            <dd>@Character.Hp / @Character.MaxHp</dd>
+        </div>
+        <div>
+            <dt>Attack</dt>
+            <dd>@Character.Attack</dd>
+        </div>
+        <div>
+            <dt>Defense</dt>
+            <dd>@Character.Defense</dd>
+        </div>
+    </dl>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public CharacterSummaryResponse Character { get; set; } = default!;
+
+    [Parameter]
+    public bool IsCurrent { get; set; }
+}

@@ -2,40 +2,37 @@
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 
-@if (!_isLoading && _character is not null)
+@if (!_isLoading && _characters.Count > 0)
 {
-    <section class="current-character-card">
-        <h3 class="current-character-card__title">当前角色</h3>
-        <p class="current-character-card__name">@_character.Name</p>
-        <dl class="current-character-card__stats">
-            <div>
-                <dt>HP</dt>
-                <dd>@_character.Hp / @_character.MaxHp</dd>
-            </div>
-            <div>
-                <dt>Attack</dt>
-                <dd>@_character.Attack</dd>
-            </div>
-            <div>
-                <dt>Defense</dt>
-                <dd>@_character.Defense</dd>
-            </div>
-        </dl>
-    </section>
+    @for (var index = 0; index < _characters.Count; index++)
+    {
+        <CharacterCard Character="_characters[index]" IsCurrent="@(index == 0)" />
+    }
+}
+else if (!_isLoading && _showEmptyState)
+{
+    <p class="current-character-panel__empty">当前账号暂无角色。</p>
 }
 
 @code {
-    private CurrentCharacterResponse? _character;
+    private List<CharacterSummaryResponse> _characters = [];
     private bool _isLoading = true;
+    private bool _showEmptyState;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _character = await ApiService.GetCurrentCharacterAsync();
+            var characters = await ApiService.GetCurrentCharactersAsync();
+            if (characters is not null)
+            {
+                _characters = characters;
+                _showEmptyState = _characters.Count == 0;
+            }
         }
         catch
         {
+            _characters = [];
         }
         finally
         {
