@@ -1,4 +1,8 @@
-﻿@inherits LayoutComponentBase
+@using Game.Client.Services
+@using Game.Shared.Dtos.Auth
+@inject ApiService ApiService
+@inherits LayoutComponentBase
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
@@ -9,8 +13,29 @@
             <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
         </div>
 
+        @if (!_isLoadingUser && _currentUser is not null)
+        {
+            <section class="character-bar">
+                <div class="character-bar__cards">
+                    <CurrentCharacterPanel />
+                </div>
+            </section>
+        }
+
         <article class="content px-4">
             @Body
         </article>
     </main>
 </div>
+
+@code {
+    private CurrentUserResponse? _currentUser;
+    private bool _isLoadingUser = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoadingUser = true;
+        _currentUser = await ApiService.GetCurrentUserAsync();
+        _isLoadingUser = false;
+    }
+}

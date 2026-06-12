@@ -2,44 +2,40 @@
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 
-<section>
-    <h3>当前角色</h3>
-
-    @if (_isLoading)
-    {
-        <p><em>角色信息加载中...</em></p>
-    }
-    else if (_character is not null)
-    {
-        <p><strong>@_character.Name</strong></p>
-        <p>HP @_character.Hp / @_character.MaxHp</p>
-        <p>Attack @_character.Attack</p>
-        <p>Defense @_character.Defense</p>
-    }
-    else
-    {
-        <p><em>@_message</em></p>
-    }
-</section>
+@if (!_isLoading && _character is not null)
+{
+    <section class="current-character-card">
+        <h3 class="current-character-card__title">当前角色</h3>
+        <p class="current-character-card__name">@_character.Name</p>
+        <dl class="current-character-card__stats">
+            <div>
+                <dt>HP</dt>
+                <dd>@_character.Hp / @_character.MaxHp</dd>
+            </div>
+            <div>
+                <dt>Attack</dt>
+                <dd>@_character.Attack</dd>
+            </div>
+            <div>
+                <dt>Defense</dt>
+                <dd>@_character.Defense</dd>
+            </div>
+        </dl>
+    </section>
+}
 
 @code {
     private CurrentCharacterResponse? _character;
     private bool _isLoading = true;
-    private string _message = "暂时无法获取当前角色信息。";
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _character = await ApiService.GetCurrentCharacterAsync();
-            if (_character is null)
-            {
-                _message = "暂无当前角色信息。";
-            }
         }
         catch
         {
-            _message = "当前角色信息加载失败。";
         }
         finally
         {
