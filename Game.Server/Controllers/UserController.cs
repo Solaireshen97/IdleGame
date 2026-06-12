@@ -1,5 +1,6 @@
 using Game.Server.Services;
 using Game.Shared.Dtos.Auth;
+using Game.Shared.Dtos.Characters;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Game.Server.Controllers;

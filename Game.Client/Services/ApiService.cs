@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Game.Shared.Dtos;
 using Game.Shared.Dtos.Auth;
+using Game.Shared.Dtos.Characters;
 
 namespace Game.Client.Services;
 

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Game.Server.Data;
 using Game.Shared.Dtos.Auth;
+using Game.Shared.Dtos.Characters;
 using Game.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
