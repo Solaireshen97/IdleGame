@@ -42,11 +42,14 @@ public class UserService(GameDbContext dbContext)
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        dbContext.Characters.Add(CreateCharacterEntity(user.Id, "Knight"));
+        var character = CreateCharacterEntity(user.Id, "Knight");
+        dbContext.Characters.Add(character);
 
         var session = CreateSession(user.Id);
         dbContext.UserLoginSessions.Add(session);
 
+        await dbContext.SaveChangesAsync();
+        user.ActiveCharacterId = character.Id;
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -102,6 +105,73 @@ public class UserService(GameDbContext dbContext)
 
     public async Task<(CurrentCharacterResponse? Response, string? Error)> GetCurrentCharacterAsync(string? token)
     {
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        var character = await ResolveActiveCharacterAsync(user!);
+        if (character is null)
+        {
+            return (null, "CharacterNotFound");
+        }
+
+        return (BuildCurrentCharacterResponse(character), null);
+    }
+
+    public async Task<(List<CharacterSummaryResponse>? Response, string? Error)> GetCurrentCharactersAsync(string? token)
+    {
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        var characters = await dbContext.Characters
+            .Where(x => x.UserId == user!.Id)
+            .OrderBy(x => x.Id)
+            .ToListAsync();
+
+        var currentCharacter = await ResolveActiveCharacterAsync(user!, characters);
+        var response = characters
+            .Select(x => BuildCharacterSummary(x, currentCharacter?.Id == x.Id))
+            .ToList();
+
+        return (response, null);
+    }
+
+    public async Task<(CharacterSummaryResponse? Response, string? Error)> SelectCurrentCharacterAsync(string? token, int characterId)
+    {
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        var targetCharacter = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == characterId);
+        if (targetCharacter is null)
+        {
+            return (null, "CharacterNotFound");
+        }
+
+        if (targetCharacter.UserId != user!.Id)
+        {
+            return (null, "NotOwner");
+        }
+
+        var currentCharacter = await ResolveActiveCharacterAsync(user);
+        if (currentCharacter?.Id != targetCharacter.Id)
+        {
+            user.ActiveCharacterId = targetCharacter.Id;
+            await dbContext.SaveChangesAsync();
+        }
+
+        return (BuildCharacterSummary(targetCharacter, isCurrent: true), null);
+    }
+
+    public async Task<(User? User, string? Error)> GetCurrentUserEntityAsync(string? token)
+    {
         var session = await GetValidSessionAsync(token);
         if (session is null)
         {
@@ -114,70 +184,32 @@ public class UserService(GameDbContext dbContext)
             return (null, "UserNotFound");
         }
 
-        var character = await dbContext.Characters
-            .Where(x => x.UserId == user.Id)
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync();
-
-        if (character is null)
-        {
-            return (null, "CharacterNotFound");
-        }
-
-        return (new CurrentCharacterResponse
-        {
-            CharacterId = character.Id,
-            Name = character.Name,
-            Hp = character.Hp,
-            MaxHp = character.MaxHp,
-            Attack = character.Attack,
-            Defense = character.Defense
-        }, null);
+        return (user, null);
     }
 
-    public async Task<(List<CharacterSummaryResponse>? Response, string? Error)> GetCurrentCharactersAsync(string? token)
+    public async Task<(User? User, Character? Character, string? Error)> GetCurrentUserAndActiveCharacterAsync(string? token)
     {
-        var session = await GetValidSessionAsync(token);
-        if (session is null)
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
         {
-            return (null, "Unauthorized");
+            return (null, null, error);
         }
 
-        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
-        if (!userExists)
+        var character = await ResolveActiveCharacterAsync(user!);
+        if (character is null)
         {
-            return (null, "UserNotFound");
+            return (user, null, "CharacterNotFound");
         }
 
-        var characters = await dbContext.Characters
-            .Where(x => x.UserId == session.UserId)
-            .OrderBy(x => x.Id)
-            .Select(x => new CharacterSummaryResponse
-            {
-                CharacterId = x.Id,
-                Name = x.Name,
-                Hp = x.Hp,
-                MaxHp = x.MaxHp,
-                Attack = x.Attack,
-                Defense = x.Defense
-            })
-            .ToListAsync();
-
-        return (characters, null);
+        return (user, character, null);
     }
 
     public async Task<(CharacterSummaryResponse? Response, string? Error)> CreateCurrentCharacterAsync(string? token, CreateCharacterRequest request)
     {
-        var session = await GetValidSessionAsync(token);
-        if (session is null)
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
         {
-            return (null, "Unauthorized");
-        }
-
-        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
-        if (!userExists)
-        {
-            return (null, "UserNotFound");
+            return (null, error);
         }
 
         var name = request.Name?.Trim() ?? string.Empty;
@@ -186,7 +218,7 @@ public class UserService(GameDbContext dbContext)
             return (null, "InvalidName");
         }
 
-        var character = CreateCharacterEntity(session.UserId, name);
+        var character = CreateCharacterEntity(user!.Id, name);
         dbContext.Characters.Add(character);
         await dbContext.SaveChangesAsync();
 
@@ -195,16 +227,10 @@ public class UserService(GameDbContext dbContext)
 
     public async Task<(bool Success, string? Error)> DeleteCurrentCharacterAsync(string? token, int characterId)
     {
-        var session = await GetValidSessionAsync(token);
-        if (session is null)
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null)
         {
-            return (false, "Unauthorized");
-        }
-
-        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
-        if (!userExists)
-        {
-            return (false, "UserNotFound");
+            return (false, error);
         }
 
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == characterId);
@@ -213,12 +239,12 @@ public class UserService(GameDbContext dbContext)
             return (false, "CharacterNotFound");
         }
 
-        if (character.UserId != session.UserId)
+        if (character.UserId != user!.Id)
         {
             return (false, "NotOwner");
         }
 
-        var characterCount = await dbContext.Characters.CountAsync(x => x.UserId == session.UserId);
+        var characterCount = await dbContext.Characters.CountAsync(x => x.UserId == user.Id);
         if (characterCount <= 1)
         {
             return (false, "CannotDeleteLastCharacter");
@@ -228,6 +254,16 @@ public class UserService(GameDbContext dbContext)
         if (isCharacterInRoom)
         {
             return (false, "CharacterInRoom");
+        }
+
+        await ResolveActiveCharacterAsync(user);
+        if (user.ActiveCharacterId == characterId)
+        {
+            var nextCharacter = await dbContext.Characters
+                .Where(x => x.UserId == user.Id && x.Id != characterId)
+                .OrderBy(x => x.Id)
+                .FirstOrDefaultAsync();
+            user.ActiveCharacterId = nextCharacter?.Id;
         }
 
         dbContext.Characters.Remove(character);
@@ -317,7 +353,52 @@ public class UserService(GameDbContext dbContext)
         };
     }
 
-    private static CharacterSummaryResponse BuildCharacterSummary(Character character)
+    private async Task<Character?> ResolveActiveCharacterAsync(User user, List<Character>? characters = null)
+    {
+        characters ??= await dbContext.Characters
+            .Where(x => x.UserId == user.Id)
+            .OrderBy(x => x.Id)
+            .ToListAsync();
+
+        if (characters.Count == 0)
+        {
+            if (user.ActiveCharacterId is not null)
+            {
+                user.ActiveCharacterId = null;
+                await dbContext.SaveChangesAsync();
+            }
+
+            return null;
+        }
+
+        var activeCharacter = user.ActiveCharacterId.HasValue
+            ? characters.FirstOrDefault(x => x.Id == user.ActiveCharacterId.Value)
+            : null;
+        var resolvedCharacter = activeCharacter ?? characters[0];
+
+        if (user.ActiveCharacterId != resolvedCharacter.Id)
+        {
+            user.ActiveCharacterId = resolvedCharacter.Id;
+            await dbContext.SaveChangesAsync();
+        }
+
+        return resolvedCharacter;
+    }
+
+    private static CurrentCharacterResponse BuildCurrentCharacterResponse(Character character)
+    {
+        return new CurrentCharacterResponse
+        {
+            CharacterId = character.Id,
+            Name = character.Name,
+            Hp = character.Hp,
+            MaxHp = character.MaxHp,
+            Attack = character.Attack,
+            Defense = character.Defense
+        };
+    }
+
+    private static CharacterSummaryResponse BuildCharacterSummary(Character character, bool isCurrent = false)
     {
         return new CharacterSummaryResponse
         {
@@ -326,7 +407,8 @@ public class UserService(GameDbContext dbContext)
             Hp = character.Hp,
             MaxHp = character.MaxHp,
             Attack = character.Attack,
-            Defense = character.Defense
+            Defense = character.Defense,
+            IsCurrent = isCurrent
         };
     }
 }

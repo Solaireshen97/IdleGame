@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext)
+public class RoomService(GameDbContext dbContext, UserService userService)
 {
     public async Task<List<RoomSummaryResponse>> GetRoomsAsync()
     {
@@ -230,23 +230,7 @@ public class RoomService(GameDbContext dbContext)
 
     private async Task<(User? User, Character? Character, string? Error)> GetCurrentUserAndCharacterAsync(string? token)
     {
-        var user = await GetCurrentUserAsync(token);
-        if (user is null)
-        {
-            return (null, null, await GetCurrentUserErrorAsync(token));
-        }
-
-        var character = await dbContext.Characters
-            .Where(x => x.UserId == user.Id)
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync();
-
-        if (character is null)
-        {
-            return (user, null, "CharacterNotFound");
-        }
-
-        return (user, character, null);
+        return await userService.GetCurrentUserAndActiveCharacterAsync(token);
     }
 
     private async Task<User?> GetCurrentUserAsync(string? token)

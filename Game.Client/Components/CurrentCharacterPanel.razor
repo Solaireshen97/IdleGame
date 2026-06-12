@@ -13,9 +13,11 @@ else
     {
         var character = _characters[index];
         <CharacterCard Character="character"
-                       IsCurrent="@(index == 0)"
+                       IsCurrent="@character.IsCurrent"
                        CanDelete="@(_characters.Count > 1)"
+                       IsSelecting="@(_isSubmitting && _selectingCharacterId == character.CharacterId)"
                        IsDeleting="@(_isSubmitting && _deletingCharacterId == character.CharacterId)"
+                       OnSelect="@(() => SelectCharacterAsync(character))"
                        OnDelete="@(() => DeleteCharacterAsync(character))" />
     }
 
@@ -58,6 +60,7 @@ else
     private bool _isCreating;
     private bool _isSubmitting;
     private int? _deletingCharacterId;
+    private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
     private string? _message;
 
@@ -104,6 +107,7 @@ else
     {
         _isSubmitting = true;
         _deletingCharacterId = null;
+        _selectingCharacterId = null;
         _message = null;
 
         try
@@ -135,6 +139,7 @@ else
 
         _isSubmitting = true;
         _deletingCharacterId = character.CharacterId;
+        _selectingCharacterId = null;
         _message = null;
 
         try
@@ -152,6 +157,32 @@ else
         finally
         {
             _deletingCharacterId = null;
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task SelectCharacterAsync(CharacterSummaryResponse character)
+    {
+        _isSubmitting = true;
+        _selectingCharacterId = character.CharacterId;
+        _deletingCharacterId = null;
+        _message = null;
+
+        try
+        {
+            var (selectedCharacter, errorMessage) = await ApiService.SelectCurrentCharacterAsync(character.CharacterId);
+            if (selectedCharacter is null)
+            {
+                _message = errorMessage ?? "切换当前角色失败。";
+                return;
+            }
+
+            await LoadCharactersAsync();
+            _message = $"当前角色已切换为“{character.Name}”。";
+        }
+        finally
+        {
+            _selectingCharacterId = null;
             _isSubmitting = false;
         }
     }
