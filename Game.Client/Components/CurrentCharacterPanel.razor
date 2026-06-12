@@ -40,11 +40,6 @@ else
         </button>
     }
 
-    @if (_showEmptyState)
-    {
-        <p class="current-character-panel__empty">当前账号暂无角色，请先创建角色。</p>
-    }
-
     @if (!string.IsNullOrWhiteSpace(_message))
     {
         <p class="current-character-panel__message">@_message</p>
@@ -54,7 +49,6 @@ else
 @code {
     private List<CharacterSummaryResponse> _characters = [];
     private bool _isLoading = true;
-    private bool _showEmptyState;
     private bool _isCreating;
     private bool _isSubmitting;
     private string _newCharacterName = string.Empty;
@@ -82,7 +76,6 @@ else
         if (characters is not null)
         {
             _characters = characters;
-            _showEmptyState = _characters.Count == 0;
         }
     }
 
