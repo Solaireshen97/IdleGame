@@ -39,7 +39,7 @@ public class RoomController(RoomService roomService) : ControllerBase
                 "Unauthorized" => Unauthorized(),
                 "UserNotFound" => NotFound("User not found."),
                 "CharacterNotFound" => NotFound("Character not found."),
-                "UserAlreadyInRoom" => BadRequest("Player is already in a room. Please dissolve the current room first."),
+                "CharacterAlreadyInRoom" => BadRequest("Current character is already in another room."),
                 _ => BadRequest("Failed to create room.")
             };
         }
@@ -59,8 +59,8 @@ public class RoomController(RoomService roomService) : ControllerBase
                 "NotFound" => NotFound(),
                 "UserNotFound" => NotFound("User not found."),
                 "CharacterNotFound" => NotFound("Character not found."),
-                "RoomAlreadyHasMember" => BadRequest("Room already has a member."),
-                "UserAlreadyInRoom" => BadRequest("Player is already in a room. Please dissolve the current room first."),
+                "CharacterAlreadyInTargetRoom" => BadRequest("Current character is already in this room."),
+                "CharacterAlreadyInRoom" => BadRequest("Current character is already in another room."),
                 _ => BadRequest(error)
             };
         }

@@ -14,37 +14,42 @@
 {
     <p>Loading room...</p>
 }
-else if (!_roomDetail.HasPlayer)
-{
-    <h2>房间 #@_roomDetail.RoomId</h2>
-    <p><strong>怪物：</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
-    <p><em>当前还没有玩家加入战斗。</em></p>
-    <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入战斗</button>
-
-    @if (_message is not null)
-    {
-        <p><em>@_message</em></p>
-    }
-}
 else
 {
-    <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
-    <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
+    <h2>房间 #@_roomDetail.RoomId</h2>
     <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
     <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
 
-    @if (_roomDetail.IsCurrentPlayerOwner)
+    @if (_roomDetail.HasPlayer)
     {
-        <p><em>你是房主</em></p>
+        <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
+        <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
+    }
+    else
+    {
+        <p><em>当前还没有玩家加入战斗。</em></p>
     }
 
-    <button @onclick="StartBattleAsync" disabled="@_isBusy">开始战斗</button>
-    <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
-    <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
-
-    @if (_roomDetail.IsCurrentPlayerOwner)
+    @if (_roomDetail.IsCurrentCharacterInRoom)
     {
-        <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
+        @if (_roomDetail.IsCurrentPlayerOwner)
+        {
+            <p><em>你是房主</em></p>
+        }
+
+        <button @onclick="StartBattleAsync" disabled="@_isBusy">开始战斗</button>
+        <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+        <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
+
+        @if (_roomDetail.IsCurrentPlayerOwner)
+        {
+            <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
+        }
+    }
+    else
+    {
+        <p><em>当前角色尚未加入该房间。</em></p>
+        <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入战斗</button>
     }
 
     <h3>战斗日志</h3>
@@ -93,10 +98,15 @@ else
     {
         _isBusy = true;
         _message = null;
-        var detail = await ApiService.JoinRoomAsync(RoomId);
+        var (detail, errorMessage) = await ApiService.JoinRoomAsync(RoomId);
         if (detail is null)
         {
-            _message = "加入战斗失败（房间可能已有成员或不存在）。";
+            _message = errorMessage switch
+            {
+                "Current character is already in this room." => "当前角色已经在该房间中。",
+                "Current character is already in another room." => "当前角色已在其他房间中，不能重复加入。",
+                _ => errorMessage ?? "加入战斗失败。"
+            };
         }
         else
         {
@@ -108,16 +118,19 @@ else
     private async Task StartBattleAsync()
     {
         _isBusy = true;
+        _message = null;
         var result = await ApiService.StartBattleAsync(RoomId);
         _logs.Clear();
 
-        if (result is null)
+        if (result.Result is null)
         {
-            _logs.Add("Battle request failed.");
+            _message = result.ErrorMessage == "NotInRoom"
+                ? "当前角色未加入该房间，无法战斗。"
+                : result.ErrorMessage ?? "战斗请求失败。";
         }
         else
         {
-            _logs.AddRange(result.Logs);
+            _logs.AddRange(result.Result.Logs);
         }
 
         await RefreshRoomDetailAsync();
@@ -127,12 +140,15 @@ else
     private async Task ResetBattleAsync()
     {
         _isBusy = true;
-        var roomDetail = await ApiService.ResetBattleAsync(RoomId);
+        _message = null;
+        var (roomDetail, errorMessage) = await ApiService.ResetBattleAsync(RoomId);
         _logs.Clear();
 
         if (roomDetail is null)
         {
-            _logs.Add("Reset request failed.");
+            _message = errorMessage == "NotInRoom"
+                ? "当前角色未加入该房间，无法重置战斗。"
+                : errorMessage ?? "重置战斗失败。";
         }
         else
         {
@@ -146,12 +162,15 @@ else
     private async Task HealAsync()
     {
         _isBusy = true;
-        var roomDetail = await ApiService.HealAsync(RoomId);
+        _message = null;
+        var (roomDetail, errorMessage) = await ApiService.HealAsync(RoomId);
         _logs.Clear();
 
         if (roomDetail is null)
         {
-            _logs.Add("Heal request failed.");
+            _message = errorMessage == "NotInRoom"
+                ? "当前角色未加入该房间，无法恢复。"
+                : errorMessage ?? "恢复角色失败。";
         }
         else
         {

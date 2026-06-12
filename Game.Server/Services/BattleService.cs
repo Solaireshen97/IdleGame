@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext)
+public class BattleService(GameDbContext dbContext, UserService userService)
 {
     public async Task<(BattleResult? Result, string? Error)> ExecuteBattleAsync(int roomId, string? token)
     {
@@ -130,27 +130,19 @@ public class BattleService(GameDbContext dbContext)
             return (null, null, null, null, "NotFound");
         }
 
-        var currentUser = await GetCurrentUserAsync(token);
-        if (currentUser is null)
+        var (_, currentCharacter, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null)
         {
-            return (room, null, null, null, await GetCurrentUserErrorAsync(token));
+            return (room, null, null, null, error);
         }
 
-        var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId && x.UserId == currentUser.Id);
+        var member = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.RoomId == roomId && x.CharacterId == currentCharacter!.Id);
         if (member is null)
         {
             return (room, null, null, null, "NotInRoom");
         }
 
-        Character? character = null;
-        if (requireCharacter)
-        {
-            character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == member.CharacterId);
-            if (character is null)
-            {
-                return (room, member, null, null, "CharacterNotFound");
-            }
-        }
+        var character = requireCharacter ? currentCharacter : null;
 
         var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
         if (monster is null)
@@ -159,56 +151,5 @@ public class BattleService(GameDbContext dbContext)
         }
 
         return (room, member, character, monster, null);
-    }
-
-    private async Task<User?> GetCurrentUserAsync(string? token)
-    {
-        var session = await GetValidSessionAsync(token);
-        if (session is null)
-        {
-            return null;
-        }
-
-        return await dbContext.Users.FirstOrDefaultAsync(x => x.Id == session.UserId);
-    }
-
-    private async Task<string> GetCurrentUserErrorAsync(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return "Unauthorized";
-        }
-
-        var session = await GetValidSessionAsync(token);
-        if (session is null)
-        {
-            return "Unauthorized";
-        }
-
-        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
-        return userExists ? "Unauthorized" : "UserNotFound";
-    }
-
-    private async Task<UserLoginSession?> GetValidSessionAsync(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return null;
-        }
-
-        var session = await dbContext.UserLoginSessions.FirstOrDefaultAsync(x => x.Token == token);
-        if (session is null)
-        {
-            return null;
-        }
-
-        if (session.ExpireAt <= DateTime.UtcNow)
-        {
-            dbContext.UserLoginSessions.Remove(session);
-            await dbContext.SaveChangesAsync();
-            return null;
-        }
-
-        return session;
     }
 }
