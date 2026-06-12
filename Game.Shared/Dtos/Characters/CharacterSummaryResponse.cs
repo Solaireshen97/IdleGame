@@ -1,4 +1,4 @@
-namespace Game.Shared.Dtos.Auth;
+namespace Game.Shared.Dtos.Characters;
 
 public class CharacterSummaryResponse
 {
