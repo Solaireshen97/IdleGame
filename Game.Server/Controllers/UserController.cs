@@ -85,6 +85,25 @@ public class UserController(UserService userService) : ControllerBase
         };
     }
 
+    [HttpPost("characters")]
+    public async Task<IActionResult> CreateCharacter([FromBody] CreateCharacterRequest? request)
+    {
+        if (request is null)
+        {
+            return BadRequest("Request body is required.");
+        }
+
+        var (response, error) = await userService.CreateCurrentCharacterAsync(GetBearerToken(), request);
+        return error switch
+        {
+            null => Ok(response),
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" => NotFound("User not found."),
+            "InvalidName" => BadRequest("Character name cannot be empty."),
+            _ => BadRequest()
+        };
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {

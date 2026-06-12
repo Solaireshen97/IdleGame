@@ -52,6 +52,7 @@
 - `POST /api/user/register` 注册用户并返回 token（自动创建默认角色）
 - `POST /api/user/login` 登录并返回 token
 - `GET /api/user/characters` 需要携带登录 token 请求头，获取当前登录用户的全部角色摘要（按角色 Id 排序）
+- `POST /api/user/characters` 需要携带登录 token 请求头，仅输入角色名即可为当前用户创建新角色（使用默认初始化属性并追加到角色列表）
 - `GET /api/user/me` 使用 `Authorization: Bearer <token>` 请求头获取当前用户
 - `GET /api/user/character` 使用 `Authorization: Bearer <token>` 请求头获取当前登录用户的当前角色（当前规则为第一个角色）
 - `POST /api/user/logout` 也需要 `Authorization: Bearer <token>`
@@ -80,7 +81,7 @@ POST /api/rooms
 - 角色与怪物 HP 持久化到数据库
 
 ### 前端页面
-- **房间列表页**（`/`、`/rooms`）：查看当前用户与顶部角色栏中的全部角色摘要（当前角色为首个角色且仅做只读展示），查看所有房间（仅展示基础信息），选择怪物类型，创建/删除/进入房间
+- **房间列表页**（`/`、`/rooms`）：查看当前用户与顶部角色栏中的全部角色摘要（当前角色为首个角色且仅做只读展示），可通过顶部“+”卡片输入角色名创建角色，查看所有房间（仅展示基础信息），选择怪物类型，创建/删除/进入房间
 - **战斗页**（`/battle/{roomId}`）：对指定房间进行战斗操作，支持重置和治疗
 
 ## 当前未实现（明确超范围）
