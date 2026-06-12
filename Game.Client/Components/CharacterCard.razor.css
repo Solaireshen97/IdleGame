@@ -46,6 +46,7 @@
 
 .character-card__select,
 .character-card__delete {
+    min-width: 5.5rem;
     padding: 0.25rem 0.65rem;
     font-size: 0.85rem;
     border-radius: 0.5rem;
