@@ -10,6 +10,7 @@ public class RoomDetailResponse
     public int MonsterMaxHp { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public bool HasPlayer { get; set; }
+    public bool IsCurrentCharacterInRoom { get; set; }
     public string? PlayerName { get; set; }
     public string? CharacterName { get; set; }
     public int? CharacterHp { get; set; }

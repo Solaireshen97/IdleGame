@@ -50,16 +50,27 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
-    public async Task<RoomDetailResponse?> JoinRoomAsync(int roomId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            return null;
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "加入房间失败。";
+            }
+
+            return (null, errorMessage);
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
+        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)
@@ -69,7 +80,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<BattleResult?> StartBattleAsync(int roomId)
+    public async Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/start", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
@@ -81,13 +92,19 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 await userSessionService.ClearToken();
             }
 
-            return null;
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "战斗请求失败。";
+            }
+
+            return (null, errorMessage);
         }
 
-        return await response.Content.ReadFromJsonAsync<BattleResult>();
+        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
-    public async Task<RoomDetailResponse?> ResetBattleAsync(int roomId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> ResetBattleAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
@@ -99,13 +116,19 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 await userSessionService.ClearToken();
             }
 
-            return null;
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "重置战斗失败。";
+            }
+
+            return (null, errorMessage);
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
+        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
-    public async Task<RoomDetailResponse?> HealAsync(int roomId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> HealAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/heal", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
@@ -117,10 +140,16 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 await userSessionService.ClearToken();
             }
 
-            return null;
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "恢复角色失败。";
+            }
+
+            return (null, errorMessage);
         }
 
-        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
+        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
     public async Task<(AuthResponse? Response, string? ErrorMessage)> RegisterAsync(RegisterRequest request)
