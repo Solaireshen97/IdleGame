@@ -185,6 +185,30 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
     }
 
+    public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> SelectCurrentCharacterAsync(int characterId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/character/select", requiresAuth: true);
+        request.Content = JsonContent.Create(new SelectCharacterRequest { CharacterId = characterId });
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "切换当前角色失败。";
+            }
+
+            return (null, errorMessage);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
+    }
+
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> CreateCharacterAsync(string name)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true);

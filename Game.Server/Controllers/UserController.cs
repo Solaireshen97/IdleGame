@@ -85,6 +85,26 @@ public class UserController(UserService userService) : ControllerBase
         };
     }
 
+    [HttpPost("character/select")]
+    public async Task<IActionResult> SelectCharacter([FromBody] SelectCharacterRequest? request)
+    {
+        if (request is null)
+        {
+            return BadRequest("Request body is required.");
+        }
+
+        var (response, error) = await userService.SelectCurrentCharacterAsync(GetBearerToken(), request.CharacterId);
+        return error switch
+        {
+            null => Ok(response),
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" => NotFound("User not found."),
+            "CharacterNotFound" => NotFound("Character not found."),
+            "NotOwner" => StatusCode(403, "Character does not belong to current user."),
+            _ => BadRequest()
+        };
+    }
+
     [HttpPost("characters")]
     public async Task<IActionResult> CreateCharacter([FromBody] CreateCharacterRequest? request)
     {
