@@ -72,6 +72,19 @@ public class UserController(UserService userService) : ControllerBase
         };
     }
 
+    [HttpGet("characters")]
+    public async Task<IActionResult> Characters()
+    {
+        var (response, error) = await userService.GetCurrentCharactersAsync(GetBearerToken());
+        return error switch
+        {
+            null => Ok(response),
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" => NotFound("User not found."),
+            _ => BadRequest()
+        };
+    }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
