@@ -193,6 +193,48 @@ public class UserService(GameDbContext dbContext)
         return (BuildCharacterSummary(character), null);
     }
 
+    public async Task<(bool Success, string? Error)> DeleteCurrentCharacterAsync(string? token, int characterId)
+    {
+        var session = await GetValidSessionAsync(token);
+        if (session is null)
+        {
+            return (false, "Unauthorized");
+        }
+
+        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
+        if (!userExists)
+        {
+            return (false, "UserNotFound");
+        }
+
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == characterId);
+        if (character is null)
+        {
+            return (false, "CharacterNotFound");
+        }
+
+        if (character.UserId != session.UserId)
+        {
+            return (false, "NotOwner");
+        }
+
+        var characterCount = await dbContext.Characters.CountAsync(x => x.UserId == session.UserId);
+        if (characterCount <= 1)
+        {
+            return (false, "CannotDeleteLastCharacter");
+        }
+
+        var isCharacterInRoom = await dbContext.RoomMembers.AnyAsync(x => x.CharacterId == characterId);
+        if (isCharacterInRoom)
+        {
+            return (false, "CharacterInRoom");
+        }
+
+        dbContext.Characters.Remove(character);
+        await dbContext.SaveChangesAsync();
+        return (true, null);
+    }
+
     public async Task<(bool Success, string? Error)> LogoutAsync(string? token)
     {
         var session = await GetValidSessionAsync(token);

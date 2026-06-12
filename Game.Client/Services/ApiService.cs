@@ -209,6 +209,29 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
     }
 
+    public async Task<(bool Success, string? ErrorMessage)> DeleteCharacterAsync(int characterId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/user/characters/{characterId}", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "删除角色失败。";
+            }
+
+            return (false, errorMessage);
+        }
+
+        return (true, null);
+    }
+
     public async Task<bool> LogoutAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true);

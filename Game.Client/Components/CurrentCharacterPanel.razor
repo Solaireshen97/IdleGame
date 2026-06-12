@@ -1,6 +1,7 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
+@inject IJSRuntime JSRuntime
 
 @if (_isLoading)
 {
@@ -10,7 +11,12 @@ else
 {
     @for (var index = 0; index < _characters.Count; index++)
     {
-        <CharacterCard Character="_characters[index]" IsCurrent="@(index == 0)" />
+        var character = _characters[index];
+        <CharacterCard Character="character"
+                       IsCurrent="@(index == 0)"
+                       CanDelete="@(_characters.Count > 1)"
+                       IsDeleting="@(_isSubmitting && _deletingCharacterId == character.CharacterId)"
+                       OnDelete="@(() => DeleteCharacterAsync(character))" />
     }
 
     @if (_isCreating)
@@ -51,6 +57,7 @@ else
     private bool _isLoading = true;
     private bool _isCreating;
     private bool _isSubmitting;
+    private int? _deletingCharacterId;
     private string _newCharacterName = string.Empty;
     private string? _message;
 
@@ -96,6 +103,7 @@ else
     private async Task CreateCharacterAsync()
     {
         _isSubmitting = true;
+        _deletingCharacterId = null;
         _message = null;
 
         try
@@ -113,6 +121,37 @@ else
         }
         finally
         {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task DeleteCharacterAsync(CharacterSummaryResponse character)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"确定删除角色“{character.Name}”吗？");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        _deletingCharacterId = character.CharacterId;
+        _message = null;
+
+        try
+        {
+            var (success, errorMessage) = await ApiService.DeleteCharacterAsync(character.CharacterId);
+            if (!success)
+            {
+                _message = errorMessage ?? "删除角色失败。";
+                return;
+            }
+
+            await LoadCharactersAsync();
+            _message = "角色已删除。";
+        }
+        finally
+        {
+            _deletingCharacterId = null;
             _isSubmitting = false;
         }
     }
