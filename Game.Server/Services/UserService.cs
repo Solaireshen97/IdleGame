@@ -42,15 +42,7 @@ public class UserService(GameDbContext dbContext)
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        dbContext.Characters.Add(new Character
-        {
-            UserId = user.Id,
-            Name = "Knight",
-            Hp = 100,
-            MaxHp = 100,
-            Attack = 20,
-            Defense = 5
-        });
+        dbContext.Characters.Add(CreateCharacterEntity(user.Id, "Knight"));
 
         var session = CreateSession(user.Id);
         dbContext.UserLoginSessions.Add(session);
@@ -174,6 +166,33 @@ public class UserService(GameDbContext dbContext)
         return (characters, null);
     }
 
+    public async Task<(CharacterSummaryResponse? Response, string? Error)> CreateCurrentCharacterAsync(string? token, CreateCharacterRequest request)
+    {
+        var session = await GetValidSessionAsync(token);
+        if (session is null)
+        {
+            return (null, "Unauthorized");
+        }
+
+        var userExists = await dbContext.Users.AnyAsync(x => x.Id == session.UserId);
+        if (!userExists)
+        {
+            return (null, "UserNotFound");
+        }
+
+        var name = request.Name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return (null, "InvalidName");
+        }
+
+        var character = CreateCharacterEntity(session.UserId, name);
+        dbContext.Characters.Add(character);
+        await dbContext.SaveChangesAsync();
+
+        return (BuildCharacterSummary(character), null);
+    }
+
     public async Task<(bool Success, string? Error)> LogoutAsync(string? token)
     {
         var session = await GetValidSessionAsync(token);
@@ -240,6 +259,32 @@ public class UserService(GameDbContext dbContext)
             Token = token,
             UserId = user.Id,
             UserName = user.UserName
+        };
+    }
+
+    private static Character CreateCharacterEntity(int userId, string name)
+    {
+        return new Character
+        {
+            UserId = userId,
+            Name = name,
+            Hp = 100,
+            MaxHp = 100,
+            Attack = 20,
+            Defense = 5
+        };
+    }
+
+    private static CharacterSummaryResponse BuildCharacterSummary(Character character)
+    {
+        return new CharacterSummaryResponse
+        {
+            CharacterId = character.Id,
+            Name = character.Name,
+            Hp = character.Hp,
+            MaxHp = character.MaxHp,
+            Attack = character.Attack,
+            Defense = character.Defense
         };
     }
 }

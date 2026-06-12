@@ -2,33 +2,69 @@
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 
-@if (!_isLoading && _characters.Count > 0)
+@if (_isLoading)
+{
+    <p class="current-character-panel__empty">角色加载中...</p>
+}
+else
 {
     @for (var index = 0; index < _characters.Count; index++)
     {
         <CharacterCard Character="_characters[index]" IsCurrent="@(index == 0)" />
     }
-}
-else if (!_isLoading && _showEmptyState)
-{
-    <p class="current-character-panel__empty">当前账号暂无角色。</p>
+
+    @if (_isCreating)
+    {
+        <article class="character-create-card character-create-card--editing">
+            <div class="character-create-card__header">
+                <h3 class="character-create-card__title">创建角色</h3>
+                <span class="character-create-card__plus">+</span>
+            </div>
+            <label class="character-create-card__label" for="character-name-input">角色名</label>
+            <input id="character-name-input"
+                   class="character-create-card__input"
+                   @bind="_newCharacterName"
+                   @bind:event="oninput"
+                   disabled="@_isSubmitting" />
+            <div class="character-create-card__actions">
+                <button @onclick="CreateCharacterAsync" disabled="@_isSubmitting">创建</button>
+                <button @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
+            </div>
+        </article>
+    }
+    else
+    {
+        <button type="button" class="character-create-card" @onclick="ShowCreateForm">
+            <span class="character-create-card__plus">+</span>
+            <span class="character-create-card__text">创建角色</span>
+        </button>
+    }
+
+    @if (_showEmptyState)
+    {
+        <p class="current-character-panel__empty">当前账号暂无角色，请先创建角色。</p>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="current-character-panel__message">@_message</p>
+    }
 }
 
 @code {
     private List<CharacterSummaryResponse> _characters = [];
     private bool _isLoading = true;
     private bool _showEmptyState;
+    private bool _isCreating;
+    private bool _isSubmitting;
+    private string _newCharacterName = string.Empty;
+    private string? _message;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var characters = await ApiService.GetCurrentCharactersAsync();
-            if (characters is not null)
-            {
-                _characters = characters;
-                _showEmptyState = _characters.Count == 0;
-            }
+            await LoadCharactersAsync();
         }
         catch
         {
@@ -37,6 +73,54 @@ else if (!_isLoading && _showEmptyState)
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task LoadCharactersAsync()
+    {
+        var characters = await ApiService.GetCurrentCharactersAsync();
+        if (characters is not null)
+        {
+            _characters = characters;
+            _showEmptyState = _characters.Count == 0;
+        }
+    }
+
+    private void ShowCreateForm()
+    {
+        _isCreating = true;
+        _message = null;
+        _newCharacterName = string.Empty;
+    }
+
+    private void CancelCreate()
+    {
+        _isCreating = false;
+        _message = null;
+        _newCharacterName = string.Empty;
+    }
+
+    private async Task CreateCharacterAsync()
+    {
+        _isSubmitting = true;
+        _message = null;
+
+        try
+        {
+            var (character, errorMessage) = await ApiService.CreateCharacterAsync(_newCharacterName);
+            if (character is null)
+            {
+                _message = errorMessage ?? "创建角色失败。";
+                return;
+            }
+
+            await LoadCharactersAsync();
+            _isCreating = false;
+            _newCharacterName = string.Empty;
+        }
+        finally
+        {
+            _isSubmitting = false;
         }
     }
 }

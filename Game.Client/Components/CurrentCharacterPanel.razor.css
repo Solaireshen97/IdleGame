@@ -3,3 +3,76 @@
     color: #6c757d;
     font-size: 0.95rem;
 }
+
+.current-character-panel__message {
+    margin: 0;
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+.character-create-card {
+    min-width: 220px;
+    padding: 1rem;
+    border: 1px dashed #6c757d;
+    border-radius: 0.75rem;
+    background: #fff;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+button.character-create-card {
+    cursor: pointer;
+}
+
+.character-create-card--editing {
+    align-items: stretch;
+    justify-content: flex-start;
+}
+
+.character-create-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.character-create-card__title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.character-create-card__plus {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.character-create-card__text {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.character-create-card__label {
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+}
+
+.character-create-card__input {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.5rem;
+}
+
+.character-create-card__actions {
+    display: flex;
+    gap: 0.5rem;
+}

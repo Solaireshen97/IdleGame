@@ -185,6 +185,30 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
     }
 
+    public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> CreateCharacterAsync(string name)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true);
+        request.Content = JsonContent.Create(new CreateCharacterRequest { Name = name });
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var errorMessage = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                errorMessage = "创建角色失败。";
+            }
+
+            return (null, errorMessage);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
+    }
+
     public async Task<bool> LogoutAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true);
