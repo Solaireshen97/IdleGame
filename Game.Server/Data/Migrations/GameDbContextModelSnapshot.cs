@@ -80,10 +80,20 @@ namespace Game.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("BattleEndedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("MonsterId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("NextRoundAvailableAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

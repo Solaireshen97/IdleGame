@@ -8,245 +8,161 @@ namespace Game.Server.Services;
 
 public class RoomService(GameDbContext dbContext, UserService userService)
 {
+    private const int SlotCount = 5;
+
     public async Task<List<RoomSummaryResponse>> GetRoomsAsync()
     {
         var rooms = await dbContext.Rooms.ToListAsync();
         var result = new List<RoomSummaryResponse>();
-
         foreach (var room in rooms)
         {
             var summary = await BuildRoomSummaryAsync(room);
-            if (summary is not null)
-            {
-                result.Add(summary);
-            }
+            if (summary is not null) result.Add(summary);
         }
-
         return result;
     }
 
     public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId, string? token = null)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
-        if (room is null)
-        {
-            return null;
-        }
-
-        var currentCharacterId = await GetCurrentCharacterIdAsync(token);
-        return await BuildRoomDetailAsync(room, currentCharacterId);
+        if (room is null) return null;
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        return await BuildRoomDetailAsync(room, error is null ? user!.Id : null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token)
     {
-        var (user, character, error) = await GetCurrentUserAndCharacterAsync(token);
-
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.CharacterId == character!.Id);
-        if (existingMembership is not null)
-        {
-            return (null, "CharacterAlreadyInRoom");
-        }
+        var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null) return (null, error);
+        if (await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == character!.Id)) return (null, "CharacterAlreadyInRoom");
 
         var monster = CreateMonster(monsterType);
-
+        var room = new Room { MonsterId = 0, OwnerUserId = user!.Id, SlotCount = SlotCount, Status = RoomStatus.NotStarted };
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         dbContext.Monsters.Add(monster);
         await dbContext.SaveChangesAsync();
-
-        var room = new Room
-        {
-            MonsterId = monster.Id,
-            Status = RoomStatus.Idle
-        };
-
+        room.MonsterId = monster.Id;
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
-
-        var ownerMember = new RoomMember
+        dbContext.RoomSlots.AddRange(Enumerable.Range(1, SlotCount).Select(index => new RoomSlot
         {
             RoomId = room.Id,
-            UserId = user!.Id,
-            CharacterId = character!.Id,
-            IsOwner = true
-        };
-
-        dbContext.RoomMembers.Add(ownerMember);
+            SlotIndex = index,
+            CharacterId = index == 1 ? character.Id : null,
+            UserId = index == 1 ? user.Id : null,
+            IsMainControl = index == 1
+        }));
         await dbContext.SaveChangesAsync();
-
-        return (await BuildRoomDetailAsync(room, character.Id), null);
+        await transaction.CommitAsync();
+        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId, string? token)
+    public Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId, string? token) =>
+        Task.FromResult<(RoomDetailResponse?, string?)>((null, "JoinDeprecated"));
+
+    public async Task<(RoomDetailResponse? Detail, string? Error)> AssignSlotAsync(int roomId, AssignRoomSlotRequest request, string? token)
     {
-        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
-        if (room is null)
-        {
-            return (null, "NotFound");
-        }
-
-        var (user, character, error) = await GetCurrentUserAndCharacterAsync(token);
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        var existingMembership = await dbContext.RoomMembers.FirstOrDefaultAsync(x => x.CharacterId == character!.Id);
-        if (existingMembership is not null)
-        {
-            return existingMembership.RoomId == roomId
-                ? (null, "CharacterAlreadyInTargetRoom")
-                : (null, "CharacterAlreadyInRoom");
-        }
-
-        var member = new RoomMember
-        {
-            RoomId = roomId,
-            UserId = user!.Id,
-            CharacterId = character!.Id
-        };
-
-        dbContext.RoomMembers.Add(member);
+        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
+        if (error is not null) return (null, error);
+        if (request.SlotIndex is < 1 or > SlotCount) return (null, "InvalidSlotIndex");
+        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == request.CharacterId);
+        if (character is null) return (null, "CharacterNotFound");
+        if (character.UserId != user!.Id) return (null, "NotCharacterOwner");
+        var existingSlot = await dbContext.RoomSlots.FirstOrDefaultAsync(x => x.CharacterId == character.Id);
+        if (existingSlot is not null && existingSlot.RoomId != room!.Id) return (null, "CharacterAlreadyInRoom");
+        if (existingSlot is not null && existingSlot.SlotIndex != request.SlotIndex) return (null, "CharacterAlreadyInTargetRoom");
+        var target = await dbContext.RoomSlots.SingleAsync(x => x.RoomId == room!.Id && x.SlotIndex == request.SlotIndex);
+        if (target.IsMainControl && target.CharacterId != character.Id) return (null, "CannotReplaceMainControl");
+        target.CharacterId = character.Id;
+        target.UserId = user.Id;
         await dbContext.SaveChangesAsync();
-
-        return (await BuildRoomDetailAsync(room, character.Id), null);
+        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
-    private static Monster CreateMonster(string monsterType)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> RemoveSlotAsync(int roomId, int slotIndex, string? token)
     {
-        return monsterType switch
-        {
-            "Goblin" => new Monster { Name = "Goblin", Hp = 80, MaxHp = 80, Attack = 12, Defense = 4 },
-            "Wolf"   => new Monster { Name = "Wolf",   Hp = 65, MaxHp = 65, Attack = 15, Defense = 3 },
-            _        => new Monster { Name = "Slime",  Hp = 50, MaxHp = 50, Attack = 8,  Defense = 2 }
-        };
+        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
+        if (error is not null) return (null, error);
+        if (slotIndex is < 1 or > SlotCount) return (null, "InvalidSlotIndex");
+        var slot = await dbContext.RoomSlots.SingleAsync(x => x.RoomId == room!.Id && x.SlotIndex == slotIndex);
+        if (slot.IsMainControl) return (null, "CannotRemoveMainControl");
+        slot.CharacterId = null;
+        slot.UserId = null;
+        await dbContext.SaveChangesAsync();
+        return (await BuildRoomDetailAsync(room, user!.Id), null);
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? Error)> SetMainControlAsync(int roomId, SetMainControlRequest request, string? token)
+    {
+        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
+        if (error is not null) return (null, error);
+        var slot = await dbContext.RoomSlots.SingleOrDefaultAsync(x => x.RoomId == room!.Id && x.CharacterId == request.CharacterId && x.UserId == user!.Id);
+        if (slot is null) return (null, "CharacterNotInRoom");
+        var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).ToListAsync();
+        foreach (var item in slots) item.IsMainControl = item.Id == slot.Id;
+        await dbContext.SaveChangesAsync();
+        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
     public async Task<(bool Success, string? Error)> DeleteRoomAsync(int roomId, string? token)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
-        if (room is null)
-        {
-            return (false, "NotFound");
-        }
-
-        var (_, currentCharacter, error) = await GetCurrentUserAndCharacterAsync(token);
-        if (error is not null)
-        {
-            return (false, error);
-        }
-
-        var ownerMember = await dbContext.RoomMembers
-            .FirstOrDefaultAsync(x => x.RoomId == roomId && x.CharacterId == currentCharacter!.Id && x.IsOwner);
-
-        if (ownerMember is null)
-        {
-            return (false, "NotOwner");
-        }
-
-        var members = await dbContext.RoomMembers.Where(x => x.RoomId == roomId).ToListAsync();
-        dbContext.RoomMembers.RemoveRange(members);
-
-        var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
-
+        if (room is null) return (false, "NotFound");
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        if (error is not null) return (false, error);
+        if (room.OwnerUserId != user!.Id) return (false, "NotOwner");
+        dbContext.RoomSlots.RemoveRange(await dbContext.RoomSlots.Where(x => x.RoomId == roomId).ToListAsync());
+        var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         dbContext.Rooms.Remove(room);
-        if (monster is not null)
-        {
-            dbContext.Monsters.Remove(monster);
-        }
-
+        if (monster is not null) dbContext.Monsters.Remove(monster);
         await dbContext.SaveChangesAsync();
         return (true, null);
     }
 
-    private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room, int? currentCharacterId = null)
+    private async Task<(Room? Room, User? User, string? Error)> GetOwnerEditableRoomAsync(int roomId, string? token)
     {
-        var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
-        if (monster is null)
-        {
-            return null;
-        }
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
+        if (room is null) return (null, null, "NotFound");
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        if (error is not null) return (room, null, error);
+        if (room.OwnerUserId != user!.Id) return (room, user, "NotOwner");
+        if (room.Status == RoomStatus.Cooldown) return (room, user, "RoomCooldown");
+        return (room, user, null);
+    }
 
-        var members = await dbContext.RoomMembers
-            .Where(x => x.RoomId == room.Id)
-            .OrderByDescending(x => x.IsOwner)
-            .ThenBy(x => x.Id)
-            .ToListAsync();
-        var currentCharacterMember = currentCharacterId.HasValue
-            ? members.FirstOrDefault(x => x.CharacterId == currentCharacterId.Value)
-            : null;
-        var displayedMember = currentCharacterMember ?? members.FirstOrDefault();
-
-        if (displayedMember is null)
-        {
-            return new RoomDetailResponse
-            {
-                RoomId = room.Id,
-                MonsterName = monster.Name,
-                MonsterHp = monster.Hp,
-                MonsterMaxHp = monster.MaxHp,
-                RoomStatus = room.Status,
-                HasPlayer = false,
-                IsCurrentCharacterInRoom = false,
-                IsCurrentPlayerOwner = false
-            };
-        }
-
-        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == displayedMember.UserId);
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == displayedMember.CharacterId);
-
+    private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room, int? currentUserId)
+    {
+        var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
+        if (monster is null) return null;
+        var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).OrderBy(x => x.SlotIndex).ToListAsync();
+        var characterIds = slots.Where(x => x.CharacterId.HasValue).Select(x => x.CharacterId!.Value).ToList();
+        var characters = await dbContext.Characters.Where(x => characterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+        var now = DateTime.UtcNow;
         return new RoomDetailResponse
         {
-            RoomId = room.Id,
-            MonsterName = monster.Name,
-            MonsterHp = monster.Hp,
-            MonsterMaxHp = monster.MaxHp,
-            RoomStatus = room.Status,
-            HasPlayer = true,
-            PlayerName = user?.UserName,
-            CharacterName = character?.Name,
-            CharacterHp = character?.Hp,
-            CharacterMaxHp = character?.MaxHp,
-            IsCurrentCharacterInRoom = currentCharacterMember is not null,
-            IsCurrentPlayerOwner = currentCharacterMember?.IsOwner == true
+            RoomId = room.Id, OwnerUserId = room.OwnerUserId, SlotCount = room.SlotCount,
+            MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
+            RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc,
+            ServerTimeUtc = now,
+            CanExecuteRound = currentUserId == room.OwnerUserId && slots.Any(x => x.CharacterId.HasValue && characters.TryGetValue(x.CharacterId.Value, out var c) && c.Hp > 0) && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && (!room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
+            Slots = slots.Select(slot =>
+            {
+                characters.TryGetValue(slot.CharacterId ?? 0, out var character);
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, CharacterName = character?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character?.MaxHp, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0 };
+            }).ToList()
         };
     }
 
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
     {
-        var monster = await dbContext.Monsters.FirstOrDefaultAsync(x => x.Id == room.MonsterId);
-
-        if (monster is null)
-        {
-            return null;
-        }
-
-        return new RoomSummaryResponse
-        {
-            RoomId = room.Id,
-            MonsterName = monster.Name,
-            MonsterHp = monster.Hp,
-            MonsterMaxHp = monster.MaxHp,
-            RoomStatus = room.Status
-        };
+        var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
+        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status };
     }
 
-    private async Task<(User? User, Character? Character, string? Error)> GetCurrentUserAndCharacterAsync(string? token)
+    private static Monster CreateMonster(string monsterType) => monsterType switch
     {
-        return await userService.GetCurrentUserAndActiveCharacterAsync(token);
-    }
-
-    private async Task<int?> GetCurrentCharacterIdAsync(string? token)
-    {
-        var (_, character, error) = await GetCurrentUserAndCharacterAsync(token);
-        if (error is not null)
-        {
-            return null;
-        }
-
-        return character?.Id;
-    }
+        "Goblin" => new Monster { Name = "Goblin", Hp = 80, MaxHp = 80, Attack = 12, Defense = 4 },
+        "Wolf" => new Monster { Name = "Wolf", Hp = 65, MaxHp = 65, Attack = 15, Defense = 3 },
+        _ => new Monster { Name = "Slime", Hp = 50, MaxHp = 50, Attack = 8, Defense = 2 }
+    };
 }

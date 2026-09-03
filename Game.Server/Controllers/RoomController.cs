@@ -50,22 +50,28 @@ public class RoomController(RoomService roomService) : ControllerBase
     [HttpPost("{roomId:int}/join")]
     public async Task<IActionResult> JoinRoom(int roomId)
     {
-        var (detail, error) = await roomService.JoinRoomAsync(roomId, GetBearerToken());
-        if (detail is null || error is not null)
-        {
-            return error switch
-            {
-                "Unauthorized" => Unauthorized(),
-                "NotFound" => NotFound(),
-                "UserNotFound" => NotFound("User not found."),
-                "CharacterNotFound" => NotFound("Character not found."),
-                "CharacterAlreadyInTargetRoom" => BadRequest("Current character is already in this room."),
-                "CharacterAlreadyInRoom" => BadRequest("Current character is already in another room."),
-                _ => BadRequest(error)
-            };
-        }
+        return StatusCode(StatusCodes.Status410Gone, "JoinDeprecated");
+    }
 
-        return Ok(detail);
+    [HttpPost("{roomId:int}/slots")]
+    public async Task<IActionResult> AssignSlot(int roomId, [FromBody] AssignRoomSlotRequest request)
+    {
+        var (detail, error) = await roomService.AssignSlotAsync(roomId, request, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
+    [HttpDelete("{roomId:int}/slots/{slotIndex:int}")]
+    public async Task<IActionResult> RemoveSlot(int roomId, int slotIndex)
+    {
+        var (detail, error) = await roomService.RemoveSlotAsync(roomId, slotIndex, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
+    [HttpPost("{roomId:int}/main-control")]
+    public async Task<IActionResult> SetMainControl(int roomId, [FromBody] SetMainControlRequest request)
+    {
+        var (detail, error) = await roomService.SetMainControlAsync(roomId, request, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
     }
 
     [HttpDelete("{roomId:int}")]
@@ -112,4 +118,14 @@ public class RoomController(RoomService roomService) : ControllerBase
 
         return authorization[prefix.Length..].Trim();
     }
+
+    private IActionResult RoomOperationError(string? error) => error switch
+    {
+        "Unauthorized" => Unauthorized(),
+        "NotFound" => NotFound(),
+        "UserNotFound" or "CharacterNotFound" => NotFound(error),
+        "NotOwner" or "NotCharacterOwner" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "RoomCooldown" => Conflict(error),
+        _ => BadRequest(error)
+    };
 }

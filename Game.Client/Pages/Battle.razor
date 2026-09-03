@@ -1,209 +1,187 @@
 @page "/battle/{roomId:int}"
 @using Game.Client.Services
 @using Game.Shared.Dtos
+@using Game.Shared.Dtos.Auth
+@using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <PageTitle>房间</PageTitle>
 
-<h1>IdleGame V0.5 — 房间</h1>
-
+<h1>IdleGame V0.7 — 房间</h1>
 <button @onclick="GoToRooms">← 返回房间列表</button>
 
 @if (_roomDetail is null)
 {
-    <p>Loading room...</p>
+    <p>加载房间中...</p>
 }
 else
 {
     <h2>房间 #@_roomDetail.RoomId</h2>
-    <p><strong>Monster:</strong> @_roomDetail.MonsterName (@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP)</p>
-    <p><strong>Room Status:</strong> @_roomDetail.RoomStatus</p>
-
-    @if (_roomDetail.HasPlayer)
-    {
-        <p><strong>Player:</strong> @_roomDetail.PlayerName</p>
-        <p><strong>Character:</strong> @_roomDetail.CharacterName (@_roomDetail.CharacterHp / @_roomDetail.CharacterMaxHp HP)</p>
-    }
-    else
-    {
-        <p><em>当前还没有玩家加入战斗。</em></p>
-    }
-
-    @if (_roomDetail.IsCurrentCharacterInRoom)
-    {
-        @if (_roomDetail.IsCurrentPlayerOwner)
-        {
-            <p><em>你是房主</em></p>
-        }
-
-        <button @onclick="StartBattleAsync" disabled="@_isBusy">开始战斗</button>
-        <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
-        <button @onclick="HealAsync" disabled="@_isBusy">恢复10HP</button>
-
-        @if (_roomDetail.IsCurrentPlayerOwner)
-        {
-            <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
-        }
-    }
-    else
-    {
-        <p><em>当前角色尚未加入该房间。</em></p>
-        <button @onclick="JoinRoomAsync" disabled="@_isBusy">加入战斗</button>
-    }
+    <div style="display: flex; gap: 3rem; align-items: flex-start; margin-top: 1rem;">
+        <section style="min-width: 260px;">
+            <h3>怪物</h3>
+            <p><strong>@_roomDetail.MonsterName</strong></p>
+            <p>HP：@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp</p>
+            <p>战斗状态：@GetStatusText()</p>
+            @if (GetRemainingCooldownSeconds() > 0)
+            {
+                <p><em>下一回合将在 @GetRemainingCooldownSeconds() 秒后可执行</em></p>
+            }
+            <button @onclick="ExecuteRoundAsync" disabled="@(_isBusy || !_roomDetail.CanExecuteRound)">执行回合</button>
+            <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+            <button @onclick="HealAsync" disabled="@_isBusy">恢复主控10HP</button>
+            @if (IsOwner)
+            {
+                <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
+            }
+        </section>
+        <section style="min-width: 380px;">
+            <h3>队伍槽位（行动顺序 1 → 5）</h3>
+            @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
+            {
+                <div style="border: 1px solid #ccc; padding: .75rem; margin-bottom: .5rem;">
+                    <strong>@slot.SlotIndex 号位</strong>
+                    @if (slot.IsOccupied)
+                    {
+                        <span>：@slot.CharacterName（@slot.CharacterHp / @slot.CharacterMaxHp HP，@(slot.IsAlive ? "存活" : "死亡")）</span>
+                        @if (slot.IsMainControl) { <span>【主控】</span> }
+                    }
+                    else
+                    {
+                        <span>：空槽位</span>
+                    }
+                    @if (IsOwner)
+                    {
+                        <div style="margin-top: .5rem;">
+                            <select @bind="_selectedCharacterId" disabled="@(_isBusy || !CanChangeFormation)">
+                                <option value="0">选择自有角色</option>
+                                @foreach (var character in _characters)
+                                {
+                                    <option value="@character.CharacterId">@character.Name (@character.Hp / @character.MaxHp)</option>
+                                }
+                            </select>
+                            <button @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterId == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
+                            @if (slot.IsOccupied)
+                            {
+                                <button @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">移除</button>
+                                <button @onclick="() => SetMainControlAsync(slot.CharacterId!.Value)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">设为主控</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
 
     <h3>战斗日志</h3>
-    @if (_logs.Count == 0)
-    {
-        <p>暂无日志</p>
-    }
-    else
-    {
-        <ul>
-            @foreach (var log in _logs)
-            {
-                <li>@log</li>
-            }
-        </ul>
-    }
-
-    @if (_message is not null)
-    {
-        <p><em>@_message</em></p>
-    }
+    @if (_logs.Count == 0) { <p>暂无日志</p> }
+    else { <ul>@foreach (var log in _logs) { <li>@log</li> }</ul> }
+    @if (_message is not null) { <p><em>@_message</em></p> }
 }
 
 @code {
-    [Parameter]
-    public int RoomId { get; set; }
-
+    [Parameter] public int RoomId { get; set; }
     private RoomDetailResponse? _roomDetail;
+    private CurrentUserResponse? _currentUser;
+    private List<CharacterSummaryResponse> _characters = new();
     private readonly List<string> _logs = new();
+    private readonly CancellationTokenSource _refreshCancellation = new();
     private bool _isBusy;
     private string? _message;
+    private int _selectedCharacterId;
+    private DateTime _serverTimeUtc;
+    private DateTime _serverTimeReceivedAtUtc;
+    private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
+    private bool CanChangeFormation => _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.Cooldown;
 
     protected override async Task OnInitializedAsync()
     {
-        var currentUser = await ApiService.GetCurrentUserAsync();
-        if (currentUser is null)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-
+        _currentUser = await ApiService.GetCurrentUserAsync();
+        if (_currentUser is null) { Navigation.NavigateTo("/login", replace: true); return; }
+        _characters = await ApiService.GetCurrentCharactersAsync() ?? new();
         await RefreshRoomDetailAsync();
+        _ = RefreshCooldownAsync(_refreshCancellation.Token);
     }
 
-    private async Task JoinRoomAsync()
+    private async Task AssignSlotAsync(int slotIndex)
     {
-        _isBusy = true;
-        _message = null;
-        var (detail, errorMessage) = await ApiService.JoinRoomAsync(RoomId);
-        if (detail is null)
-        {
-            _message = errorMessage switch
-            {
-                "Current character is already in this room." => "当前角色已经在该房间中。",
-                "Current character is already in another room." => "当前角色已在其他房间中，不能重复加入。",
-                _ => errorMessage ?? "加入战斗失败。"
-            };
-        }
-        else
-        {
-            _roomDetail = detail;
-        }
+        _isBusy = true; _message = null;
+        var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterId);
+        if (detail is null) _message = error ?? "上阵角色失败。"; else _roomDetail = detail;
         _isBusy = false;
     }
 
-    private async Task StartBattleAsync()
+    private async Task RemoveSlotAsync(int slotIndex)
     {
-        _isBusy = true;
-        _message = null;
-        var result = await ApiService.StartBattleAsync(RoomId);
-        _logs.Clear();
-
-        if (result.Result is null)
-        {
-            _message = result.ErrorMessage == "NotInRoom"
-                ? "当前角色未加入该房间，无法战斗。"
-                : result.ErrorMessage ?? "战斗请求失败。";
-        }
-        else
-        {
-            _logs.AddRange(result.Result.Logs);
-        }
-
-        await RefreshRoomDetailAsync();
+        _isBusy = true; _message = null;
+        var (detail, error) = await ApiService.RemoveRoomSlotAsync(RoomId, slotIndex);
+        if (detail is null) _message = error ?? "移除角色失败。"; else _roomDetail = detail;
         _isBusy = false;
+    }
+
+    private async Task SetMainControlAsync(int characterId)
+    {
+        _isBusy = true; _message = null;
+        var (detail, error) = await ApiService.SetMainControlAsync(RoomId, characterId);
+        if (detail is null) _message = error ?? "切换主控失败。"; else _roomDetail = detail;
+        _isBusy = false;
+    }
+
+    private async Task ExecuteRoundAsync()
+    {
+        _isBusy = true; _message = null; _logs.Clear();
+        var result = await ApiService.ExecuteRoundAsync(RoomId);
+        if (result.Result is null) _message = result.ErrorMessage ?? "战斗请求失败。";
+        else { _logs.AddRange(result.Result.Logs); _message = result.ErrorMessage; }
+        await RefreshRoomDetailAsync(); _isBusy = false;
     }
 
     private async Task ResetBattleAsync()
     {
-        _isBusy = true;
-        _message = null;
-        var (roomDetail, errorMessage) = await ApiService.ResetBattleAsync(RoomId);
-        _logs.Clear();
-
-        if (roomDetail is null)
-        {
-            _message = errorMessage == "NotInRoom"
-                ? "当前角色未加入该房间，无法重置战斗。"
-                : errorMessage ?? "重置战斗失败。";
-        }
-        else
-        {
-            _roomDetail = roomDetail;
-            _logs.Add("Battle reset.");
-        }
-
+        _isBusy = true; _message = null; _logs.Clear();
+        var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
+        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Add("战斗已重置。"); }
         _isBusy = false;
     }
 
     private async Task HealAsync()
     {
-        _isBusy = true;
-        _message = null;
-        var (roomDetail, errorMessage) = await ApiService.HealAsync(RoomId);
-        _logs.Clear();
-
-        if (roomDetail is null)
-        {
-            _message = errorMessage == "NotInRoom"
-                ? "当前角色未加入该房间，无法恢复。"
-                : errorMessage ?? "恢复角色失败。";
-        }
-        else
-        {
-            _roomDetail = roomDetail;
-            _logs.Add("Recovered 10 HP.");
-        }
-
+        _isBusy = true; _message = null; _logs.Clear();
+        var (detail, error) = await ApiService.HealAsync(RoomId);
+        if (detail is null) _message = error ?? "恢复角色失败。"; else { _roomDetail = detail; _logs.Add("主控角色恢复了 10 HP。"); }
         _isBusy = false;
     }
 
     private async Task DismissRoomAsync()
     {
         _isBusy = true;
-        _message = null;
-        var success = await ApiService.DeleteRoomAsync(RoomId);
-        if (!success)
-        {
-            _message = "解散房间失败。";
-            _isBusy = false;
-        }
-        else
-        {
-            Navigation.NavigateTo("/rooms");
-        }
+        if (await ApiService.DeleteRoomAsync(RoomId)) Navigation.NavigateTo("/rooms"); else { _message = "解散房间失败。"; _isBusy = false; }
     }
 
     private async Task RefreshRoomDetailAsync()
     {
         _roomDetail = await ApiService.GetRoomDetailAsync(RoomId);
+        if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
     }
 
-    private void GoToRooms()
+    private void GoToRooms() => Navigation.NavigateTo("/rooms");
+    private int GetRemainingCooldownSeconds() => _roomDetail?.NextRoundAvailableAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
+    private string GetStatusText() => _roomDetail?.RoomStatus switch
     {
-        Navigation.NavigateTo("/rooms");
+        Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
+        Game.Shared.Enums.RoomStatus.Cooldown => "冷却中",
+        Game.Shared.Enums.RoomStatus.BattleOver when _roomDetail.MonsterHp <= 0 => "战斗胜利",
+        Game.Shared.Enums.RoomStatus.BattleOver => "队伍战败",
+        _ => "未知"
+    };
+
+    private async Task RefreshCooldownAsync(CancellationToken cancellationToken)
+    {
+        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) await RefreshRoomDetailAsync(); await InvokeAsync(StateHasChanged); } }
+        catch (OperationCanceledException) { }
     }
+
+    public void Dispose() { _refreshCancellation.Cancel(); _refreshCancellation.Dispose(); }
 }

@@ -251,7 +251,7 @@ public class UserService(GameDbContext dbContext)
             return (false, "CannotDeleteLastCharacter");
         }
 
-        var isCharacterInRoom = await dbContext.RoomMembers.AnyAsync(x => x.CharacterId == characterId);
+        var isCharacterInRoom = await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == characterId);
         if (isCharacterInRoom)
         {
             return (false, "CharacterInRoom");

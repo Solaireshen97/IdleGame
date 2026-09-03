@@ -8,7 +8,7 @@
 
 <PageTitle>房间列表</PageTitle>
 
-<h1>IdleGame V0.5 — 房间列表</h1>
+<h1>IdleGame V0.7 — 房间列表</h1>
 
 @if (_isCheckingLoginState)
 {
@@ -29,6 +29,7 @@ else
             <option value="Wolf">Wolf（狼）</option>
         </select>
         <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+        <span>创建后，当前激活角色会自动进入 1 号位并成为主控。</span>
     </div>
 
     @if (_isLoading)

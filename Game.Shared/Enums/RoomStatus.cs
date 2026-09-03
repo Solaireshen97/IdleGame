@@ -2,6 +2,7 @@ namespace Game.Shared.Enums;
 
 public enum RoomStatus
 {
-    Idle = 0,
-    InBattle = 1
+    NotStarted = 0,
+    Cooldown = 1,
+    BattleOver = 2
 }

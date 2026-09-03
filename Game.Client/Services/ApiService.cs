@@ -50,9 +50,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots", requiresAuth: true);
+        request.Content = JsonContent.Create(new AssignRoomSlotRequest { SlotIndex = slotIndex, CharacterId = characterId });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -64,13 +65,28 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             var errorMessage = await response.Content.ReadAsStringAsync();
             if (string.IsNullOrWhiteSpace(errorMessage))
             {
-                errorMessage = "加入房间失败。";
+                errorMessage = "上阵角色失败。";
             }
 
             return (null, errorMessage);
         }
 
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> RemoveRoomSlotAsync(int roomId, int slotIndex)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/slots/{slotIndex}", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
+        return await HandleRoomDetailResponseAsync(response, "移除角色失败。");
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetMainControlAsync(int roomId, int characterId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/main-control", requiresAuth: true);
+        request.Content = JsonContent.Create(new SetMainControlRequest { CharacterId = characterId });
+        var response = await httpClient.SendAsync(request);
+        return await HandleRoomDetailResponseAsync(response, "切换主控失败。");
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)
@@ -80,9 +96,25 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId)
+    private async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> HandleRoomDetailResponseAsync(HttpResponseMessage response, string fallbackMessage)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/start", requiresAuth: true);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+    }
+
+    public async Task<(BattleResult? Result, string? ErrorMessage)> ExecuteRoundAsync(int roomId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/round", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -90,6 +122,18 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 await userSessionService.ClearToken();
+            }
+
+            if (response.StatusCode == HttpStatusCode.Conflict &&
+                response.Content.Headers.ContentType?.MediaType == "application/json")
+            {
+                var conflictResult = await response.Content.ReadFromJsonAsync<BattleResult>();
+                if (conflictResult is not null)
+                {
+                    return (conflictResult, conflictResult.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown
+                        ? "回合冷却中，请等待后再试。"
+                        : "本场战斗已结束，请重置战斗后再试。");
+                }
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -103,6 +147,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
+
+    public Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId) => ExecuteRoundAsync(roomId);
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> ResetBattleAsync(int roomId)
     {

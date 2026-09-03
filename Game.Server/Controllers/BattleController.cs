@@ -11,7 +11,23 @@ public class BattleController(BattleService battleService, RoomService roomServi
     [HttpPost("start")]
     public async Task<IActionResult> Start([FromBody] BattleRequest request)
     {
-        var (result, error) = await battleService.ExecuteBattleAsync(request.RoomId, GetBearerToken());
+        return await ExecuteRoundAsync(request);
+    }
+
+    [HttpPost("round")]
+    public async Task<IActionResult> Round([FromBody] BattleRequest request)
+    {
+        return await ExecuteRoundAsync(request);
+    }
+
+    private async Task<IActionResult> ExecuteRoundAsync(BattleRequest request)
+    {
+        var (result, error) = await battleService.ExecuteRoundAsync(request.RoomId, GetBearerToken());
+        if (error is "RoundCooldown" or "BattleOver")
+        {
+            return Conflict(result);
+        }
+
         if (result is null)
         {
             return error switch
@@ -22,6 +38,8 @@ public class BattleController(BattleService battleService, RoomService roomServi
                 "CharacterNotFound" => NotFound("Character not found."),
                 "MonsterNotFound" => NotFound("Monster not found."),
                 "NotInRoom" => StatusCode(403, "NotInRoom"),
+                "NotOwner" => StatusCode(403, "NotOwner"),
+                "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
                 _ => BadRequest(error)
             };
         }
@@ -43,6 +61,8 @@ public class BattleController(BattleService battleService, RoomService roomServi
                 "NotFound" => NotFound(),
                 "MonsterNotFound" => NotFound("Monster not found."),
                 "NotInRoom" => StatusCode(403, "NotInRoom"),
+                "NotOwner" => StatusCode(403, "NotOwner"),
+                "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
                 _ => BadRequest(error)
             };
         }
@@ -81,6 +101,16 @@ public class BattleController(BattleService battleService, RoomService roomServi
             if (error == "NotInRoom")
             {
                 return StatusCode(403, "NotInRoom");
+            }
+
+            if (error == "NotOwner")
+            {
+                return StatusCode(403, "NotOwner");
+            }
+
+            if (error == "ConcurrencyConflict")
+            {
+                return Conflict("ConcurrencyConflict");
             }
 
             return BadRequest(error);
