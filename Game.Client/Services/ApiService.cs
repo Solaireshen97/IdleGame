@@ -150,6 +150,25 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId) => ExecuteRoundAsync(roomId);
 
+    public async Task<(BattleResult? Result, string? ErrorMessage)> StartPreparationAsync(int roomId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/prepare", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                await userSessionService.ClearToken();
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "开始回合失败。" : error);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> ResetBattleAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true);

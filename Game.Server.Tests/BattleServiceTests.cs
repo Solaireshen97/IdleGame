@@ -13,7 +13,7 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_FirstRound_AppliesBothAttacks()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.Equal(93, result!.CharacterHp);
@@ -22,10 +22,35 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task ExecuteRoundAsync_WithoutPreparation_IsRejectedWithoutChangingHp()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+
+        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+
+        Assert.Equal("PreparationRequired", error);
+        Assert.Equal(100, result!.CharacterHp);
+        Assert.Equal(50, result.MonsterHp);
+    }
+
+    [Fact]
+    public async Task StartPreparationAsync_ConfirmsPartyAndClearsConfirmationsAfterRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
+        await test.AddSlotAsync(2, "Mage", attack: 10);
+
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsConfirmed));
+    }
+
+    [Fact]
     public async Task ExecuteRoundAsync_DamageBelowDefense_DealsAtLeastOne()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterDefense: 99, monsterAttack: 1, characterDefense: 99);
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.Equal(49, result!.MonsterHp);
@@ -36,7 +61,7 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_PlayerKillsMonster_DoesNotCounterattack()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.True(result!.IsVictory);
@@ -49,7 +74,7 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_MonsterKillsPlayer_SetsBattleOver()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 5, monsterAttack: 100);
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.True(result!.IsCharacterDead);
@@ -61,8 +86,8 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_DuringCooldown_DoesNotChangeHp()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        var (firstResult, _) = await test.Service.ExecuteRoundAsync(1, test.Token);
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (firstResult, _) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Equal("RoundCooldown", error);
         Assert.Equal(firstResult!.CharacterHp, result!.CharacterHp);
@@ -73,12 +98,12 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_AfterCooldown_CanExecuteAgain()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        await test.Service.ExecuteRoundAsync(1, test.Token);
+        await test.Service.StartPreparationAsync(1, test.Token);
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
 
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(error);
         Assert.Equal(20, result!.MonsterHp);
     }
@@ -87,8 +112,8 @@ public class BattleServiceTests
     public async Task ExecuteRoundAsync_AfterBattleOver_IsRejectedWithoutChanges()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
-        var (firstResult, _) = await test.Service.ExecuteRoundAsync(1, test.Token);
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (firstResult, _) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Equal("BattleOver", error);
         Assert.Equal(firstResult!.MonsterHp, result!.MonsterHp);
@@ -98,7 +123,7 @@ public class BattleServiceTests
     public async Task ResetBattleAsync_RestoresMonsterAndClearsRoundState()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        await test.Service.ExecuteRoundAsync(1, test.Token);
+        await test.Service.StartPreparationAsync(1, test.Token);
 
         var (success, error) = await test.Service.ResetBattleAsync(1, test.Token);
         Assert.True(success);
@@ -134,7 +159,7 @@ public class BattleServiceTests
         test.Db.UserLoginSessions.Add(new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
         await test.Db.SaveChangesAsync();
 
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, "other-token");
+        var (result, error) = await test.Service.StartPreparationAsync(1, "other-token");
         Assert.Null(result);
         Assert.Equal("NotInRoom", error);
         Assert.Equal(50, test.Monster.Hp);
@@ -150,7 +175,7 @@ public class BattleServiceTests
         var firstService = new BattleService(firstDb, new UserService(firstDb));
         var secondService = new BattleService(secondDb, new UserService(secondDb));
 
-        var results = await Task.WhenAll(firstService.ExecuteRoundAsync(1, test.Token), secondService.ExecuteRoundAsync(1, test.Token));
+        var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token), secondService.StartPreparationAsync(1, test.Token));
         Assert.Single(results.Where(result => result.Error is null));
     }
 
@@ -160,7 +185,7 @@ public class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
         await test.AddSlotAsync(2, "Mage", attack: 10);
 
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.StartsWith("Slot 1 Knight attacks", result!.Logs[0]);
@@ -173,7 +198,7 @@ public class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         await test.AddSlotAsync(2, "Mage", attack: 100);
 
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.Single(result!.Logs.Where(x => x.Contains("attacks Slime")));
@@ -187,11 +212,11 @@ public class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(characterHp: 5, monsterAttack: 100);
         var second = await test.AddSlotAsync(2, "Mage", defense: 5);
 
-        await test.Service.ExecuteRoundAsync(1, test.Token);
+        await test.Service.StartPreparationAsync(1, test.Token);
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
-        var (result, error) = await test.Service.ExecuteRoundAsync(1, test.Token);
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.Equal(0, test.Character.Hp);

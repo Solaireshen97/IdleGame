@@ -126,7 +126,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (room, null, error);
         if (room.OwnerUserId != user!.Id) return (room, user, "NotOwner");
-        if (room.Status == RoomStatus.Cooldown) return (room, user, "RoomCooldown");
+        if (room.Status is RoomStatus.Preparing or RoomStatus.Cooldown) return (room, user, "FormationLocked");
         return (room, user, null);
     }
 
@@ -138,17 +138,20 @@ public class RoomService(GameDbContext dbContext, UserService userService)
         var characterIds = slots.Where(x => x.CharacterId.HasValue).Select(x => x.CharacterId!.Value).ToList();
         var characters = await dbContext.Characters.Where(x => characterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
         var now = DateTime.UtcNow;
+        var aliveSlots = slots.Where(x => x.CharacterId.HasValue && characters.TryGetValue(x.CharacterId.Value, out var character) && character.Hp > 0).ToList();
+        var isOwner = currentUserId == room.OwnerUserId;
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, SlotCount = room.SlotCount,
             MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc,
             ServerTimeUtc = now,
-            CanExecuteRound = currentUserId == room.OwnerUserId && slots.Any(x => x.CharacterId.HasValue && characters.TryGetValue(x.CharacterId.Value, out var c) && c.Hp > 0) && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && (!room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
+            CanExecuteRound = isOwner && room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
+            CanStartPreparation = isOwner && monster.Hp > 0 && aliveSlots.Count > 0 && room.Status != RoomStatus.BattleOver && room.Status != RoomStatus.Preparing && (!room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
             Slots = slots.Select(slot =>
             {
                 characters.TryGetValue(slot.CharacterId ?? 0, out var character);
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, CharacterName = character?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character?.MaxHp, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0 };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, CharacterName = character?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character?.MaxHp, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed };
             }).ToList()
         };
     }

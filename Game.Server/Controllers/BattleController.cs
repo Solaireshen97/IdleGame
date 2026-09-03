@@ -14,6 +14,25 @@ public class BattleController(BattleService battleService, RoomService roomServi
         return await ExecuteRoundAsync(request);
     }
 
+    [HttpPost("prepare")]
+    public async Task<IActionResult> Prepare([FromBody] BattleRequest request)
+    {
+        var (result, error) = await battleService.StartPreparationAsync(request.RoomId, GetBearerToken());
+        if (error is "RoundCooldown" or "BattleOver") return Conflict(result);
+        if (result is not null) return Ok(result);
+        return error switch
+        {
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" => NotFound("User not found."),
+            "NotFound" => NotFound(),
+            "CharacterNotFound" => NotFound("Character not found."),
+            "MonsterNotFound" => NotFound("Monster not found."),
+            "NotInRoom" => StatusCode(403, "NotInRoom"),
+            "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
+            _ => BadRequest(error)
+        };
+    }
+
     [HttpPost("round")]
     public async Task<IActionResult> Round([FromBody] BattleRequest request)
     {
@@ -23,7 +42,7 @@ public class BattleController(BattleService battleService, RoomService roomServi
     private async Task<IActionResult> ExecuteRoundAsync(BattleRequest request)
     {
         var (result, error) = await battleService.ExecuteRoundAsync(request.RoomId, GetBearerToken());
-        if (error is "RoundCooldown" or "BattleOver")
+        if (error is "RoundCooldown" or "BattleOver" or "PreparationRequired")
         {
             return Conflict(result);
         }

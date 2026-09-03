@@ -86,10 +86,16 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("MonsterId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("NextRoundAvailableAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SlotCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Version")
@@ -101,27 +107,41 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("Rooms");
                 });
 
-            modelBuilder.Entity("Game.Shared.Models.RoomMember", b =>
+            modelBuilder.Entity("Game.Shared.Models.RoomSlot", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CharacterId")
+                    b.Property<int?>("CharacterId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsOwner")
+                    b.Property<bool>("IsConfirmed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsMainControl")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoomId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("UserId")
+                    b.Property<int>("SlotIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("UserId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.ToTable("RoomMembers");
+                    b.HasIndex("CharacterId")
+                        .IsUnique();
+
+                    b.HasIndex("RoomId");
+
+                    b.HasIndex("RoomId", "SlotIndex")
+                        .IsUnique();
+
+                    b.ToTable("RoomSlots");
                 });
 
             modelBuilder.Entity("Game.Shared.Models.User", b =>

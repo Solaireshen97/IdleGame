@@ -9,7 +9,7 @@
 
 <PageTitle>房间</PageTitle>
 
-<h1>IdleGame V0.7 — 房间</h1>
+<h1>IdleGame V0.8 — 房间</h1>
 <button @onclick="GoToRooms">← 返回房间列表</button>
 
 @if (_roomDetail is null)
@@ -27,10 +27,16 @@ else
             <p>战斗状态：@GetStatusText()</p>
             @if (GetRemainingCooldownSeconds() > 0)
             {
-                <p><em>下一回合将在 @GetRemainingCooldownSeconds() 秒后可执行</em></p>
+                <p><em>下一回合将在 @GetRemainingCooldownSeconds() 秒后可开始准备</em></p>
             }
-            <button @onclick="ExecuteRoundAsync" disabled="@(_isBusy || !_roomDetail.CanExecuteRound)">执行回合</button>
-            <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+            @if (IsOwner && _roomDetail.CanStartPreparation)
+            {
+                <button @onclick="StartPreparationAsync" disabled="@_isBusy">开始回合</button>
+            }
+            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver)
+            {
+                <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+            }
             <button @onclick="HealAsync" disabled="@_isBusy">恢复主控10HP</button>
             @if (IsOwner)
             {
@@ -94,7 +100,7 @@ else
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
-    private bool CanChangeFormation => _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.Cooldown;
+    private bool CanChangeFormation => _roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.BattleOver;
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,13 +135,14 @@ else
         _isBusy = false;
     }
 
-    private async Task ExecuteRoundAsync()
+    private async Task StartPreparationAsync()
     {
         _isBusy = true; _message = null; _logs.Clear();
-        var result = await ApiService.ExecuteRoundAsync(RoomId);
-        if (result.Result is null) _message = result.ErrorMessage ?? "战斗请求失败。";
-        else { _logs.AddRange(result.Result.Logs); _message = result.ErrorMessage; }
-        await RefreshRoomDetailAsync(); _isBusy = false;
+        var (result, error) = await ApiService.StartPreparationAsync(RoomId);
+        if (result is null) _message = error ?? "开始回合失败。";
+        else { _logs.AddRange(result.Logs); _message = error; }
+        await RefreshRoomDetailAsync();
+        _isBusy = false;
     }
 
     private async Task ResetBattleAsync()
@@ -172,6 +179,7 @@ else
     {
         Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
         Game.Shared.Enums.RoomStatus.Cooldown => "冷却中",
+        Game.Shared.Enums.RoomStatus.Preparing => "准备中",
         Game.Shared.Enums.RoomStatus.BattleOver when _roomDetail.MonsterHp <= 0 => "战斗胜利",
         Game.Shared.Enums.RoomStatus.BattleOver => "队伍战败",
         _ => "未知"
@@ -179,7 +187,7 @@ else
 
     private async Task RefreshCooldownAsync(CancellationToken cancellationToken)
     {
-        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) await RefreshRoomDetailAsync(); await InvokeAsync(StateHasChanged); } }
+        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing) await RefreshRoomDetailAsync(); await InvokeAsync(StateHasChanged); } }
         catch (OperationCanceledException) { }
     }
 

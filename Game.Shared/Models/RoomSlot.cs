@@ -8,4 +8,5 @@ public class RoomSlot
     public int? CharacterId { get; set; }
     public int? UserId { get; set; }
     public bool IsMainControl { get; set; }
+    public bool IsConfirmed { get; set; }
 }

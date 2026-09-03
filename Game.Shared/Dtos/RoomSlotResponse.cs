@@ -11,4 +11,5 @@ public class RoomSlotResponse
     public bool IsMainControl { get; set; }
     public bool IsCurrentUserCharacter { get; set; }
     public bool IsAlive { get; set; }
+    public bool IsConfirmed { get; set; }
 }

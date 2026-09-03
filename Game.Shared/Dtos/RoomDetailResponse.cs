@@ -15,5 +15,6 @@ public class RoomDetailResponse
     public DateTime? BattleEndedAtUtc { get; set; }
     public DateTime ServerTimeUtc { get; set; }
     public bool CanExecuteRound { get; set; }
+    public bool CanStartPreparation { get; set; }
     public List<RoomSlotResponse> Slots { get; set; } = new();
 }

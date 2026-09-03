@@ -64,7 +64,7 @@ public class RoomServiceTests
         var (updated, error) = await test.Service.AssignSlotAsync(detail.RoomId, new AssignRoomSlotRequest { SlotIndex = 2, CharacterId = character.Id }, test.Token);
 
         Assert.Null(updated);
-        Assert.Equal("RoomCooldown", error);
+        Assert.Equal("FormationLocked", error);
         Assert.Null((await test.Db.RoomSlots.SingleAsync(x => x.RoomId == detail.RoomId && x.SlotIndex == 2)).CharacterId);
     }
 

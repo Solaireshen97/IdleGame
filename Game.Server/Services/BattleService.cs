@@ -10,96 +10,157 @@ public class BattleService(GameDbContext dbContext, UserService userService)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(10);
 
+    public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token)
+    {
+        var (room, slots, monster, error) = await GetBattleContextAsync(roomId, token);
+        if (error is not null) return (null, error);
+        var now = DateTime.UtcNow;
+
+        if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["Battle is over. Please reset the room."]), "BattleOver");
+        if (room.Status == RoomStatus.Preparing) return (null, "AlreadyPreparing");
+        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc > now) return (BuildResult(room, slots!, monster!, now, ["Round is on cooldown."]), "RoundCooldown");
+
+        var aliveSlots = slots!.Where(x => x.Character.Hp > 0).ToList();
+        if (monster!.Hp <= 0 || aliveSlots.Count == 0)
+        {
+            ClearConfirmations(slots);
+            SetBattleOver(room, now);
+            room.Version++;
+            var save = await SaveAsync();
+            return (save.Success ? BuildResult(room, slots, monster, now, [monster.Hp <= 0 ? "Monster is already defeated. Please reset the room." : "All characters are defeated and cannot battle."]) : null, save.Error ?? "BattleOver");
+        }
+
+        room.Status = RoomStatus.Preparing;
+        room.NextRoundAvailableAtUtc = null;
+        room.BattleEndedAtUtc = null;
+        foreach (var entry in slots)
+        {
+            entry.Slot.IsConfirmed = entry.Character.Hp > 0;
+        }
+
+        return await ExecutePreparedRoundAsync(room, slots, monster, now);
+    }
+
     public async Task<(BattleResult? Result, string? Error)> ExecuteRoundAsync(int roomId, string? token)
     {
         var (room, slots, monster, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
-        var activeRoom = room!;
-        var activeMonster = monster!;
-        var aliveSlots = slots!.Where(x => x.Character!.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
-
-        if (activeRoom.Status == RoomStatus.BattleOver) return (BuildResult(activeRoom, slots, activeMonster, now, ["Battle is over. Please reset the room."]), "BattleOver");
-        if (activeRoom.NextRoundAvailableAtUtc > now) return (BuildResult(activeRoom, slots, activeMonster, now, ["Round is on cooldown."]), "RoundCooldown");
-
-        if (activeMonster.Hp <= 0 || aliveSlots.Count == 0)
+        if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["Battle is over. Please reset the room."]), "BattleOver");
+        if (room.Status != RoomStatus.Preparing || slots!.Where(x => x.Character.Hp > 0).Any(x => !x.Slot.IsConfirmed))
         {
-            SetBattleOver(activeRoom, now);
-            activeRoom.Version++;
-            try { await dbContext.SaveChangesAsync(); } catch (DbUpdateConcurrencyException) { return (null, "ConcurrencyConflict"); }
-            return (BuildResult(activeRoom, slots, activeMonster, now, [activeMonster.Hp <= 0 ? "Monster is already defeated. Please reset the room." : "All characters are defeated and cannot battle."]), "BattleOver");
+            return (BuildResult(room, slots, monster!, now, ["Preparation is required before executing a round."]), "PreparationRequired");
         }
 
-        var logs = new List<string>();
-        foreach (var entry in aliveSlots)
-        {
-            var damage = Math.Max(1, entry.Character!.Attack - activeMonster.Defense);
-            activeMonster.Hp = Math.Max(0, activeMonster.Hp - damage);
-            logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {activeMonster.Name} for {damage} damage.");
-            if (activeMonster.Hp <= 0)
-            {
-                SetBattleOver(activeRoom, now);
-                logs.Add($"{activeMonster.Name} is defeated.");
-                break;
-            }
-        }
-
-        if (activeMonster.Hp > 0)
-        {
-            var target = slots.Where(x => x.Character!.Hp > 0).OrderBy(x => x.Slot.SlotIndex).FirstOrDefault();
-            if (target is null)
-            {
-                SetBattleOver(activeRoom, now);
-                logs.Add("All characters are defeated.");
-            }
-            else
-            {
-                var damage = Math.Max(1, activeMonster.Attack - target.Character!.Defense);
-                target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
-                logs.Add($"{activeMonster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
-                if (target.Character.Hp <= 0 && !slots.Any(x => x.Character!.Hp > 0))
-                {
-                    SetBattleOver(activeRoom, now);
-                    logs.Add("All characters are defeated.");
-                }
-                else
-                {
-                    activeRoom.Status = RoomStatus.Cooldown;
-                    activeRoom.NextRoundAvailableAtUtc = now.Add(RoundCooldown);
-                    activeRoom.BattleEndedAtUtc = null;
-                }
-            }
-        }
-
-        activeRoom.Version++;
-        try { await dbContext.SaveChangesAsync(); } catch (DbUpdateConcurrencyException) { return (null, "ConcurrencyConflict"); }
-        return (BuildResult(activeRoom, slots, activeMonster, now, logs), null);
+        return await ExecutePreparedRoundAsync(room, slots, monster!, now);
     }
 
     public Task<(BattleResult? Result, string? Error)> ExecuteBattleAsync(int roomId, string? token) => ExecuteRoundAsync(roomId, token);
 
     public async Task<(bool Success, string? Error)> ResetBattleAsync(int roomId, string? token)
     {
-        var (room, _, monster, error) = await GetBattleContextAsync(roomId, token);
+        var (room, slots, monster, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (false, error);
         monster!.Hp = monster.MaxHp;
+        ClearConfirmations(slots!);
         room!.Status = RoomStatus.NotStarted;
         room.NextRoundAvailableAtUtc = null;
         room.BattleEndedAtUtc = null;
         room.Version++;
-        try { await dbContext.SaveChangesAsync(); } catch (DbUpdateConcurrencyException) { return (false, "ConcurrencyConflict"); }
-        return (true, null);
+        return await SaveAsync();
     }
 
     public async Task<(bool Success, string? Error)> HealCharacterAsync(int roomId, string? token, int amount = 10)
     {
-        var (room, slots, _, error) = await GetBattleContextAsync(roomId, token);
+        var (_, slots, _, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (false, error);
         var mainControl = slots!.FirstOrDefault(x => x.Slot.IsMainControl)?.Character;
         if (mainControl is null) return (false, "NoCharacterInRoom");
         mainControl.Hp = Math.Min(mainControl.MaxHp, mainControl.Hp + amount);
         await dbContext.SaveChangesAsync();
         return (true, null);
+    }
+
+    private async Task<(BattleResult? Result, string? Error)> ExecutePreparedRoundAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now)
+    {
+        var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
+        if (room.Status != RoomStatus.Preparing || aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed))
+        {
+            return (null, "PreparationRequired");
+        }
+
+        if (monster.Hp <= 0)
+        {
+            ClearConfirmations(slots);
+            SetBattleOver(room, now);
+            room.Version++;
+            var save = await SaveAsync();
+            return (save.Success ? BuildResult(room, slots, monster, now, ["Monster is already defeated. Please reset the room."]) : null, save.Error ?? "BattleOver");
+        }
+
+        var logs = new List<string>();
+        foreach (var entry in aliveSlots)
+        {
+            var damage = Math.Max(1, entry.Character.Attack - monster.Defense);
+            monster.Hp = Math.Max(0, monster.Hp - damage);
+            logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage.");
+            if (monster.Hp <= 0)
+            {
+                SetBattleOver(room, now);
+                logs.Add($"{monster.Name} is defeated.");
+                break;
+            }
+        }
+
+        if (monster.Hp > 0)
+        {
+            var target = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).FirstOrDefault();
+            if (target is null)
+            {
+                SetBattleOver(room, now);
+                logs.Add("All characters are defeated.");
+            }
+            else
+            {
+                var damage = Math.Max(1, monster.Attack - target.Character.Defense);
+                target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
+                logs.Add($"{monster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
+                if (target.Character.Hp <= 0 && !slots.Any(x => x.Character.Hp > 0))
+                {
+                    SetBattleOver(room, now);
+                    logs.Add("All characters are defeated.");
+                }
+                else
+                {
+                    room.Status = RoomStatus.Cooldown;
+                    room.NextRoundAvailableAtUtc = now.Add(RoundCooldown);
+                    room.BattleEndedAtUtc = null;
+                }
+            }
+        }
+
+        ClearConfirmations(slots);
+        room.Version++;
+        var saveResult = await SaveAsync();
+        return (saveResult.Success ? BuildResult(room, slots, monster, now, logs) : null, saveResult.Error);
+    }
+
+    private async Task<(bool Success, string? Error)> SaveAsync()
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return (true, null);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (false, "ConcurrencyConflict");
+        }
+    }
+
+    private static void ClearConfirmations(IEnumerable<SlotCharacter> slots)
+    {
+        foreach (var entry in slots) entry.Slot.IsConfirmed = false;
     }
 
     private static void SetBattleOver(Room room, DateTime now)
@@ -117,8 +178,8 @@ public class BattleService(GameDbContext dbContext, UserService userService)
             RoomId = room.Id, CharacterHp = displayed?.Hp ?? 0, CharacterMaxHp = displayed?.MaxHp ?? 0,
             MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status,
             NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc, ServerTimeUtc = now,
-            CanExecuteRound = room.Status != RoomStatus.BattleOver && slots.Any(x => x.Character!.Hp > 0) && monster.Hp > 0 && (!room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
-            IsVictory = monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character!.Hp > 0), Logs = logs
+            CanExecuteRound = room.Status == RoomStatus.Preparing && slots.Any(x => x.Character.Hp > 0) && slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed) && monster.Hp > 0,
+            IsVictory = monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character.Hp > 0), Logs = logs
         };
     }
 
