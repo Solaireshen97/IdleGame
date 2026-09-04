@@ -30,8 +30,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var monsterType = request?.MonsterType ?? "Slime";
-        var (roomDetail, error) = await roomService.CreateRoomAsync(monsterType, GetBearerToken());
+        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken());
         if (roomDetail is null || error is not null)
         {
             return error switch
@@ -45,6 +44,13 @@ public class RoomController(RoomService roomService, BattleService battleService
         }
 
         return Ok(roomDetail);
+    }
+
+    [HttpPost("{roomId:int}/preparation-timeout")]
+    public async Task<IActionResult> SetPreparationTimeout(int roomId, [FromBody] SetPreparationTimeoutRequest request)
+    {
+        var (detail, error) = await roomService.SetPreparationTimeoutAsync(roomId, request, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
     }
 
     [HttpPost("{roomId:int}/join")]
@@ -148,7 +154,7 @@ public class RoomController(RoomService roomService, BattleService battleService
         "Unauthorized" => Unauthorized(),
         "NotFound" => NotFound(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
-        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" or "AutoNotUnlocked" => StatusCode(StatusCodes.Status403Forbidden, error),
         "RoomCooldown" or "RoomLocked" or "BattleOver" => Conflict(error),
         _ => BadRequest(error)
     };

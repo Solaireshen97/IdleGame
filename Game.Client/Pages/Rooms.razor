@@ -8,7 +8,7 @@
 
 <PageTitle>房间列表</PageTitle>
 
-<h1>IdleGame V0.7 — 房间列表</h1>
+    <h1>IdleGame V1.0 — 房间列表</h1>
 
 @if (_isCheckingLoginState)
 {
@@ -22,13 +22,15 @@ else
     </div>
 
     <div>
-        <label for="monsterSelect">选择怪物：</label>
-        <select id="monsterSelect" @bind="_selectedMonsterType">
-            <option value="Slime">Slime（史莱姆）</option>
-            <option value="Goblin">Goblin（哥布林）</option>
-            <option value="Wolf">Wolf（狼）</option>
+        <label for="dungeonSelect">选择副本：</label>
+        <select id="dungeonSelect" @bind="_selectedDungeonId">
+            @foreach (var dungeon in _dungeons)
+            {
+                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.MonsterName（HP @dungeon.MonsterMaxHp / 攻击 @dungeon.MonsterAttack / 防御 @dungeon.MonsterDefense）</option>
+            }
         </select>
         <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
+        @if (_selectedDungeon is not null) { <span>@(_selectedDungeon.AutoUnlocked ? "已通关：已解锁 Auto" : "未通关：手动挑战")</span> }
         <span>创建后，当前激活角色会自动进入 1 号位并成为主控。</span>
     </div>
 
@@ -38,7 +40,7 @@ else
     }
     else if (_rooms is null || _rooms.Count == 0)
     {
-        <p>暂无房间，请选择怪物类型并点击"创建房间"开始游戏。</p>
+        <p>暂无房间，请选择副本并点击"创建房间"开始游戏。</p>
     }
     else
     {
@@ -81,7 +83,9 @@ else
     private bool _isCheckingLoginState = true;
     private bool _isLoading;
     private string? _message;
-    private string _selectedMonsterType = "Slime";
+    private List<DungeonSummaryResponse> _dungeons = new();
+    private int _selectedDungeonId;
+    private DungeonSummaryResponse? _selectedDungeon => _dungeons.SingleOrDefault(dungeon => dungeon.DungeonId == _selectedDungeonId);
 
     protected override async Task OnInitializedAsync()
     {
@@ -93,6 +97,8 @@ else
         }
 
         _isCheckingLoginState = false;
+        _dungeons = await ApiService.GetDungeonsAsync() ?? new();
+        _selectedDungeonId = _dungeons.FirstOrDefault()?.DungeonId ?? 0;
         await LoadRoomsAsync();
     }
 
@@ -107,7 +113,8 @@ else
     {
         _isLoading = true;
         _message = null;
-        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedMonsterType);
+        if (_selectedDungeonId == 0) { _message = "暂无可用副本。"; _isLoading = false; return; }
+        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId);
         if (roomDetail is null)
         {
             _message = errorMessage switch

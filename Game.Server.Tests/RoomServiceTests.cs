@@ -11,6 +11,50 @@ namespace Game.Server.Tests;
 public class RoomServiceTests
 {
     [Fact]
+    public async Task CreateRoomAsync_InitializesDefaultDungeonsAndUsesSelectedDungeon()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (first, firstError) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var dungeons = await test.Db.Dungeons.OrderBy(dungeon => dungeon.SortOrder).ToListAsync();
+        var (second, secondError) = await test.Service.CreateRoomAsync(dungeons.Single(dungeon => dungeon.Code == "goblin-camp").Id, null, test.Token);
+
+        Assert.Null(firstError);
+        Assert.Equal(3, dungeons.Count);
+        Assert.Equal("slime-field", dungeons[0].Code);
+        Assert.Null(second);
+        Assert.Equal("CharacterAlreadyInRoom", secondError);
+        Assert.Equal(dungeons[0].Id, first!.DungeonId);
+    }
+
+    [Fact]
+    public async Task SetPreparationTimeoutAsync_SelfTeamCanDisableTimeout()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+
+        var (detail, error) = await test.Service.SetPreparationTimeoutAsync(room!.RoomId, new SetPreparationTimeoutRequest { IsEnabled = false }, test.Token);
+
+        Assert.Null(error);
+        Assert.False(detail!.IsMixedTeam);
+        Assert.False(detail.IsPreparationTimeoutEnabled);
+        Assert.True(detail.CanConfigurePreparationTimeout);
+    }
+
+    [Fact]
+    public async Task SetPreparationTimeoutAsync_MixedTeamCannotDisableTimeout()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+        await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+
+        var (detail, error) = await test.Service.SetPreparationTimeoutAsync(room.RoomId, new SetPreparationTimeoutRequest { IsEnabled = false }, test.Token);
+
+        Assert.Null(detail);
+        Assert.Equal("MixedTeamTimeoutRequired", error);
+    }
+
+    [Fact]
     public async Task CreateRoomAsync_CreatesFiveSlotsAndMainControl()
     {
         await using var test = await RoomTestContext.CreateAsync();

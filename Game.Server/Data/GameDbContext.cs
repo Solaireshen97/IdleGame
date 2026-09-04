@@ -11,6 +11,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
     public DbSet<UserLoginSession> UserLoginSessions => Set<UserLoginSession>();
+    public DbSet<Dungeon> Dungeons => Set<Dungeon>();
+    public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,5 +28,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .IsUnique();
         modelBuilder.Entity<RoomSlot>()
             .HasIndex(slot => slot.RoomId);
+        modelBuilder.Entity<Dungeon>()
+            .HasIndex(dungeon => dungeon.Code)
+            .IsUnique();
+        modelBuilder.Entity<UserDungeonClear>()
+            .HasIndex(clear => new { clear.UserId, clear.DungeonId })
+            .IsUnique();
     }
 }

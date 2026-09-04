@@ -47,6 +47,22 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("Characters");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.Dungeon", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<string>("Code").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("MonsterName").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("MonsterMaxHp").HasColumnType("INTEGER");
+                    b.Property<int>("MonsterAttack").HasColumnType("INTEGER");
+                    b.Property<int>("MonsterDefense").HasColumnType("INTEGER");
+                    b.Property<int>("SlotCount").HasColumnType("INTEGER");
+                    b.Property<int>("SortOrder").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("Code").IsUnique();
+                    b.ToTable("Dungeons");
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Monster", b =>
                 {
                     b.Property<int>("Id")
@@ -82,6 +98,12 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<DateTime?>("BattleEndedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("DungeonId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSelfTeamPreparationTimeoutEnabled")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("MonsterId")
                         .HasColumnType("INTEGER");
@@ -151,6 +173,17 @@ namespace Game.Server.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("RoomSlots");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.UserDungeonClear", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<DateTime>("ClearedAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("DungeonId").HasColumnType("INTEGER");
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("UserId", "DungeonId").IsUnique();
+                    b.ToTable("UserDungeonClears");
                 });
 
             modelBuilder.Entity("Game.Shared.Models.User", b =>

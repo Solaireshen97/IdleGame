@@ -15,5 +15,6 @@ public class RoomSlotResponse
     public string? PlayerName { get; set; }
     public bool IsAutoEnabled { get; set; }
     public bool IsTemporaryAuto { get; set; }
+    public bool IsAutoUnlockedForCurrentUser { get; set; }
     public bool CanConfigureAuto { get; set; }
 }

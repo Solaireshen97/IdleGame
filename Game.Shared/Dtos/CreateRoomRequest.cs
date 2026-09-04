@@ -2,5 +2,6 @@ namespace Game.Shared.Dtos;
 
 public class CreateRoomRequest
 {
-    public string MonsterType { get; set; } = "Slime";
+    public int? DungeonId { get; set; }
+    public string? MonsterType { get; set; }
 }

@@ -9,7 +9,7 @@
 
 <PageTitle>房间</PageTitle>
 
-    <h1>IdleGame V0.9 — 房间</h1>
+    <h1>IdleGame V1.0 — 房间</h1>
 <button @onclick="GoToRooms">← 返回房间列表</button>
 
 @if (_roomDetail is null)
@@ -22,6 +22,7 @@ else
     <div style="display: flex; gap: 3rem; align-items: flex-start; margin-top: 1rem;">
         <section style="min-width: 260px;">
             <h3>怪物</h3>
+            <p>副本：<strong>@_roomDetail.DungeonName</strong></p>
             <p><strong>@_roomDetail.MonsterName</strong></p>
             <p>HP：@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp</p>
             <p>战斗状态：@GetStatusText()</p>
@@ -31,7 +32,12 @@ else
             }
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
             {
-                <p><em>准备阶段剩余 @GetRemainingPreparationSeconds() 秒</em></p>
+                <p><em>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备阶段剩余 {GetRemainingPreparationSeconds()} 秒" : "纯自建队已关闭准备超时")</em></p>
+            }
+            <p>@(_roomDetail.IsMixedTeam ? "混合队伍强制 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "纯自建队：30 秒超时已启用" : "纯自建队：已关闭超时")</p>
+            @if (_roomDetail.CanConfigurePreparationTimeout)
+            {
+                <label><input type="checkbox" checked="@_roomDetail.IsPreparationTimeoutEnabled" @onchange="e => SetPreparationTimeoutAsync((bool)e.Value!)" disabled="@_isBusy" /> 启用准备超时</label>
             }
             @if (_roomDetail.IsAllAliveMembersAuto)
             {
@@ -72,6 +78,10 @@ else
                         else if (slot.IsAutoEnabled) { <span>【自动准备】</span> }
                         else if (slot.IsConfirmed) { <span>【已准备】</span> }
                         else { <span>【@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")】</span> }
+                        @if (slot.IsCurrentUserCharacter && !slot.IsAutoUnlockedForCurrentUser)
+                        {
+                            <span>【首次通关此副本后解锁 Auto】</span>
+                        }
                         @if (slot.CanConfigureAuto)
                         {
                             <label style="margin-left: .5rem;"><input type="checkbox" checked="@slot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(slot.SlotIndex, (bool)e.Value!)" disabled="@_isBusy" /> Auto</label>
@@ -144,6 +154,14 @@ else
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]);
         if (detail is null) _message = error ?? "上阵角色失败。"; else _roomDetail = detail;
+        _isBusy = false;
+    }
+
+    private async Task SetPreparationTimeoutAsync(bool isEnabled)
+    {
+        _isBusy = true;
+        var (detail, error) = await ApiService.SetPreparationTimeoutAsync(RoomId, isEnabled);
+        if (detail is null) _message = error ?? "配置准备超时失败。"; else _roomDetail = detail;
         _isBusy = false;
     }
 

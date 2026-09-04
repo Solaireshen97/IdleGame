@@ -10,6 +10,33 @@ namespace Game.Server.Tests;
 public class BattleServiceTests
 {
     [Fact]
+    public async Task SetSlotAutoAsync_WithoutDungeonClear_IsRejected()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Db.UserDungeonClears.RemoveRange(await test.Db.UserDungeonClears.ToListAsync());
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SetSlotAutoAsync(1, new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = true }, test.Token);
+
+        Assert.Null(result);
+        Assert.Equal("AutoNotUnlocked", error);
+    }
+
+    [Fact]
+    public async Task ExecuteRoundAsync_VictoryRecordsDungeonClearOnlyOnce()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Db.UserDungeonClears.RemoveRange(await test.Db.UserDungeonClears.ToListAsync());
+        await test.Db.SaveChangesAsync();
+
+        var (_, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        var clear = Assert.Single(await test.Db.UserDungeonClears.Where(item => item.UserId == 1 && item.DungeonId == 1).ToListAsync());
+        Assert.NotEqual(default, clear.ClearedAtUtc);
+    }
+
+    [Fact]
     public async Task ExecuteRoundAsync_FirstRound_AppliesBothAttacks()
     {
         await using var test = await BattleTestContext.CreateAsync();
@@ -303,6 +330,7 @@ public class BattleServiceTests
             new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 },
             other,
             new RoomSlot { RoomId = 1, SlotIndex = 2, UserId = 2, CharacterId = 2 },
+            new UserDungeonClear { UserId = 2, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
             new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
         await test.Db.SaveChangesAsync();
 
@@ -355,6 +383,7 @@ public class BattleServiceTests
             var character = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 };
             var slot = new RoomSlot { RoomId = Room.Id, SlotIndex = 2, CharacterId = 2, UserId = 2 };
             Db.AddRange(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 }, character, slot, new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            Db.UserDungeonClears.Add(new UserDungeonClear { UserId = 2, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow });
             await Db.SaveChangesAsync();
             return slot;
         }
@@ -368,8 +397,8 @@ public class BattleServiceTests
             var user = new User { Id = 1, UserName = "user", PasswordHash = "x", ActiveCharacterId = 1 };
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack, Defense = characterDefense };
             var monster = new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = monsterAttack, Defense = monsterDefense };
-            var room = new Room { Id = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted };
-            db.AddRange(user, character, monster, room, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted };
+            db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await db.SaveChangesAsync();
             return new BattleTestContext(path, options, db, room, character, monster);
         }

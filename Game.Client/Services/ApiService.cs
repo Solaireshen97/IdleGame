@@ -14,6 +14,13 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
     }
 
+    public async Task<List<DungeonSummaryResponse>?> GetDungeonsAsync()
+    {
+        var request = await CreateRequestAsync(HttpMethod.Get, "api/dungeons", requiresAuth: true);
+        var response = await httpClient.SendAsync(request);
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<DungeonSummaryResponse>>() : null;
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
@@ -68,10 +75,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(string monsterType)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
-        request.Content = JsonContent.Create(new CreateRoomRequest { MonsterType = monsterType });
+        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -80,11 +87,17 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             {
                 errorMessage = "创建房间失败。";
             }
-
             return (null, errorMessage);
         }
 
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetPreparationTimeoutAsync(int roomId, bool isEnabled)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/preparation-timeout", requiresAuth: true);
+        request.Content = JsonContent.Create(new SetPreparationTimeoutRequest { IsEnabled = isEnabled });
+        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "配置准备超时失败。");
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
