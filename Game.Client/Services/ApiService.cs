@@ -14,6 +14,34 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
     }
 
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
+        request.Content = JsonContent.Create(new JoinRoomRequest { SlotIndex = slotIndex });
+        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "加入房间失败。");
+    }
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> LeaveRoomAsync(int roomId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/leave", requiresAuth: true);
+        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "离开房间失败。");
+    }
+
+    public async Task<(SetSlotAutoResponse? Response, string? ErrorMessage)> SetSlotAutoAsync(int roomId, int slotIndex, bool isAutoEnabled)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots/{slotIndex}/auto", requiresAuth: true);
+        request.Content = JsonContent.Create(new SetSlotAutoRequest { SlotIndex = slotIndex, IsAutoEnabled = isAutoEnabled });
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "配置 Auto 失败。" : error);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<SetSlotAutoResponse>(), null);
+    }
+
     public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
@@ -29,6 +57,15 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         }
 
         return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
+    }
+
+    public async Task<(BattleResult? Result, string? ErrorMessage)> SyncBattleAsync(int roomId)
+    {
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/sync", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return (null, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(string monsterType)

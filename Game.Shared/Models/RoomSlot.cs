@@ -9,4 +9,6 @@ public class RoomSlot
     public int? UserId { get; set; }
     public bool IsMainControl { get; set; }
     public bool IsConfirmed { get; set; }
+    public bool IsAutoEnabled { get; set; }
+    public bool IsTemporaryAuto { get; set; }
 }

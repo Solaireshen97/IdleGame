@@ -12,4 +12,8 @@ public class RoomSlotResponse
     public bool IsCurrentUserCharacter { get; set; }
     public bool IsAlive { get; set; }
     public bool IsConfirmed { get; set; }
+    public string? PlayerName { get; set; }
+    public bool IsAutoEnabled { get; set; }
+    public bool IsTemporaryAuto { get; set; }
+    public bool CanConfigureAuto { get; set; }
 }

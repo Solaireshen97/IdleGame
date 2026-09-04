@@ -14,6 +14,21 @@ public class BattleController(BattleService battleService, RoomService roomServi
         return await ExecuteRoundAsync(request);
     }
 
+    [HttpPost("sync")]
+    public async Task<IActionResult> Sync([FromBody] BattleRequest request)
+    {
+        var (result, error) = await battleService.SyncAsync(request.RoomId, GetBearerToken());
+        if (result is not null) return Ok(result);
+        return error switch
+        {
+            "Unauthorized" => Unauthorized(),
+            "NotFound" or "UserNotFound" or "MonsterNotFound" => NotFound(error),
+            "NotInRoom" => StatusCode(403, "NotInRoom"),
+            "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
+            _ => BadRequest(error)
+        };
+    }
+
     [HttpPost("prepare")]
     public async Task<IActionResult> Prepare([FromBody] BattleRequest request)
     {

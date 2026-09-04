@@ -6,7 +6,7 @@ namespace Game.Server.Controllers;
 
 [ApiController]
 [Route("api/rooms")]
-public class RoomController(RoomService roomService) : ControllerBase
+public class RoomController(RoomService roomService, BattleService battleService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetRooms()
@@ -48,9 +48,33 @@ public class RoomController(RoomService roomService) : ControllerBase
     }
 
     [HttpPost("{roomId:int}/join")]
-    public async Task<IActionResult> JoinRoom(int roomId)
+    public async Task<IActionResult> JoinRoom(int roomId, [FromBody] JoinRoomRequest request)
     {
-        return StatusCode(StatusCodes.Status410Gone, "JoinDeprecated");
+        var (detail, error) = await roomService.JoinRoomAsync(roomId, request, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
+    [HttpDelete("{roomId:int}/leave")]
+    public async Task<IActionResult> LeaveRoom(int roomId)
+    {
+        var (detail, error) = await roomService.LeaveRoomAsync(roomId, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
+    [HttpPost("{roomId:int}/slots/{slotIndex:int}/auto")]
+    public async Task<IActionResult> SetSlotAuto(int roomId, int slotIndex, [FromBody] SetSlotAutoRequest request)
+    {
+        request.SlotIndex = slotIndex;
+        var token = GetBearerToken();
+        var (result, error) = await battleService.SetSlotAutoAsync(roomId, request, token);
+        if (result is null) return RoomOperationError(error);
+        var detail = await roomService.GetRoomDetailAsync(roomId, token);
+        if (detail is null) return NotFound();
+        return Ok(new SetSlotAutoResponse
+        {
+            Room = detail,
+            RoundResult = result.Logs.Count > 0 ? result : null
+        });
     }
 
     [HttpPost("{roomId:int}/slots")]
@@ -124,8 +148,8 @@ public class RoomController(RoomService roomService) : ControllerBase
         "Unauthorized" => Unauthorized(),
         "NotFound" => NotFound(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
-        "NotOwner" or "NotCharacterOwner" => StatusCode(StatusCodes.Status403Forbidden, error),
-        "RoomCooldown" => Conflict(error),
+        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "RoomCooldown" or "RoomLocked" or "BattleOver" => Conflict(error),
         _ => BadRequest(error)
     };
 }

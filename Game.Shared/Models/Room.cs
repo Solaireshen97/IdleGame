@@ -10,6 +10,7 @@ public class Room
     public int SlotCount { get; set; }
     public RoomStatus Status { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
+    public DateTime? PreparationStartedAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
     public int Version { get; set; }
 }

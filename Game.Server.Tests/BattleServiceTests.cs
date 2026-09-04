@@ -47,6 +47,76 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task StartPreparationAsync_MultipleMembers_OnlyLastPreparationExecutesRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
+        await test.AddOtherMemberAsync();
+
+        var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (last, lastError) = await test.Service.StartPreparationAsync(1, "other-token");
+
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.Preparing, first!.RoomStatus);
+        Assert.Null(lastError);
+        Assert.Equal(RoomStatus.Cooldown, last!.RoomStatus);
+        Assert.Equal(30, last.MonsterHp);
+    }
+
+    [Fact]
+    public async Task SyncAsync_PreparationTimeout_UsesTemporaryAutoAndClearsItAfterRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
+        await test.AddOtherMemberAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Contains(result.Logs, log => log.Contains("temporarily set to Auto"));
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsTemporaryAuto));
+    }
+
+    [Fact]
+    public async Task SyncAsync_AllMembersAuto_StartsRoundAndUsesThirtySecondCooldown()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
+        var otherSlot = await test.AddOtherMemberAsync();
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 1)).IsAutoEnabled = true;
+        otherSlot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.InRange((result.NextRoundAvailableAtUtc!.Value - result.ServerTimeUtc).TotalSeconds, 29, 31);
+    }
+
+    [Fact]
+    public async Task SyncAsync_AutoDisabled_DoesNotAdvanceExpiredCooldown()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
+        slot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.SyncAsync(1, test.Token);
+        slot.IsAutoEnabled = false;
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(35, result.MonsterHp);
+    }
+
+    [Fact]
     public async Task ExecuteRoundAsync_DamageBelowDefense_DealsAtLeastOne()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterDefense: 99, monsterAttack: 1, characterDefense: 99);
@@ -224,6 +294,29 @@ public class BattleServiceTests
         Assert.Contains(result!.Logs, x => x.Contains("attacks Slot 2 Mage"));
     }
 
+    [Fact]
+    public async Task SetSlotAutoAsync_DuringPreparation_WhenItConfirmsLastMember_ExecutesRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
+        var other = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 };
+        test.Db.AddRange(
+            new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 },
+            other,
+            new RoomSlot { RoomId = 1, SlotIndex = 2, UserId = 2, CharacterId = 2 },
+            new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+        await test.Db.SaveChangesAsync();
+
+        var (preparation, preparationError) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (result, error) = await test.Service.SetSlotAutoAsync(1, new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 2, IsAutoEnabled = true }, "other-token");
+
+        Assert.Null(preparationError);
+        Assert.Equal(RoomStatus.Preparing, preparation!.RoomStatus);
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(30, result.MonsterHp);
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsConfirmed));
+    }
+
     private sealed class BattleTestContext : IAsyncDisposable
     {
         private readonly string _databasePath;
@@ -255,6 +348,15 @@ public class BattleServiceTests
             Db.RoomSlots.Add(new RoomSlot { RoomId = Room.Id, SlotIndex = slotIndex, CharacterId = character.Id, UserId = 1 });
             await Db.SaveChangesAsync();
             return character;
+        }
+
+        public async Task<RoomSlot> AddOtherMemberAsync()
+        {
+            var character = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 };
+            var slot = new RoomSlot { RoomId = Room.Id, SlotIndex = 2, CharacterId = 2, UserId = 2 };
+            Db.AddRange(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 }, character, slot, new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            await Db.SaveChangesAsync();
+            return slot;
         }
 
         public static async Task<BattleTestContext> CreateAsync(int characterHp = 100, int characterAttack = 20, int characterDefense = 5, int monsterAttack = 12, int monsterDefense = 5)

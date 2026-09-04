@@ -92,6 +92,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<DateTime?>("NextRoundAvailableAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("PreparationStartedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
@@ -119,7 +122,13 @@ namespace Game.Server.Data.Migrations
                     b.Property<bool>("IsConfirmed")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsAutoEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsMainControl")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsTemporaryAuto")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoomId")

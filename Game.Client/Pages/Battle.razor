@@ -9,7 +9,7 @@
 
 <PageTitle>房间</PageTitle>
 
-<h1>IdleGame V0.8 — 房间</h1>
+    <h1>IdleGame V0.9 — 房间</h1>
 <button @onclick="GoToRooms">← 返回房间列表</button>
 
 @if (_roomDetail is null)
@@ -29,13 +29,26 @@ else
             {
                 <p><em>下一回合将在 @GetRemainingCooldownSeconds() 秒后可开始准备</em></p>
             }
-            @if (IsOwner && _roomDetail.CanStartPreparation)
+            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
             {
-                <button @onclick="StartPreparationAsync" disabled="@_isBusy">开始回合</button>
+                <p><em>准备阶段剩余 @GetRemainingPreparationSeconds() 秒</em></p>
             }
+            @if (_roomDetail.IsAllAliveMembersAuto)
+            {
+                <p><em>自动战斗中</em></p>
+            }
+            else if (_roomDetail.CanPrepare)
+            {
+                <button @onclick="StartPreparationAsync" disabled="@_isBusy">准备</button>
+            }
+            else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) { <p><em>已准备，等待其他玩家。</em></p> }
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver)
             {
                 <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+            }
+            else if (_roomDetail.CanLeaveRoom)
+            {
+                <button @onclick="LeaveRoomAsync" disabled="@_isBusy">离开房间</button>
             }
             <button @onclick="HealAsync" disabled="@_isBusy">恢复主控10HP</button>
             @if (IsOwner)
@@ -52,23 +65,38 @@ else
                     @if (slot.IsOccupied)
                     {
                         <span>：@slot.CharacterName（@slot.CharacterHp / @slot.CharacterMaxHp HP，@(slot.IsAlive ? "存活" : "死亡")）</span>
+                        <span>【@slot.PlayerName】</span>
                         @if (slot.IsMainControl) { <span>【主控】</span> }
+                        @if (!slot.IsAlive) { <span>【已死亡，不参与本回合】</span> }
+                        else if (slot.IsTemporaryAuto) { <span>【超时自动准备】</span> }
+                        else if (slot.IsAutoEnabled) { <span>【自动准备】</span> }
+                        else if (slot.IsConfirmed) { <span>【已准备】</span> }
+                        else { <span>【@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")】</span> }
+                        @if (slot.CanConfigureAuto)
+                        {
+                            <label style="margin-left: .5rem;"><input type="checkbox" checked="@slot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(slot.SlotIndex, (bool)e.Value!)" disabled="@_isBusy" /> Auto</label>
+                        }
                     }
                     else
                     {
                         <span>：空槽位</span>
+                        @if (!IsOwner && !_roomDetail.CanLeaveRoom && CanChangeFormation)
+                        {
+                            <button @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
+                        }
                     }
+
                     @if (IsOwner)
                     {
                         <div style="margin-top: .5rem;">
-                            <select @bind="_selectedCharacterId" disabled="@(_isBusy || !CanChangeFormation)">
+                            <select @bind="_selectedCharacterIds[slot.SlotIndex]" disabled="@(_isBusy || !CanChangeFormation)">
                                 <option value="0">选择自有角色</option>
                                 @foreach (var character in _characters)
                                 {
                                     <option value="@character.CharacterId">@character.Name (@character.Hp / @character.MaxHp)</option>
                                 }
                             </select>
-                            <button @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterId == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
+                            <button @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterIds[slot.SlotIndex] == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
                             @if (slot.IsOccupied)
                             {
                                 <button @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">移除</button>
@@ -96,7 +124,7 @@ else
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool _isBusy;
     private string? _message;
-    private int _selectedCharacterId;
+    private readonly Dictionary<int, int> _selectedCharacterIds = new();
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
@@ -114,7 +142,7 @@ else
     private async Task AssignSlotAsync(int slotIndex)
     {
         _isBusy = true; _message = null;
-        var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterId);
+        var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]);
         if (detail is null) _message = error ?? "上阵角色失败。"; else _roomDetail = detail;
         _isBusy = false;
     }
@@ -145,6 +173,35 @@ else
         _isBusy = false;
     }
 
+    private async Task JoinRoomAsync(int slotIndex)
+    {
+        _isBusy = true;
+        var (detail, error) = await ApiService.JoinRoomAsync(RoomId, slotIndex);
+        if (detail is null) _message = error ?? "加入房间失败。"; else _roomDetail = detail;
+        _isBusy = false;
+    }
+
+    private async Task LeaveRoomAsync()
+    {
+        _isBusy = true;
+        var (detail, error) = await ApiService.LeaveRoomAsync(RoomId);
+        if (detail is null) _message = error ?? "离开房间失败。"; else _roomDetail = detail;
+        _isBusy = false;
+    }
+
+    private async Task SetSlotAutoAsync(int slotIndex, bool isAutoEnabled)
+    {
+        _isBusy = true;
+        var (response, error) = await ApiService.SetSlotAutoAsync(RoomId, slotIndex, isAutoEnabled);
+        if (response is null) _message = error ?? "配置 Auto 失败。";
+        else
+        {
+            _roomDetail = response.Room;
+            if (response.RoundResult is not null) _logs.AddRange(response.RoundResult.Logs);
+        }
+        _isBusy = false;
+    }
+
     private async Task ResetBattleAsync()
     {
         _isBusy = true; _message = null; _logs.Clear();
@@ -170,11 +227,16 @@ else
     private async Task RefreshRoomDetailAsync()
     {
         _roomDetail = await ApiService.GetRoomDetailAsync(RoomId);
+        if (_roomDetail is not null)
+        {
+            foreach (var slot in _roomDetail.Slots) _selectedCharacterIds.TryAdd(slot.SlotIndex, 0);
+        }
         if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
     }
 
     private void GoToRooms() => Navigation.NavigateTo("/rooms");
     private int GetRemainingCooldownSeconds() => _roomDetail?.NextRoundAvailableAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
+    private int GetRemainingPreparationSeconds() => _roomDetail?.PreparationExpiresAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
     private string GetStatusText() => _roomDetail?.RoomStatus switch
     {
         Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
@@ -187,7 +249,7 @@ else
 
     private async Task RefreshCooldownAsync(CancellationToken cancellationToken)
     {
-        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing) await RefreshRoomDetailAsync(); await InvokeAsync(StateHasChanged); } }
+        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing || _roomDetail?.IsAllAliveMembersAuto == true) { var (result, _) = await ApiService.SyncBattleAsync(RoomId); if (result is not null) _logs.AddRange(result.Logs); await RefreshRoomDetailAsync(); } await InvokeAsync(StateHasChanged); } }
         catch (OperationCanceledException) { }
     }
 

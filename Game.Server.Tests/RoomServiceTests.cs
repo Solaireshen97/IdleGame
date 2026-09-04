@@ -52,6 +52,38 @@ public class RoomServiceTests
     }
 
     [Fact]
+    public async Task JoinRoomAsync_EmptySlot_AddsOtherUsersActiveCharacter()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+
+        var (detail, error) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+
+        Assert.Null(error);
+        var slot = detail!.Slots.Single(x => x.SlotIndex == 2);
+        Assert.Equal(2, slot.CharacterId);
+        Assert.Equal("other", slot.PlayerName);
+    }
+
+    [Fact]
+    public async Task JoinRoomAsync_OccupiedOrLockedSlot_IsRejected()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+
+        var (_, occupiedError) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 1 }, "other-token");
+        var entity = await test.Db.Rooms.FindAsync(room.RoomId);
+        entity!.Status = RoomStatus.Preparing;
+        await test.Db.SaveChangesAsync();
+        var (_, lockedError) = await test.Service.JoinRoomAsync(room.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+
+        Assert.Equal("SlotOccupied", occupiedError);
+        Assert.Equal("RoomLocked", lockedError);
+    }
+
+    [Fact]
     public async Task AssignSlotAsync_DuringCooldown_DoesNotChangeSlots()
     {
         await using var test = await RoomTestContext.CreateAsync();
@@ -101,6 +133,15 @@ public class RoomServiceTests
             Db.Characters.Add(character);
             await Db.SaveChangesAsync();
             return character;
+        }
+
+        public async Task AddOtherActiveCharacterAsync()
+        {
+            Db.AddRange(
+                new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 },
+                new Character { Id = 2, UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 },
+                new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            await Db.SaveChangesAsync();
         }
 
         public async Task<Character> AddOtherCharacterAsync()
