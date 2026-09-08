@@ -4,11 +4,14 @@
 
 .top-row {
     height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
+    background-color: rgba(0,0,0,0.22);
 }
 
 .navbar-brand {
-    font-size: 1.1rem;
+    color: #f3e6cd;
+    font-family: Georgia, serif;
+    font-size: 1.35rem;
+    letter-spacing: .05em;
 }
 
 .bi {

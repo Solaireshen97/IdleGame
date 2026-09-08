@@ -8,7 +8,19 @@
 
 <PageTitle>房间列表</PageTitle>
 
-    <h1>IdleGame V1.0 — 房间列表</h1>
+<div class="rooms-page">
+    <header class="page-hero">
+        <div>
+            <span class="eyebrow">DUNGEON LOBBY</span>
+            <h1>副本大厅</h1>
+            <p>集结队伍，选择挑战目标，开启下一场远征。</p>
+        </div>
+        <div class="player-chip">
+            <span class="player-chip__label">冒险者</span>
+            <strong>@_currentUser?.UserName</strong>
+            <button class="button button--quiet" @onclick="LogoutAsync" disabled="@_isLoading">退出</button>
+        </div>
+    </header>
 
 @if (_isCheckingLoginState)
 {
@@ -16,66 +28,63 @@
 }
 else
 {
-    <div>
-        <p>当前用户：@_currentUser?.UserName</p>
-        <button @onclick="LogoutAsync" disabled="@_isLoading">退出登录</button>
-    </div>
-
-    <div>
-        <label for="dungeonSelect">选择副本：</label>
-        <select id="dungeonSelect" @bind="_selectedDungeonId">
+    <section class="dungeon-launcher">
+        <div class="dungeon-launcher__heading">
+            <span class="section-kicker">SELECT MISSION</span>
+            <h2>选择挑战副本</h2>
+        </div>
+        <div class="dungeon-launcher__controls">
+            <label for="dungeonSelect">目标副本</label>
+            <select id="dungeonSelect" @bind="_selectedDungeonId">
             @foreach (var dungeon in _dungeons)
             {
                 <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.MonsterName（HP @dungeon.MonsterMaxHp / 攻击 @dungeon.MonsterAttack / 防御 @dungeon.MonsterDefense）</option>
             }
-        </select>
-        <button @onclick="CreateRoomAsync" disabled="@_isLoading">创建房间</button>
-        @if (_selectedDungeon is not null) { <span>@(_selectedDungeon.AutoUnlocked ? "已通关：已解锁 Auto" : "未通关：手动挑战")</span> }
-        <span>创建后，当前激活角色会自动进入 1 号位并成为主控。</span>
-    </div>
+            </select>
+            <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@_isLoading">开启房间</button>
+        </div>
+        @if (_selectedDungeon is not null)
+        {
+            <div class="dungeon-launcher__details">
+                <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "已通关 · Auto 已解锁" : "首次挑战 · 手动战斗")</span>
+                <span>创建后，当前激活角色将自动进入 1 号位并成为主控。</span>
+            </div>
+        }
+    </section>
 
     @if (_isLoading)
     {
-        <p>加载中...</p>
+        <div class="empty-state">正在搜索可用房间...</div>
     }
     else if (_rooms is null || _rooms.Count == 0)
     {
-        <p>暂无房间，请选择副本并点击"创建房间"开始游戏。</p>
+        <div class="empty-state"><strong>大厅暂时无人驻守</strong><span>选择副本并开启房间，成为第一个出发的冒险者。</span></div>
     }
     else
     {
-        <table>
-            <thead>
-                <tr>
-                    <th>房间ID</th>
-                    <th>怪物</th>
-                    <th>怪物HP</th>
-                    <th>状态</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
+        <section class="room-list">
+            <div class="room-list__heading"><span class="section-kicker">ACTIVE EXPEDITIONS</span><h2>进行中的远征</h2></div>
+            <div class="room-grid">
                 @foreach (var room in _rooms)
                 {
-                    <tr>
-                        <td>@room.RoomId</td>
-                        <td>@room.MonsterName</td>
-                        <td>@room.MonsterHp / @room.MonsterMaxHp</td>
-                        <td>@room.RoomStatus</td>
-                        <td>
-                            <button @onclick="() => EnterRoom(room.RoomId)">进入房间</button>
-                        </td>
-                    </tr>
+                    <article class="room-card">
+                        <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge">@room.RoomStatus</span></div>
+                        <h3>@room.MonsterName</h3>
+                        <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
+                        <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>
+                        <button class="button button--secondary room-card__enter" @onclick="() => EnterRoom(room.RoomId)">进入战场 <span>→</span></button>
+                    </article>
                 }
-            </tbody>
-        </table>
+            </div>
+        </section>
     }
 }
 
 @if (_message is not null)
 {
-    <p><em>@_message</em></p>
+    <p class="notice-message">@_message</p>
 }
+</div>
 
 @code {
     private List<RoomSummaryResponse>? _rooms;

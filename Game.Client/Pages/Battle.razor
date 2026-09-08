@@ -9,96 +9,99 @@
 
 <PageTitle>房间</PageTitle>
 
-    <h1>IdleGame V1.0 — 房间</h1>
-<button @onclick="GoToRooms">← 返回房间列表</button>
+<div class="battle-page">
+    <header class="battle-page__header">
+        <button class="back-link" @onclick="GoToRooms">← 返回大厅</button>
+        <span class="battle-page__room">ROOM · @RoomId</span>
+    </header>
 
 @if (_roomDetail is null)
 {
-    <p>加载房间中...</p>
+    <div class="battle-loading">正在进入战场...</div>
 }
 else
 {
-    <h2>房间 #@_roomDetail.RoomId</h2>
-    <div style="display: flex; gap: 3rem; align-items: flex-start; margin-top: 1rem;">
-        <section style="min-width: 260px;">
-            <h3>怪物</h3>
-            <p>副本：<strong>@_roomDetail.DungeonName</strong></p>
-            <p><strong>@_roomDetail.MonsterName</strong></p>
-            <p>HP：@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp</p>
-            <p>战斗状态：@GetStatusText()</p>
+    <section class="battle-stage">
+        <div class="enemy-panel">
+            <span class="section-kicker">DUNGEON ENCOUNTER</span>
+            <p class="enemy-panel__dungeon">@_roomDetail.DungeonName</p>
+            <h1>@_roomDetail.MonsterName</h1>
+            <div class="battle-hp"><span>ENEMY HP</span><strong>@_roomDetail.MonsterHp <small>/ @_roomDetail.MonsterMaxHp</small></strong></div>
+            <progress class="health-bar health-bar--enemy" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp"></progress>
+            <div class="battle-state"><span class="status-badge">@GetStatusText()</span><span>@(_roomDetail.IsMixedTeam ? "混合队伍 · 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "队伍准备超时已启用" : "队伍准备超时已关闭")</span></div>
+        </div>
+        <section class="battle-controls">
+            <div class="battle-controls__heading"><span class="section-kicker">COMMAND CENTER</span><h2>行动控制</h2></div>
             @if (GetRemainingCooldownSeconds() > 0)
             {
-                <p><em>下一回合将在 @GetRemainingCooldownSeconds() 秒后可开始准备</em></p>
+                <p class="combat-tip">下一回合将在 <strong>@GetRemainingCooldownSeconds()</strong> 秒后可准备</p>
             }
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
             {
-                <p><em>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备阶段剩余 {GetRemainingPreparationSeconds()} 秒" : "纯自建队已关闭准备超时")</em></p>
+                <p class="combat-tip">@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备阶段剩余 {GetRemainingPreparationSeconds()} 秒" : "纯自建队已关闭准备超时")</p>
             }
-            <p>@(_roomDetail.IsMixedTeam ? "混合队伍强制 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "纯自建队：30 秒超时已启用" : "纯自建队：已关闭超时")</p>
             @if (_roomDetail.CanConfigurePreparationTimeout)
             {
-                <label><input type="checkbox" checked="@_roomDetail.IsPreparationTimeoutEnabled" @onchange="e => SetPreparationTimeoutAsync((bool)e.Value!)" disabled="@_isBusy" /> 启用准备超时</label>
+                <label class="toggle-option"><input type="checkbox" checked="@_roomDetail.IsPreparationTimeoutEnabled" @onchange="e => SetPreparationTimeoutAsync((bool)e.Value!)" disabled="@_isBusy" /> 启用准备超时</label>
             }
             @if (_roomDetail.IsAllAliveMembersAuto)
             {
-                <p><em>自动战斗中</em></p>
+                <p class="combat-tip combat-tip--active">自动战斗中</p>
             }
             else if (_roomDetail.CanPrepare)
             {
-                <button @onclick="StartPreparationAsync" disabled="@_isBusy">准备</button>
+                <button class="button button--primary" @onclick="StartPreparationAsync" disabled="@_isBusy">准备并结算</button>
             }
-            else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) { <p><em>已准备，等待其他玩家。</em></p> }
+            else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) { <p class="combat-tip">已准备，等待其他玩家。</p> }
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver)
             {
-                <button @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+                <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
             }
             else if (_roomDetail.CanLeaveRoom)
             {
-                <button @onclick="LeaveRoomAsync" disabled="@_isBusy">离开房间</button>
+                <button class="button button--secondary" @onclick="LeaveRoomAsync" disabled="@_isBusy">离开房间</button>
             }
-            <button @onclick="HealAsync" disabled="@_isBusy">恢复主控10HP</button>
+            <button class="button button--quiet" @onclick="HealAsync" disabled="@_isBusy">恢复主控 10 HP</button>
             @if (IsOwner)
             {
-                <button @onclick="DismissRoomAsync" disabled="@_isBusy" style="margin-left: 1em; color: red;">解散房间</button>
+                <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">解散房间</button>
             }
         </section>
-        <section style="min-width: 380px;">
-            <h3>队伍槽位（行动顺序 1 → 5）</h3>
+    </section>
+    <section class="formation-panel">
+        <div class="formation-panel__heading"><div><span class="section-kicker">FORMATION</span><h2>队伍阵列</h2></div><span>行动顺序 1 → 5</span></div>
+        <div class="slot-grid">
             @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
             {
-                <div style="border: 1px solid #ccc; padding: .75rem; margin-bottom: .5rem;">
-                    <strong>@slot.SlotIndex 号位</strong>
+                <article class="party-slot @(slot.IsOccupied ? "party-slot--occupied" : "party-slot--empty")">
+                    <span class="party-slot__index">@slot.SlotIndex</span>
                     @if (slot.IsOccupied)
                     {
-                        <span>：@slot.CharacterName（@slot.CharacterHp / @slot.CharacterMaxHp HP，@(slot.IsAlive ? "存活" : "死亡")）</span>
-                        <span>【@slot.PlayerName】</span>
-                        @if (slot.IsMainControl) { <span>【主控】</span> }
-                        @if (!slot.IsAlive) { <span>【已死亡，不参与本回合】</span> }
-                        else if (slot.IsTemporaryAuto) { <span>【超时自动准备】</span> }
-                        else if (slot.IsAutoEnabled) { <span>【自动准备】</span> }
-                        else if (slot.IsConfirmed) { <span>【已准备】</span> }
-                        else { <span>【@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")】</span> }
+                        <div class="party-slot__identity"><h3>@slot.CharacterName</h3><span>@slot.PlayerName</span></div>
+                        <div class="party-slot__hp"><span>HP @slot.CharacterHp / @slot.CharacterMaxHp</span><span>@(slot.IsAlive ? "存活" : "已阵亡")</span></div>
+                        <progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp"></progress>
+                        <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                         @if (slot.IsCurrentUserCharacter && !slot.IsAutoUnlockedForCurrentUser)
                         {
-                            <span>【首次通关此副本后解锁 Auto】</span>
+                            <span class="party-slot__hint">首次通关此副本后解锁 Auto</span>
                         }
                         @if (slot.CanConfigureAuto)
                         {
-                            <label style="margin-left: .5rem;"><input type="checkbox" checked="@slot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(slot.SlotIndex, (bool)e.Value!)" disabled="@_isBusy" /> Auto</label>
+                            <label class="toggle-option"><input type="checkbox" checked="@slot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(slot.SlotIndex, (bool)e.Value!)" disabled="@_isBusy" /> Auto</label>
                         }
                     }
                     else
                     {
-                        <span>：空槽位</span>
+                        <div class="party-slot__identity"><h3>空槽位</h3><span>等待冒险者加入</span></div>
                         @if (!IsOwner && !_roomDetail.CanLeaveRoom && CanChangeFormation)
                         {
-                            <button @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
+                            <button class="button button--secondary" @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
                         }
                     }
 
                     @if (IsOwner)
                     {
-                        <div style="margin-top: .5rem;">
+                        <div class="slot-management">
                             <select @bind="_selectedCharacterIds[slot.SlotIndex]" disabled="@(_isBusy || !CanChangeFormation)">
                                 <option value="0">选择自有角色</option>
                                 @foreach (var character in _characters)
@@ -106,24 +109,23 @@ else
                                     <option value="@character.CharacterId">@character.Name (@character.Hp / @character.MaxHp)</option>
                                 }
                             </select>
-                            <button @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterIds[slot.SlotIndex] == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
+                            <button class="button button--quiet" @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterIds[slot.SlotIndex] == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
                             @if (slot.IsOccupied)
                             {
-                                <button @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">移除</button>
-                                <button @onclick="() => SetMainControlAsync(slot.CharacterId!.Value)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">设为主控</button>
+                                <button class="button button--quiet" @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">移除</button>
+                                <button class="button button--quiet" @onclick="() => SetMainControlAsync(slot.CharacterId!.Value)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">设为主控</button>
                             }
                         </div>
                     }
-                </div>
+                </article>
             }
-        </section>
-    </div>
+        </div>
+    </section>
 
-    <h3>战斗日志</h3>
-    @if (_logs.Count == 0) { <p>暂无日志</p> }
-    else { <ul>@foreach (var log in _logs) { <li>@log</li> }</ul> }
-    @if (_message is not null) { <p><em>@_message</em></p> }
+    <section class="combat-log"><div class="combat-log__heading"><span class="section-kicker">BATTLE REPORT</span><h2>战斗日志</h2></div>@if (_logs.Count == 0) { <p>战场尚无新的记录。</p> } else { <ul>@foreach (var log in _logs) { <li>@log</li> }</ul> }</section>
+    @if (_message is not null) { <p class="notice-message">@_message</p> }
 }
+</div>
 
 @code {
     [Parameter] public int RoomId { get; set; }

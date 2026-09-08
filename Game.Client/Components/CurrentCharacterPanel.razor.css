@@ -1,6 +1,6 @@
 .current-character-panel__empty {
     margin: 0;
-    color: #6c757d;
+    color: #9eafc1;
     font-size: 0.95rem;
 }
 
@@ -10,20 +10,20 @@
 }
 
 .current-character-panel__message--success {
-    color: #198754;
+    color: #91d9b0;
 }
 
 .current-character-panel__message--error {
-    color: #dc3545;
+    color: #efa2a9;
 }
 
 .character-create-card {
     min-width: 220px;
     padding: 1rem;
-    border: 1px dashed #6c757d;
+    border: 1px dashed #53667d;
     border-radius: 0.75rem;
-    background: #fff;
-    color: inherit;
+    background: #172536;
+    color: #dfe8f1;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -81,8 +81,10 @@ button.character-create-card:disabled,
     width: 100%;
     margin-bottom: 0.75rem;
     padding: 0.5rem 0.75rem;
-    border: 1px solid #ced4da;
+    border: 1px solid #46566b;
     border-radius: 0.5rem;
+    background:#0e1826;
+    color:#e7edf3;
 }
 
 .character-create-card__actions {
