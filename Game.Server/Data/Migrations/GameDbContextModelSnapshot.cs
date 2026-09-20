@@ -102,6 +102,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("DungeonId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsRepeatBattle")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsSelfTeamPreparationTimeoutEnabled")
                         .HasColumnType("INTEGER");
 

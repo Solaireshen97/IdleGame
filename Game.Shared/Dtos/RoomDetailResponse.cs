@@ -17,6 +17,8 @@ public class RoomDetailResponse
     public DateTime? PreparationStartedAtUtc { get; set; }
     public DateTime? PreparationExpiresAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
+    public DateTime? NextBattleStartAtUtc { get; set; }
+    public bool IsRepeatBattle { get; set; }
     public DateTime ServerTimeUtc { get; set; }
     public bool CanExecuteRound { get; set; }
     public bool IsMixedTeam { get; set; }

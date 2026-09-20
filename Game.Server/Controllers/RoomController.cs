@@ -30,7 +30,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken());
+        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false);
         if (roomDetail is null || error is not null)
         {
             return error switch

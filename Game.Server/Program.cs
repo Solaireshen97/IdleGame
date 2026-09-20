@@ -14,6 +14,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddHostedService<RoomCycleService>();
 
 builder.Services.AddCors(options =>
 {

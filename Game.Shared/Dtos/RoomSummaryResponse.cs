@@ -9,4 +9,5 @@ public class RoomSummaryResponse
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
     public RoomStatus RoomStatus { get; set; }
+    public bool IsRepeatBattle { get; set; }
 }

@@ -23,6 +23,8 @@
 - 永久 Auto 仅限已通关当前副本的用户开启。准备超时的临时自动确认不代表解锁永久 Auto。
 - 混合队伍强制 30 秒准备超时；纯自建队由房主决定是否启用该超时。全员已解锁并开启永久 Auto 时每 30 秒自动推进一回合。
 - 怪物死亡或全队死亡后，房间进入 `BattleOver`。
+- 创建房间时可选择单次或重复战斗。重复模式在胜利 30 秒后由服务端重开副本，恢复怪物及队伍角色的全部 HP；战败后停止。
+- 重开后的每个回合仍遵守现有的准备与 Auto 规则。服务端定时推进超时、全员 Auto 和重复重开，房间页关闭后也能继续；需要手动准备的队伍会等待玩家确认。
 - 双方仍存活时，进入 10 秒 `Cooldown`。
 - 房间版本号是 EF Core 并发令牌，确保并发回合最多一个结算成功。
 
@@ -31,7 +33,7 @@
 ## API
 
 - `GET /api/dungeons`、`GET /api/dungeons/{dungeonId}`：获取副本配置及当前用户首通和 Auto 解锁状态。
-- `POST /api/rooms`：使用 `dungeonId` 创建房间，并按副本容量初始化槽位；旧 `monsterType` 请求仍兼容。
+- `POST /api/rooms`：使用 `dungeonId` 和可选的 `isRepeatBattle` 创建房间，并按副本容量初始化槽位；旧 `monsterType` 请求仍兼容，默认单次战斗。
 - `GET /api/rooms/{roomId}`：获取怪物、战斗状态和完整槽位信息。
 - `POST /api/rooms/{roomId}/slots`：上阵或替换自有角色。请求体为 `slotIndex`、`characterId`。
 - `DELETE /api/rooms/{roomId}/slots/{slotIndex}`：移除非主控槽位角色。

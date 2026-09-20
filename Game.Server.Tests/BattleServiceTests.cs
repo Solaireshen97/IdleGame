@@ -10,6 +10,87 @@ namespace Game.Server.Tests;
 public class BattleServiceTests
 {
     [Fact]
+    public async Task SyncRoomAsync_RepeatsVictoryAfterThirtySecondsAndRestoresPartyHp()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        await test.Db.SaveChangesAsync();
+
+        var (victory, _) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (waiting, _) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Equal(RoomStatus.BattleOver, waiting!.RoomStatus);
+        Assert.Equal(0, test.Monster.Hp);
+        Assert.Equal(35, test.Character.Hp);
+
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+        var (restarted, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.NotStarted, restarted!.RoomStatus);
+        Assert.Equal(test.Monster.MaxHp, test.Monster.Hp);
+        Assert.Equal(test.Character.MaxHp, test.Character.Hp);
+        Assert.Null(test.Room.BattleEndedAtUtc);
+    }
+
+    [Fact]
+    public async Task SyncRoomAsync_RepeatBattleStopsAfterDefeat()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 1, characterAttack: 1, monsterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
+        Assert.Equal(0, test.Character.Hp);
+        Assert.True(test.Monster.Hp > 0);
+    }
+
+    [Fact]
+    public async Task SyncRoomAsync_RepeatBattleImmediatelyUsesUnlockedAutoAfterRestart()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        var mainSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl);
+        mainSlot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
+        Assert.Equal(0, test.Monster.Hp);
+        Assert.Equal(test.Character.MaxHp, test.Character.Hp);
+        Assert.Contains(result.Logs, log => log.Contains("next dungeon battle"));
+        Assert.True(test.Room.BattleEndedAtUtc > DateTime.UtcNow.AddSeconds(-5));
+    }
+
+    [Fact]
+    public async Task SyncRoomAsync_SingleBattleDoesNotRestartAfterVictory()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
+        Assert.Equal(0, test.Monster.Hp);
+    }
+
+    [Fact]
     public async Task SetSlotAutoAsync_WithoutDungeonClear_IsRejected()
     {
         await using var test = await BattleTestContext.CreateAsync();

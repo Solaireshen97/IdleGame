@@ -14,5 +14,6 @@ public class Room
     public DateTime? PreparationStartedAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
     public bool IsSelfTeamPreparationTimeoutEnabled { get; set; } = true;
+    public bool IsRepeatBattle { get; set; }
     public int Version { get; set; }
 }

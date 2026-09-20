@@ -43,6 +43,7 @@ else
             </select>
             <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@_isLoading">开启房间</button>
         </div>
+        <label class="dungeon-launcher__mode"><input type="checkbox" @bind="_isRepeatBattle" /> 重复战斗（胜利后 30 秒重开；不勾选为单次战斗）</label>
         @if (_selectedDungeon is not null)
         {
             <div class="dungeon-launcher__details">
@@ -68,7 +69,7 @@ else
                 @foreach (var room in _rooms)
                 {
                     <article class="room-card">
-                        <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge">@room.RoomStatus</span></div>
+                        <div class="room-card__topline"><span>ROOM · @room.RoomId · @(room.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span class="status-badge">@room.RoomStatus</span></div>
                         <h3>@room.MonsterName</h3>
                         <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
                         <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>
@@ -94,6 +95,7 @@ else
     private string? _message;
     private List<DungeonSummaryResponse> _dungeons = new();
     private int _selectedDungeonId;
+    private bool _isRepeatBattle;
     private DungeonSummaryResponse? _selectedDungeon => _dungeons.SingleOrDefault(dungeon => dungeon.DungeonId == _selectedDungeonId);
 
     protected override async Task OnInitializedAsync()
@@ -123,7 +125,7 @@ else
         _isLoading = true;
         _message = null;
         if (_selectedDungeonId == 0) { _message = "暂无可用副本。"; _isLoading = false; return; }
-        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId);
+        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId, _isRepeatBattle);
         if (roomDetail is null)
         {
             _message = errorMessage switch

@@ -75,10 +75,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId, bool isRepeatBattle)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
-        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId });
+        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId, IsRepeatBattle = isRepeatBattle });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {

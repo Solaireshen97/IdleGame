@@ -28,13 +28,17 @@ else
             <h1>@_roomDetail.MonsterName</h1>
             <div class="battle-hp"><span>ENEMY HP</span><strong>@_roomDetail.MonsterHp <small>/ @_roomDetail.MonsterMaxHp</small></strong></div>
             <progress class="health-bar health-bar--enemy" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp"></progress>
-            <div class="battle-state"><span class="status-badge">@GetStatusText()</span><span>@(_roomDetail.IsMixedTeam ? "混合队伍 · 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "队伍准备超时已启用" : "队伍准备超时已关闭")</span></div>
+            <div class="battle-state"><span class="status-badge">@GetStatusText()</span><span>@(_roomDetail.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span>@(_roomDetail.IsMixedTeam ? "混合队伍 · 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "队伍准备超时已启用" : "队伍准备超时已关闭")</span></div>
         </div>
         <section class="battle-controls">
             <div class="battle-controls__heading"><span class="section-kicker">COMMAND CENTER</span><h2>行动控制</h2></div>
             @if (GetRemainingCooldownSeconds() > 0)
             {
                 <p class="combat-tip">下一回合将在 <strong>@GetRemainingCooldownSeconds()</strong> 秒后可准备</p>
+            }
+            @if (_roomDetail.NextBattleStartAtUtc is not null)
+            {
+                <p class="combat-tip">下一场副本将在 <strong>@GetRemainingRepeatSeconds()</strong> 秒后重开；角色生命值将恢复至满。</p>
             }
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
             {
@@ -53,7 +57,7 @@ else
                 <button class="button button--primary" @onclick="StartPreparationAsync" disabled="@_isBusy">准备并结算</button>
             }
             else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) { <p class="combat-tip">已准备，等待其他玩家。</p> }
-            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver)
+            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
             {
                 <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
             }
@@ -257,6 +261,7 @@ else
     private void GoToRooms() => Navigation.NavigateTo("/rooms");
     private int GetRemainingCooldownSeconds() => _roomDetail?.NextRoundAvailableAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
     private int GetRemainingPreparationSeconds() => _roomDetail?.PreparationExpiresAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
+    private int GetRemainingRepeatSeconds() => _roomDetail?.NextBattleStartAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
     private string GetStatusText() => _roomDetail?.RoomStatus switch
     {
         Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
@@ -269,7 +274,7 @@ else
 
     private async Task RefreshCooldownAsync(CancellationToken cancellationToken)
     {
-        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing || _roomDetail?.IsAllAliveMembersAuto == true) { var (result, _) = await ApiService.SyncBattleAsync(RoomId); if (result is not null) _logs.AddRange(result.Logs); await RefreshRoomDetailAsync(); } await InvokeAsync(StateHasChanged); } }
+        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing || _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null) { var (result, _) = await ApiService.SyncBattleAsync(RoomId); if (result is not null) _logs.AddRange(result.Logs); await RefreshRoomDetailAsync(); } await InvokeAsync(StateHasChanged); } }
         catch (OperationCanceledException) { }
     }
 

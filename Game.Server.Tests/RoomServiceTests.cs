@@ -11,6 +11,18 @@ namespace Game.Server.Tests;
 public class RoomServiceTests
 {
     [Fact]
+    public async Task CreateRoomAsync_StoresRepeatBattleChoice()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+
+        var (detail, error) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isRepeatBattle: true);
+
+        Assert.Null(error);
+        Assert.True(detail!.IsRepeatBattle);
+        Assert.True((await test.Db.Rooms.FindAsync(detail.RoomId))!.IsRepeatBattle);
+    }
+
+    [Fact]
     public async Task CreateRoomAsync_InitializesDefaultDungeonsAndUsesSelectedDungeon()
     {
         await using var test = await RoomTestContext.CreateAsync();

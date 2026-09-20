@@ -1,4 +1,5 @@
 using Game.Server.Data;
+using Game.Shared;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
@@ -51,9 +52,34 @@ public class BattleService(GameDbContext dbContext, UserService userService)
     {
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
+        return await SyncCoreAsync(room!, slots!, monster!);
+    }
+
+    public async Task<(BattleResult? Result, string? Error)> SyncRoomAsync(int roomId)
+    {
+        var (room, slots, monster, error) = await GetRoomStateAsync(roomId);
+        if (error is not null) return (null, error);
+        return await SyncCoreAsync(room!, slots!, monster!);
+    }
+
+    private async Task<(BattleResult? Result, string? Error)> SyncCoreAsync(Room room, List<SlotCharacter> slots, Monster monster)
+    {
         var now = DateTime.UtcNow;
-        var aliveSlots = slots!.Where(x => x.Character.Hp > 0).ToList();
-        if (room!.Status == RoomStatus.Preparing)
+        var restartedBattle = false;
+        if (room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && monster.Hp <= 0 &&
+            room.BattleEndedAtUtc is DateTime endedAt && now >= endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds))
+        {
+            monster.Hp = monster.MaxHp;
+            foreach (var entry in slots) entry.Character.Hp = entry.Character.MaxHp;
+            ClearRoundState(room, slots);
+            room.Status = RoomStatus.NotStarted;
+            room.NextRoundAvailableAtUtc = null;
+            room.BattleEndedAtUtc = null;
+            restartedBattle = true;
+        }
+
+        var aliveSlots = slots.Where(x => x.Character.Hp > 0).ToList();
+        if (room.Status == RoomStatus.Preparing)
         {
             var isMixedTeam = slots.Any(slot => slot.Slot.UserId != room.OwnerUserId);
             if ((isMixedTeam || room.IsSelfTeamPreparationTimeoutEnabled) && room.PreparationStartedAtUtc is not null && now >= room.PreparationStartedAtUtc.Value.Add(PreparationTimeout))
@@ -66,24 +92,29 @@ public class BattleService(GameDbContext dbContext, UserService userService)
                     logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} timed out and was temporarily set to Auto.");
                 }
                 logs.Add("Preparation timed out. The round starts automatically.");
-                return await ExecutePreparedRoundAsync(room, slots, monster!, now, logs);
+                return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
             }
-            return (BuildResult(room, slots, monster!, now, []), null);
+            return (BuildResult(room, slots, monster, now, []), null);
         }
 
         var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
         var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedUserIds));
         var autoRoundCanStart = room.Status == RoomStatus.NotStarted ||
             (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now);
-        if (autoRoundCanStart && aliveSlots.Count > 0 && monster!.Hp > 0 && allAliveMembersAuto)
+        if (autoRoundCanStart && aliveSlots.Count > 0 && monster.Hp > 0 && allAliveMembersAuto)
         {
             room.Status = RoomStatus.Preparing;
             room.NextRoundAvailableAtUtc = null;
             room.PreparationStartedAtUtc = now;
             foreach (var entry in aliveSlots) entry.Slot.IsConfirmed = true;
-            return await ExecutePreparedRoundAsync(room, slots, monster, now, ["All members are on Auto. The round starts automatically."]);
+            var logs = restartedBattle
+                ? new List<string> { "The next dungeon battle begins with the party at full HP.", "All members are on Auto. The round starts automatically." }
+                : new List<string> { "All members are on Auto. The round starts automatically." };
+            return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
         }
-        return (BuildResult(room, slots, monster!, now, []), null);
+        return restartedBattle
+            ? await SaveResultAsync(room, slots, monster, now, ["The next dungeon battle is ready. The party is at full HP."])
+            : (BuildResult(room, slots, monster, now, []), null);
     }
 
     public async Task<(BattleResult? Result, string? Error)> SetSlotAutoAsync(int roomId, SetSlotAutoRequest request, string? token)
@@ -206,17 +237,24 @@ public class BattleService(GameDbContext dbContext, UserService userService)
 
     private async Task<(Room? Room, List<SlotCharacter>? Slots, Monster? Monster, User? User, string? Error)> GetBattleContextAsync(int roomId, string? token)
     {
-        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
-        if (room is null) return (null, null, null, null, "NotFound");
+        var (room, slots, monster, roomError) = await GetRoomStateAsync(roomId);
+        if (roomError is not null) return (room, slots, monster, null, roomError);
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (room, null, null, null, error);
+        if (!slots!.Any(x => x.Slot.UserId == user!.Id)) return (room, null, null, user, "NotInRoom");
+        return (room, slots, monster, user, null);
+    }
+
+    private async Task<(Room? Room, List<SlotCharacter>? Slots, Monster? Monster, string? Error)> GetRoomStateAsync(int roomId)
+    {
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
+        if (room is null) return (null, null, null, "NotFound");
         var slotRows = await dbContext.RoomSlots.Where(x => x.RoomId == roomId && x.CharacterId.HasValue).OrderBy(x => x.SlotIndex).ToListAsync();
-        if (!slotRows.Any(x => x.UserId == user!.Id)) return (room, null, null, user, "NotInRoom");
         var ids = slotRows.Select(x => x.CharacterId!.Value).ToList();
         var characters = await dbContext.Characters.Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
         var slots = slotRows.Where(x => characters.ContainsKey(x.CharacterId!.Value)).Select(x => new SlotCharacter(x, characters[x.CharacterId!.Value])).ToList();
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        return monster is null ? (room, slots, null, user, "MonsterNotFound") : (room, slots, monster, user, null);
+        return monster is null ? (room, slots, null, "MonsterNotFound") : (room, slots, monster, null);
     }
     private sealed record SlotCharacter(RoomSlot Slot, Character Character);
 }

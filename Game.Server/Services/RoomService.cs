@@ -1,4 +1,5 @@
 using Game.Server.Data;
+using Game.Shared;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
@@ -50,7 +51,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
     public Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token) =>
         CreateRoomAsync(null, monsterType, token);
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false)
     {
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
@@ -62,7 +63,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null) return (null, "DungeonNotFound");
         var monster = new Monster { Name = dungeon.MonsterName, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense };
-        var room = new Room { DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount, Status = RoomStatus.NotStarted };
+        var room = new Room { DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount, Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle };
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         dbContext.Monsters.Add(monster);
         await dbContext.SaveChangesAsync();
@@ -235,6 +236,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
             MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(30) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
+            IsRepeatBattle = room.IsRepeatBattle, NextBattleStartAtUtc = room.IsRepeatBattle && room.Status == RoomStatus.BattleOver && monster.Hp <= 0 ? room.BattleEndedAtUtc?.AddSeconds(BattleRules.RepeatBattleDelaySeconds) : null,
             ServerTimeUtc = now,
             CanExecuteRound = room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
             IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, CanConfigurePreparationTimeout = currentUserId == room.OwnerUserId && !isMixedTeam, PreparationTimeoutSeconds = 30, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
@@ -256,7 +258,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
     {
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status };
+        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle };
     }
 
 }
