@@ -98,7 +98,7 @@ public sealed class SkillCatalog
             !string.Equals(skill.ProfessionCode, profession.Code, StringComparison.OrdinalIgnoreCase)) return false;
         return profession.StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) ||
                _talentNodes.Values.Any(node => string.Equals(node.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase) &&
-                   purchasedNodes.Contains(node.Code));
+                   IsNodeActive(node, purchasedNodes));
     }
 
     public IReadOnlyList<CombatSkillOptions> LearnedSkills(Game.Shared.Models.Character character, IReadOnlySet<string> purchasedNodes)
@@ -106,7 +106,11 @@ public sealed class SkillCatalog
         var profession = FindProfession(character.ProfessionCode);
         if (profession is null) return [];
         return profession.StartingSkills.Select(code => _skills[code])
-            .Concat(TalentNodesForProfession(profession.Code).Where(node => purchasedNodes.Contains(node.Code))
+            .Concat(TalentNodesForProfession(profession.Code).Where(node => IsNodeActive(node, purchasedNodes))
                 .Select(node => _skills[node.SkillCode])).ToList();
     }
+
+    private bool IsNodeActive(SkillTalentNodeOptions node, IReadOnlySet<string> purchasedNodes) =>
+        purchasedNodes.Contains(node.Code) && node.Prerequisites.All(code =>
+            _talentNodes.TryGetValue(code, out var parent) && IsNodeActive(parent, purchasedNodes));
 }

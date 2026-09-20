@@ -445,6 +445,29 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task UnlearnedTalentSkillCannotFireEvenIfEquippedDirectlyInDatabase()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1);
+        await test.AddSkillAsync(test.Character, 3, "knight-break", autoUse: true);
+
+        var (firstRound, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(firstError);
+        Assert.DoesNotContain(firstRound!.Logs, log => log.Contains("uses 破甲斩"));
+
+        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
+        {
+            CharacterId = test.Character.Id, NodeCode = "knight-vanguard", PointsSpent = 1
+        });
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+
+        var (secondRound, secondError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(secondError);
+        Assert.Contains(secondRound!.Logs, log => log.Contains("uses 破甲斩"));
+    }
+
+    [Fact]
     public async Task ManualUseCanOverrideAutomaticHpThreshold()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 5);

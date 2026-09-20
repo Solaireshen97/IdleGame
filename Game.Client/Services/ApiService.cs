@@ -315,7 +315,15 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SwapSkillSlotsAsync(
         int characterId, int fromSlotIndex, int toSlotIndex) =>
         SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/swap",
-            new SwapSkillSlotsRequest { FromSlotIndex = fromSlotIndex, ToSlotIndex = toSlotIndex });
+             new SwapSkillSlotsRequest { FromSlotIndex = fromSlotIndex, ToSlotIndex = toSlotIndex });
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> UnlockSkillTalentAsync(
+        int characterId, string nodeCode) =>
+        SendSkillRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/skills/talents/{Uri.EscapeDataString(nodeCode)}/unlock");
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> ResetSkillTalentsAsync(int characterId) =>
+        SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/talents/reset");
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSkillAsync(
         int roomId, int characterId, int skillSlotIndex, bool isQueued)

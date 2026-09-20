@@ -37,21 +37,22 @@
                 <section class="talents-page__roadmap">
                     <span class="talents-page__eyebrow">CAREER PATH</span>
                     <h2>职业路线</h2>
-                    <p>当前职业的基础技能已开放。后续将在这里展示技能天赋、转职条件和专属路线。</p>
+                    <p>点亮前置节点，沿职业路线学习新技能。后续可在这里扩展转职条件与专属路线。</p>
                 </section>
             </aside>
 
             <div class="talents-page__main">
-                <CharacterTalentBoard @key="character.CharacterId"
+                <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
                                       CharacterId="@character.CharacterId"
                                       OnChanged="RefreshCurrentAsync" />
-                <CharacterSkillBoard @key="character.CharacterId" CharacterId="@character.CharacterId" />
+                <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
+                                     CharacterId="@character.CharacterId" OnChanged="RefreshCurrentAsync" />
                 <section class="talents-page__next">
                     <span class="talents-page__next-icon" aria-hidden="true">✦</span>
                     <div>
                         <span class="talents-page__eyebrow">FUTURE PATH</span>
                         <h2>职业进阶</h2>
-                        <p>下一阶段将接入通过天赋点解锁技能的节点，并逐步扩展职业路线。</p>
+                        <p>职业路线将继续扩展专精、转职与更高等级的技能节点。</p>
                     </div>
                 </section>
             </div>
@@ -68,6 +69,7 @@
     public int? CharacterId { get; set; }
 
     private bool _isLoading = true;
+    private int _talentRevision;
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,7 +84,11 @@
         if (CharacterId is not null) Navigation.NavigateTo("/talents", replace: true);
     }
 
-    private Task RefreshCurrentAsync() => ActiveCharacters.RefreshAsync();
+    private async Task RefreshCurrentAsync()
+    {
+        await ActiveCharacters.RefreshAsync();
+        _talentRevision++;
+    }
     private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;

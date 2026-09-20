@@ -20,7 +20,57 @@
     }
     else
     {
-        <p class="skill-board__intro">技能栏顺序决定自动施放顺序。同一回合内，满足条件的技能可以连续触发；手动选中的技能会先结算。</p>
+        <p class="skill-board__intro">升级获得的天赋点可用于点亮职业路线。前置节点必须先点亮；学会技能后，还需要装备到下方技能栏。</p>
+        <section class="skill-tree" aria-label="职业天赋树">
+            <div class="skill-tree__heading">
+                <div><span class="skill-board__eyebrow">TALENT TREE</span><h3>职业天赋树</h3></div>
+                <div class="skill-tree__points"><strong>@_skills.TalentPoints</strong><span>可用天赋点</span></div>
+            </div>
+            @for (var tier = 1; tier <= (_skills.TalentNodes.Count == 0 ? 0 : _skills.TalentNodes.Max(node => node.Tier)); tier++)
+            {
+                var currentTier = tier;
+                <div class="skill-tree__tier" aria-label="第 @currentTier 层">
+                    @foreach (var node in _skills.TalentNodes.Where(node => node.Tier == currentTier))
+                    {
+                        <article class="skill-tree__node @(node.IsUnlocked ? "skill-tree__node--unlocked" : node.CanUnlock ? "skill-tree__node--available" : "skill-tree__node--locked")"
+                                 style="grid-column: @node.Column" @key="node.Code">
+                            <div class="skill-tree__node-top"><span>第 @node.Tier 层 · @node.Cost 点</span><strong>@(node.IsUnlocked ? "已点亮" : !node.ArePrerequisitesMet ? "未解锁" : node.CanUnlock ? "可解锁" : "点数不足")</strong></div>
+                            <h4>@node.Name</h4>
+                            <p>@node.Description</p>
+                            <span class="skill-tree__reward">解锁技能 · @node.SkillName</span>
+                            <small>@node.SkillDescription</small>
+                            @if (node.Prerequisites.Count > 0)
+                            {
+                                <span class="skill-tree__prerequisite">前置：@GetPrerequisiteNames(node)</span>
+                            }
+                            <button type="button" disabled="@(_isSaving || !node.CanUnlock)" @onclick="() => UnlockNodeAsync(node.Code)">
+                                @(node.IsUnlocked ? "已学会" : !node.ArePrerequisitesMet ? "需要前置" : _skills.TalentPoints < node.Cost ? "点数不足" : "点亮节点")
+                            </button>
+                        </article>
+                    }
+                </div>
+                @if (currentTier < _skills.TalentNodes.Max(node => node.Tier))
+                {
+                    <svg class="skill-tree__links" viewBox="0 0 300 48" preserveAspectRatio="none" aria-hidden="true">
+                        @foreach (var child in _skills.TalentNodes.Where(node => node.Tier == currentTier + 1))
+                        {
+                            @foreach (var parentCode in child.Prerequisites)
+                            {
+                                var parent = _skills.TalentNodes.First(node => node.Code == parentCode);
+                                <line x1="@((parent.Column * 2 - 1) * 50)" y1="0"
+                                      x2="@((child.Column * 2 - 1) * 50)" y2="48"
+                                      class="@(parent.IsUnlocked ? "skill-tree__link--active" : null)" />
+                            }
+                        }
+                    </svg>
+                }
+            }
+            <div class="skill-tree__footer">
+                <span>重置职业树会返还已消耗的点数，并卸下通过此树学会的技能；基础属性天赋保持原样。</span>
+                <button type="button" disabled="@(_isSaving || !_skills.TalentNodes.Any(node => node.IsUnlocked))" @onclick="ResetTreeAsync">重置职业树</button>
+            </div>
+        </section>
+        <div class="skill-board__loadout-heading"><div><span class="skill-board__eyebrow">SKILL LOADOUT</span><h3>技能栏</h3></div><p>技能栏顺序决定自动施放顺序。同一回合可连续使用多个技能，手动安排的技能先结算。</p></div>
         <div class="skill-board__learned">
             @foreach (var skill in _skills.LearnedSkills)
             {
@@ -61,6 +111,7 @@
 
 @code {
     [Parameter, EditorRequired] public int CharacterId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
     private CharacterSkillsResponse? _skills;
     private bool _isLoading = true;
     private bool _isSaving;
@@ -118,11 +169,48 @@
         finally { _isSaving = false; }
     }
 
+    private string GetPrerequisiteNames(SkillTalentNodeResponse node) => string.Join("、",
+        node.Prerequisites.Select(code => _skills?.TalentNodes.FirstOrDefault(item => item.Code == code)?.Name ?? code));
+
+    private async Task UnlockNodeAsync(string nodeCode)
+    {
+        if (_isSaving || _skills is null) return;
+        await ChangeTreeAsync(() => ApiService.UnlockSkillTalentAsync(CharacterId, nodeCode));
+    }
+
+    private async Task ResetTreeAsync()
+    {
+        if (_isSaving || _skills is null) return;
+        await ChangeTreeAsync(() => ApiService.ResetSkillTalentsAsync(CharacterId));
+    }
+
+    private async Task ChangeTreeAsync(Func<Task<(CharacterSkillsResponse? Response, string? ErrorMessage)>> action)
+    {
+        _isSaving = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await action();
+            if (response is null) _error = error;
+            else
+            {
+                _skills = response;
+                await OnChanged.InvokeAsync();
+            }
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
+    }
+
     private static string GetError(string error) => error.Trim().Trim('"') switch
     {
         "LoadoutLocked" => "战斗进行时不能调整技能栏。",
         "SkillAlreadyEquipped" => "该技能已装备在其他槽位，可用箭头调整顺序。",
         "SkillNotLearned" => "该角色尚未学会这个技能。",
+        "SkillTalentAlreadyUnlocked" => "该节点已点亮，请刷新页面。",
+        "SkillTalentPrerequisiteRequired" => "请先点亮前置节点。",
+        "InsufficientTalentPoints" => "天赋点不足。",
+        "InvalidSkillTalent" => "职业天赋节点不存在。",
         "InvalidHpThreshold" => "自动使用阈值应为 1～100%。",
         "ConcurrencyConflict" => "技能栏状态已变化，请重试。",
         _ => error

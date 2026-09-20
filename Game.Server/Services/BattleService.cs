@@ -234,7 +234,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             var equipped = await dbContext.CharacterSkillSlots.SingleOrDefaultAsync(
                 slot => slot.CharacterId == participant.Character.Id && slot.SlotIndex == request.SkillSlotIndex);
             var skill = skillCatalog.FindSkill(equipped?.SkillCode);
-            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code)) return (false, "SkillNotEquipped");
+            var purchasedNodes = (await dbContext.CharacterSkillTalents
+                .Where(node => node.CharacterId == participant.Character.Id).Select(node => node.NodeCode).ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, purchasedNodes))
+                return (false, "SkillNotEquipped");
             var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
                 entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber) return (false, "SkillCooldown");
@@ -354,6 +358,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         if (equipment.Count == 0) return 0;
         var cooldowns = await dbContext.BattleSkillCooldowns
             .Where(cooldown => cooldown.RoomId == room.Id && characterIds.Contains(cooldown.CharacterId)).ToListAsync();
+        var purchasedNodes = (await dbContext.CharacterSkillTalents
+            .Where(node => characterIds.Contains(node.CharacterId)).ToListAsync())
+            .GroupBy(node => node.CharacterId)
+            .ToDictionary(group => group.Key,
+                group => group.Select(node => node.NodeCode).ToHashSet(StringComparer.OrdinalIgnoreCase));
         var guardPercent = 0;
         var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
@@ -362,7 +371,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         {
             var skill = skillCatalog.FindSkill(slot.SkillCode);
             var used = usedByCharacter[participant.Character.Id];
-            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code) || used.Contains(skill.Code)) return false;
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code,
+                    purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase)) ||
+                used.Contains(skill.Code)) return false;
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
             var target = aliveSlots.Where(entry => entry.Character.Hp > 0)

@@ -33,7 +33,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
 
         var skill = request.SkillCode is null ? null : catalog.FindSkill(request.SkillCode.Trim());
-        if (request.SkillCode is not null && (skill is null || !catalog.IsLearned(character!, skill.Code)))
+        var purchasedNodes = await GetPurchasedNodeCodesAsync(characterId);
+        if (request.SkillCode is not null && (skill is null || !catalog.IsLearned(character!, skill.Code, purchasedNodes)))
             return (null, "SkillNotLearned");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
@@ -125,6 +126,98 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         }
     }
 
+    public async Task<(CharacterSkillsResponse? Response, string? Error)> UnlockTalentNodeAsync(
+        string? token, int characterId, string nodeCode)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        var node = catalog.FindTalentNode(nodeCode);
+        if (node is null || !string.Equals(node.ProfessionCode, character!.ProfessionCode, StringComparison.OrdinalIgnoreCase))
+            return (null, "InvalidSkillTalent");
+        if (await IsLoadoutLockedAsync(characterId)) return (null, "LoadoutLocked");
+        var purchasedNodes = await GetPurchasedNodeCodesAsync(characterId);
+        if (purchasedNodes.Contains(node.Code)) return (null, "SkillTalentAlreadyUnlocked");
+        if (node.Prerequisites.Any(code => !purchasedNodes.Contains(code))) return (null, "SkillTalentPrerequisiteRequired");
+        if (character.TalentPoints < node.Cost) return (null, "InsufficientTalentPoints");
+
+        dbContext.CharacterSkillTalents.Add(new CharacterSkillTalent
+        {
+            CharacterId = characterId,
+            NodeCode = node.Code,
+            PointsSpent = node.Cost
+        });
+        character.TalentPoints -= node.Cost;
+        character.Version++;
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return (await BuildResponseAsync(character), null);
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
+    public async Task<(CharacterSkillsResponse? Response, string? Error)> ResetTalentTreeAsync(string? token, int characterId)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        if (await IsLoadoutLockedAsync(characterId)) return (null, "LoadoutLocked");
+        var purchased = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == characterId).ToListAsync();
+        if (purchased.Count == 0) return (await BuildResponseAsync(character!), null);
+
+        var equipped = await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync();
+        var noPurchasedNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var removedSkillCodes = purchased.Select(node => catalog.FindTalentNode(node.NodeCode)?.SkillCode)
+            .Where(code => code is not null).Cast<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        removedSkillCodes.UnionWith(equipped.Where(slot => slot.SkillCode is not null &&
+                !catalog.IsLearned(character!, slot.SkillCode, noPurchasedNodes))
+            .Select(slot => slot.SkillCode!));
+        foreach (var slot in equipped.Where(slot => slot.SkillCode is not null &&
+                     !catalog.IsLearned(character!, slot.SkillCode, noPurchasedNodes)))
+        {
+            slot.SkillCode = null;
+            slot.AutoUseEnabled = false;
+            slot.Version++;
+        }
+        var cooldowns = await dbContext.BattleSkillCooldowns
+            .Where(entry => entry.CharacterId == characterId && removedSkillCodes.Contains(entry.SkillCode)).ToListAsync();
+        dbContext.BattleSkillCooldowns.RemoveRange(cooldowns);
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is not null)
+        {
+            roomSlot.PendingSkillSlotMask = 0;
+            var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+            if (room is not null) room.Version++;
+        }
+        dbContext.CharacterSkillTalents.RemoveRange(purchased);
+        character!.TalentPoints = checked(character.TalentPoints + purchased.Sum(node => node.PointsSpent));
+        character.Version++;
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return (await BuildResponseAsync(character), null);
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
+    private async Task<bool> IsLoadoutLockedAsync(int characterId)
+    {
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is null) return false;
+        var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+        return room is not null && room.Status != RoomStatus.BattleOver &&
+               (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0);
+    }
+
+    private async Task<HashSet<string>> GetPurchasedNodeCodesAsync(int characterId) =>
+        (await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == characterId)
+            .Select(node => node.NodeCode).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
     private async Task<(Character? Character, string? Error)> GetOwnedCharacterAsync(string? token, int characterId)
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
@@ -137,6 +230,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
     private async Task<CharacterSkillsResponse> BuildResponseAsync(Character character)
     {
         var profession = catalog.FindProfession(character.ProfessionCode)!;
+        var purchasedNodes = await GetPurchasedNodeCodesAsync(character.Id);
         var equipped = await dbContext.CharacterSkillSlots
             .Where(slot => slot.CharacterId == character.Id).ToDictionaryAsync(slot => slot.SlotIndex);
         return new CharacterSkillsResponse
@@ -144,7 +238,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             CharacterId = character.Id,
             ProfessionCode = profession.Code,
             ProfessionName = profession.Name,
-            LearnedSkills = catalog.LearnedSkills(character).Select(skill => new LearnedSkillResponse
+            TalentPoints = character.TalentPoints,
+            LearnedSkills = catalog.LearnedSkills(character, purchasedNodes).Select(skill => new LearnedSkillResponse
             {
                 Code = skill.Code,
                 Name = skill.Name,
@@ -152,6 +247,28 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                 EffectType = skill.EffectType,
                 Power = skill.Power,
                 CooldownRounds = skill.CooldownRounds
+            }).ToList(),
+            TalentNodes = catalog.TalentNodesForProfession(profession.Code).Select(node =>
+            {
+                var skill = catalog.FindSkill(node.SkillCode)!;
+                var prerequisitesMet = node.Prerequisites.All(purchasedNodes.Contains);
+                var unlocked = purchasedNodes.Contains(node.Code);
+                return new SkillTalentNodeResponse
+                {
+                    Code = node.Code,
+                    Name = node.Name,
+                    Description = node.Description,
+                    SkillCode = skill.Code,
+                    SkillName = skill.Name,
+                    SkillDescription = skill.Description,
+                    Cost = node.Cost,
+                    Tier = node.Tier,
+                    Column = node.Column,
+                    Prerequisites = [.. node.Prerequisites],
+                    IsUnlocked = unlocked,
+                    ArePrerequisitesMet = prerequisitesMet,
+                    CanUnlock = !unlocked && prerequisitesMet && character.TalentPoints >= node.Cost
+                };
             }).ToList(),
             Slots = Enumerable.Range(1, SkillRules.SlotCount).Select(index =>
             {

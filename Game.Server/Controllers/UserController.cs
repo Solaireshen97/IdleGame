@@ -203,13 +203,27 @@ public class UserController(UserService userService, TalentService talentService
         return SkillResult(response, error);
     }
 
+    [HttpPost("characters/{characterId:int}/skills/talents/{nodeCode}/unlock")]
+    public async Task<IActionResult> UnlockSkillTalent(int characterId, string nodeCode)
+    {
+        var (response, error) = await skillService.UnlockTalentNodeAsync(GetBearerToken(), characterId, nodeCode);
+        return SkillResult(response, error);
+    }
+
+    [HttpPost("characters/{characterId:int}/skills/talents/reset")]
+    public async Task<IActionResult> ResetSkillTalents(int characterId)
+    {
+        var (response, error) = await skillService.ResetTalentTreeAsync(GetBearerToken(), characterId);
+        return SkillResult(response, error);
+    }
+
     private IActionResult SkillResult(CharacterSkillsResponse? response, string? error) => error switch
     {
         null => Ok(response),
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(403, "NotOwner"),
-        "LoadoutLocked" or "SkillAlreadyEquipped" or "ConcurrencyConflict" => Conflict(error),
+        "LoadoutLocked" or "SkillAlreadyEquipped" or "SkillTalentAlreadyUnlocked" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };
 

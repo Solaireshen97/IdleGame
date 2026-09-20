@@ -25,6 +25,7 @@ public class SkillMigrationTests
             Assert.Equal("knight", character.ProfessionCode);
             Assert.Equal(new[] { "knight-strike", "knight-guard" },
                 (await db.CharacterSkillSlots.OrderBy(slot => slot.SlotIndex).ToListAsync()).Select(slot => slot.SkillCode));
+            Assert.Empty(await db.CharacterSkillTalents.ToListAsync());
             Assert.Equal((80, 3, 2), (character.Hp, character.Level, character.TalentPoints));
         }
         finally
