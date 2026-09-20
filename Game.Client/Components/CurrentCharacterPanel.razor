@@ -2,6 +2,7 @@
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 
 @if (_isLoading)
 {
@@ -21,7 +22,8 @@ else
                        SelectDisabledReason="@GetSelectDisabledReason(character)"
                        DeleteDisabledReason="@GetDeleteDisabledReason(character)"
                        OnSelect="@(() => SelectCharacterAsync(character))"
-                       OnDelete="@(() => DeleteCharacterAsync(character))" />
+                       OnDelete="@(() => DeleteCharacterAsync(character))"
+                       OnTalents="@(() => OpenTalents(character))" />
     }
 
     @if (_isCreating)
@@ -110,6 +112,12 @@ else
         {
             _characters = characters;
         }
+    }
+
+    private void OpenTalents(CharacterSummaryResponse character)
+    {
+        if (_isSubmitting) return;
+        Navigation.NavigateTo($"/talents/{character.CharacterId}");
     }
 
     private void ShowCreateForm()

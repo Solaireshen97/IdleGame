@@ -59,6 +59,7 @@ else
                                 <span class="fighter__number">@slot.SlotIndex</span>
                             </div>
                             <strong>@(slot.IsOccupied ? slot.CharacterName : "空位")</strong>
+                            @if (slot.IsOccupied) { <small class="fighter__level">Lv @slot.CharacterLevel</small> }
                             @if (slot.IsOccupied)
                             {
                                 <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
@@ -175,6 +176,7 @@ else
 
     <details class="formation-panel">
         <summary class="formation-panel__heading"><span><span class="section-kicker">FORMATION</span><strong>队伍编成与槽位管理</strong></span><span>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人 · 展开管理 <span aria-hidden="true">⌄</span></span></summary>
+        <p class="formation-panel__progress-note">角色升级会获得天赋点；加点功能将在后续开放。</p>
         <div class="slot-grid">
             @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
             {
@@ -182,9 +184,14 @@ else
                     <span class="party-slot__index">@slot.SlotIndex</span>
                     @if (slot.IsOccupied)
                     {
-                        <div class="party-slot__identity"><h3>@slot.CharacterName</h3><span>@slot.PlayerName</span></div>
+                        <div class="party-slot__identity"><h3>@slot.CharacterName</h3><span>@slot.PlayerName · Lv @slot.CharacterLevel</span></div>
                         <div class="party-slot__hp"><span>HP @slot.CharacterHp / @slot.CharacterMaxHp</span><span>@(slot.IsAlive ? "存活" : "已阵亡")</span></div>
                         <progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp"></progress>
+                        <div class="party-slot__experience">
+                            <div class="party-slot__experience-label"><span>EXP</span><strong>@(slot.ExperienceToNextLevel is int nextExperience ? $"{slot.CharacterExperience} / {nextExperience}" : "MAX")</strong></div>
+                            <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
+                            <small>未分配天赋点 @slot.TalentPoints</small>
+                        </div>
                         <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                     }
                     else
@@ -203,7 +210,7 @@ else
                                 <option value="0">选择自有角色</option>
                                 @foreach (var character in _characters)
                                 {
-                                    <option value="@character.CharacterId">@character.Name (@character.Hp / @character.MaxHp)</option>
+                                    <option value="@character.CharacterId">@character.Name · Lv @character.Level (@character.Hp / @character.MaxHp)</option>
                                 }
                             </select>
                             <button class="button button--quiet" @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterIds[slot.SlotIndex] == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>

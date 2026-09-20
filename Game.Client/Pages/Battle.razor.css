@@ -390,6 +390,13 @@
     font-size: .75rem;
 }
 
+.fighter__level {
+    display: block;
+    color: #f0c77f;
+    font-size: .65rem;
+    white-space: nowrap;
+}
+
 .fighter > small {
     color: #a5b7c2;
     font-size: .66rem;
@@ -674,11 +681,18 @@
     background: rgba(118, 160, 189, .06);
 }
 
+.formation-panel__progress-note {
+    margin: 0;
+    border-top: 1px solid #34475b;
+    padding: .7rem 1.25rem 0;
+    color: #a9b8c7;
+    font-size: .76rem;
+}
+
 .slot-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
     gap: .75rem;
-    border-top: 1px solid #34475b;
     padding: 1rem 1.25rem 1.25rem;
 }
 
@@ -729,6 +743,22 @@
     margin: .5rem 0;
     accent-color: #53bf91;
 }
+
+.party-slot__experience {
+    margin: .4rem 0 .65rem;
+    color: #9cabbd;
+    font-size: .75rem;
+}
+
+.party-slot__experience-label {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.party-slot__experience-label strong { color: #efd195; }
+.party-slot__experience progress { width: 100%; height: .4rem; margin: .3rem 0; accent-color: #d9aa60; }
+.party-slot__experience small { display: block; color: #a9b8c7; }
 
 .party-slot__badges {
     display: flex;

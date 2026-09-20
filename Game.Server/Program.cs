@@ -1,5 +1,6 @@
 using Game.Server.Data;
 using Game.Server.Services;
+using Game.Server.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,9 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<TalentService>();
+builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
+builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddHostedService<RoomCycleService>();
 
 builder.Services.AddCors(options =>

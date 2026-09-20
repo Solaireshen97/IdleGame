@@ -37,7 +37,9 @@ main {
 
 @media (max-width: 640.98px) {
     .page--battle .sidebar,
-    .page--battle .top-row {
+    .page--battle .top-row,
+    .page--talents .sidebar,
+    .page--talents .top-row {
         display: none;
     }
 

@@ -16,6 +16,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Character>()
+            .Property(character => character.Version)
+            .IsConcurrencyToken();
+
         modelBuilder.Entity<Room>()
             .Property(room => room.Version)
             .IsConcurrencyToken();

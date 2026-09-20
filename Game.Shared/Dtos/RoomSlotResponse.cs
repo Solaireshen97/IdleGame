@@ -7,6 +7,10 @@ public class RoomSlotResponse
     public string? CharacterName { get; set; }
     public int? CharacterHp { get; set; }
     public int? CharacterMaxHp { get; set; }
+    public int? CharacterLevel { get; set; }
+    public int? CharacterExperience { get; set; }
+    public int? ExperienceToNextLevel { get; set; }
+    public int? TalentPoints { get; set; }
     public bool IsOccupied { get; set; }
     public bool IsMainControl { get; set; }
     public bool IsCurrentUserCharacter { get; set; }

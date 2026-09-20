@@ -26,10 +26,25 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Attack")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("AttackTalentRank")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Defense")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("DefenseTalentRank")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Experience")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Hp")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HealthTalentRank")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Level")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("MaxHp")
@@ -39,7 +54,14 @@ namespace Game.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TalentPoints")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

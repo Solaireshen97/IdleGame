@@ -1,13 +1,14 @@
 using Game.Server.Services;
 using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
+using Game.Shared.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Game.Server.Controllers;
 
 [ApiController]
 [Route("api/user")]
-public class UserController(UserService userService) : ControllerBase
+public class UserController(UserService userService, TalentService talentService) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest? request)
@@ -145,6 +146,42 @@ public class UserController(UserService userService) : ControllerBase
             _ => BadRequest()
         };
     }
+
+    [HttpGet("characters/{characterId:int}/talents")]
+    public async Task<IActionResult> GetTalents(int characterId)
+    {
+        var (response, error) = await talentService.GetAsync(GetBearerToken(), characterId);
+        return TalentResult(response, error);
+    }
+
+    [HttpPost("characters/{characterId:int}/talents/{type}/allocate")]
+    public async Task<IActionResult> AllocateTalent(int characterId, string type)
+    {
+        if (!Enum.TryParse<TalentType>(type, true, out var talentType) || !Enum.IsDefined(talentType))
+            return BadRequest("Invalid talent type.");
+        var (response, error) = await talentService.AllocateAsync(GetBearerToken(), characterId, talentType);
+        return TalentResult(response, error);
+    }
+
+    [HttpPost("characters/{characterId:int}/talents/reset")]
+    public async Task<IActionResult> ResetTalents(int characterId)
+    {
+        var (response, error) = await talentService.ResetAsync(GetBearerToken(), characterId);
+        return TalentResult(response, error);
+    }
+
+    private IActionResult TalentResult(CharacterTalentsResponse? response, string? error) => error switch
+    {
+        null => Ok(response),
+        "Unauthorized" => Unauthorized(),
+        "UserNotFound" or "CharacterNotFound" => NotFound("Character not found."),
+        "NotOwner" => StatusCode(403, "Character does not belong to current user."),
+        "InsufficientTalentPoints" => BadRequest("Not enough talent points."),
+        "TalentMaxRank" => BadRequest("Talent is already at maximum rank."),
+        "InvalidTalent" => BadRequest("Invalid talent type."),
+        "ConcurrencyConflict" => Conflict("Character changed. Please refresh and try again."),
+        _ => BadRequest("Talent operation failed.")
+    };
 
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()

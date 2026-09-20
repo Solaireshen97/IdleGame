@@ -11,6 +11,47 @@ namespace Game.Server.Tests;
 public class BattleServiceTests
 {
     [Fact]
+    public async Task TalentsAffectBothAttackAndDefenseDuringBattle()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Character.AttackTalentRank = 2;
+        test.Character.DefenseTalentRank = 1;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(33, result!.MonsterHp); // (20 + 2) - 5
+        Assert.Equal(94, result.CharacterHp); // 12 - (5 + 1)
+        Assert.Equal((20, 5), (test.Character.Attack, test.Character.Defense));
+    }
+
+    [Fact]
+    public async Task RepeatBattleRestoresHealthToTalentAdjustedMaximum()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
+        test.Character.HealthTalentRank = 2;
+        test.Room.IsRepeatBattle = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(110, result!.CharacterHp);
+        Assert.Equal(110, result.CharacterMaxHp);
+        Assert.Equal(100, test.Character.MaxHp);
+        var progression = ProgressionTestFactory.Create();
+        var userService = new UserService(test.Db, progression);
+        var (roster, _) = await userService.GetCurrentCharactersAsync(test.Token);
+        var room = await new RoomService(test.Db, userService, progression).GetRoomDetailAsync(1, test.Token);
+        Assert.Equal(110, Assert.Single(roster!).MaxHp);
+        Assert.Equal(110, room!.Slots.Single(slot => slot.SlotIndex == 1).CharacterMaxHp);
+    }
+
+    [Fact]
     public async Task SyncRoomAsync_RepeatsVictoryAfterThirtySecondsAndRestoresPartyHp()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
@@ -52,6 +93,7 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
         Assert.Equal(0, test.Character.Hp);
         Assert.True(test.Monster.Hp > 0);
+        Assert.Equal(0, test.Character.Experience);
     }
 
     [Fact]
@@ -74,6 +116,9 @@ public class BattleServiceTests
         Assert.Equal(test.Character.MaxHp, test.Character.Hp);
         Assert.Contains(result.Logs, log => log.Contains("next dungeon battle"));
         Assert.True(test.Room.BattleEndedAtUtc > DateTime.UtcNow.AddSeconds(-5));
+        Assert.Equal(2, test.Character.Level);
+        Assert.Equal(1, test.Character.TalentPoints);
+        Assert.Equal(0, test.Character.Experience);
     }
 
     [Fact]
@@ -116,6 +161,33 @@ public class BattleServiceTests
         Assert.Null(error);
         var clear = Assert.Single(await test.Db.UserDungeonClears.Where(item => item.UserId == 1 && item.DungeonId == 1).ToListAsync());
         Assert.NotEqual(default, clear.ClearedAtUtc);
+    }
+
+    [Fact]
+    public async Task ExecuteRoundAsync_VictoryRewardsEachPartyCharacterOnceEvenWhenLaterSlotDoesNotAttack()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        var second = await test.AddSlotAsync(2, "Mage", attack: 10);
+
+        var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Equal(10, test.Character.Experience);
+        Assert.Equal(10, second.Experience);
+        Assert.Equal(1, test.Character.Level);
+        Assert.Equal(0, test.Character.TalentPoints);
+        Assert.Equal(100, test.Character.MaxHp);
+        Assert.Equal(100, test.Character.Attack);
+        Assert.Contains(victory.Logs, log => log.Contains("Mage gains 10 EXP"));
+        var progression = ProgressionTestFactory.Create();
+        var detail = await new RoomService(test.Db, new UserService(test.Db, progression), progression).GetRoomDetailAsync(1, test.Token);
+        var mainSlot = detail!.Slots.Single(slot => slot.SlotIndex == 1);
+        Assert.Equal(1, mainSlot.CharacterLevel);
+        Assert.Equal(10, mainSlot.CharacterExperience);
+        Assert.Equal(20, mainSlot.ExperienceToNextLevel);
+        Assert.Equal(0, mainSlot.TalentPoints);
     }
 
     [Fact]
@@ -447,8 +519,9 @@ public class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync();
         await using var firstDb = test.CreateDbContext();
         await using var secondDb = test.CreateDbContext();
-        var firstService = new BattleService(firstDb, new UserService(firstDb));
-        var secondService = new BattleService(secondDb, new UserService(secondDb));
+        var progression = ProgressionTestFactory.Create();
+        var firstService = new BattleService(firstDb, new UserService(firstDb, progression), progression);
+        var secondService = new BattleService(secondDb, new UserService(secondDb, progression), progression);
 
         var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token), secondService.StartPreparationAsync(1, test.Token));
         Assert.Single(results.Where(result => result.Error is null));
@@ -536,7 +609,8 @@ public class BattleServiceTests
             Room = room;
             Character = character;
             Monster = monster;
-            Service = new BattleService(db, new UserService(db));
+            var progression = ProgressionTestFactory.Create();
+            Service = new BattleService(db, new UserService(db, progression), progression);
         }
 
         public string Token => "token";

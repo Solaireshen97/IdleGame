@@ -174,7 +174,8 @@ public class RoomServiceTests
             _path = path;
             Db = db;
             ActiveCharacter = activeCharacter;
-            Service = new RoomService(db, new UserService(db));
+            var progression = ProgressionTestFactory.Create();
+            Service = new RoomService(db, new UserService(db, progression), progression);
         }
 
         public string Token => "token";

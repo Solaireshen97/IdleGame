@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Game.Server.Data;
+using Game.Shared;
 using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
 using Game.Shared.Models;
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class UserService(GameDbContext dbContext)
+public class UserService(GameDbContext dbContext, ProgressionService progressionService)
 {
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
@@ -386,29 +387,37 @@ public class UserService(GameDbContext dbContext)
         return resolvedCharacter;
     }
 
-    private static CurrentCharacterResponse BuildCurrentCharacterResponse(Character character)
+    private CurrentCharacterResponse BuildCurrentCharacterResponse(Character character)
     {
         return new CurrentCharacterResponse
         {
             CharacterId = character.Id,
             Name = character.Name,
             Hp = character.Hp,
-            MaxHp = character.MaxHp,
-            Attack = character.Attack,
-            Defense = character.Defense
+            MaxHp = TalentRules.EffectiveMaxHp(character),
+            Attack = TalentRules.EffectiveAttack(character),
+            Defense = TalentRules.EffectiveDefense(character),
+            Level = character.Level,
+            Experience = character.Experience,
+            ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),
+            TalentPoints = character.TalentPoints
         };
     }
 
-    private static CharacterSummaryResponse BuildCharacterSummary(Character character, bool isCurrent = false)
+    private CharacterSummaryResponse BuildCharacterSummary(Character character, bool isCurrent = false)
     {
         return new CharacterSummaryResponse
         {
             CharacterId = character.Id,
             Name = character.Name,
             Hp = character.Hp,
-            MaxHp = character.MaxHp,
-            Attack = character.Attack,
-            Defense = character.Defense,
+            MaxHp = TalentRules.EffectiveMaxHp(character),
+            Attack = TalentRules.EffectiveAttack(character),
+            Defense = TalentRules.EffectiveDefense(character),
+            Level = character.Level,
+            Experience = character.Experience,
+            ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),
+            TalentPoints = character.TalentPoints,
             IsCurrent = isCurrent
         };
     }

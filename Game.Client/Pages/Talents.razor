@@ -1,0 +1,124 @@
+@page "/talents"
+@page "/talents/{CharacterId:int}"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Characters
+@inject ApiService ApiService
+@inject NavigationManager Navigation
+
+<PageTitle>职业天赋</PageTitle>
+
+<div class="talents-page">
+    <header class="talents-page__hero">
+        <a class="talents-page__back" href="/">← 返回大厅</a>
+        <div class="talents-page__heading">
+            <div>
+                <span class="talents-page__eyebrow">CHARACTER GROWTH</span>
+                <h1>职业天赋</h1>
+                <p>规划角色的成长方向，逐步解锁更丰富的战斗能力。</p>
+            </div>
+            <span class="talents-page__chapter">成长 · 第一阶段</span>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="talents-page__notice">正在读取角色信息...</p>
+    }
+    else if (_roster is null || _roster.Count == 0)
+    {
+        <p class="talents-page__notice" role="alert">暂无可用角色。</p>
+    }
+    else if (_selectedCharacterId is null)
+    {
+        <p class="talents-page__notice" role="alert">找不到这个角色。请从下方选择自己的角色。</p>
+        <div class="talents-page__quick-select">
+            @foreach (var character in _roster)
+            {
+                <button type="button" @onclick="() => SelectCharacter(character.CharacterId)">@character.Name</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="talents-page__layout">
+            <aside class="talents-page__aside" aria-label="角色选择">
+                <section class="talents-page__roster">
+                    <div class="talents-page__section-heading"><span>YOUR CHARACTERS</span><h2>选择角色</h2></div>
+                    <div class="talents-page__choices">
+                        @foreach (var character in _roster)
+                        {
+                            <button type="button"
+                                    class="talents-page__character @(character.CharacterId == _selectedCharacterId ? "talents-page__character--selected" : string.Empty)"
+                                    aria-current="@(character.CharacterId == _selectedCharacterId ? "true" : null)"
+                                    @onclick="() => SelectCharacter(character.CharacterId)">
+                                <span class="talents-page__character-name">@character.Name @if (character.IsCurrent) { <small>当前角色</small> }</span>
+                                <span class="talents-page__character-meta">Lv @character.Level · 可用 @character.TalentPoints 点</span>
+                            </button>
+                        }
+                    </div>
+                    @if (_roster.Count > 1)
+                    {
+                        <small class="talents-page__swipe-hint">左右滑动选择角色</small>
+                    }
+                </section>
+                <section class="talents-page__roadmap">
+                    <span>CAREER PATH</span>
+                    <h2>职业路线</h2>
+                    <p>后续将在这里展示职业、转职条件和专属天赋。</p>
+                </section>
+            </aside>
+
+            <div class="talents-page__main">
+                <CharacterTalentBoard @key="_selectedCharacterId"
+                                      CharacterId="@_selectedCharacterId.Value"
+                                      OnChanged="ReloadRosterAsync" />
+                <section class="talents-page__next">
+                    <span class="talents-page__next-icon" aria-hidden="true">✦</span>
+                    <div>
+                        <span class="talents-page__eyebrow">FUTURE PATH</span>
+                        <h2>职业进阶</h2>
+                        <p>职业与转职内容将在后续阶段加入。当前可以先分配基础天赋点。</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? CharacterId { get; set; }
+
+    private List<CharacterSummaryResponse>? _roster;
+    private int? _selectedCharacterId;
+    private bool _isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        var roster = await ApiService.GetCurrentCharactersAsync();
+        if (roster is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        _roster = roster;
+        _selectedCharacterId = CharacterId is int id
+            ? roster.Any(character => character.CharacterId == id) ? id : null
+            : roster.FirstOrDefault(character => character.IsCurrent)?.CharacterId ?? roster.FirstOrDefault()?.CharacterId;
+        _isLoading = false;
+    }
+
+    private void SelectCharacter(int characterId)
+    {
+        if (_selectedCharacterId == characterId) return;
+        Navigation.NavigateTo($"/talents/{characterId}");
+    }
+
+    private async Task ReloadRosterAsync()
+    {
+        var roster = await ApiService.GetCurrentCharactersAsync();
+        if (roster is not null) _roster = roster;
+    }
+}

@@ -323,6 +323,30 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
     }
 
+    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> GetCharacterTalentsAsync(int characterId) =>
+        SendTalentRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/talents");
+
+    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> AllocateTalentAsync(int characterId, Game.Shared.Enums.TalentType type) =>
+        SendTalentRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/talents/{type.ToString().ToLowerInvariant()}/allocate");
+
+    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> ResetTalentsAsync(int characterId) =>
+        SendTalentRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/talents/reset");
+
+    private async Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> SendTalentRequestAsync(HttpMethod method, string url)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+                await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "天赋操作失败。" : error);
+        }
+
+        return (await response.Content.ReadFromJsonAsync<CharacterTalentsResponse>(), null);
+    }
+
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> SelectCurrentCharacterAsync(int characterId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/character/select", requiresAuth: true);

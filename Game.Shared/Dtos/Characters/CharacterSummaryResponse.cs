@@ -8,5 +8,9 @@ public class CharacterSummaryResponse
     public int MaxHp { get; set; }
     public int Attack { get; set; }
     public int Defense { get; set; }
+    public int Level { get; set; }
+    public int Experience { get; set; }
+    public int? ExperienceToNextLevel { get; set; }
+    public int TalentPoints { get; set; }
     public bool IsCurrent { get; set; }
 }

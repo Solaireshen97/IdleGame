@@ -1,0 +1,179 @@
+@using Game.Client.Services
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Enums
+@inject ApiService ApiService
+
+<section class="talent-board" aria-labelledby="talent-title">
+        <header class="talent-board__header">
+            <div>
+                <span class="talent-board__eyebrow">FOUNDATION TALENTS</span>
+                <h2 id="talent-title">@(_talents is null ? "基础天赋" : $"{_talents.Name} · 基础天赋")</h2>
+                <p>分配天赋点，强化角色的基础战斗能力。</p>
+            </div>
+        </header>
+
+        @if (_isLoading)
+        {
+            <p class="talent-board__loading">天赋加载中...</p>
+        }
+        else if (_talents is null)
+        {
+            <p class="talent-board__error" role="alert">@(_error ?? "暂时无法加载天赋。")</p>
+            <button class="talent-board__retry" type="button" @onclick="LoadAsync">重试</button>
+        }
+        else
+        {
+            <div class="talent-board__summary">
+                <div class="talent-board__points"><span>Lv @_talents.Level</span><strong>@_talents.TalentPoints</strong><small>可用天赋点</small></div>
+                <dl class="talent-board__stats">
+                    <div><dt>攻击</dt><dd>@_talents.Attack</dd></div>
+                    <div><dt>防御</dt><dd>@_talents.Defense</dd></div>
+                    <div><dt>生命</dt><dd>@_talents.Hp / @_talents.MaxHp</dd></div>
+                </dl>
+            </div>
+
+            <div class="talent-board__nodes">
+                @foreach (var node in _talents.Talents)
+                {
+                    <article class="talent-node">
+                        <div class="talent-node__top"><span class="talent-node__icon" aria-hidden="true">@GetIcon(node.Type)</span><span class="talent-node__rank">@node.Rank / @node.MaxRank</span></div>
+                        <h3>@GetName(node.Type)</h3>
+                        <p>@GetDescription(node)</p>
+                        <div class="talent-node__pips" aria-label="已点 @node.Rank 级，共 @node.MaxRank 级">
+                            @for (var i = 0; i < node.MaxRank; i++)
+                            {
+                                <span class="@(i < node.Rank ? "talent-node__pip--active" : string.Empty)"></span>
+                            }
+                        </div>
+                        <div class="talent-node__bottom">
+                            <span>@(node.NextRankCost is null ? "已满级" : $"下一级 · {node.NextRankCost} 点")</span>
+                            <button type="button"
+                                    disabled="@(_isSubmitting || node.NextRankCost is null || _talents.TalentPoints < node.NextRankCost)"
+                                    @onclick="() => AllocateAsync(node.Type)">
+                                @(node.NextRankCost is null ? "已满级" : "加点 +")
+                            </button>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="talent-board__error" role="alert">@_error</p>
+            }
+
+            <footer class="talent-board__footer">
+                <span>生命天赋提高最大 HP，当前 HP 不会立即恢复。</span>
+                <button type="button" disabled="@(_isSubmitting || !_talents.Talents.Any(node => node.Rank > 0))" @onclick="ResetAsync">重置加点</button>
+            </footer>
+        }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public int CharacterId { get; set; }
+
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    private CharacterTalentsResponse? _talents;
+    private string? _error;
+    private bool _isLoading = true;
+    private bool _isSubmitting;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await ApiService.GetCharacterTalentsAsync(CharacterId);
+            _talents = response;
+            _error = GetError(error);
+        }
+        catch
+        {
+            _talents = null;
+            _error = "连接失败，请稍后重试。";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task AllocateAsync(TalentType type)
+    {
+        if (_isSubmitting || _talents is null) return;
+        await ChangeAsync(() => ApiService.AllocateTalentAsync(CharacterId, type));
+    }
+
+    private async Task ResetAsync()
+    {
+        if (_isSubmitting || _talents is null) return;
+        await ChangeAsync(() => ApiService.ResetTalentsAsync(CharacterId));
+    }
+
+    private async Task ChangeAsync(Func<Task<(CharacterTalentsResponse? Response, string? ErrorMessage)>> action)
+    {
+        _isSubmitting = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await action();
+            if (response is null)
+            {
+                _error = GetError(error) ?? "操作失败，请稍后重试。";
+                return;
+            }
+
+            _talents = response;
+            await OnChanged.InvokeAsync();
+        }
+        catch
+        {
+            _error = "连接失败，请稍后重试。";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private static string GetName(TalentType type) => type switch
+    {
+        TalentType.Attack => "攻击",
+        TalentType.Defense => "防御",
+        TalentType.Health => "生命",
+        _ => "未知"
+    };
+
+    private static string GetIcon(TalentType type) => type switch
+    {
+        TalentType.Attack => "⚔",
+        TalentType.Defense => "◈",
+        TalentType.Health => "✚",
+        _ => "•"
+    };
+
+    private static string GetDescription(TalentNodeResponse node) => node.Type switch
+    {
+        TalentType.Attack => $"每级攻击 +{node.BonusPerRank}",
+        TalentType.Defense => $"每级防御 +{node.BonusPerRank}",
+        TalentType.Health => $"每级最大 HP +{node.BonusPerRank}",
+        _ => string.Empty
+    };
+
+    private static string? GetError(string? error) => error?.Trim().Trim('"') switch
+    {
+        null or "" => null,
+        "Not enough talent points." => "天赋点不足。",
+        "Talent is already at maximum rank." => "该天赋已满级。",
+        "Character changed. Please refresh and try again." => "角色数据已变化，请刷新页面后重试。",
+        "Character not found." => "角色不存在。",
+        "Character does not belong to current user." => "该角色不属于当前用户。",
+        _ => "天赋操作失败，请稍后重试。"
+    };
+}

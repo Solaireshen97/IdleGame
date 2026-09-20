@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @inherits LayoutComponentBase
 
-<div class="page @(IsBattlePage ? "page--battle" : null)">
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null)">
     <div class="sidebar">
         <NavMenu />
     </div>
@@ -15,7 +15,7 @@
             <span class="top-row__status">● 系统在线</span>
         </div>
 
-        @if (!_isLoadingUser && _currentUser is not null && !IsBattlePage)
+        @if (!_isLoadingUser && _currentUser is not null && !IsBattlePage && !IsTalentPage)
         {
             <section class="character-bar">
                 <div class="character-bar__cards">
@@ -34,6 +34,7 @@
     private CurrentUserResponse? _currentUser;
     private bool _isLoadingUser = true;
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
+    private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {

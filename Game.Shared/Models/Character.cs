@@ -9,4 +9,11 @@ public class Character
     public int MaxHp { get; set; }
     public int Attack { get; set; }
     public int Defense { get; set; }
+    public int Level { get; set; } = 1;
+    public int Experience { get; set; }
+    public int TalentPoints { get; set; }
+    public int AttackTalentRank { get; set; }
+    public int DefenseTalentRank { get; set; }
+    public int HealthTalentRank { get; set; }
+    public int Version { get; set; }
 }
