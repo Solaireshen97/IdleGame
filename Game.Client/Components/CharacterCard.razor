@@ -33,7 +33,6 @@
         <progress value="@(Character.ExperienceToNextLevel is null ? 1 : Character.Experience)" max="@(Character.ExperienceToNextLevel ?? 1)" aria-label="@Character.Name 经验值"></progress>
         <div class="character-card__talents">
             <small>未分配天赋点 <strong>@Character.TalentPoints</strong></small>
-            <button type="button" @onclick="OnTalents" disabled="@IsInteractionDisabled">职业天赋 →</button>
         </div>
     </div>
 
@@ -83,9 +82,6 @@
 
     [Parameter]
     public EventCallback OnDelete { get; set; }
-
-    [Parameter]
-    public EventCallback OnTalents { get; set; }
 
     private string SelectButtonText => IsSelecting ? "切换中..." : "设为当前";
 

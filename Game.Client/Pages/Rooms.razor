@@ -2,27 +2,13 @@
 @page "/rooms"
 @using Game.Client.Services
 @using Game.Shared.Dtos
-@using Game.Shared.Dtos.Auth
 @using Game.Shared
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 
-<PageTitle>房间列表</PageTitle>
+<PageTitle>副本大厅</PageTitle>
 
 <div class="rooms-page">
-    <header class="page-hero">
-        <div>
-            <span class="eyebrow">DUNGEON LOBBY</span>
-            <h1>副本大厅</h1>
-            <p>集结队伍，选择挑战目标，开启下一场远征。</p>
-        </div>
-        <div class="player-chip">
-            <span class="player-chip__label">冒险者</span>
-            <strong>@_currentUser?.UserName</strong>
-            <button class="button button--quiet" @onclick="LogoutAsync" disabled="@_isLoading">退出</button>
-        </div>
-    </header>
-
 @if (_isCheckingLoginState)
 {
     <p>检查登录状态中...</p>
@@ -94,7 +80,6 @@ else
 
 @code {
     private List<RoomSummaryResponse>? _rooms;
-    private CurrentUserResponse? _currentUser;
     private bool _isCheckingLoginState = true;
     private bool _isLoading;
     private string? _message;
@@ -106,8 +91,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _currentUser = await ApiService.GetCurrentUserAsync();
-        if (_currentUser is null)
+        if (await ApiService.GetCurrentUserAsync() is null)
         {
             Navigation.NavigateTo("/login", replace: true);
             return;
@@ -152,10 +136,4 @@ else
         Navigation.NavigateTo($"/battle/{roomId}");
     }
 
-    private async Task LogoutAsync()
-    {
-        _isLoading = true;
-        await ApiService.LogoutAsync();
-        Navigation.NavigateTo("/login", replace: true);
-    }
 }

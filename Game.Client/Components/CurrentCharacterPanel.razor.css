@@ -4,6 +4,8 @@
     font-size: 0.95rem;
 }
 
+.current-character-panel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr)); gap: .8rem; margin-bottom: .9rem; }
+
 .current-character-panel__message {
     margin: 0;
     font-size: 0.95rem;

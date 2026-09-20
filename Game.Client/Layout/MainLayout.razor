@@ -1,8 +1,10 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
 @inherits LayoutComponentBase
+@implements IDisposable
 
 <div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null)">
     <div class="sidebar">
@@ -11,18 +13,41 @@
 
     <main>
         <div class="top-row px-4">
-            <span>冒险者营地</span>
-            <span class="top-row__status">● 系统在线</span>
-        </div>
-
-        @if (!_isLoadingUser && _currentUser is not null && !IsBattlePage && !IsTalentPage)
-        {
-            <section class="character-bar">
-                <div class="character-bar__cards">
-                    <CurrentCharacterPanel />
+            @if (!_isLoadingUser && _currentUser is not null)
+            {
+                <button type="button"
+                        class="top-row__character"
+                        @ref="_switchTrigger"
+                        @onclick="OpenSwitcher"
+                        aria-haspopup="dialog"
+                        aria-expanded="@_isSwitcherOpen"
+                        aria-label="切换当前操作角色">
+                    <span class="top-row__character-label">当前操作角色</span>
+                    @if (ActiveCharacters.Current is { } character)
+                    {
+                        <strong>@character.Name <small>Lv @character.Level</small></strong>
+                        <span class="top-row__character-detail">HP @character.Hp / @character.MaxHp · 天赋点 @character.TalentPoints</span>
+                    }
+                    else
+                    {
+                        <strong>选择角色</strong>
+                    }
+                    <span class="top-row__character-arrow" aria-hidden="true">⌄</span>
+                </button>
+            }
+            <strong class="top-row__title">@CurrentPageTitle</strong>
+            @if (!_isLoadingUser && _currentUser is not null)
+            {
+                <div class="top-row__account">
+                    <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
+                    <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录">@(_isLoggingOut ? "退出中..." : "退出")</button>
                 </div>
-            </section>
-        }
+            }
+            @if (_logoutError is not null)
+            {
+                <span class="top-row__error" role="alert">@_logoutError</span>
+            }
+        </div>
 
         <article class="content px-4">
             @Body
@@ -30,16 +55,151 @@
     </main>
 </div>
 
+@if (_isSwitcherOpen && _currentUser is not null)
+{
+    <div class="character-switcher__overlay" @onclick="CloseSwitcher">
+        <section class="character-switcher__dialog" role="dialog" aria-modal="true" aria-labelledby="character-switcher-title" @onclick:stopPropagation="true" @onkeydown="HandleSwitcherKeyDown">
+            <header class="character-switcher__header">
+                <div>
+                    <span>YOUR CHARACTERS</span>
+                    <h2 id="character-switcher-title">选择操作角色</h2>
+                    <p>切换当前角色，或创建、管理你的角色。</p>
+                </div>
+                <button type="button" class="character-switcher__close" @ref="_switchCloseButton" @onclick="CloseSwitcher" aria-label="关闭角色窗口">×</button>
+            </header>
+            <CurrentCharacterPanel OnSelected="CloseSwitcher" />
+        </section>
+    </div>
+}
+
 @code {
     private CurrentUserResponse? _currentUser;
     private bool _isLoadingUser = true;
+    private bool _isLoggingOut;
+    private string? _logoutError;
+    private bool _isSwitcherOpen;
+    private bool _focusSwitcherClose;
+    private bool _focusSwitcherTrigger;
+    private ElementReference _switchTrigger;
+    private ElementReference _switchCloseButton;
+    private readonly CancellationTokenSource _refreshCancellation = new();
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
+    private string CurrentPageTitle
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+            if (path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase)) return "战斗房间";
+            if (path.StartsWith("talents", StringComparison.OrdinalIgnoreCase)) return "职业天赋";
+            if (path.StartsWith("login", StringComparison.OrdinalIgnoreCase)) return "登录";
+            if (path.StartsWith("register", StringComparison.OrdinalIgnoreCase)) return "注册";
+            return "副本大厅";
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        _ = RefreshCharacterLoopAsync(_refreshCancellation.Token);
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         _isLoadingUser = true;
         _currentUser = await ApiService.GetCurrentUserAsync();
+        if (_currentUser is null)
+        {
+            _isSwitcherOpen = false;
+            _focusSwitcherClose = false;
+            _focusSwitcherTrigger = false;
+            ActiveCharacters.Clear();
+        }
+        else
+        {
+            await ActiveCharacters.RefreshAsync();
+        }
         _isLoadingUser = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusSwitcherClose)
+        {
+            _focusSwitcherClose = false;
+            await _switchCloseButton.FocusAsync();
+        }
+        else if (_focusSwitcherTrigger && _currentUser is not null)
+        {
+            _focusSwitcherTrigger = false;
+            await _switchTrigger.FocusAsync();
+        }
+    }
+
+    private void OpenSwitcher()
+    {
+        _isSwitcherOpen = true;
+        _focusSwitcherClose = true;
+    }
+
+    private void CloseSwitcher()
+    {
+        _isSwitcherOpen = false;
+        _focusSwitcherTrigger = true;
+    }
+
+    private void HandleSwitcherKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CloseSwitcher();
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task LogoutAsync()
+    {
+        if (_isLoggingOut) return;
+        _isLoggingOut = true;
+        _logoutError = null;
+        try
+        {
+            if (!await ApiService.LogoutAsync())
+            {
+                _logoutError = "退出失败，请重试。";
+                return;
+            }
+
+            _isSwitcherOpen = false;
+            ActiveCharacters.Clear();
+            Navigation.NavigateTo("/login", replace: true);
+        }
+        catch
+        {
+            _logoutError = "退出失败，请重试。";
+        }
+        finally
+        {
+            _isLoggingOut = false;
+        }
+    }
+
+    private async Task RefreshCharacterLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                if (_currentUser is not null) await ActiveCharacters.RefreshAsync();
+            }
+            catch (OperationCanceledException) { break; }
+            catch { /* Keep the header available during a transient connection failure. */ }
+        }
+    }
+
+    public void Dispose()
+    {
+        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
     }
 }

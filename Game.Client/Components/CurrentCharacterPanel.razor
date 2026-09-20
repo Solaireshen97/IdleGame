@@ -1,8 +1,8 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
 @inject IJSRuntime JSRuntime
-@inject NavigationManager Navigation
 
 @if (_isLoading)
 {
@@ -10,6 +10,7 @@
 }
 else
 {
+    <div class="current-character-panel__grid">
     @for (var index = 0; index < _characters.Count; index++)
     {
         var character = _characters[index];
@@ -22,8 +23,7 @@ else
                        SelectDisabledReason="@GetSelectDisabledReason(character)"
                        DeleteDisabledReason="@GetDeleteDisabledReason(character)"
                        OnSelect="@(() => SelectCharacterAsync(character))"
-                       OnDelete="@(() => DeleteCharacterAsync(character))"
-                       OnTalents="@(() => OpenTalents(character))" />
+                       OnDelete="@(() => DeleteCharacterAsync(character))" />
     }
 
     @if (_isCreating)
@@ -56,6 +56,7 @@ else
             <span class="character-create-card__text">@CreateEntryText</span>
         </button>
     }
+    </div>
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
@@ -64,6 +65,9 @@ else
 }
 
 @code {
+    [Parameter]
+    public EventCallback OnSelected { get; set; }
+
     private enum CharacterOperation
     {
         Create,
@@ -114,12 +118,6 @@ else
         }
     }
 
-    private void OpenTalents(CharacterSummaryResponse character)
-    {
-        if (_isSubmitting) return;
-        Navigation.NavigateTo($"/talents/{character.CharacterId}");
-    }
-
     private void ShowCreateForm()
     {
         if (_isSubmitting)
@@ -163,6 +161,7 @@ else
             }
 
             await LoadCharactersAsync();
+            await ActiveCharacters.RefreshAsync();
             _isCreating = false;
             _newCharacterName = string.Empty;
             SetSuccessMessage($"已创建角色“{character.Name}”。");
@@ -204,6 +203,7 @@ else
             }
 
             await LoadCharactersAsync();
+            await ActiveCharacters.RefreshAsync();
             SetSuccessMessage($"已删除角色“{character.Name}”。");
         }
         finally
@@ -231,7 +231,9 @@ else
             }
 
             await LoadCharactersAsync();
+            await ActiveCharacters.RefreshAsync();
             SetSuccessMessage($"已切换当前角色为“{selectedCharacter.Name}”。");
+            await OnSelected.InvokeAsync();
         }
         finally
         {
