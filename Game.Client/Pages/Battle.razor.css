@@ -107,8 +107,7 @@
     border: 1px solid rgba(122, 161, 184, .3);
     border-radius: .65rem;
     padding: .7rem .95rem;
-    background: rgba(8, 19, 30, .74);
-    backdrop-filter: blur(8px);
+    background: #102232;
     text-align: left;
     transition: background .2s, border-color .2s;
 }
@@ -168,8 +167,7 @@
     padding: 1.25rem;
     overflow: auto;
     overscroll-behavior: contain;
-    background: rgba(2, 9, 17, .76);
-    backdrop-filter: blur(6px);
+    background: rgba(2, 9, 17, .93);
 }
 
 .battle-log-dialog {

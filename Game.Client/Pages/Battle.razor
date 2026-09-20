@@ -106,7 +106,7 @@ else
                         <ol>
                             @foreach (var log in _logs.AsEnumerable().Reverse())
                             {
-                                <li>@log</li>
+                                <li @key="log.Id">@log.Text</li>
                             }
                         </ol>
                     }
@@ -234,7 +234,8 @@ else
     private RoomDetailResponse? _roomDetail;
     private CurrentUserResponse? _currentUser;
     private List<CharacterSummaryResponse> _characters = new();
-    private readonly List<string> _logs = new();
+    private readonly List<BattleLogEntry> _logs = new();
+    private long _nextLogId;
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool _isBusy;
     private string? _message;
@@ -247,6 +248,7 @@ else
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
     private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
+    private sealed record BattleLogEntry(long Id, string Text);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
     private bool CanChangeFormation => _roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.BattleOver;
 
@@ -409,7 +411,7 @@ else
     private int GetCountdownProgress(BattleCountdown countdown) => (int)Math.Clamp(
         Math.Round(100 * (1 - (countdown.DeadlineUtc - GetEstimatedServerTimeUtc()).TotalSeconds / Math.Max(1, countdown.DurationSeconds))), 0, 100);
     private static string FormatCountdown(int remainingSeconds) => $"{remainingSeconds / 60:00}:{remainingSeconds % 60:00}";
-    private string GetLatestLog() => _logs.Count == 0 ? "战斗尚未开始，行动记录会在这里出现。" : _logs[^1];
+    private string GetLatestLog() => _logs.Count == 0 ? "战斗尚未开始，行动记录会在这里出现。" : _logs[^1].Text;
     private string GetMonsterArtPath() => _roomDetail?.MonsterName.ToLowerInvariant() switch
     {
         "slime" => "/art/slime.svg",
@@ -430,7 +432,7 @@ else
     }
     private void AppendBattleLogs(IEnumerable<string> logs)
     {
-        _logs.AddRange(logs);
+        foreach (var log in logs) _logs.Add(new BattleLogEntry(++_nextLogId, log));
         if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
     }
     private string GetStatusText() => _roomDetail?.RoomStatus switch
