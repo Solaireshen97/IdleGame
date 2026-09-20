@@ -1,0 +1,46 @@
+.consumables-board { min-width: 0; border: 1px solid #4b6176; border-radius: .85rem; padding: clamp(1.1rem, 2.5vw, 1.8rem); background: linear-gradient(145deg, #20364a, #17283a 58%, #142233); color: #e8f0f5; box-shadow: 0 16px 36px rgba(0, 0, 0, .2); }
+.consumables-board__header, .consumables-board__section-heading, .consumable-slot header, .consumable-slot footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.consumables-board__header { align-items: flex-start; margin-bottom: 1.35rem; }
+.consumables-board__eyebrow { color: #e7b767; font-size: .71rem; font-weight: 800; letter-spacing: .15em; }
+.consumables-board h2 { margin: .25rem 0 0; color: #f2ecdf; font: 700 clamp(1.35rem, 2.5vw, 1.8rem) Georgia, serif; }
+.consumables-board__header p { margin: .4rem 0 0; color: #aebfce; font-size: .85rem; }
+.consumables-board__header button { flex: 0 0 auto; }
+.consumables-board__section-heading { margin-bottom: .7rem; }
+.consumables-board__section-heading--slots { border-top: 1px solid #3b5267; margin-top: 1.5rem; padding-top: 1.4rem; }
+.consumables-board__section-heading h3 { margin: .15rem 0 0; color: #f2ecdf; font: 700 1.2rem Georgia, serif; }
+.consumables-board__section-heading small { color: #9fb1c1; font-size: .75rem; text-align: right; }
+.consumables-board__inventory { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .7rem; }
+.inventory-item { display: flex; align-items: center; gap: .75rem; min-width: 0; border: 1px solid #435b70; border-radius: .65rem; padding: .8rem; background: rgba(8, 20, 31, .54); }
+.inventory-item__icon { display: grid; place-items: center; flex: 0 0 2.5rem; height: 2.5rem; border-radius: .55rem; background: rgba(112, 194, 166, .14); color: #9fe0c3; font-size: 1.4rem; }
+.inventory-item > div { min-width: 0; flex: 1; }
+.inventory-item h4 { margin: 0; color: #eef2f5; font-size: .95rem; }
+.inventory-item p { margin: .2rem 0 0; color: #a6b8c6; font-size: .74rem; }
+.inventory-item strong { color: #f1cf91; white-space: nowrap; font-size: 1rem; }
+.consumables-board__slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.consumable-slot { display: flex; flex-direction: column; gap: .85rem; min-width: 0; border: 1px solid #435b70; border-radius: .7rem; padding: 1rem; background: #15283a; }
+.consumable-slot header span { color: #e8b96d; font-size: .76rem; font-weight: 800; letter-spacing: .1em; }
+.consumable-slot header strong { overflow: hidden; color: #eef2f5; text-align: right; white-space: nowrap; text-overflow: ellipsis; font-size: .86rem; }
+.consumable-slot__field { display: grid; gap: .35rem; color: #b8c8d5; font-size: .77rem; }
+.consumable-slot__field select { width: 100%; min-width: 0; }
+.consumable-slot__toggle { display: flex; align-items: center; gap: .5rem; color: #d4e4ed; font-size: .82rem; cursor: pointer; }
+.consumable-slot__toggle input { accent-color: #d8a957; }
+.consumable-slot__threshold > span { color: #90a9b9; font-size: .7rem; }
+.consumable-slot__threshold > div { display: flex; align-items: center; width: 110px; border: 1px solid #46566b; border-radius: .5rem; background: #0e1826; }
+.consumable-slot__threshold input { width: 100%; min-width: 0; border: 0; padding: .5rem .6rem; background: transparent; color: #eef2f5; }
+.consumable-slot__threshold > div span { padding-right: .7rem; color: #9fb1c1; }
+.consumable-slot__invalid { color: #ffb4b6; font-size: .72rem; }
+.consumable-slot footer { border-top: 1px solid #3b5267; margin-top: auto; padding-top: .8rem; }
+.consumable-slot footer small { color: #a3b4c2; font-size: .72rem; }
+.consumables-board__error { margin: 1rem 0 0; color: #ffb4b6; font-size: .86rem; }
+.consumables-board__success { margin: 1rem 0 0; color: #9fe0c3; font-size: .86rem; }
+.consumables-board__notice { color: #aebfce; }
+.consumables-board__footnote { border-top: 1px solid #3b5267; margin: 1.4rem 0 0; padding-top: 1rem; color: #aebfce; font-size: .79rem; line-height: 1.55; }
+
+@media (max-width: 920px) {
+    .consumables-board__slots { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 550px) {
+    .consumables-board__header { flex-direction: column; }
+    .consumables-board__section-heading { align-items: flex-start; flex-direction: column; gap: .3rem; }
+}

@@ -13,6 +13,7 @@ public class RoomDetailResponse
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
     public RoomStatus RoomStatus { get; set; }
+    public int RoundNumber { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
     public int? RoundCooldownDurationSeconds { get; set; }
     public DateTime? PreparationStartedAtUtc { get; set; }

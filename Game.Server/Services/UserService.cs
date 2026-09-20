@@ -268,6 +268,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             user.ActiveCharacterId = nextCharacter?.Id;
         }
 
+        dbContext.CharacterItemStacks.RemoveRange(await dbContext.CharacterItemStacks.Where(item => item.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
+        dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
         dbContext.Characters.Remove(character);
         await dbContext.SaveChangesAsync();
         return (true, null);

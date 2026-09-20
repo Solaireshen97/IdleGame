@@ -11,4 +11,5 @@ public class RoomSlot
     public bool IsConfirmed { get; set; }
     public bool IsAutoEnabled { get; set; }
     public bool IsTemporaryAuto { get; set; }
+    public int? PendingConsumableSlotIndex { get; set; }
 }

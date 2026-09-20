@@ -111,6 +111,26 @@ public class BattleController(BattleService battleService, RoomService roomServi
         return Ok(roomDetail);
     }
 
+    [HttpPost("consumable")]
+    public async Task<IActionResult> QueueConsumable([FromBody] QueueConsumableRequest request)
+    {
+        var token = GetBearerToken();
+        var (success, error) = await battleService.QueueConsumableAsync(request, token);
+        if (!success)
+        {
+            return error switch
+            {
+                "Unauthorized" => Unauthorized(),
+                "NotFound" or "UserNotFound" or "MonsterNotFound" => NotFound(error),
+                "NotInRoom" or "NotCharacterOwner" => StatusCode(403, error),
+                "BattleOver" or "ConsumableCooldown" or "ConcurrencyConflict" => Conflict(error),
+                _ => BadRequest(error)
+            };
+        }
+        var detail = await roomService.GetRoomDetailAsync(request.RoomId, token);
+        return detail is null ? NotFound() : Ok(detail);
+    }
+
     private string? GetBearerToken()
     {
         const string prefix = "Bearer ";

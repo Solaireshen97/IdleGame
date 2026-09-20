@@ -16,8 +16,11 @@ builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TalentService>();
+builder.Services.AddScoped<ConsumableService>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
+builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
+builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddHostedService<RoomCycleService>();
 
 builder.Services.AddCors(options =>

@@ -6,7 +6,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 
-<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null)">
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null)">
     <div class="sidebar">
         <NavMenu />
     </div>
@@ -85,6 +85,7 @@
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
+    private bool IsSuppliesPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("supplies", StringComparison.OrdinalIgnoreCase);
     private string CurrentPageTitle
     {
         get
@@ -92,6 +93,7 @@
             var path = Navigation.ToBaseRelativePath(Navigation.Uri);
             if (path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase)) return "战斗房间";
             if (path.StartsWith("talents", StringComparison.OrdinalIgnoreCase)) return "职业天赋";
+            if (path.StartsWith("supplies", StringComparison.OrdinalIgnoreCase)) return "战斗补给";
             if (path.StartsWith("login", StringComparison.OrdinalIgnoreCase)) return "登录";
             if (path.StartsWith("register", StringComparison.OrdinalIgnoreCase)) return "注册";
             return "副本大厅";

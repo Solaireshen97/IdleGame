@@ -1,0 +1,57 @@
+@page "/supplies"
+@using Game.Client.Services
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>战斗补给</PageTitle>
+
+<div class="supplies-page">
+    <header class="supplies-page__intro">
+        <a href="/rooms">← 返回大厅</a>
+        <div>
+            <span>COMBAT SUPPLIES</span>
+            <h1>战斗补给</h1>
+            <p>查看当前角色的背包，为战斗配置消耗品。</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="supplies-page__notice">正在读取当前角色...</p>
+    }
+    else if (ActiveCharacters.Current is { } character)
+    {
+        <div class="supplies-page__layout">
+            <aside class="supplies-page__character">
+                <span>ACTIVE CHARACTER</span>
+                <h2>@character.Name</h2>
+                <p>Lv @character.Level · HP @character.Hp / @character.MaxHp</p>
+                <div><strong>@character.Attack</strong><small>攻击</small></div>
+                <div><strong>@character.Defense</strong><small>防御</small></div>
+                <p class="supplies-page__switch">可从顶栏切换当前操作角色；每名角色的背包独立保存。</p>
+            </aside>
+            <CharacterConsumablesBoard @key="character.CharacterId" CharacterId="@character.CharacterId" />
+        </div>
+    }
+    else
+    {
+        <p class="supplies-page__notice" role="alert">暂时无法读取当前角色。</p>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        await ActiveCharacters.RefreshAsync();
+        _isLoading = false;
+        if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+}

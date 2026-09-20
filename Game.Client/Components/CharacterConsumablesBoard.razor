@@ -1,0 +1,215 @@
+@using Game.Client.Services
+@using Game.Shared.Dtos.Characters
+@inject ApiService ApiService
+
+<section class="consumables-board" aria-labelledby="consumables-title">
+    <header class="consumables-board__header">
+        <div>
+            <span class="consumables-board__eyebrow">CHARACTER INVENTORY</span>
+            <h2 id="consumables-title">背包与补给槽</h2>
+            <p>每名角色有自己的道具库存，战斗中可从已装备的补给槽使用道具。</p>
+        </div>
+        <button type="button" class="button button--quiet" @onclick="LoadAsync" disabled="@(_isLoading || _isSaving)">刷新</button>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="consumables-board__notice">正在读取背包...</p>
+    }
+    else if (_data is null)
+    {
+        <p class="consumables-board__error" role="alert">@(_error ?? "暂时无法读取背包。")</p>
+        <button type="button" class="button button--secondary" @onclick="LoadAsync">重试</button>
+    }
+    else
+    {
+        <div class="consumables-board__section-heading">
+            <div><span class="consumables-board__eyebrow">INVENTORY</span><h3>角色背包</h3></div>
+            <small>道具随角色保存</small>
+        </div>
+        <div class="consumables-board__inventory">
+            @foreach (var item in _data.Items)
+            {
+                <article class="inventory-item">
+                    <span class="inventory-item__icon" aria-hidden="true">✚</span>
+                    <div><h4>@item.Name</h4><p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p></div>
+                    <strong aria-label="库存 @item.Quantity">×@item.Quantity</strong>
+                </article>
+            }
+        </div>
+
+        <div class="consumables-board__section-heading consumables-board__section-heading--slots">
+            <div><span class="consumables-board__eyebrow">BATTLE LOADOUT</span><h3>战斗补给槽</h3></div>
+            <small>选择道具并设置自动使用条件</small>
+        </div>
+        <div class="consumables-board__slots">
+            @foreach (var slot in _drafts.OrderBy(slot => slot.SlotIndex))
+            {
+                var equippedItem = _data.Items.FirstOrDefault(item => item.Code == slot.ItemCode);
+                <article class="consumable-slot" @key="slot.SlotIndex">
+                    <header><span>槽位 @slot.SlotIndex.ToString("00")</span><strong>@(equippedItem?.Name ?? "未装备")</strong></header>
+                    <label class="consumable-slot__field">
+                        装备道具
+                        <select value="@(slot.ItemCode ?? string.Empty)" @onchange="e => UpdateItem(slot, e.Value?.ToString())" disabled="@_isSaving">
+                            <option value="">不装备</option>
+                            @foreach (var item in _data.Items)
+                            {
+                                <option value="@item.Code" disabled="@IsUsedInOtherSlot(item.Code, slot.SlotIndex)">@item.Name（库存 @item.Quantity）</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="consumable-slot__toggle">
+                        <input type="checkbox" checked="@slot.AutoUseEnabled" @onchange="e => slot.AutoUseEnabled = e.Value is true" disabled="@(_isSaving || slot.ItemCode is null)" />
+                        HP 达到阈值时自动使用
+                    </label>
+                    <label class="consumable-slot__field consumable-slot__threshold">
+                        HP 阈值 <span>低于或等于该百分比</span>
+                        <div><input type="number" min="1" max="100" value="@slot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(slot, e.Value?.ToString())" disabled="@(_isSaving || slot.ItemCode is null)" /><span>%</span></div>
+                    </label>
+                    @if (slot.AutoHpThresholdPercent is < 1 or > 100) { <small class="consumable-slot__invalid">请输入 1%～100% 的阈值。</small> }
+                    <footer>
+                        <small>@(IsDirty(slot) ? "设置尚未保存" : "设置已保存")</small>
+                        <button type="button" class="button button--primary" @onclick="() => SaveAsync(slot)" disabled="@(_isSaving || !IsDirty(slot) || slot.AutoHpThresholdPercent is < 1 or > 100)">保存设置</button>
+                    </footer>
+                </article>
+            }
+        </div>
+
+        @if (_error is not null) { <p class="consumables-board__error" role="alert">@_error</p> }
+        @if (_notice is not null) { <p class="consumables-board__success" role="status">@_notice</p> }
+        <p class="consumables-board__footnote">手动使用可在战斗房间排队到下一次结算，且不依赖 Auto 自动准备。战斗进行时补给槽无法调整。</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public int CharacterId { get; set; }
+
+    private CharacterConsumablesResponse? _data;
+    private readonly List<SlotDraft> _drafts = [];
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _error;
+    private string? _notice;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.GetCharacterConsumablesAsync(CharacterId);
+            _data = response;
+            _error = GetError(error);
+            if (response is not null) SetDrafts(response);
+        }
+        catch
+        {
+            _data = null;
+            _error = "连接失败，请稍后重试。";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void SetDrafts(CharacterConsumablesResponse response)
+    {
+        _drafts.Clear();
+        _drafts.AddRange(response.Slots.Select(slot => new SlotDraft
+        {
+            SlotIndex = slot.SlotIndex,
+            ItemCode = slot.ItemCode,
+            AutoUseEnabled = slot.AutoUseEnabled,
+            AutoHpThresholdPercent = slot.AutoHpThresholdPercent
+        }));
+    }
+
+    private void UpdateItem(SlotDraft slot, string? code)
+    {
+        slot.ItemCode = string.IsNullOrEmpty(code) ? null : code;
+        if (slot.ItemCode is null)
+        {
+            slot.AutoUseEnabled = false;
+            if (slot.AutoHpThresholdPercent is < 1 or > 100) slot.AutoHpThresholdPercent = 50;
+        }
+        _error = null;
+        _notice = null;
+    }
+
+    private void UpdateThreshold(SlotDraft slot, string? value)
+    {
+        slot.AutoHpThresholdPercent = int.TryParse(value, out var threshold) ? threshold : 0;
+        _error = null;
+        _notice = null;
+    }
+
+    private bool IsUsedInOtherSlot(string itemCode, int slotIndex) =>
+        _drafts.Any(slot => slot.SlotIndex != slotIndex && slot.ItemCode == itemCode);
+
+    private bool IsDirty(SlotDraft draft)
+    {
+        var saved = _data?.Slots.FirstOrDefault(slot => slot.SlotIndex == draft.SlotIndex);
+        return saved is not null && (saved.ItemCode != draft.ItemCode ||
+            saved.AutoUseEnabled != draft.AutoUseEnabled ||
+            saved.AutoHpThresholdPercent != draft.AutoHpThresholdPercent);
+    }
+
+    private async Task SaveAsync(SlotDraft slot)
+    {
+        if (_isSaving || !IsDirty(slot)) return;
+        _isSaving = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.SetConsumableSlotAsync(CharacterId, slot.SlotIndex,
+                new SetConsumableSlotRequest
+                {
+                    ItemCode = slot.ItemCode,
+                    AutoUseEnabled = slot.AutoUseEnabled,
+                    AutoHpThresholdPercent = slot.AutoHpThresholdPercent
+                });
+            if (response is null)
+            {
+                _error = GetError(error) ?? "保存失败，请稍后重试。";
+                return;
+            }
+            _data = response;
+            SetDrafts(response);
+            _notice = $"补给槽 {slot.SlotIndex} 已保存。";
+        }
+        catch
+        {
+            _error = "连接失败，请稍后重试。";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string? GetError(string? error) => error?.Trim().Trim('"') switch
+    {
+        null or "" => null,
+        "LoadoutLocked" => "战斗正在进行，请在战斗结束后调整补给槽。",
+        "ConsumableAlreadyEquipped" => "该道具已装备在另一个补给槽。",
+        "InvalidHpThreshold" => "HP 阈值必须在 1%～100% 之间。",
+        "UnknownConsumable" => "道具不存在，请刷新背包。",
+        "ConcurrencyConflict" => "角色或房间状态已变化，请刷新后重试。",
+        "NotOwner" => "只能调整自己的角色。",
+        _ => "补给操作失败，请稍后重试。"
+    };
+
+    private sealed class SlotDraft
+    {
+        public int SlotIndex { get; init; }
+        public string? ItemCode { get; set; }
+        public bool AutoUseEnabled { get; set; }
+        public int AutoHpThresholdPercent { get; set; }
+    }
+}

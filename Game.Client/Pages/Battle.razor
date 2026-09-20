@@ -116,6 +116,7 @@ else
     }
 
     var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
+    var ownSlots = _roomDetail.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied).ToList();
     <section class="battle-controls" aria-label="行动控制">
         <div class="battle-controls__main">
             <div class="battle-controls__heading"><span class="section-kicker">COMMAND PHASE</span><h2>行动指令</h2><p>@GetActionHint()</p></div>
@@ -145,6 +146,41 @@ else
                 }
             </div>
         </div>
+        @if (ownSlots.Count > 0)
+        {
+            <div class="battle-supplies" aria-label="战斗补给">
+                <div class="battle-supplies__header">
+                    <div><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
+                    <a href="/supplies">管理补给槽 ↗</a>
+                </div>
+                <div class="battle-supplies__characters">
+                    @foreach (var characterSlot in ownSlots)
+                    {
+                        <div class="battle-supplies__character" @key="characterSlot.CharacterId">
+                            <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName</strong><span>HP @characterSlot.CharacterHp / @characterSlot.CharacterMaxHp</span></div>
+                            <div class="battle-supplies__slots">
+                                @foreach (var supply in characterSlot.Consumables.OrderBy(supply => supply.SlotIndex))
+                                {
+                                    var selected = characterSlot.PendingConsumableSlotIndex == supply.SlotIndex;
+                                    <button type="button"
+                                            class="battle-supply @(selected ? "battle-supply--selected" : "")"
+                                            disabled="@(_isBusy || !CanQueueConsumable(characterSlot, supply))"
+                                            title="@GetConsumableHint(characterSlot, supply)"
+                                            aria-pressed="@selected"
+                                            @onclick="() => ToggleConsumableAsync(characterSlot, supply)">
+                                        <span class="battle-supply__icon" aria-hidden="true">✚</span>
+                                        <span class="battle-supply__body"><strong>@(supply.ItemName ?? $"空槽位 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
+                                        <span class="battle-supply__action">@(selected ? "取消" : "使用")</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                <p>手动使用将在下一次结算时触发，不占用攻击；自动用药与 Auto 自动准备分别设置。</p>
+                @if (_consumableMessage is not null) { <p class="battle-supplies__message" role="alert">@_consumableMessage</p> }
+            </div>
+        }
         <div class="battle-controls__tools">
             @if (IsOwner && _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
             {
@@ -238,6 +274,7 @@ else
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool _isBusy;
     private string? _message;
+    private string? _consumableMessage;
     private readonly Dictionary<int, int> _selectedCharacterIds = new();
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
@@ -355,6 +392,76 @@ else
         }
         _isBusy = false;
     }
+
+    private bool CanQueueConsumable(RoomSlotResponse character, RoomConsumableSlotResponse supply) =>
+        _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && supply.ItemCode is not null &&
+        (character.PendingConsumableSlotIndex == supply.SlotIndex ||
+            supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 && character.CharacterHp < character.CharacterMaxHp);
+
+    private string GetConsumableHint(RoomSlotResponse character, RoomConsumableSlotResponse supply)
+    {
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return "战斗已结束";
+        if (!character.IsAlive) return "角色已阵亡";
+        if (supply.ItemCode is null) return "先在战斗补给页装备道具";
+        if (character.PendingConsumableSlotIndex == supply.SlotIndex) return "点击取消本回合的手动使用";
+        if (supply.Quantity <= 0) return "背包中没有该道具";
+        if (supply.CooldownRoundsRemaining > 0) return $"还需等待 {supply.CooldownRoundsRemaining} 回合";
+        if (character.CharacterHp >= character.CharacterMaxHp) return "当前 HP 已满";
+        return $"安排下一次结算使用，恢复最多 {supply.HealAmount} HP";
+    }
+
+    private static string GetConsumableStatus(RoomConsumableSlotResponse supply, bool selected)
+    {
+        if (supply.ItemCode is null) return "前往补给页装备";
+        if (selected) return $"已排队 · 库存 {supply.Quantity}";
+        if (supply.CooldownRoundsRemaining > 0) return $"冷却 {supply.CooldownRoundsRemaining} 回合 · 库存 {supply.Quantity}";
+        return $"库存 {supply.Quantity} · 恢复 {supply.HealAmount} HP";
+    }
+
+    private async Task ToggleConsumableAsync(RoomSlotResponse character, RoomConsumableSlotResponse supply)
+    {
+        if (_isBusy || character.CharacterId is null || !CanQueueConsumable(character, supply)) return;
+        _isBusy = true;
+        _consumableMessage = null;
+        var cancel = character.PendingConsumableSlotIndex == supply.SlotIndex;
+        try
+        {
+            var (detail, error) = await ApiService.QueueConsumableAsync(RoomId, character.CharacterId.Value,
+                cancel ? null : supply.SlotIndex);
+            if (detail is null)
+            {
+                _consumableMessage = GetConsumableError(error);
+                await RefreshRoomDetailAsync();
+            }
+            else
+            {
+                _roomDetail = detail;
+                _serverTimeUtc = detail.ServerTimeUtc;
+                _serverTimeReceivedAtUtc = DateTime.UtcNow;
+                _consumableMessage = null;
+            }
+        }
+        catch
+        {
+            _consumableMessage = "连接失败，请稍后重试。";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private static string GetConsumableError(string? error) => error?.Trim().Trim('"') switch
+    {
+        "HpFull" => "当前 HP 已满，无法使用治疗道具。",
+        "OutOfStock" => "该角色的道具已用完。",
+        "ConsumableCooldown" => "道具仍在冷却中。",
+        "CharacterDead" => "角色已阵亡，无法使用道具。",
+        "BattleOver" => "战斗已结束。",
+        "ConcurrencyConflict" => "战斗状态已变化，请重试。",
+        "NoConsumableEquipped" => "补给槽已变化，请刷新页面。",
+        _ => "安排战斗道具失败，请稍后重试。"
+    };
 
     private async Task ResetBattleAsync()
     {

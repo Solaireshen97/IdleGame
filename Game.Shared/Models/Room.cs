@@ -16,5 +16,6 @@ public class Room
     public DateTime? BattleEndedAtUtc { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; } = true;
     public bool IsRepeatBattle { get; set; }
+    public int RoundNumber { get; set; }
     public int Version { get; set; }
 }

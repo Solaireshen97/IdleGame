@@ -8,7 +8,7 @@ namespace Game.Server.Controllers;
 
 [ApiController]
 [Route("api/user")]
-public class UserController(UserService userService, TalentService talentService) : ControllerBase
+public class UserController(UserService userService, TalentService talentService, ConsumableService consumableService) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest? request)
@@ -153,6 +153,31 @@ public class UserController(UserService userService, TalentService talentService
         var (response, error) = await talentService.GetAsync(GetBearerToken(), characterId);
         return TalentResult(response, error);
     }
+
+    [HttpGet("characters/{characterId:int}/consumables")]
+    public async Task<IActionResult> GetConsumables(int characterId)
+    {
+        var (response, error) = await consumableService.GetAsync(GetBearerToken(), characterId);
+        return ConsumableResult(response, error);
+    }
+
+    [HttpPut("characters/{characterId:int}/consumables/{slotIndex:int}")]
+    public async Task<IActionResult> SetConsumableSlot(int characterId, int slotIndex, [FromBody] SetConsumableSlotRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await consumableService.SetSlotAsync(GetBearerToken(), characterId, slotIndex, request);
+        return ConsumableResult(response, error);
+    }
+
+    private IActionResult ConsumableResult(CharacterConsumablesResponse? response, string? error) => error switch
+    {
+        null => Ok(response),
+        "Unauthorized" => Unauthorized(),
+        "UserNotFound" or "CharacterNotFound" => NotFound(error),
+        "NotOwner" => StatusCode(403, "NotOwner"),
+        "LoadoutLocked" or "ConsumableAlreadyEquipped" or "ConcurrencyConflict" => Conflict(error),
+        _ => BadRequest(error)
+    };
 
     [HttpPost("characters/{characterId:int}/talents/{type}/allocate")]
     public async Task<IActionResult> AllocateTalent(int characterId, string type)

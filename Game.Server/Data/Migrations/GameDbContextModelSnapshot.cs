@@ -69,6 +69,44 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("Characters");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterItemStack", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Quantity").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "ItemCode").IsUnique();
+                    b.ToTable("CharacterItemStacks", t => t.HasCheckConstraint("CK_CharacterItemStacks_Quantity", "Quantity >= 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterConsumableSlot", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("SlotIndex").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").HasColumnType("TEXT");
+                    b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<int>("AutoHpThresholdPercent").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "SlotIndex").IsUnique();
+                    b.ToTable("CharacterConsumableSlots", t => t.HasCheckConstraint("CK_CharacterConsumableSlots_Threshold", "AutoHpThresholdPercent BETWEEN 1 AND 100"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.BattleConsumableCooldown", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("CooldownGroup").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("ReadyAtRound").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "CharacterId", "CooldownGroup").IsUnique();
+                    b.ToTable("BattleConsumableCooldowns");
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Dungeon", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -151,6 +189,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("SlotCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("RoundNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
@@ -179,6 +220,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTemporaryAuto")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("PendingConsumableSlotIndex")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoomId")

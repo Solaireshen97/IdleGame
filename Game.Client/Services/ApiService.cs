@@ -302,6 +302,42 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> GetCharacterTalentsAsync(int characterId) =>
         SendTalentRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/talents");
 
+    public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId) =>
+        SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables");
+
+    public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SetConsumableSlotAsync(
+        int characterId, int slotIndex, SetConsumableSlotRequest configuration) =>
+        SendConsumableRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/consumables/{slotIndex}", configuration);
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueConsumableAsync(
+        int roomId, int characterId, int? consumableSlotIndex)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/consumable", requiresAuth: true);
+        request.Content = JsonContent.Create(new QueueConsumableRequest
+        {
+            RoomId = roomId,
+            CharacterId = characterId,
+            ConsumableSlotIndex = consumableSlotIndex
+        });
+        using var response = await httpClient.SendAsync(request);
+        return await HandleRoomDetailResponseAsync(response, "安排战斗道具失败。");
+    }
+
+    private async Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SendConsumableRequestAsync(
+        HttpMethod method, string url, SetConsumableSlotRequest? configuration = null)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        if (configuration is not null) request.Content = JsonContent.Create(configuration);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "补给操作失败。" : error);
+        }
+        return (await response.Content.ReadFromJsonAsync<CharacterConsumablesResponse>(), null);
+    }
+
     public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> AllocateTalentAsync(int characterId, Game.Shared.Enums.TalentType type) =>
         SendTalentRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/talents/{type.ToString().ToLowerInvariant()}/allocate");
 

@@ -1,0 +1,28 @@
+.supplies-page { max-width: 1180px; margin: 0 auto; padding: 1.2rem 0 4rem; }
+.supplies-page__intro { display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 1.4rem; }
+.supplies-page__intro a { flex: 0 0 auto; padding-top: .4rem; color: #efbf76; font-weight: 700; text-decoration: none; }
+.supplies-page__intro a:hover { text-decoration: underline; }
+.supplies-page__intro span, .supplies-page__character > span { color: #e3b367; font-size: .72rem; font-weight: 800; letter-spacing: .16em; }
+.supplies-page__intro h1 { margin: .15rem 0 .3rem; color: #f3e9d7; font: 700 clamp(1.8rem, 3vw, 2.5rem) Georgia, serif; }
+.supplies-page__intro p { margin: 0; color: #aebfce; font-size: .86rem; }
+.supplies-page__layout { display: grid; grid-template-columns: minmax(195px, 235px) minmax(0, 1fr); align-items: start; gap: 1rem; }
+.supplies-page__character { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; border: 1px solid #344a60; border-radius: .85rem; padding: 1.2rem; background: #172638; }
+.supplies-page__character > span, .supplies-page__character h2, .supplies-page__character p { grid-column: 1 / -1; }
+.supplies-page__character h2 { margin: -.1rem 0 0; color: #eef2f6; font: 700 1.7rem Georgia, serif; }
+.supplies-page__character p { margin: 0 0 .6rem; color: #aebfce; font-size: .8rem; }
+.supplies-page__character div { display: grid; border: 1px solid #3e5267; border-radius: .55rem; padding: .65rem; background: #111f2e; }
+.supplies-page__character strong { color: #e9f0f5; font-size: 1.2rem; }
+.supplies-page__character small { color: #aebfce; font-size: .72rem; }
+.supplies-page__character .supplies-page__switch { border-top: 1px solid #3b5267; margin: .6rem 0 0; padding-top: .85rem; line-height: 1.5; }
+.supplies-page__notice { border: 1px solid #344a60; border-radius: .7rem; padding: 1.5rem; color: #b8c8d5; background: #172638; }
+
+@media (max-width: 800px) {
+    .supplies-page__layout { grid-template-columns: minmax(0, 1fr); }
+    .supplies-page__character { grid-template-columns: repeat(4, auto); align-items: center; justify-content: start; }
+    .supplies-page__character > span, .supplies-page__character h2, .supplies-page__character p { grid-column: 1 / -1; }
+    .supplies-page__character div { min-width: 90px; }
+}
+
+@media (max-width: 550px) {
+    .supplies-page__intro { flex-direction: column; gap: .5rem; }
+}

@@ -591,6 +591,43 @@
     font-size: .76rem;
 }
 
+.battle-supplies {
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(145, 173, 186, .18);
+    padding-top: 1rem;
+}
+
+.battle-supplies__header,
+.battle-supplies__character,
+.battle-supplies__identity,
+.battle-supply {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+
+.battle-supplies__header { justify-content: space-between; margin-bottom: .75rem; }
+.battle-supplies__header h3 { margin: .15rem 0 0; color: #f2e8d8; font: 700 1.05rem Georgia, serif; }
+.battle-supplies__header a { color: #e5bc78; font-size: .76rem; white-space: nowrap; text-decoration: none; }
+.battle-supplies__header a:hover { text-decoration: underline; }
+.battle-supplies__characters { display: grid; gap: .5rem; }
+.battle-supplies__character { justify-content: space-between; min-width: 0; border: 1px solid #3c5368; border-radius: .65rem; padding: .6rem .7rem; background: rgba(8, 20, 31, .45); }
+.battle-supplies__identity { flex: 0 0 150px; flex-direction: column; align-items: flex-start; gap: .1rem; min-width: 0; }
+.battle-supplies__identity strong { overflow: hidden; max-width: 100%; color: #e8eef3; font-size: .85rem; white-space: nowrap; text-overflow: ellipsis; }
+.battle-supplies__identity span { color: #a4b6c5; font-size: .7rem; white-space: nowrap; }
+.battle-supplies__slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: min(100%, 550px); }
+.battle-supply { min-width: 0; border: 1px solid #486478; border-radius: .55rem; padding: .5rem .6rem; background: #13283a; color: #dce8ef; text-align: left; }
+.battle-supply:not(:disabled):hover { border-color: #d9b06d; background: #213d52; }
+.battle-supply--selected { border-color: #d4a861; background: #3a342e; }
+.battle-supply__icon { display: grid; place-items: center; flex: 0 0 1.8rem; height: 1.8rem; border-radius: .4rem; background: rgba(112, 194, 166, .16); color: #a7e0c5; font-size: 1.1rem; }
+.battle-supply__body { display: grid; gap: .1rem; flex: 1; min-width: 0; }
+.battle-supply__body strong, .battle-supply__body small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.battle-supply__body strong { font-size: .77rem; }
+.battle-supply__body small { color: #aebfca; font-size: .67rem; }
+.battle-supply__action { color: #edc785; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.battle-supplies > p { margin: .6rem 0 0; color: #aebfca; font-size: .72rem; }
+.battle-supplies .battle-supplies__message { color: #f0ce8b; }
+
 .battle-countdown {
     grid-column: 1 / -1;
     border-top: 1px solid rgba(145, 173, 186, .18);
@@ -809,6 +846,9 @@
     .fighter__portrait img { max-height: 110px; }
     .fighter-line { direction: ltr; }
     .fighter--empty .fighter__portrait { height: 72px; }
+    .battle-supplies__character { align-items: stretch; flex-direction: column; }
+    .battle-supplies__identity { flex-basis: auto; flex-direction: row; align-items: baseline; justify-content: space-between; }
+    .battle-supplies__slots { width: 100%; }
 }
 
 @media (max-width: 550px) {
@@ -831,6 +871,7 @@
     .battle-controls { padding: 1rem; }
     .battle-controls__main { align-items: flex-start; flex-direction: column; }
     .battle-controls__action { justify-content: flex-start; }
+    .battle-supplies__slots { grid-template-columns: 1fr; }
     .formation-panel__heading { align-items: flex-start; flex-direction: column; }
 }
 
