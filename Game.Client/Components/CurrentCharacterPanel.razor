@@ -39,6 +39,13 @@ else
                    @bind="_newCharacterName"
                    @bind:event="oninput"
                    disabled="@_isSubmitting" />
+            <label class="character-create-card__label" for="character-profession-input">职业</label>
+            <select id="character-profession-input" class="character-create-card__input" @bind="_newProfessionCode" disabled="@_isSubmitting">
+                @foreach (var profession in _professions)
+                {
+                    <option value="@profession.Code">@profession.Name — @profession.Description</option>
+                }
+            </select>
             <div class="character-create-card__actions">
                 <button @onclick="CreateCharacterAsync" disabled="@_isSubmitting">@CreateSubmitText</button>
                 <button @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
@@ -76,12 +83,14 @@ else
     }
 
     private List<CharacterSummaryResponse> _characters = [];
+    private List<ProfessionResponse> _professions = [];
     private bool _isLoading = true;
     private bool _isCreating;
     private bool _isSubmitting;
     private int? _deletingCharacterId;
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
+    private string _newProfessionCode = "knight";
     private string? _message;
     private bool _isMessageError;
     private CharacterOperation? _activeOperation;
@@ -98,6 +107,8 @@ else
         try
         {
             await LoadCharactersAsync();
+            try { _professions = await ApiService.GetProfessionsAsync() ?? []; }
+            catch { _professions = []; }
         }
         catch
         {
@@ -128,6 +139,7 @@ else
         _isCreating = true;
         ClearMessage();
         _newCharacterName = string.Empty;
+        _newProfessionCode = _professions.FirstOrDefault()?.Code ?? "knight";
     }
 
     private void CancelCreate()
@@ -153,7 +165,7 @@ else
 
         try
         {
-            var (character, errorMessage) = await ApiService.CreateCharacterAsync(_newCharacterName);
+            var (character, errorMessage) = await ApiService.CreateCharacterAsync(_newCharacterName, _newProfessionCode);
             if (character is null)
             {
                 SetFailureMessage("创建", errorMessage);

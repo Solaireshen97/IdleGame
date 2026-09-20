@@ -597,6 +597,13 @@
     padding-top: 1rem;
 }
 
+.battle-skills { grid-column: 1 / -1; border-top: 1px solid rgba(145, 173, 186, .18); padding-top: 1rem; }
+.battle-skills__character { display: flex; align-items: center; justify-content: space-between; gap: .8rem; min-width: 0; border: 1px solid #3c5368; border-radius: .65rem; padding: .6rem .7rem; margin-bottom: .5rem; background: rgba(8, 20, 31, .45); }
+.battle-skills__slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .4rem; width: min(100%, 720px); }
+.battle-skills > p { margin: .6rem 0 0; color: #aebfca; font-size: .72rem; }
+.battle-skills .battle-supplies__message { color: #f0ce8b; }
+@media (max-width: 900px) { .battle-skills__character { flex-direction: column; align-items: stretch; } .battle-skills__slots { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); width: 100%; } }
+
 .battle-supplies__header,
 .battle-supplies__character,
 .battle-supplies__identity,

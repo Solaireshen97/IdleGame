@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class UserService(GameDbContext dbContext, ProgressionService progressionService)
+public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog)
 {
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
@@ -44,13 +44,14 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var character = CreateCharacterEntity(user.Id, "Knight");
+        var character = CreateCharacterEntity(user.Id, "Knight", SkillRules.DefaultProfessionCode);
         dbContext.Characters.Add(character);
 
         var session = CreateSession(user.Id);
         dbContext.UserLoginSessions.Add(session);
 
         await dbContext.SaveChangesAsync();
+        AddStartingSkills(character);
         user.ActiveCharacterId = character.Id;
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -220,9 +221,16 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, "InvalidName");
         }
 
-        var character = CreateCharacterEntity(user!.Id, name);
+        var professionCode = request.ProfessionCode?.Trim() ?? string.Empty;
+        if (skillCatalog.FindProfession(professionCode) is null) return (null, "InvalidProfession");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        var character = CreateCharacterEntity(user!.Id, name, professionCode);
         dbContext.Characters.Add(character);
         await dbContext.SaveChangesAsync();
+        AddStartingSkills(character);
+        await dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return (BuildCharacterSummary(character), null);
     }
@@ -271,6 +279,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.CharacterItemStacks.RemoveRange(await dbContext.CharacterItemStacks.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
+        dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
         dbContext.Characters.Remove(character);
         await dbContext.SaveChangesAsync();
         return (true, null);
@@ -345,17 +356,31 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         };
     }
 
-    private static Character CreateCharacterEntity(int userId, string name)
+    private static Character CreateCharacterEntity(int userId, string name, string professionCode)
     {
         return new Character
         {
             UserId = userId,
             Name = name,
+            ProfessionCode = professionCode,
             Hp = 100,
             MaxHp = 100,
             Attack = 20,
             Defense = 5
         };
+    }
+
+    private void AddStartingSkills(Character character)
+    {
+        var profession = skillCatalog.FindProfession(character.ProfessionCode)!;
+        for (var index = 0; index < profession.StartingSkills.Count; index++)
+            dbContext.CharacterSkillSlots.Add(new CharacterSkillSlot
+            {
+                CharacterId = character.Id,
+                SlotIndex = index + 1,
+                SkillCode = profession.StartingSkills[index],
+                AutoHpThresholdPercent = SkillRules.DefaultAutoHpThresholdPercent
+            });
     }
 
     private async Task<Character?> ResolveActiveCharacterAsync(User user, List<Character>? characters = null)
@@ -396,6 +421,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         {
             CharacterId = character.Id,
             Name = character.Name,
+            ProfessionCode = character.ProfessionCode,
+            ProfessionName = skillCatalog.FindProfession(character.ProfessionCode)?.Name ?? character.ProfessionCode,
             Hp = character.Hp,
             MaxHp = TalentRules.EffectiveMaxHp(character),
             Attack = TalentRules.EffectiveAttack(character),
@@ -413,6 +440,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         {
             CharacterId = character.Id,
             Name = character.Name,
+            ProfessionCode = character.ProfessionCode,
+            ProfessionName = skillCatalog.FindProfession(character.ProfessionCode)?.Name ?? character.ProfessionCode,
             Hp = character.Hp,
             MaxHp = TalentRules.EffectiveMaxHp(character),
             Attack = TalentRules.EffectiveAttack(character),

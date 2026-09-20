@@ -148,6 +148,39 @@ else
         </div>
         @if (ownSlots.Count > 0)
         {
+            <div class="battle-skills" aria-label="职业技能">
+                <div class="battle-supplies__header">
+                    <div><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
+                    <a href="/talents">调整技能优先级 ↗</a>
+                </div>
+                @foreach (var characterSlot in ownSlots)
+                {
+                    <div class="battle-skills__character" @key="characterSlot.CharacterId">
+                        <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName · @characterSlot.ProfessionName</strong><span>按 1 → 5 号位依次自动判定</span></div>
+                        <div class="battle-skills__slots">
+                            @foreach (var skill in characterSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
+                            {
+                                var selected = IsSkillQueued(characterSlot, skill);
+                                <button type="button"
+                                        class="battle-supply @(selected ? "battle-supply--selected" : "")"
+                                        disabled="@(_isBusy || !CanQueueSkill(characterSlot, skill))"
+                                        title="@GetSkillHint(characterSlot, skill)"
+                                        aria-pressed="@selected"
+                                        @onclick="() => ToggleSkillAsync(characterSlot, skill)">
+                                    <span class="battle-supply__icon" aria-hidden="true">@skill.SlotIndex</span>
+                                    <span class="battle-supply__body"><strong>@skill.SkillName</strong><small>@GetSkillStatus(skill, selected)</small></span>
+                                    <span class="battle-supply__action">@(selected ? "取消" : "施放")</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                <p>可手动安排多个技能；手动技能先执行，其余按栏位顺序自动检查。技能与药水可在同一回合触发。</p>
+                @if (_skillMessage is not null) { <p class="battle-supplies__message" role="alert">@_skillMessage</p> }
+            </div>
+        }
+        @if (ownSlots.Count > 0)
+        {
             <div class="battle-supplies" aria-label="战斗补给">
                 <div class="battle-supplies__header">
                     <div><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
@@ -211,7 +244,7 @@ else
 
     <details class="formation-panel">
         <summary class="formation-panel__heading"><span><span class="section-kicker">FORMATION</span><strong>队伍编成与槽位管理</strong></span><span>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人 · 展开管理 <span aria-hidden="true">⌄</span></span></summary>
-        <p class="formation-panel__progress-note">角色升级会获得天赋点；加点功能将在后续开放。</p>
+        <p class="formation-panel__progress-note">角色升级会获得天赋点；可在职业天赋页分配点数并配置技能。</p>
         <div class="slot-grid">
             @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
             {
@@ -275,6 +308,7 @@ else
     private bool _isBusy;
     private string? _message;
     private string? _consumableMessage;
+    private string? _skillMessage;
     private readonly Dictionary<int, int> _selectedCharacterIds = new();
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
@@ -397,6 +431,69 @@ else
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && supply.ItemCode is not null &&
         (character.PendingConsumableSlotIndex == supply.SlotIndex ||
             supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 && character.CharacterHp < character.CharacterMaxHp);
+
+    private static bool IsSkillQueued(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
+        (character.PendingSkillSlotMask & SkillRules.SlotMask(skill.SlotIndex)) != 0;
+
+    private bool CanQueueSkill(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
+        _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && skill.SkillCode is not null &&
+        (IsSkillQueued(character, skill) || skill.CooldownRoundsRemaining == 0 &&
+            (skill.EffectType != "Heal" || _roomDetail!.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp)));
+
+    private string GetSkillHint(RoomSlotResponse character, RoomSkillSlotResponse skill)
+    {
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return "战斗已结束";
+        if (!character.IsAlive) return "角色已阵亡";
+        if (IsSkillQueued(character, skill)) return "点击取消本回合手动施放";
+        if (skill.CooldownRoundsRemaining > 0) return $"冷却中，还需 {skill.CooldownRoundsRemaining} 回合";
+        if (skill.EffectType == "Heal" && !_roomDetail!.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp)) return "没有受伤队友";
+        return "安排在下一次结算中手动施放";
+    }
+
+    private static string GetSkillStatus(RoomSkillSlotResponse skill, bool selected)
+    {
+        if (selected) return "已安排手动施放";
+        if (skill.CooldownRoundsRemaining > 0) return $"冷却 {skill.CooldownRoundsRemaining} 回合";
+        if (skill.AutoUseEnabled) return skill.EffectType is "Heal" or "Guard"
+            ? $"自动 · 目标 HP ≤ {skill.AutoHpThresholdPercent}%" : "自动使用已启用";
+        return "可手动施放";
+    }
+
+    private async Task ToggleSkillAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
+    {
+        if (_isBusy || character.CharacterId is null || !CanQueueSkill(character, skill)) return;
+        _isBusy = true;
+        _skillMessage = null;
+        try
+        {
+            var (detail, error) = await ApiService.QueueSkillAsync(RoomId, character.CharacterId.Value,
+                skill.SlotIndex, !IsSkillQueued(character, skill));
+            if (detail is null)
+            {
+                _skillMessage = GetSkillError(error);
+                await RefreshRoomDetailAsync();
+            }
+            else
+            {
+                _roomDetail = detail;
+                _serverTimeUtc = detail.ServerTimeUtc;
+                _serverTimeReceivedAtUtc = DateTime.UtcNow;
+            }
+        }
+        catch { _skillMessage = "连接失败，请稍后重试。"; }
+        finally { _isBusy = false; }
+    }
+
+    private static string GetSkillError(string? error) => error?.Trim().Trim('"') switch
+    {
+        "SkillCooldown" => "技能仍在冷却中。",
+        "NoInjuredTarget" => "当前没有需要治疗的队友。",
+        "SkillNotEquipped" => "技能栏已变化，请刷新页面。",
+        "CharacterDead" => "角色已阵亡。",
+        "BattleOver" => "战斗已结束。",
+        "ConcurrencyConflict" => "战斗状态已变化，请重试。",
+        _ => "安排技能失败，请稍后重试。"
+    };
 
     private string GetConsumableHint(RoomSlotResponse character, RoomConsumableSlotResponse supply)
     {

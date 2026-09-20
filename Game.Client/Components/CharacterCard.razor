@@ -3,6 +3,7 @@
 <article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
     <div class="character-card__header">
         <h3 class="character-card__name">@Character.Name</h3>
+        <small>@Character.ProfessionName</small>
         <div class="character-card__header-actions">
             @if (IsCurrent)
             {

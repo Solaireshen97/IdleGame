@@ -23,7 +23,7 @@
             <aside class="talents-page__aside">
                 <section class="talents-page__identity" aria-label="当前操作角色">
                     <span class="talents-page__eyebrow">ACTIVE CHARACTER</span>
-                    <h2>@character.Name</h2>
+                    <h2>@character.Name</h2><small>@character.ProfessionName</small>
                     <div class="talents-page__level"><strong>Lv @character.Level</strong><span>@(character.ExperienceToNextLevel is int required ? $"EXP {character.Experience} / {required}" : "MAX")</span></div>
                     <progress value="@(character.ExperienceToNextLevel is null ? 1 : character.Experience)" max="@(character.ExperienceToNextLevel ?? 1)" aria-label="角色经验值"></progress>
                     <dl>
@@ -37,7 +37,7 @@
                 <section class="talents-page__roadmap">
                     <span class="talents-page__eyebrow">CAREER PATH</span>
                     <h2>职业路线</h2>
-                    <p>后续将在这里展示职业、转职条件和专属天赋。</p>
+                    <p>当前职业的基础技能已开放。后续将在这里展示技能天赋、转职条件和专属路线。</p>
                 </section>
             </aside>
 
@@ -45,12 +45,13 @@
                 <CharacterTalentBoard @key="character.CharacterId"
                                       CharacterId="@character.CharacterId"
                                       OnChanged="RefreshCurrentAsync" />
+                <CharacterSkillBoard @key="character.CharacterId" CharacterId="@character.CharacterId" />
                 <section class="talents-page__next">
                     <span class="talents-page__next-icon" aria-hidden="true">✦</span>
                     <div>
                         <span class="talents-page__eyebrow">FUTURE PATH</span>
                         <h2>职业进阶</h2>
-                        <p>职业与转职内容将在后续阶段加入。当前可以先分配基础天赋点。</p>
+                        <p>下一阶段将接入通过天赋点解锁技能的节点，并逐步扩展职业路线。</p>
                     </div>
                 </section>
             </div>

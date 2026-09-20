@@ -41,6 +41,14 @@
 - 房间详情只向角色所属玩家返回该角色的补给槽、库存和剩余冷却；所有使用条件和库存扣减由服务端验证并执行。
 - 左侧导航的“战斗补给”页面可查看当前操作角色的库存、装备道具和设置自动使用阈值。战斗房间的“行动指令”区可为自己的上阵角色手动排队或取消使用，并显示库存及剩余冷却。
 
+## 职业基础技能（第一阶段）
+
+- 现有角色迁移为骑士；新角色可选择骑士或牧师。每个职业有两项免费起始技能，技能效果和冷却在 `Skills` 配置段中调整。
+- 每名角色有独立的五栏技能配置，可在“职业天赋”页装备、调整优先级和设置自动使用。治疗与守护技能可设置目标 HP 阈值。战斗进行期间锁定技能栏。
+- 手动可为下一回合排队多个技能，与自动准备无关；手动指令优先，其余自动技能按 1～5 号位检查。一次结算中满足条件的多个不同技能均可触发，不占普通攻击或药水使用。
+- 结算顺序为普通攻击、技能、药水、怪物攻击。每次实际施放才进入自身冷却；手动重置和重复战斗重开会清除冷却。所有资格、目标、阈值、冷却和排队归属均由服务端检查。
+- 技能栏与待执行指令只向角色所属玩家返回。下一阶段再把新技能的解锁接入天赋点与职业天赋界面。
+
 ## API
 
 - `GET /api/dungeons`、`GET /api/dungeons/{dungeonId}`：获取副本配置及当前用户首通和 Auto 解锁状态。
@@ -59,6 +67,10 @@
 - `GET /api/user/characters/{characterId}/consumables`：读取自有角色的背包数量、道具定义和两个补给槽。
 - `PUT /api/user/characters/{characterId}/consumables/{slotIndex}`：设置补给槽，`slotIndex` 为 1 或 2；请求体为 `itemCode`（可为 `null`）、`autoUseEnabled`、`autoHpThresholdPercent`（1～100）。战斗进行时不能调整装备。
 - `POST /api/battle/consumable`：排队或取消下一回合的手动道具使用；请求体为 `roomId`、`characterId`、`consumableSlotIndex`（1、2 或 `null`）。成功后返回房间详情。
+- `GET /api/skills/professions`：获取可创建的职业。
+- `GET /api/user/characters/{characterId}/skills`、`PUT /api/user/characters/{characterId}/skills/{slotIndex}`：读取和设置自有角色的技能栏、自动使用条件。
+- `POST /api/user/characters/{characterId}/skills/swap`：交换两个技能栏位及其自动设置。
+- `POST /api/battle/skill`：手动排队或取消一个技能栏位；请求体为 `roomId`、`characterId`、`skillSlotIndex`、`isQueued`。
 
 ## 本地运行
 
@@ -71,4 +83,4 @@ dotnet run --project Game.Client/Game.Client.csproj
 
 ## 后续范围
 
-暂不支持职业和技能、Buff/Debuff、仇恨、多怪物、离线结算、快照恢复或 SignalR。
+后续计划包括通过天赋点解锁新技能、职业转职、持续性 Buff/Debuff、仇恨、多怪物、离线结算、快照恢复和 SignalR。

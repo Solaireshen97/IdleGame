@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog)
+public class BattleService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -73,6 +73,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             monster.Hp = monster.MaxHp;
             foreach (var entry in slots) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
             await ResetConsumableCooldownsAsync(room.Id);
+            await ResetSkillCooldownsAsync(room.Id);
             ClearRoundState(room, slots);
             room.RoundNumber = 0;
             room.Status = RoomStatus.NotStarted;
@@ -217,6 +218,36 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         return await SaveAsync();
     }
 
+    public async Task<(bool Success, string? Error)> QueueSkillAsync(QueueSkillRequest request, string? token)
+    {
+        var (room, slots, monster, user, error) = await GetBattleContextAsync(request.RoomId, token);
+        if (error is not null) return (false, error);
+        if (room!.Status == RoomStatus.BattleOver || monster!.Hp <= 0) return (false, "BattleOver");
+        if (request.SkillSlotIndex is < 1 or > SkillRules.SlotCount) return (false, "InvalidSlotIndex");
+        var participant = slots!.SingleOrDefault(entry => entry.Character.Id == request.CharacterId);
+        if (participant is null || participant.Slot.UserId != user!.Id) return (false, "NotCharacterOwner");
+        if (participant.Character.Hp <= 0) return (false, "CharacterDead");
+
+        var mask = SkillRules.SlotMask(request.SkillSlotIndex);
+        if (request.IsQueued)
+        {
+            var equipped = await dbContext.CharacterSkillSlots.SingleOrDefaultAsync(
+                slot => slot.CharacterId == participant.Character.Id && slot.SlotIndex == request.SkillSlotIndex);
+            var skill = skillCatalog.FindSkill(equipped?.SkillCode);
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code)) return (false, "SkillNotEquipped");
+            var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
+                entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
+            if (cooldown?.ReadyAtRound > room.RoundNumber) return (false, "SkillCooldown");
+            if (skill.EffectType == "Heal" && !slots.Any(entry => entry.Character.Hp > 0 &&
+                entry.Character.Hp < TalentRules.EffectiveMaxHp(entry.Character))) return (false, "NoInjuredTarget");
+            participant.Slot.PendingSkillSlotMask |= mask;
+        }
+        else participant.Slot.PendingSkillSlotMask &= ~mask;
+
+        room.Version++;
+        return await SaveAsync();
+    }
+
     public async Task<(BattleResult? Result, string? Error)> ExecuteRoundAsync(int roomId, string? token)
     {
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
@@ -238,6 +269,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         monster!.Hp = monster.MaxHp;
         foreach (var entry in slots!) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
         await ResetConsumableCooldownsAsync(room.Id);
+        await ResetSkillCooldownsAsync(room.Id);
         ClearRoundState(room, slots);
         room.RoundNumber = 0;
         room.Status = RoomStatus.NotStarted;
@@ -258,25 +290,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             var damage = Math.Max(1, TalentRules.EffectiveAttack(entry.Character) - monster.Defense);
             monster.Hp = Math.Max(0, monster.Hp - damage);
             logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage.");
-            if (monster.Hp <= 0)
-            {
-                SetBattleOver(room, now);
-                await RecordDungeonClearsAsync(room.DungeonId, slots.Select(slot => slot.Slot.UserId).OfType<int>().Distinct(), now);
-                var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
-                if (dungeon is null) return (null, "DungeonNotFound");
-                var reward = progressionService.GetVictoryExperience(dungeon.Code);
-                foreach (var participant in slots.DistinctBy(slot => slot.Character.Id))
-                {
-                    var gain = progressionService.AwardVictoryExperience(participant.Character, reward);
-                    if (gain.ExperienceGained > 0)
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} gains {gain.ExperienceGained} EXP.");
-                    if (gain.LevelsGained > 0)
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} reached Lv.{participant.Character.Level} and gained {gain.LevelsGained} talent point(s).");
-                }
-                await AwardVictoryConsumablesAsync(dungeon.Code, slots, logs);
-                logs.Add($"{monster.Name} is defeated.");
-                break;
-            }
+            if (monster.Hp <= 0) break;
+        }
+        var guardPercent = monster.Hp > 0 ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, logs) : 0;
+        if (monster.Hp <= 0)
+        {
+            var victoryError = await AwardVictoryAsync(room, slots, monster, now, logs);
+            if (victoryError is not null) return (null, victoryError);
         }
         if (monster.Hp > 0)
         {
@@ -285,7 +305,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             if (target is null) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
             else
             {
-                var damage = Math.Max(1, monster.Attack - TalentRules.EffectiveDefense(target.Character));
+                var baseDamage = Math.Max(1, monster.Attack - TalentRules.EffectiveDefense(target.Character));
+                var damage = Math.Max(1, baseDamage * (100 - guardPercent) / 100);
                 target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                 logs.Add($"{monster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
                 if (!slots.Any(x => x.Character.Hp > 0)) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
@@ -302,6 +323,109 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         room.RoundNumber++;
         ClearRoundState(room, slots);
         return await SaveResultAsync(room, slots, monster, now, logs);
+    }
+
+    private async Task<string?> AwardVictoryAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)
+    {
+        SetBattleOver(room, now);
+        await RecordDungeonClearsAsync(room.DungeonId, slots.Select(slot => slot.Slot.UserId).OfType<int>().Distinct(), now);
+        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
+        if (dungeon is null) return "DungeonNotFound";
+        var reward = progressionService.GetVictoryExperience(dungeon.Code);
+        foreach (var participant in slots.DistinctBy(slot => slot.Character.Id))
+        {
+            var gain = progressionService.AwardVictoryExperience(participant.Character, reward);
+            if (gain.ExperienceGained > 0)
+                logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} gains {gain.ExperienceGained} EXP.");
+            if (gain.LevelsGained > 0)
+                logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} reached Lv.{participant.Character.Level} and gained {gain.LevelsGained} talent point(s).");
+        }
+        await AwardVictoryConsumablesAsync(dungeon.Code, slots, logs);
+        logs.Add($"{monster.Name} is defeated.");
+        return null;
+    }
+
+    private async Task<int> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster, List<string> logs)
+    {
+        var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
+        var equipment = await dbContext.CharacterSkillSlots
+            .Where(slot => characterIds.Contains(slot.CharacterId) && slot.SkillCode != null)
+            .OrderBy(slot => slot.SlotIndex).ToListAsync();
+        if (equipment.Count == 0) return 0;
+        var cooldowns = await dbContext.BattleSkillCooldowns
+            .Where(cooldown => cooldown.RoomId == room.Id && characterIds.Contains(cooldown.CharacterId)).ToListAsync();
+        var guardPercent = 0;
+        var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
+            _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        bool TryUse(SlotCharacter participant, CharacterSkillSlot slot, bool automatic)
+        {
+            var skill = skillCatalog.FindSkill(slot.SkillCode);
+            var used = usedByCharacter[participant.Character.Id];
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code) || used.Contains(skill.Code)) return false;
+            var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
+            if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
+            var target = aliveSlots.Where(entry => entry.Character.Hp > 0)
+                .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
+                .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
+            var front = aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
+            switch (skill.EffectType)
+            {
+                case "Damage":
+                    if (monster.Hp <= 0) return false;
+                    var damage = Math.Max(1, TalentRules.EffectiveAttack(participant.Character) + skill.Power - monster.Defense);
+                    monster.Hp = Math.Max(0, monster.Hp - damage);
+                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage.");
+                    break;
+                case "Heal":
+                    if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character) ||
+                        automatic && (long)target.Character.Hp * 100 >
+                        (long)TalentRules.EffectiveMaxHp(target.Character) * slot.AutoHpThresholdPercent) return false;
+                    var healed = Math.Min(skill.Power, TalentRules.EffectiveMaxHp(target.Character) - target.Character.Hp);
+                    target.Character.Hp += healed;
+                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on Slot {target.Slot.SlotIndex} {target.Character.Name} and restores {healed} HP.");
+                    break;
+                case "Guard":
+                    if (front is null || automatic && (long)front.Character.Hp * 100 >
+                        (long)TalentRules.EffectiveMaxHp(front.Character) * slot.AutoHpThresholdPercent) return false;
+                    guardPercent = Math.Min(75, guardPercent + skill.Power);
+                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} to protect Slot {front.Slot.SlotIndex} {front.Character.Name}.");
+                    break;
+                default: return false;
+            }
+            if (cooldown is null)
+            {
+                cooldown = new BattleSkillCooldown { RoomId = room.Id, CharacterId = participant.Character.Id, SkillCode = skill.Code };
+                cooldowns.Add(cooldown);
+                dbContext.BattleSkillCooldowns.Add(cooldown);
+            }
+            cooldown.ReadyAtRound = checked(room.RoundNumber + skill.CooldownRounds + 1);
+            used.Add(skill.Code);
+            return true;
+        }
+
+        foreach (var participant in aliveSlots)
+        {
+            var characterEquipment = equipment.Where(slot => slot.CharacterId == participant.Character.Id);
+            foreach (var slot in characterEquipment.Where(slot => (participant.Slot.PendingSkillSlotMask & SkillRules.SlotMask(slot.SlotIndex)) != 0))
+            {
+                if (monster.Hp <= 0) break;
+                TryUse(participant, slot, automatic: false);
+            }
+            if (monster.Hp <= 0) break;
+        }
+        foreach (var participant in aliveSlots)
+        {
+            var characterEquipment = equipment.Where(slot => slot.CharacterId == participant.Character.Id);
+            foreach (var slot in characterEquipment)
+            {
+                if (monster.Hp <= 0) break;
+                if ((participant.Slot.PendingSkillSlotMask & SkillRules.SlotMask(slot.SlotIndex)) == 0)
+                    TryUse(participant, slot, automatic: true);
+            }
+            if (monster.Hp <= 0) break;
+        }
+        return guardPercent;
     }
 
     private async Task AwardVictoryConsumablesAsync(string dungeonCode, List<SlotCharacter> slots, List<string> logs)
@@ -402,6 +526,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             cooldown.ReadyAtRound = 0;
     }
 
+    private async Task ResetSkillCooldownsAsync(int roomId)
+    {
+        foreach (var cooldown in await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync())
+            cooldown.ReadyAtRound = 0;
+    }
+
     private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)
     {
         room.Version++;
@@ -436,7 +566,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         var existingIds = await dbContext.UserDungeonClears.Where(clear => clear.DungeonId == dungeonId && ids.Contains(clear.UserId)).Select(clear => clear.UserId).ToListAsync();
         dbContext.UserDungeonClears.AddRange(ids.Except(existingIds).Select(userId => new UserDungeonClear { UserId = userId, DungeonId = dungeonId, ClearedAtUtc = clearedAtUtc }));
     }
-    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; } }
+    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; entry.Slot.PendingSkillSlotMask = 0; } }
     private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
     private static BattleResult BuildResult(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs) => new() { RoomId = room.Id, CharacterHp = slots.OrderBy(x => x.Slot.SlotIndex).FirstOrDefault()?.Character.Hp ?? 0, CharacterMaxHp = slots.OrderBy(x => x.Slot.SlotIndex).Select(x => TalentRules.EffectiveMaxHp(x.Character)).FirstOrDefault(), MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc, ServerTimeUtc = now, CanExecuteRound = room.Status == RoomStatus.Preparing && slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed) && monster.Hp > 0, IsVictory = monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character.Hp > 0), Logs = logs };
 

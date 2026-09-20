@@ -16,6 +16,9 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
+    public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
+    public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
+    public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +44,22 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<BattleConsumableCooldown>()
             .HasIndex(cooldown => new { cooldown.RoomId, cooldown.CharacterId, cooldown.CooldownGroup })
             .IsUnique();
+        modelBuilder.Entity<CharacterSkillSlot>()
+            .Property(slot => slot.Version)
+            .IsConcurrencyToken();
+        modelBuilder.Entity<CharacterSkillSlot>()
+            .HasIndex(slot => new { slot.CharacterId, slot.SlotIndex })
+            .IsUnique();
+        modelBuilder.Entity<CharacterSkillSlot>()
+            .ToTable(table => table.HasCheckConstraint("CK_CharacterSkillSlots_Threshold", "AutoHpThresholdPercent BETWEEN 1 AND 100"));
+        modelBuilder.Entity<BattleSkillCooldown>()
+            .HasIndex(cooldown => new { cooldown.RoomId, cooldown.CharacterId, cooldown.SkillCode })
+            .IsUnique();
+        modelBuilder.Entity<CharacterSkillTalent>()
+            .HasIndex(talent => new { talent.CharacterId, talent.NodeCode })
+            .IsUnique();
+        modelBuilder.Entity<CharacterSkillTalent>()
+            .ToTable(table => table.HasCheckConstraint("CK_CharacterSkillTalents_PointsSpent", "PointsSpent > 0"));
 
         modelBuilder.Entity<Room>()
             .Property(room => room.Version)

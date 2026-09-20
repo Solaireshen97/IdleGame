@@ -302,6 +302,51 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> GetCharacterTalentsAsync(int characterId) =>
         SendTalentRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/talents");
 
+    public async Task<List<ProfessionResponse>?> GetProfessionsAsync() =>
+        await httpClient.GetFromJsonAsync<List<ProfessionResponse>>("api/skills/professions");
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> GetCharacterSkillsAsync(int characterId) =>
+        SendSkillRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/skills");
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SetSkillSlotAsync(
+        int characterId, int slotIndex, SetSkillSlotRequest configuration) =>
+        SendSkillRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/skills/{slotIndex}", configuration);
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SwapSkillSlotsAsync(
+        int characterId, int fromSlotIndex, int toSlotIndex) =>
+        SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/swap",
+            new SwapSkillSlotsRequest { FromSlotIndex = fromSlotIndex, ToSlotIndex = toSlotIndex });
+
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSkillAsync(
+        int roomId, int characterId, int skillSlotIndex, bool isQueued)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/skill", requiresAuth: true);
+        request.Content = JsonContent.Create(new QueueSkillRequest
+        {
+            RoomId = roomId,
+            CharacterId = characterId,
+            SkillSlotIndex = skillSlotIndex,
+            IsQueued = isQueued
+        });
+        using var response = await httpClient.SendAsync(request);
+        return await HandleRoomDetailResponseAsync(response, "安排技能失败。");
+    }
+
+    private async Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SendSkillRequestAsync(
+        HttpMethod method, string url, object? configuration = null)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        if (configuration is not null) request.Content = JsonContent.Create(configuration);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "技能操作失败。" : error);
+        }
+        return (await response.Content.ReadFromJsonAsync<CharacterSkillsResponse>(), null);
+    }
+
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId) =>
         SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables");
 
@@ -383,10 +428,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
     }
 
-    public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> CreateCharacterAsync(string name)
+    public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> CreateCharacterAsync(string name, string professionCode)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true);
-        request.Content = JsonContent.Create(new CreateCharacterRequest { Name = name });
+        request.Content = JsonContent.Create(new CreateCharacterRequest { Name = name, ProfessionCode = professionCode });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {

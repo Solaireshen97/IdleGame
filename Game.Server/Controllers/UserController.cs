@@ -8,7 +8,7 @@ namespace Game.Server.Controllers;
 
 [ApiController]
 [Route("api/user")]
-public class UserController(UserService userService, TalentService talentService, ConsumableService consumableService) : ControllerBase
+public class UserController(UserService userService, TalentService talentService, ConsumableService consumableService, SkillService skillService) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest? request)
@@ -122,6 +122,7 @@ public class UserController(UserService userService, TalentService talentService
             "Unauthorized" => Unauthorized(),
             "UserNotFound" => NotFound("User not found."),
             "InvalidName" => BadRequest("Character name cannot be empty."),
+            "InvalidProfession" => BadRequest("InvalidProfession"),
             _ => BadRequest()
         };
     }
@@ -176,6 +177,39 @@ public class UserController(UserService userService, TalentService talentService
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(403, "NotOwner"),
         "LoadoutLocked" or "ConsumableAlreadyEquipped" or "ConcurrencyConflict" => Conflict(error),
+        _ => BadRequest(error)
+    };
+
+    [HttpGet("characters/{characterId:int}/skills")]
+    public async Task<IActionResult> GetSkills(int characterId)
+    {
+        var (response, error) = await skillService.GetAsync(GetBearerToken(), characterId);
+        return SkillResult(response, error);
+    }
+
+    [HttpPut("characters/{characterId:int}/skills/{slotIndex:int}")]
+    public async Task<IActionResult> SetSkillSlot(int characterId, int slotIndex, [FromBody] SetSkillSlotRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await skillService.SetSlotAsync(GetBearerToken(), characterId, slotIndex, request);
+        return SkillResult(response, error);
+    }
+
+    [HttpPost("characters/{characterId:int}/skills/swap")]
+    public async Task<IActionResult> SwapSkillSlots(int characterId, [FromBody] SwapSkillSlotsRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await skillService.SwapSlotsAsync(GetBearerToken(), characterId, request);
+        return SkillResult(response, error);
+    }
+
+    private IActionResult SkillResult(CharacterSkillsResponse? response, string? error) => error switch
+    {
+        null => Ok(response),
+        "Unauthorized" => Unauthorized(),
+        "UserNotFound" or "CharacterNotFound" => NotFound(error),
+        "NotOwner" => StatusCode(403, "NotOwner"),
+        "LoadoutLocked" or "SkillAlreadyEquipped" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };
 

@@ -54,6 +54,10 @@ namespace Game.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProfessionCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("TalentPoints")
                         .HasColumnType("INTEGER");
 
@@ -105,6 +109,43 @@ namespace Game.Server.Data.Migrations
                     b.HasKey("Id");
                     b.HasIndex("RoomId", "CharacterId", "CooldownGroup").IsUnique();
                     b.ToTable("BattleConsumableCooldowns");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterSkillSlot", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("SlotIndex").HasColumnType("INTEGER");
+                    b.Property<string>("SkillCode").HasColumnType("TEXT");
+                    b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<int>("AutoHpThresholdPercent").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "SlotIndex").IsUnique();
+                    b.ToTable("CharacterSkillSlots", t => t.HasCheckConstraint("CK_CharacterSkillSlots_Threshold", "AutoHpThresholdPercent BETWEEN 1 AND 100"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterSkillTalent", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("NodeCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("PointsSpent").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "NodeCode").IsUnique();
+                    b.ToTable("CharacterSkillTalents", t => t.HasCheckConstraint("CK_CharacterSkillTalents_PointsSpent", "PointsSpent > 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.BattleSkillCooldown", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("SkillCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("ReadyAtRound").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "CharacterId", "SkillCode").IsUnique();
+                    b.ToTable("BattleSkillCooldowns");
                 });
 
             modelBuilder.Entity("Game.Shared.Models.Dungeon", b =>
@@ -223,6 +264,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("PendingConsumableSlotIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PendingSkillSlotMask")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoomId")

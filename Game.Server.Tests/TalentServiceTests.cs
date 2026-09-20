@@ -62,7 +62,7 @@ public class TalentServiceTests
     {
         await using var test = await TalentTestContext.CreateAsync(points: 1);
         await using var otherDb = test.CreateDbContext();
-        var otherService = new TalentService(otherDb, new UserService(otherDb, ProgressionTestFactory.Create()));
+        var otherService = new TalentService(otherDb, new UserService(otherDb, ProgressionTestFactory.Create(), SkillTestFactory.Create()));
         await test.Service.GetAsync("token", 1);
         await otherService.GetAsync("token", 1);
 
@@ -88,7 +88,7 @@ public class TalentServiceTests
             _options = options;
             Db = db;
             Character = character;
-            Service = new TalentService(db, new UserService(db, ProgressionTestFactory.Create()));
+            Service = new TalentService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()));
         }
 
         public GameDbContext Db { get; }

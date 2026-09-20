@@ -1,0 +1,22 @@
+.skill-board { padding: 1.3rem; border: 1px solid #40576b; border-radius: .9rem; background: #1a2a3b; color: #e2ebf2; }
+.skill-board__header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.skill-board__header h2 { margin: .15rem 0; font: 700 1.35rem Georgia, serif; }
+.skill-board__header > span, .skill-board__intro { color: #adbfcb; font-size: .8rem; }
+.skill-board__eyebrow { color: #edbd74; font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
+.skill-board__intro { margin: .7rem 0 1rem; }
+.skill-board__learned { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.skill-board__learned-item { display: grid; gap: .1rem; min-width: 11rem; padding: .5rem .7rem; border: 1px solid #3c5669; border-radius: .55rem; background: #122436; }
+.skill-board__learned-item strong { font-size: .82rem; }
+.skill-board__learned-item span { color: #9db3c1; font-size: .7rem; }
+.skill-board__slots { display: grid; gap: .45rem; }
+.skill-board__slot { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; padding: .6rem .7rem; border: 1px solid #3d5365; border-radius: .55rem; background: #132334; }
+.skill-board__index { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .4rem; background: #374a5b; color: #f0ce92; font-weight: 800; }
+.skill-board__selector { display: grid; gap: .2rem; flex: 1 1 13rem; font-size: .7rem; color: #adbfcb; }
+.skill-board__selector select, .skill-board__threshold input { min-height: 2rem; border: 1px solid #526779; border-radius: .4rem; padding: .35rem .5rem; background: #0c1b2b; color: #e2ebf2; }
+.skill-board__auto { align-self: center; display: flex; align-items: center; gap: .3rem; font-size: .76rem; white-space: nowrap; }
+.skill-board__threshold { align-self: center; display: flex; align-items: center; gap: .3rem; font-size: .72rem; white-space: nowrap; }
+.skill-board__threshold input { width: 4rem; }
+.skill-board__reorder { display: flex; gap: .25rem; align-self: center; }
+.skill-board__reorder button { width: 2rem; height: 2rem; border: 1px solid #526779; border-radius: .4rem; background: #22394c; color: #f1d29a; }
+.skill-board__reorder button:disabled { opacity: .4; }
+.skill-board__error { color: #efa2a9; margin: .7rem 0 0; font-size: .8rem; }

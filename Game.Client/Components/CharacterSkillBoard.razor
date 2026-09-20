@@ -1,0 +1,130 @@
+@using Game.Client.Services
+@using Game.Shared
+@using Game.Shared.Dtos.Characters
+@inject ApiService ApiService
+
+<section class="skill-board" aria-labelledby="skill-board-title">
+    <header class="skill-board__header">
+        <div><span class="skill-board__eyebrow">CLASS SKILLS</span><h2 id="skill-board-title">职业技能</h2></div>
+        @if (_skills is not null) { <span>@_skills.ProfessionName · 最多 @SkillRules.SlotCount 个技能</span> }
+    </header>
+
+    @if (_isLoading)
+    {
+        <p>技能加载中...</p>
+    }
+    else if (_skills is null)
+    {
+        <p role="alert">@(_error ?? "暂时无法读取技能。")</p>
+        <button type="button" @onclick="LoadAsync">重试</button>
+    }
+    else
+    {
+        <p class="skill-board__intro">技能栏顺序决定自动施放顺序。同一回合内，满足条件的技能可以连续触发；手动选中的技能会先结算。</p>
+        <div class="skill-board__learned">
+            @foreach (var skill in _skills.LearnedSkills)
+            {
+                <div class="skill-board__learned-item"><strong>@skill.Name</strong><span>@skill.Description · 冷却 @skill.CooldownRounds 回合</span></div>
+            }
+        </div>
+        <div class="skill-board__slots">
+            @foreach (var slot in _skills.Slots.OrderBy(slot => slot.SlotIndex))
+            {
+                var activeSkill = _skills.LearnedSkills.FirstOrDefault(skill => skill.Code == slot.SkillCode);
+                <div class="skill-board__slot" @key="slot.SlotIndex">
+                    <span class="skill-board__index">@slot.SlotIndex</span>
+                    <label class="skill-board__selector">
+                        <span>装备技能</span>
+                        <select value="@slot.SkillCode" disabled="@_isSaving" @onchange="e => SaveSlotAsync(slot, e.Value?.ToString(), slot.AutoUseEnabled, slot.AutoHpThresholdPercent)">
+                            <option value="">空槽位</option>
+                            @foreach (var skill in _skills.LearnedSkills)
+                            {
+                                <option value="@skill.Code">@skill.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="skill-board__auto"><input type="checkbox" checked="@slot.AutoUseEnabled" disabled="@(_isSaving || activeSkill is null)" @onchange="e => SaveSlotAsync(slot, slot.SkillCode, (bool)e.Value!, slot.AutoHpThresholdPercent)" /> 自动使用</label>
+                    @if (activeSkill?.EffectType is "Heal" or "Guard")
+                    {
+                        <label class="skill-board__threshold"><span>目标 HP ≤</span><input type="number" min="1" max="100" value="@slot.AutoHpThresholdPercent" disabled="@_isSaving" @onchange="e => ChangeThresholdAsync(slot, e.Value?.ToString())" /><span>%</span></label>
+                    }
+                    <div class="skill-board__reorder">
+                        <button type="button" title="优先级上移" aria-label="@slot.SlotIndex 号位上移" disabled="@(_isSaving || slot.SlotIndex == 1)" @onclick="() => MoveAsync(slot.SlotIndex, slot.SlotIndex - 1)">↑</button>
+                        <button type="button" title="优先级下移" aria-label="@slot.SlotIndex 号位下移" disabled="@(_isSaving || slot.SlotIndex == SkillRules.SlotCount)" @onclick="() => MoveAsync(slot.SlotIndex, slot.SlotIndex + 1)">↓</button>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (_error is not null) { <p class="skill-board__error" role="alert">@GetError(_error)</p> }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public int CharacterId { get; set; }
+    private CharacterSkillsResponse? _skills;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            var (response, error) = await ApiService.GetCharacterSkillsAsync(CharacterId);
+            _skills = response;
+            _error = error;
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isLoading = false; }
+    }
+
+    private async Task SaveSlotAsync(EquippedSkillResponse slot, string? code, bool auto, int threshold)
+    {
+        if (_isSaving) return;
+        _isSaving = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await ApiService.SetSkillSlotAsync(CharacterId, slot.SlotIndex,
+                new SetSkillSlotRequest { SkillCode = string.IsNullOrWhiteSpace(code) ? null : code, AutoUseEnabled = auto, AutoHpThresholdPercent = threshold });
+            if (response is not null) _skills = response;
+            else _error = error;
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
+    }
+
+    private Task ChangeThresholdAsync(EquippedSkillResponse slot, string? raw)
+    {
+        if (!int.TryParse(raw, out var threshold)) threshold = slot.AutoHpThresholdPercent;
+        return SaveSlotAsync(slot, slot.SkillCode, slot.AutoUseEnabled, threshold);
+    }
+
+    private async Task MoveAsync(int from, int to)
+    {
+        if (_isSaving) return;
+        _isSaving = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await ApiService.SwapSkillSlotsAsync(CharacterId, from, to);
+            if (response is not null) _skills = response;
+            else _error = error;
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
+    }
+
+    private static string GetError(string error) => error.Trim().Trim('"') switch
+    {
+        "LoadoutLocked" => "战斗进行时不能调整技能栏。",
+        "SkillAlreadyEquipped" => "该技能已装备在其他槽位，可用箭头调整顺序。",
+        "SkillNotLearned" => "该角色尚未学会这个技能。",
+        "InvalidHpThreshold" => "自动使用阈值应为 1～100%。",
+        "ConcurrencyConflict" => "技能栏状态已变化，请重试。",
+        _ => error
+    };
+}
