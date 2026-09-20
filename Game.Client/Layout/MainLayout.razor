@@ -1,9 +1,10 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
+@inject NavigationManager Navigation
 @inherits LayoutComponentBase
 
-<div class="page">
+<div class="page @(IsBattlePage ? "page--battle" : null)">
     <div class="sidebar">
         <NavMenu />
     </div>
@@ -14,7 +15,7 @@
             <span class="top-row__status">● 系统在线</span>
         </div>
 
-        @if (!_isLoadingUser && _currentUser is not null)
+        @if (!_isLoadingUser && _currentUser is not null && !IsBattlePage)
         {
             <section class="character-bar">
                 <div class="character-bar__cards">
@@ -32,6 +33,7 @@
 @code {
     private CurrentUserResponse? _currentUser;
     private bool _isLoadingUser = true;
+    private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {

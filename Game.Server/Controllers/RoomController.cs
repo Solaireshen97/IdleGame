@@ -30,7 +30,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false);
+        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false, request?.IsPreparationTimeoutEnabled ?? true);
         if (roomDetail is null || error is not null)
         {
             return error switch
@@ -44,13 +44,6 @@ public class RoomController(RoomService roomService, BattleService battleService
         }
 
         return Ok(roomDetail);
-    }
-
-    [HttpPost("{roomId:int}/preparation-timeout")]
-    public async Task<IActionResult> SetPreparationTimeout(int roomId, [FromBody] SetPreparationTimeoutRequest request)
-    {
-        var (detail, error) = await roomService.SetPreparationTimeoutAsync(roomId, request, GetBearerToken());
-        return detail is null ? RoomOperationError(error) : Ok(detail);
     }
 
     [HttpPost("{roomId:int}/join")]

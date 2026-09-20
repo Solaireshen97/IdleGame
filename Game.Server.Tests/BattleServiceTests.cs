@@ -1,5 +1,6 @@
 using Game.Server.Data;
 using Game.Server.Services;
+using Game.Shared;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -189,6 +190,25 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_PreparationTimeoutDisabled_MixedTeamKeepsWaiting()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Room.IsPreparationTimeoutEnabled = false;
+        await test.AddOtherMemberAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Preparing, result!.RoomStatus);
+        Assert.Empty(result.Logs);
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsTemporaryAuto));
+    }
+
+    [Fact]
     public async Task SyncAsync_AllMembersAuto_StartsRoundAndUsesThirtySecondCooldown()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
@@ -220,8 +240,85 @@ public class BattleServiceTests
         var (result, error) = await test.Service.SyncAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(RoomStatus.NotStarted, result!.RoomStatus);
         Assert.Equal(35, result.MonsterHp);
+    }
+
+    [Fact]
+    public async Task SetSlotAutoAsync_DisablingDuringAutoCooldownOpensManualControlsWithoutAnotherRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
+        slot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.SyncAsync(1, test.Token);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(9);
+        test.Room.RoundCooldownDurationSeconds = null; // Rooms already cooling down before the migration.
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SetSlotAutoAsync(1, new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = false }, test.Token);
+        var (synced, syncError) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Null(syncError);
+        Assert.Equal(RoomStatus.NotStarted, result!.RoomStatus);
+        Assert.Equal(RoomStatus.NotStarted, synced!.RoomStatus);
+        Assert.Equal(35, test.Monster.Hp);
+        Assert.Equal(93, test.Character.Hp);
+        Assert.False(slot.IsAutoEnabled);
+        Assert.InRange((test.Room.PreparationStartedAtUtc!.Value - DateTime.UtcNow).TotalSeconds, -5, 0);
+    }
+
+    [Fact]
+    public async Task SetSlotAutoAsync_DisablingEarlyChangesAutoCooldownToTenSeconds()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
+        slot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.SyncAsync(1, test.Token);
+
+        var (result, error) = await test.Service.SetSlotAutoAsync(1, new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = false }, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(BattleRules.RoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.InRange((result.NextRoundAvailableAtUtc!.Value - result.ServerTimeUtc).TotalSeconds, 9, 11);
+        Assert.Equal(35, test.Monster.Hp);
+    }
+
+    [Fact]
+    public async Task SyncAsync_UnpreparedRoomTimesOutAndRunsOneRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+        var (again, nextError) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Null(nextError);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(RoomStatus.Cooldown, again!.RoomStatus);
+        Assert.Equal(35, test.Monster.Hp);
+        Assert.Equal(93, test.Character.Hp);
+        Assert.False((await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1)).IsAutoEnabled);
+    }
+
+    [Fact]
+    public async Task SyncAsync_UnpreparedRoomWithTimeoutDisabledWaitsForManualAction()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Room.IsPreparationTimeoutEnabled = false;
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.NotStarted, result!.RoomStatus);
+        Assert.Equal(50, test.Monster.Hp);
     }
 
     [Fact]

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 220" role="img" aria-label="骑士">
+  <defs>
+    <linearGradient id="cloak" x2="1" y2="1"><stop stop-color="#47637d"/><stop offset="1" stop-color="#18283f"/></linearGradient>
+    <linearGradient id="steel" x2="1" y2="1"><stop stop-color="#f4e7c8"/><stop offset=".45" stop-color="#9db2bd"/><stop offset="1" stop-color="#50677a"/></linearGradient>
+    <linearGradient id="shield" x2="1" y2="1"><stop stop-color="#f4cf79"/><stop offset="1" stop-color="#8e6237"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="7"/></filter>
+  </defs>
+  <ellipse cx="90" cy="206" rx="67" ry="10" fill="#050b12" opacity=".4"/>
+  <path d="M38 205 24 144q-4-26 25-40l30-15h27l30 15q29 14 25 40l-14 61Z" fill="url(#cloak)" stroke="#7894a6" stroke-width="3"/>
+  <path d="m37 124 24-16 19 28-11 56-35 8ZM143 124l-24-16-19 28 11 56 35 8Z" fill="url(#steel)" stroke="#253a51" stroke-width="4"/>
+  <path d="M76 107h28l15 84H61Z" fill="#263e56" stroke="#d2ac60" stroke-width="3"/>
+  <path d="M90 129v45M73 150h34" stroke="#d2ac60" stroke-width="5" stroke-linecap="round"/>
+  <path d="M54 72q1-42 36-51 35 9 36 51l-7 36-29 22-29-22Z" fill="url(#steel)" stroke="#334d64" stroke-width="5"/>
+  <path d="M71 85h38l9 9-28 16-28-16Z" fill="#162838"/>
+  <path d="M77 90h27" stroke="#dbb869" stroke-width="4" stroke-linecap="round"/>
+  <path d="M90 21V9q33 17 20 43l-20 10Z" fill="#b6534e" stroke="#f3a672" stroke-width="3"/>
+  <path d="M90 20v70" stroke="#e8d8b2" stroke-width="6"/>
+  <circle cx="92" cy="49" r="7" fill="#f8d991" filter="url(#glow)" opacity=".7"/>
+  <path d="M31 141q14-4 29 5v49q-15 18-29 6Z" fill="url(#shield)" stroke="#f4d38e" stroke-width="4"/>
+  <path d="m45 156 8 11-8 20-8-20Z" fill="#fff0c2"/>
+</svg>

@@ -36,6 +36,11 @@ main {
     }
 
 @media (max-width: 640.98px) {
+    .page--battle .sidebar,
+    .page--battle .top-row {
+        display: none;
+    }
+
     .top-row {
         justify-content: space-between;
     }

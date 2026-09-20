@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-label="怪物">
+  <defs><radialGradient id="orb"><stop stop-color="#f5a69d"/><stop offset=".55" stop-color="#9e566c"/><stop offset="1" stop-color="#3c314f"/></radialGradient></defs>
+  <ellipse cx="160" cy="267" rx="91" ry="13" fill="#07131b" opacity=".55"/>
+  <path d="M62 217q-19-78 35-125t126 0q54 47 35 125-18 43-98 43t-98-43Z" fill="url(#orb)" stroke="#d6a0a4" stroke-width="6"/>
+  <path d="M104 102 81 45l69 42M216 102l23-57-69 42" fill="#50405b" stroke="#d6a0a4" stroke-width="5"/>
+  <path d="m101 158 45 15-22 17-29-10M219 158l-45 15 22 17 29-10" fill="#2e263a"/>
+  <path d="m111 169 20 7m78-7-20 7" stroke="#ffe0a0" stroke-width="8" stroke-linecap="round"/>
+  <path d="M135 218q25 14 50 0" fill="none" stroke="#3a273b" stroke-width="7" stroke-linecap="round"/>
+</svg>

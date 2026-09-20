@@ -11,9 +11,10 @@ public class Room
     public int SlotCount { get; set; }
     public RoomStatus Status { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
+    public int? RoundCooldownDurationSeconds { get; set; }
     public DateTime? PreparationStartedAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
-    public bool IsSelfTeamPreparationTimeoutEnabled { get; set; } = true;
+    public bool IsPreparationTimeoutEnabled { get; set; } = true;
     public bool IsRepeatBattle { get; set; }
     public int Version { get; set; }
 }

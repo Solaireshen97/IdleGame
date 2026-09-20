@@ -39,31 +39,41 @@ public class RoomServiceTests
     }
 
     [Fact]
-    public async Task SetPreparationTimeoutAsync_SelfTeamCanDisableTimeout()
+    public async Task CreateRoomAsync_StoresPreparationTimeoutChoice()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
-
-        var (detail, error) = await test.Service.SetPreparationTimeoutAsync(room!.RoomId, new SetPreparationTimeoutRequest { IsEnabled = false }, test.Token);
+        var (detail, error) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPreparationTimeoutEnabled: false);
 
         Assert.Null(error);
         Assert.False(detail!.IsMixedTeam);
         Assert.False(detail.IsPreparationTimeoutEnabled);
-        Assert.True(detail.CanConfigurePreparationTimeout);
+        Assert.Null(detail.PreparationExpiresAtUtc);
+        Assert.False((await test.Db.Rooms.FindAsync(detail.RoomId))!.IsPreparationTimeoutEnabled);
     }
 
     [Fact]
-    public async Task SetPreparationTimeoutAsync_MixedTeamCannotDisableTimeout()
+    public async Task CreateRoomAsync_WithPreparationTimeoutStartsThirtySecondIdleCountdown()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+
+        var (detail, error) = await test.Service.CreateRoomAsync("Slime", test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.NotStarted, detail!.RoomStatus);
+        Assert.InRange((detail.PreparationExpiresAtUtc!.Value - detail.ServerTimeUtc).TotalSeconds, 29, 31);
+    }
+
+    [Fact]
+    public async Task CreateRoomAsync_MixedTeamRespectsPreparationTimeoutChoice()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPreparationTimeoutEnabled: false);
         await test.AddOtherActiveCharacterAsync();
-        await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        var (detail, error) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
 
-        var (detail, error) = await test.Service.SetPreparationTimeoutAsync(room.RoomId, new SetPreparationTimeoutRequest { IsEnabled = false }, test.Token);
-
-        Assert.Null(detail);
-        Assert.Equal("MixedTeamTimeoutRequired", error);
+        Assert.Null(error);
+        Assert.True(detail!.IsMixedTeam);
+        Assert.False(detail.IsPreparationTimeoutEnabled);
     }
 
     [Fact]

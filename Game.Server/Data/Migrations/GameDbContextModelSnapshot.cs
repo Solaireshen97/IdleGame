@@ -105,7 +105,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<bool>("IsRepeatBattle")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsSelfTeamPreparationTimeoutEnabled")
+                    b.Property<bool>("IsPreparationTimeoutEnabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("MonsterId")
@@ -116,6 +116,9 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<DateTime?>("NextRoundAvailableAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RoundCooldownDurationSeconds")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("PreparationStartedAtUtc")
                         .HasColumnType("TEXT");

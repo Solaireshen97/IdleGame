@@ -51,7 +51,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
     public Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token) =>
         CreateRoomAsync(null, monsterType, token);
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false, bool isPreparationTimeoutEnabled = true)
     {
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
@@ -63,7 +63,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null) return (null, "DungeonNotFound");
         var monster = new Monster { Name = dungeon.MonsterName, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense };
-        var room = new Room { DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount, Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle };
+        var room = new Room { DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount, Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationStartedAtUtc = isPreparationTimeoutEnabled ? DateTime.UtcNow : null };
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         dbContext.Monsters.Add(monster);
         await dbContext.SaveChangesAsync();
@@ -163,18 +163,6 @@ public class RoomService(GameDbContext dbContext, UserService userService)
         return (await BuildRoomDetailAsync(room, user!.Id), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> SetPreparationTimeoutAsync(int roomId, SetPreparationTimeoutRequest request, string? token)
-    {
-        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
-        if (error is not null) return (null, error);
-        var isMixedTeam = await dbContext.RoomSlots.AnyAsync(slot => slot.RoomId == room!.Id && slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
-        if (isMixedTeam && !request.IsEnabled) return (null, "MixedTeamTimeoutRequired");
-        room.IsSelfTeamPreparationTimeoutEnabled = request.IsEnabled;
-        room.Version++;
-        await dbContext.SaveChangesAsync();
-        return (await BuildRoomDetailAsync(room, user!.Id), null);
-    }
-
     public async Task<(RoomDetailResponse? Detail, string? Error)> SetMainControlAsync(int roomId, SetMainControlRequest request, string? token)
     {
         var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
@@ -229,17 +217,17 @@ public class RoomService(GameDbContext dbContext, UserService userService)
         var clearedDungeonUserIds = await dbContext.UserDungeonClears.Where(clear => clear.DungeonId == room.DungeonId).Select(clear => clear.UserId).ToListAsync();
         var isCurrentUserAutoUnlocked = currentUserId.HasValue && clearedDungeonUserIds.Contains(currentUserId.Value);
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
-        var isPreparationTimeoutEnabled = isMixedTeam || room.IsSelfTeamPreparationTimeoutEnabled;
+        var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
         var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot => IsSlotAuto(room, slot, clearedDungeonUserIds));
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
             MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
-            RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(30) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
+            RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
             IsRepeatBattle = room.IsRepeatBattle, NextBattleStartAtUtc = room.IsRepeatBattle && room.Status == RoomStatus.BattleOver && monster.Hp <= 0 ? room.BattleEndedAtUtc?.AddSeconds(BattleRules.RepeatBattleDelaySeconds) : null,
             ServerTimeUtc = now,
             CanExecuteRound = room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
-            IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, CanConfigurePreparationTimeout = currentUserId == room.OwnerUserId && !isMixedTeam, PreparationTimeoutSeconds = 30, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
+            IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationTimeoutSeconds = BattleRules.PreparationTimeoutSeconds, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
             CanPrepare = currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && (room.Status == RoomStatus.Preparing || !room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
             CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId && room.Status is not (RoomStatus.Preparing or RoomStatus.Cooldown) && slots.Any(x => x.UserId == currentUserId),
             Slots = slots.Select(slot =>
@@ -258,7 +246,7 @@ public class RoomService(GameDbContext dbContext, UserService userService)
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
     {
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle };
+        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle, IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled };
     }
 
 }

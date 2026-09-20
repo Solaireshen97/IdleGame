@@ -14,6 +14,7 @@ public class RoomDetailResponse
     public int MonsterMaxHp { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
+    public int? RoundCooldownDurationSeconds { get; set; }
     public DateTime? PreparationStartedAtUtc { get; set; }
     public DateTime? PreparationExpiresAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
@@ -23,7 +24,6 @@ public class RoomDetailResponse
     public bool CanExecuteRound { get; set; }
     public bool IsMixedTeam { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; }
-    public bool CanConfigurePreparationTimeout { get; set; }
     public int PreparationTimeoutSeconds { get; set; }
     public bool IsCurrentUserAutoUnlocked { get; set; }
     public bool IsAllAliveMembersAuto { get; set; }

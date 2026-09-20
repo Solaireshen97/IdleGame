@@ -75,10 +75,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId, bool isRepeatBattle)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId, bool isRepeatBattle, bool isPreparationTimeoutEnabled)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
-        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId, IsRepeatBattle = isRepeatBattle });
+        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId, IsRepeatBattle = isRepeatBattle, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -91,13 +91,6 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         }
 
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
-    }
-
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetPreparationTimeoutAsync(int roomId, bool isEnabled)
-    {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/preparation-timeout", requiresAuth: true);
-        request.Content = JsonContent.Create(new SetPreparationTimeoutRequest { IsEnabled = isEnabled });
-        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "配置准备超时失败。");
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)

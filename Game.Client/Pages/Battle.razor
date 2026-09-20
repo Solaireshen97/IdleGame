@@ -3,13 +3,14 @@
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Auth
 @using Game.Shared.Dtos.Characters
+@using Game.Shared
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 @implements IDisposable
 
 <PageTitle>房间</PageTitle>
 
-<div class="battle-page">
+<div class="battle-page" @onkeydown="HandleBattleLogKeyDown">
     <header class="battle-page__header">
         <button class="back-link" @onclick="GoToRooms">← 返回大厅</button>
         <span class="battle-page__room">ROOM · @RoomId</span>
@@ -21,42 +22,129 @@
 }
 else
 {
-    <section class="battle-stage">
-        <div class="enemy-panel">
-            <span class="section-kicker">DUNGEON ENCOUNTER</span>
-            <p class="enemy-panel__dungeon">@_roomDetail.DungeonName</p>
-            <h1>@_roomDetail.MonsterName</h1>
-            <div class="battle-hp"><span>ENEMY HP</span><strong>@_roomDetail.MonsterHp <small>/ @_roomDetail.MonsterMaxHp</small></strong></div>
-            <progress class="health-bar health-bar--enemy" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp"></progress>
-            <div class="battle-state"><span class="status-badge">@GetStatusText()</span><span>@(_roomDetail.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span>@(_roomDetail.IsMixedTeam ? "混合队伍 · 30 秒超时" : _roomDetail.IsPreparationTimeoutEnabled ? "队伍准备超时已启用" : "队伍准备超时已关闭")</span></div>
+    <section class="battle-stage" aria-label="战斗场景">
+        <div class="battle-stage__header">
+            <div>
+                <span class="section-kicker">DUNGEON ENCOUNTER</span>
+                <h1>@_roomDetail.DungeonName</h1>
+            </div>
+            <div class="battle-stage__meta">
+                <span class="battle-mode">@(_roomDetail.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span>
+                <span class="battle-status">@GetStatusText()</span>
+            </div>
         </div>
-        <section class="battle-controls">
-            <div class="battle-controls__heading"><span class="section-kicker">COMMAND CENTER</span><h2>行动控制</h2></div>
-            @if (GetRemainingCooldownSeconds() > 0)
-            {
-                <p class="combat-tip">下一回合将在 <strong>@GetRemainingCooldownSeconds()</strong> 秒后可准备</p>
-            }
-            @if (_roomDetail.NextBattleStartAtUtc is not null)
-            {
-                <p class="combat-tip">下一场副本将在 <strong>@GetRemainingRepeatSeconds()</strong> 秒后重开；角色生命值将恢复至满。</p>
-            }
-            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
-            {
-                <p class="combat-tip">@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备阶段剩余 {GetRemainingPreparationSeconds()} 秒" : "纯自建队已关闭准备超时")</p>
-            }
-            @if (_roomDetail.CanConfigurePreparationTimeout)
-            {
-                <label class="toggle-option"><input type="checkbox" checked="@_roomDetail.IsPreparationTimeoutEnabled" @onchange="e => SetPreparationTimeoutAsync((bool)e.Value!)" disabled="@_isBusy" /> 启用准备超时</label>
-            }
-            @if (_roomDetail.IsAllAliveMembersAuto)
-            {
-                <p class="combat-tip combat-tip--active">自动战斗中</p>
-            }
-            else if (_roomDetail.CanPrepare)
-            {
-                <button class="button button--primary" @onclick="StartPreparationAsync" disabled="@_isBusy">准备并结算</button>
-            }
-            else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) { <p class="combat-tip">已准备，等待其他玩家。</p> }
+
+        <button type="button" class="battle-feed" @onclick="OpenBattleLog" @ref="_logTrigger" aria-haspopup="dialog">
+            <span class="battle-feed__live">● LIVE LOG</span>
+            <span class="battle-feed__latest">@GetLatestLog()</span>
+            <span class="battle-feed__open">详细战报 <span aria-hidden="true">↗</span></span>
+        </button>
+
+        <div class="battle-field">
+            <div class="battle-field__party">
+                <div class="battle-field__label"><span>YOUR PARTY</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount</strong></div>
+                <div class="fighter-line">
+                    @foreach (var slot in _roomDetail.Slots.OrderBy(slot => slot.SlotIndex))
+                    {
+                        <div class="fighter @(slot.IsOccupied ? "fighter--occupied" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")" title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")">
+                            <div class="fighter__portrait">
+                                @if (slot.IsOccupied)
+                                {
+                                    <img src="/art/knight.svg" alt="" />
+                                }
+                                else
+                                {
+                                    <span aria-hidden="true">＋</span>
+                                }
+                                <span class="fighter__number">@slot.SlotIndex</span>
+                            </div>
+                            <strong>@(slot.IsOccupied ? slot.CharacterName : "空位")</strong>
+                            @if (slot.IsOccupied)
+                            {
+                                <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
+                                <small>@slot.CharacterHp / @slot.CharacterMaxHp</small>
+                            }
+                            else
+                            {
+                                <small>待命</small>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <span class="battle-field__versus" aria-hidden="true">VS</span>
+
+            <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "")">
+                <div class="battle-field__enemy-art"><img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" /></div>
+                <div class="enemy-vitals">
+                    <span>ENEMY / @_roomDetail.MonsterName.ToUpperInvariant()</span>
+                    <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
+                    <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
+                </div>
+            </div>
+        </div>
+        <div class="battle-stage__footer"><span>行动顺序：槽位 1 → @_roomDetail.SlotCount</span><span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备超时 {BattleRules.PreparationTimeoutSeconds} 秒 · 本回合临时 Auto" : "无准备超时")</span></div>
+    </section>
+
+    @if (_isLogOpen)
+    {
+        <div class="battle-log-overlay" @onclick="CloseBattleLog">
+            <section class="battle-log-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-log-title" @onclick:stopPropagation>
+                <header class="battle-log-dialog__header">
+                    <div><span class="section-kicker">BATTLE REPORT</span><h2 id="battle-log-title">战斗记录</h2><p>本次页面内的最近 @_logs.Count 条记录</p></div>
+                    <button type="button" class="battle-log-dialog__close" @onclick="CloseBattleLog" @ref="_logCloseButton" aria-label="关闭战报">×</button>
+                </header>
+                <div class="battle-log-dialog__content">
+                    @if (_logs.Count == 0)
+                    {
+                        <p>战场尚无记录。准备战斗后，行动过程会显示在这里。</p>
+                    }
+                    else
+                    {
+                        <ol>
+                            @foreach (var log in _logs.AsEnumerable().Reverse())
+                            {
+                                <li>@log</li>
+                            }
+                        </ol>
+                    }
+                </div>
+            </section>
+        </div>
+    }
+
+    var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
+    <section class="battle-controls" aria-label="行动控制">
+        <div class="battle-controls__main">
+            <div class="battle-controls__heading"><span class="section-kicker">COMMAND PHASE</span><h2>行动指令</h2><p>@GetActionHint()</p></div>
+            <div class="battle-controls__action">
+                @if (_roomDetail.IsAllAliveMembersAuto && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver)
+                {
+                    <span class="auto-indicator"><span aria-hidden="true">✦</span> 自动战斗中</span>
+                }
+                else if (_roomDetail.CanPrepare)
+                {
+                    <button class="button button--primary battle-controls__primary" @onclick="StartPreparationAsync" disabled="@_isBusy">准备并结算 <span aria-hidden="true">→</span></button>
+                }
+                else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
+                {
+                    <span class="battle-controls__waiting">已准备 · 等待队友</span>
+                }
+                else
+                {
+                    <span class="battle-controls__waiting">@GetStatusText()</span>
+                }
+                @if (autoSlot is not null)
+                {
+                    <label class="battle-auto @(autoSlot.CanConfigureAuto ? "" : "battle-auto--locked")" title="@(autoSlot.IsAutoUnlockedForCurrentUser ? "自动准备开关" : "首次通关此副本后解锁 Auto")">
+                        <span><input type="checkbox" checked="@autoSlot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(autoSlot.SlotIndex, (bool)e.Value!)" disabled="@(_isBusy || !autoSlot.CanConfigureAuto)" /> Auto 自动准备</span>
+                        @if (!autoSlot.IsAutoUnlockedForCurrentUser) { <small>通关后解锁</small> }
+                    </label>
+                }
+            </div>
+        </div>
+        <div class="battle-controls__tools">
             @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
             {
                 <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
@@ -70,10 +158,23 @@ else
             {
                 <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">解散房间</button>
             }
-        </section>
+        </div>
+        @{
+            var countdown = GetActiveCountdown();
+        }
+        @if (countdown is not null)
+        {
+            var remainingSeconds = GetRemainingSeconds(countdown.DeadlineUtc);
+            var progress = GetCountdownProgress(countdown);
+            <div class="battle-countdown battle-countdown--@countdown.Kind">
+                <div class="battle-countdown__heading"><span>@countdown.Label</span><strong>@FormatCountdown(remainingSeconds)</strong></div>
+                <div class="battle-countdown__track" role="progressbar" aria-label="@countdown.Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@progress"><span class="battle-countdown__fill" style="width: @(progress)%"></span></div>
+            </div>
+        }
     </section>
-    <section class="formation-panel">
-        <div class="formation-panel__heading"><div><span class="section-kicker">FORMATION</span><h2>队伍阵列</h2></div><span>行动顺序 1 → 5</span></div>
+
+    <details class="formation-panel">
+        <summary class="formation-panel__heading"><span><span class="section-kicker">FORMATION</span><strong>队伍编成与槽位管理</strong></span><span>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人 · 展开管理 <span aria-hidden="true">⌄</span></span></summary>
         <div class="slot-grid">
             @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
             {
@@ -85,14 +186,6 @@ else
                         <div class="party-slot__hp"><span>HP @slot.CharacterHp / @slot.CharacterMaxHp</span><span>@(slot.IsAlive ? "存活" : "已阵亡")</span></div>
                         <progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp"></progress>
                         <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
-                        @if (slot.IsCurrentUserCharacter && !slot.IsAutoUnlockedForCurrentUser)
-                        {
-                            <span class="party-slot__hint">首次通关此副本后解锁 Auto</span>
-                        }
-                        @if (slot.CanConfigureAuto)
-                        {
-                            <label class="toggle-option"><input type="checkbox" checked="@slot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(slot.SlotIndex, (bool)e.Value!)" disabled="@_isBusy" /> Auto</label>
-                        }
                     }
                     else
                     {
@@ -124,9 +217,7 @@ else
                 </article>
             }
         </div>
-    </section>
-
-    <section class="combat-log"><div class="combat-log__heading"><span class="section-kicker">BATTLE REPORT</span><h2>战斗日志</h2></div>@if (_logs.Count == 0) { <p>战场尚无新的记录。</p> } else { <ul>@foreach (var log in _logs) { <li>@log</li> }</ul> }</section>
+    </details>
     @if (_message is not null) { <p class="notice-message">@_message</p> }
 }
 </div>
@@ -143,6 +234,12 @@ else
     private readonly Dictionary<int, int> _selectedCharacterIds = new();
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
+    private ElementReference _logTrigger;
+    private ElementReference _logCloseButton;
+    private bool _isLogOpen;
+    private bool _focusLogCloseButton;
+    private bool _focusLogTrigger;
+    private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
     private bool CanChangeFormation => _roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.BattleOver;
 
@@ -155,19 +252,42 @@ else
         _ = RefreshCooldownAsync(_refreshCancellation.Token);
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusLogCloseButton)
+        {
+            _focusLogCloseButton = false;
+            await _logCloseButton.FocusAsync();
+        }
+        else if (_focusLogTrigger)
+        {
+            _focusLogTrigger = false;
+            await _logTrigger.FocusAsync();
+        }
+    }
+
+    private void OpenBattleLog()
+    {
+        _isLogOpen = true;
+        _focusLogCloseButton = true;
+    }
+
+    private void CloseBattleLog()
+    {
+        _isLogOpen = false;
+        _focusLogTrigger = true;
+    }
+
+    private void HandleBattleLogKeyDown(KeyboardEventArgs args)
+    {
+        if (_isLogOpen && args.Key == "Escape") CloseBattleLog();
+    }
+
     private async Task AssignSlotAsync(int slotIndex)
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]);
         if (detail is null) _message = error ?? "上阵角色失败。"; else _roomDetail = detail;
-        _isBusy = false;
-    }
-
-    private async Task SetPreparationTimeoutAsync(bool isEnabled)
-    {
-        _isBusy = true;
-        var (detail, error) = await ApiService.SetPreparationTimeoutAsync(RoomId, isEnabled);
-        if (detail is null) _message = error ?? "配置准备超时失败。"; else _roomDetail = detail;
         _isBusy = false;
     }
 
@@ -189,10 +309,10 @@ else
 
     private async Task StartPreparationAsync()
     {
-        _isBusy = true; _message = null; _logs.Clear();
+        _isBusy = true; _message = null;
         var (result, error) = await ApiService.StartPreparationAsync(RoomId);
         if (result is null) _message = error ?? "开始回合失败。";
-        else { _logs.AddRange(result.Logs); _message = error; }
+        else { AppendBattleLogs(result.Logs); _message = error; }
         await RefreshRoomDetailAsync();
         _isBusy = false;
     }
@@ -221,24 +341,26 @@ else
         else
         {
             _roomDetail = response.Room;
-            if (response.RoundResult is not null) _logs.AddRange(response.RoundResult.Logs);
+            _serverTimeUtc = response.Room.ServerTimeUtc;
+            _serverTimeReceivedAtUtc = DateTime.UtcNow;
+            if (response.RoundResult is not null) AppendBattleLogs(response.RoundResult.Logs);
         }
         _isBusy = false;
     }
 
     private async Task ResetBattleAsync()
     {
-        _isBusy = true; _message = null; _logs.Clear();
+        _isBusy = true; _message = null;
         var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
-        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Add("战斗已重置。"); }
+        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Clear(); AppendBattleLogs(["战斗已重置。"]); }
         _isBusy = false;
     }
 
     private async Task HealAsync()
     {
-        _isBusy = true; _message = null; _logs.Clear();
+        _isBusy = true; _message = null;
         var (detail, error) = await ApiService.HealAsync(RoomId);
-        if (detail is null) _message = error ?? "恢复角色失败。"; else { _roomDetail = detail; _logs.Add("主控角色恢复了 10 HP。"); }
+        if (detail is null) _message = error ?? "恢复角色失败。"; else { _roomDetail = detail; AppendBattleLogs(["主控角色恢复了 10 HP。"]); }
         _isBusy = false;
     }
 
@@ -259,9 +381,51 @@ else
     }
 
     private void GoToRooms() => Navigation.NavigateTo("/rooms");
-    private int GetRemainingCooldownSeconds() => _roomDetail?.NextRoundAvailableAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
-    private int GetRemainingPreparationSeconds() => _roomDetail?.PreparationExpiresAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
-    private int GetRemainingRepeatSeconds() => _roomDetail?.NextBattleStartAtUtc is not DateTime next ? 0 : Math.Max(0, (int)Math.Ceiling((next - (_serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc))).TotalSeconds));
+    private DateTime GetEstimatedServerTimeUtc() => _serverTimeUtc + (DateTime.UtcNow - _serverTimeReceivedAtUtc);
+    private int GetRemainingSeconds(DateTime deadlineUtc) => Math.Max(0, (int)Math.Ceiling((deadlineUtc - GetEstimatedServerTimeUtc()).TotalSeconds));
+    private BattleCountdown? GetActiveCountdown()
+    {
+        if (_roomDetail?.NextBattleStartAtUtc is DateTime nextBattle)
+            return new("副本重开", nextBattle, BattleRules.RepeatBattleDelaySeconds, "repeat");
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown && _roomDetail.NextRoundAvailableAtUtc is DateTime nextRound)
+        {
+            var duration = _roomDetail.RoundCooldownDurationSeconds ??
+                (_roomDetail.IsAllAliveMembersAuto || GetRemainingSeconds(nextRound) > BattleRules.RoundCooldownSeconds
+                    ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds);
+            return new("下一回合", nextRound, duration, "round");
+        }
+        if ((_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.Preparing) &&
+            _roomDetail.PreparationExpiresAtUtc is DateTime preparationExpires && !_roomDetail.IsAllAliveMembersAuto)
+            return new("准备超时", preparationExpires, _roomDetail.PreparationTimeoutSeconds, "prepare");
+        return null;
+    }
+    private int GetCountdownProgress(BattleCountdown countdown) => (int)Math.Clamp(
+        Math.Round(100 * (1 - (countdown.DeadlineUtc - GetEstimatedServerTimeUtc()).TotalSeconds / Math.Max(1, countdown.DurationSeconds))), 0, 100);
+    private static string FormatCountdown(int remainingSeconds) => $"{remainingSeconds / 60:00}:{remainingSeconds % 60:00}";
+    private string GetLatestLog() => _logs.Count == 0 ? "战斗尚未开始，行动记录会在这里出现。" : _logs[^1];
+    private string GetMonsterArtPath() => _roomDetail?.MonsterName.ToLowerInvariant() switch
+    {
+        "slime" => "/art/slime.svg",
+        "goblin" => "/art/goblin.svg",
+        "wolf" => "/art/wolf.svg",
+        _ => "/art/monster.svg"
+    };
+    private string GetActionHint()
+    {
+        if (_roomDetail?.NextBattleStartAtUtc is not null) return "胜利！即将重开副本，全队恢复至满 HP。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return _roomDetail.MonsterHp <= 0 ? "副本挑战完成。" : "队伍战败，可重置后再次挑战。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) return "冷却中，结束后进入下一回合。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) return _roomDetail.IsPreparationTimeoutEnabled ? "等待全员准备，超时后自动开始。" : "等待全员准备，当前未启用超时。";
+        if (_roomDetail?.IsAllAliveMembersAuto == true) return "队伍已开启 Auto，回合将自动推进。";
+        return _roomDetail?.CanPrepare == true
+            ? _roomDetail.IsPreparationTimeoutEnabled ? "可手动准备；倒计时结束后本回合自动结算。" : "确认准备后推进本回合。"
+            : "在下方编成队伍，等待战斗开始。";
+    }
+    private void AppendBattleLogs(IEnumerable<string> logs)
+    {
+        _logs.AddRange(logs);
+        if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
+    }
     private string GetStatusText() => _roomDetail?.RoomStatus switch
     {
         Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
@@ -274,7 +438,25 @@ else
 
     private async Task RefreshCooldownAsync(CancellationToken cancellationToken)
     {
-        try { while (!cancellationToken.IsCancellationRequested) { await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken); if (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing || _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null) { var (result, _) = await ApiService.SyncBattleAsync(RoomId); if (result is not null) _logs.AddRange(result.Logs); await RefreshRoomDetailAsync(); } await InvokeAsync(StateHasChanged); } }
+        try
+        {
+            var ticks = 0;
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                ticks++;
+                if (ticks % 2 == 0 && !_isBusy && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing ||
+                    _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.IsPreparationTimeoutEnabled ||
+                    _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null)
+                )
+                {
+                    var (result, _) = await ApiService.SyncBattleAsync(RoomId);
+                    if (result is not null) AppendBattleLogs(result.Logs);
+                    await RefreshRoomDetailAsync();
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+        }
         catch (OperationCanceledException) { }
     }
 

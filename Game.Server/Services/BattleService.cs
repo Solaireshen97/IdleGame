@@ -9,9 +9,9 @@ namespace Game.Server.Services;
 
 public class BattleService(GameDbContext dbContext, UserService userService)
 {
-    private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan PreparationTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
+    private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
+    private static readonly TimeSpan PreparationTimeout = TimeSpan.FromSeconds(BattleRules.PreparationTimeoutSeconds);
 
     public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token)
     {
@@ -34,7 +34,8 @@ public class BattleService(GameDbContext dbContext, UserService userService)
         {
             room.Status = RoomStatus.Preparing;
             room.NextRoundAvailableAtUtc = null;
-            room.PreparationStartedAtUtc = now;
+            room.RoundCooldownDurationSeconds = null;
+            room.PreparationStartedAtUtc ??= now;
             room.BattleEndedAtUtc = null;
         }
         else if (aliveSlots.Where(x => x.Slot.UserId == user.Id).All(x => x.Slot.IsConfirmed))
@@ -74,15 +75,34 @@ public class BattleService(GameDbContext dbContext, UserService userService)
             ClearRoundState(room, slots);
             room.Status = RoomStatus.NotStarted;
             room.NextRoundAvailableAtUtc = null;
+            room.RoundCooldownDurationSeconds = null;
+            room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
             room.BattleEndedAtUtc = null;
             restartedBattle = true;
         }
 
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).ToList();
-        if (room.Status == RoomStatus.Preparing)
+        var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
+        var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedUserIds));
+        var stateChanged = restartedBattle;
+        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now && !allAliveMembersAuto)
         {
-            var isMixedTeam = slots.Any(slot => slot.Slot.UserId != room.OwnerUserId);
-            if ((isMixedTeam || room.IsSelfTeamPreparationTimeoutEnabled) && room.PreparationStartedAtUtc is not null && now >= room.PreparationStartedAtUtc.Value.Add(PreparationTimeout))
+            room.Status = RoomStatus.NotStarted;
+            room.NextRoundAvailableAtUtc = null;
+            room.RoundCooldownDurationSeconds = null;
+            room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
+            stateChanged = true;
+        }
+
+        if ((room.Status == RoomStatus.Preparing || room.Status == RoomStatus.NotStarted && !allAliveMembersAuto) &&
+            room.IsPreparationTimeoutEnabled && aliveSlots.Count > 0 && monster.Hp > 0)
+        {
+            if (room.PreparationStartedAtUtc is null)
+            {
+                room.PreparationStartedAtUtc = now;
+                stateChanged = true;
+            }
+            if (now >= room.PreparationStartedAtUtc.Value.Add(PreparationTimeout))
             {
                 var logs = new List<string>();
                 foreach (var entry in aliveSlots.Where(x => !x.Slot.IsConfirmed))
@@ -94,11 +114,18 @@ public class BattleService(GameDbContext dbContext, UserService userService)
                 logs.Add("Preparation timed out. The round starts automatically.");
                 return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
             }
-            return (BuildResult(room, slots, monster, now, []), null);
+        }
+        if (room.Status == RoomStatus.Preparing)
+        {
+            return stateChanged ? await SaveResultAsync(room, slots, monster, now, []) : (BuildResult(room, slots, monster, now, []), null);
+        }
+        if (room.Status == RoomStatus.NotStarted && !allAliveMembersAuto)
+        {
+            return stateChanged
+                ? await SaveResultAsync(room, slots, monster, now, restartedBattle ? ["The next dungeon battle is ready. The party is at full HP."] : [])
+                : (BuildResult(room, slots, monster, now, []), null);
         }
 
-        var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
-        var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedUserIds));
         var autoRoundCanStart = room.Status == RoomStatus.NotStarted ||
             (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now);
         if (autoRoundCanStart && aliveSlots.Count > 0 && monster.Hp > 0 && allAliveMembersAuto)
@@ -125,15 +152,36 @@ public class BattleService(GameDbContext dbContext, UserService userService)
         if (entry is null || entry.Slot.UserId != user!.Id || entry.Character.Hp <= 0 || (entry.Slot.UserId == room!.OwnerUserId && !entry.Slot.IsMainControl)) return (null, "AutoConfigurationDenied");
         if (request.IsAutoEnabled && !await dbContext.UserDungeonClears.AnyAsync(clear => clear.UserId == user.Id && clear.DungeonId == room!.DungeonId)) return (null, "AutoNotUnlocked");
 
+        var clearedUserIds = !request.IsAutoEnabled ? await GetClearedUserIdsAsync(room!.DungeonId) : [];
+        var wasAllAliveMembersAuto = !request.IsAutoEnabled && slots.Where(slot => slot.Character.Hp > 0)
+            .All(slot => IsSlotAuto(room!, slot, clearedUserIds));
         entry.Slot.IsAutoEnabled = request.IsAutoEnabled;
+        var now = DateTime.UtcNow;
+        if (!request.IsAutoEnabled && room!.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime deadline &&
+            (room.RoundCooldownDurationSeconds == BattleRules.AutoRoundCooldownSeconds ||
+                room.RoundCooldownDurationSeconds is null && wasAllAliveMembersAuto))
+        {
+            var manualDeadline = deadline - AutoRoundCooldown + RoundCooldown;
+            room.RoundCooldownDurationSeconds = BattleRules.RoundCooldownSeconds;
+            if (manualDeadline <= now)
+            {
+                room.Status = RoomStatus.NotStarted;
+                room.NextRoundAvailableAtUtc = null;
+                room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
+            }
+            else
+            {
+                room.NextRoundAvailableAtUtc = manualDeadline;
+            }
+        }
         if (room!.Status == RoomStatus.Preparing && request.IsAutoEnabled)
         {
             entry.Slot.IsConfirmed = true;
             if (slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed))
-                return await ExecutePreparedRoundAsync(room, slots, monster!, DateTime.UtcNow, []);
+                return await ExecutePreparedRoundAsync(room, slots, monster!, now, []);
         }
 
-        return await SaveResultAsync(room, slots, monster!, DateTime.UtcNow, []);
+        return await SaveResultAsync(room, slots, monster!, now, []);
     }
 
     public async Task<(BattleResult? Result, string? Error)> ExecuteRoundAsync(int roomId, string? token)
@@ -155,6 +203,8 @@ public class BattleService(GameDbContext dbContext, UserService userService)
         ClearRoundState(room!, slots!);
         room.Status = RoomStatus.NotStarted;
         room.NextRoundAvailableAtUtc = null;
+        room.RoundCooldownDurationSeconds = null;
+        room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? DateTime.UtcNow : null;
         room.BattleEndedAtUtc = null;
         room.Version++;
         return await SaveAsync();
@@ -202,7 +252,8 @@ public class BattleService(GameDbContext dbContext, UserService userService)
                 {
                     var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
                     room.Status = RoomStatus.Cooldown;
-                    room.NextRoundAvailableAtUtc = now.Add(aliveSlots.All(slot => IsSlotAuto(room, slot, clearedUserIds)) ? AutoRoundCooldown : RoundCooldown);
+                    room.RoundCooldownDurationSeconds = aliveSlots.All(slot => IsSlotAuto(room, slot, clearedUserIds)) ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds;
+                    room.NextRoundAvailableAtUtc = now.AddSeconds(room.RoundCooldownDurationSeconds.Value);
                     room.BattleEndedAtUtc = null;
                 }
             }
@@ -232,7 +283,7 @@ public class BattleService(GameDbContext dbContext, UserService userService)
         dbContext.UserDungeonClears.AddRange(ids.Except(existingIds).Select(userId => new UserDungeonClear { UserId = userId, DungeonId = dungeonId, ClearedAtUtc = clearedAtUtc }));
     }
     private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; } }
-    private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
+    private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
     private static BattleResult BuildResult(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs) => new() { RoomId = room.Id, CharacterHp = slots.OrderBy(x => x.Slot.SlotIndex).FirstOrDefault()?.Character.Hp ?? 0, CharacterMaxHp = slots.OrderBy(x => x.Slot.SlotIndex).FirstOrDefault()?.Character.MaxHp ?? 0, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc, ServerTimeUtc = now, CanExecuteRound = room.Status == RoomStatus.Preparing && slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed) && monster.Hp > 0, IsVictory = monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character.Hp > 0), Logs = logs };
 
     private async Task<(Room? Room, List<SlotCharacter>? Slots, Monster? Monster, User? User, string? Error)> GetBattleContextAsync(int roomId, string? token)
