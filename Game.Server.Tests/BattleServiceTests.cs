@@ -467,34 +467,96 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task ResetBattleAsync_RestoresMonsterAndClearsRoundState()
+    public async Task ResetBattleAsync_AfterVictory_RestoresMonsterPartyAndClearsRoundState()
     {
-        await using var test = await BattleTestContext.CreateAsync();
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
+        var second = await test.AddSlotAsync(2, "Mage", hp: 42);
         await test.Service.StartPreparationAsync(1, test.Token);
 
         var (success, error) = await test.Service.ResetBattleAsync(1, test.Token);
         Assert.True(success);
         Assert.Null(error);
         Assert.Equal(50, test.Monster.Hp);
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Equal(100, second.Hp);
         Assert.Equal(RoomStatus.NotStarted, test.Room.Status);
         Assert.Null(test.Room.NextRoundAvailableAtUtc);
         Assert.Null(test.Room.BattleEndedAtUtc);
     }
 
-    [Fact]
-    public async Task HealCharacterAsync_ClampsHpAndPreservesRoomState()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResetBattleAsync_AfterDefeat_RestoresPartyForRetry(bool isRepeatBattle)
     {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 95);
-        test.Room.Status = RoomStatus.Cooldown;
-        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(10);
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 5, characterAttack: 1, monsterAttack: 100);
+        test.Room.IsRepeatBattle = isRepeatBattle;
         await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+        Assert.Equal(0, test.Character.Hp);
 
-        var (success, error) = await test.Service.HealCharacterAsync(1, test.Token);
+        var (success, error) = await test.Service.ResetBattleAsync(1, test.Token);
         Assert.True(success);
         Assert.Null(error);
         Assert.Equal(100, test.Character.Hp);
-        Assert.Equal(RoomStatus.Cooldown, test.Room.Status);
-        Assert.NotNull(test.Room.NextRoundAvailableAtUtc);
+        Assert.Equal(50, test.Monster.Hp);
+        Assert.Equal(RoomStatus.NotStarted, test.Room.Status);
+    }
+
+    [Theory]
+    [InlineData(RoomStatus.NotStarted)]
+    [InlineData(RoomStatus.Preparing)]
+    [InlineData(RoomStatus.Cooldown)]
+    public async Task ResetBattleAsync_BeforeBattleOver_IsRejectedWithoutChanges(RoomStatus status)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 75);
+        test.Room.Status = status;
+        test.Monster.Hp = 30;
+        await test.Db.SaveChangesAsync();
+
+        var (success, error) = await test.Service.ResetBattleAsync(1, test.Token);
+
+        Assert.False(success);
+        Assert.Equal("BattleNotOver", error);
+        Assert.Equal(status, test.Room.Status);
+        Assert.Equal(30, test.Monster.Hp);
+        Assert.Equal(75, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task ResetBattleAsync_NonOwner_IsRejectedWithoutChanges()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 75, characterAttack: 100);
+        await test.AddOtherMemberAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        await test.Service.StartPreparationAsync(1, "other-token");
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+
+        var (success, error) = await test.Service.ResetBattleAsync(1, "other-token");
+
+        Assert.False(success);
+        Assert.Equal("NotOwner", error);
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+        Assert.Equal(0, test.Monster.Hp);
+        Assert.Equal(75, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task ResetBattleAsync_DuringRepeatVictoryCountdown_IsRejected()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 75, characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+
+        var (success, error) = await test.Service.ResetBattleAsync(1, test.Token);
+
+        Assert.False(success);
+        Assert.Equal("RepeatBattlePending", error);
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+        Assert.Equal(0, test.Monster.Hp);
+        Assert.Equal(75, test.Character.Hp);
     }
 
     [Fact]

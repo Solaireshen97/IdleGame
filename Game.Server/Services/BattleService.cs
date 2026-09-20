@@ -197,10 +197,14 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
 
     public async Task<(bool Success, string? Error)> ResetBattleAsync(int roomId, string? token)
     {
-        var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
+        var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (false, error);
+        if (room!.OwnerUserId != user!.Id) return (false, "NotOwner");
+        if (room.Status != RoomStatus.BattleOver) return (false, "BattleNotOver");
+        if (room.IsRepeatBattle && monster!.Hp <= 0) return (false, "RepeatBattlePending");
         monster!.Hp = monster.MaxHp;
-        ClearRoundState(room!, slots!);
+        foreach (var entry in slots!) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
+        ClearRoundState(room, slots);
         room.Status = RoomStatus.NotStarted;
         room.NextRoundAvailableAtUtc = null;
         room.RoundCooldownDurationSeconds = null;
@@ -208,17 +212,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         room.BattleEndedAtUtc = null;
         room.Version++;
         return await SaveAsync();
-    }
-
-    public async Task<(bool Success, string? Error)> HealCharacterAsync(int roomId, string? token, int amount = 10)
-    {
-        var (_, slots, _, user, error) = await GetBattleContextAsync(roomId, token);
-        if (error is not null) return (false, error);
-        var mainControl = slots!.FirstOrDefault(x => x.Slot.IsMainControl && x.Slot.UserId == user!.Id)?.Character;
-        if (mainControl is null) return (false, "NoCharacterInRoom");
-        mainControl.Hp = Math.Min(TalentRules.EffectiveMaxHp(mainControl), mainControl.Hp + amount);
-        await dbContext.SaveChangesAsync();
-        return (true, null);
     }
 
     private async Task<(BattleResult? Result, string? Error)> ExecutePreparedRoundAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)

@@ -96,58 +96,10 @@ public class BattleController(BattleService battleService, RoomService roomServi
                 "MonsterNotFound" => NotFound("Monster not found."),
                 "NotInRoom" => StatusCode(403, "NotInRoom"),
                 "NotOwner" => StatusCode(403, "NotOwner"),
+                "BattleNotOver" or "RepeatBattlePending" => Conflict(error),
                 "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
                 _ => BadRequest(error)
             };
-        }
-
-        var roomDetail = await roomService.GetRoomDetailAsync(request.RoomId, token);
-        if (roomDetail is null)
-        {
-            return NotFound();
-        }
-
-        return Ok(roomDetail);
-    }
-
-    [HttpPost("heal")]
-    public async Task<IActionResult> Heal([FromBody] BattleRequest request)
-    {
-        var token = GetBearerToken();
-        var (success, error) = await battleService.HealCharacterAsync(request.RoomId, token);
-        if (!success)
-        {
-            if (error == "Unauthorized")
-            {
-                return Unauthorized();
-            }
-
-            if (error == "NotFound")
-            {
-                return NotFound();
-            }
-
-            if (error == "UserNotFound" || error == "CharacterNotFound" || error == "MonsterNotFound")
-            {
-                return NotFound(error);
-            }
-
-            if (error == "NotInRoom")
-            {
-                return StatusCode(403, "NotInRoom");
-            }
-
-            if (error == "NotOwner")
-            {
-                return StatusCode(403, "NotOwner");
-            }
-
-            if (error == "ConcurrencyConflict")
-            {
-                return Conflict("ConcurrencyConflict");
-            }
-
-            return BadRequest(error);
         }
 
         var roomDetail = await roomService.GetRoomDetailAsync(request.RoomId, token);

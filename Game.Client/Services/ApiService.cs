@@ -236,30 +236,6 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> HealAsync(int roomId)
-    {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/heal", requiresAuth: true);
-        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                await userSessionService.ClearToken();
-            }
-
-            var errorMessage = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrWhiteSpace(errorMessage))
-            {
-                errorMessage = "恢复角色失败。";
-            }
-
-            return (null, errorMessage);
-        }
-
-        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
-    }
-
     public async Task<(AuthResponse? Response, string? ErrorMessage)> RegisterAsync(RegisterRequest request)
     {
         var response = await httpClient.PostAsJsonAsync("api/user/register", request);

@@ -146,7 +146,7 @@ else
             </div>
         </div>
         <div class="battle-controls__tools">
-            @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
+            @if (IsOwner && _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
             {
                 <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
             }
@@ -154,7 +154,6 @@ else
             {
                 <button class="button button--secondary" @onclick="LeaveRoomAsync" disabled="@_isBusy">离开房间</button>
             }
-            <button class="button button--quiet" @onclick="HealAsync" disabled="@_isBusy">恢复主控 10 HP</button>
             @if (IsOwner)
             {
                 <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">解散房间</button>
@@ -365,14 +364,6 @@ else
         _isBusy = false;
     }
 
-    private async Task HealAsync()
-    {
-        _isBusy = true; _message = null;
-        var (detail, error) = await ApiService.HealAsync(RoomId);
-        if (detail is null) _message = error ?? "恢复角色失败。"; else { _roomDetail = detail; AppendBattleLogs(["主控角色恢复了 10 HP。"]); }
-        _isBusy = false;
-    }
-
     private async Task DismissRoomAsync()
     {
         _isBusy = true;
@@ -422,7 +413,7 @@ else
     private string GetActionHint()
     {
         if (_roomDetail?.NextBattleStartAtUtc is not null) return "胜利！即将重开副本，全队恢复至满 HP。";
-        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return _roomDetail.MonsterHp <= 0 ? "副本挑战完成。" : "队伍战败，可重置后再次挑战。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return _roomDetail.MonsterHp <= 0 ? "副本挑战完成。" : IsOwner ? "队伍战败，可重置后再次挑战。" : "队伍战败，等待房主重置战斗。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) return "冷却中，结束后进入下一回合。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) return _roomDetail.IsPreparationTimeoutEnabled ? "等待全员准备，超时后自动开始。" : "等待全员准备，当前未启用超时。";
         if (_roomDetail?.IsAllAliveMembersAuto == true) return "队伍已开启 Auto，回合将自动推进。";
