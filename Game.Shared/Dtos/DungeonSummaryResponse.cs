@@ -13,6 +13,8 @@ public class DungeonSummaryResponse
     public int MonsterAttack { get; set; }
     public int MonsterDefense { get; set; }
     public int SlotCount { get; set; }
+    public int WaveCount { get; set; }
+    public int MonsterCount { get; set; }
     public bool IsClearedByCurrentUser { get; set; }
     public bool AutoUnlocked { get; set; }
 }

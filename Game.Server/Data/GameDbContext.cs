@@ -79,6 +79,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<Monster>()
             .Property(monster => monster.Element)
             .HasConversion<string>();
+        modelBuilder.Entity<Monster>()
+            .HasIndex(monster => new { monster.RoomId, monster.WaveNumber, monster.Position })
+            .IsUnique()
+            .HasFilter("RoomId IS NOT NULL");
         modelBuilder.Entity<CharacterWeapon>()
             .Property(weapon => weapon.Version)
             .IsConcurrencyToken();

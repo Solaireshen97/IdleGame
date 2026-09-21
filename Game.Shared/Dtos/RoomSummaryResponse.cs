@@ -8,6 +8,10 @@ public class RoomSummaryResponse
     public string MonsterName { get; set; } = string.Empty;
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
+    public int CurrentWaveNumber { get; set; }
+    public int TotalWaveCount { get; set; }
+    public int CurrentEnemyNumber { get; set; }
+    public int EnemiesInCurrentWave { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public bool IsRepeatBattle { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; }

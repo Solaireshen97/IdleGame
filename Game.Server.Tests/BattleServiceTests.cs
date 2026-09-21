@@ -1336,6 +1336,49 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task MultiWaveBattle_KillAdvancesEnemyAndSettlesOnlyAfterFinalWave()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 75, characterAttack: 100, monsterAttack: 100);
+        test.Monster.RoomId = test.Room.Id;
+        test.Monster.WaveNumber = 1;
+        test.Monster.Position = 1;
+        test.Room.CurrentWaveNumber = 1;
+        test.Room.TotalWaveCount = 2;
+        var finalMonster = new Monster
+        {
+            RoomId = test.Room.Id, WaveNumber = 2, Position = 1, Name = "King Slime",
+            Element = ElementType.Wind, Hp = 60, MaxHp = 60, Attack = 100, Defense = 2
+        };
+        test.Db.Monsters.Add(finalMonster);
+        await test.Db.SaveChangesAsync();
+
+        var (firstKill, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.WaveTransition, firstKill!.RoomStatus);
+        Assert.Equal(2, firstKill.CurrentWaveNumber);
+        Assert.Equal(finalMonster.Id, test.Room.MonsterId);
+        Assert.Equal(75, test.Character.Hp);
+        Assert.Equal("Pending", (await test.Db.RewardRuns.SingleAsync()).Status);
+        Assert.Single(await test.Db.RewardEvents.ToListAsync());
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (ready, readyError) = await test.Service.SyncRoomAsync(1);
+        Assert.Null(readyError);
+        Assert.Equal(RoomStatus.NotStarted, ready!.RoomStatus);
+
+        var (victory, victoryError) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(victoryError);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.True(victory.IsVictory);
+        Assert.Equal("Victory", (await test.Db.RewardRuns.SingleAsync()).Status);
+        Assert.Equal(3, await test.Db.RewardEvents.CountAsync());
+    }
+
+    [Fact]
     public async Task ExecuteRoundAsync_TargetsNextLivingLowestSlot()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 5, monsterAttack: 100);

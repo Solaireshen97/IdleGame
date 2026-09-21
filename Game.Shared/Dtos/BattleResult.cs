@@ -9,6 +9,8 @@ public class BattleResult
     public int CharacterMaxHp { get; set; }
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
+    public int CurrentWaveNumber { get; set; }
+    public int TotalWaveCount { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }

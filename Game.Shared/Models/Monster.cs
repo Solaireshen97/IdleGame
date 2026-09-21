@@ -5,6 +5,9 @@ namespace Game.Shared.Models;
 public class Monster
 {
     public int Id { get; set; }
+    public int? RoomId { get; set; }
+    public int WaveNumber { get; set; } = 1;
+    public int Position { get; set; } = 1;
     public string Name { get; set; } = string.Empty;
     public ElementType Element { get; set; } = ElementType.Wind;
     public int Hp { get; set; }

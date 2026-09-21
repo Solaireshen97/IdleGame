@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null)
 {
     private const int SlotCount = 5;
 
@@ -42,7 +42,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         {
             DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name, MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
             MonsterMaxHp = dungeon.MonsterMaxHp, MonsterAttack = dungeon.MonsterAttack, MonsterDefense = dungeon.MonsterDefense,
-            SlotCount = dungeon.SlotCount, IsClearedByCurrentUser = clearedDungeonIds.Contains(dungeon.Id), AutoUnlocked = clearedDungeonIds.Contains(dungeon.Id)
+            SlotCount = dungeon.SlotCount,
+            WaveCount = encounterCatalog?.GetWaveCount(dungeon) ?? 1,
+            MonsterCount = encounterCatalog?.GetMonsterCount(dungeon) ?? 1,
+            IsClearedByCurrentUser = clearedDungeonIds.Contains(dungeon.Id), AutoUnlocked = clearedDungeonIds.Contains(dungeon.Id)
         }).ToList();
     }
 
@@ -63,14 +66,25 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             ? await dbContext.Dungeons.FindAsync(dungeonId.Value)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null) return (null, "DungeonNotFound");
-        var monster = new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense };
-        var room = new Room { DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount, Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationStartedAtUtc = isPreparationTimeoutEnabled ? DateTime.UtcNow : null };
+        var monsters = (encounterCatalog?.CreateMonsters(dungeon) ??
+            [new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense }]).ToList();
+        var firstMonster = monsters.OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).First();
+        var room = new Room
+        {
+            DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount,
+            Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle,
+            IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled,
+            PreparationStartedAtUtc = isPreparationTimeoutEnabled ? DateTime.UtcNow : null,
+            CurrentWaveNumber = firstMonster.WaveNumber,
+            TotalWaveCount = monsters.Max(monster => monster.WaveNumber)
+        };
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        dbContext.Monsters.Add(monster);
+        dbContext.Monsters.AddRange(monsters);
         await dbContext.SaveChangesAsync();
-        room.MonsterId = monster.Id;
+        room.MonsterId = firstMonster.Id;
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
+        foreach (var monster in monsters) monster.RoomId = room.Id;
         dbContext.RoomSlots.AddRange(Enumerable.Range(1, room.SlotCount).Select(index => new RoomSlot
         {
             RoomId = room.Id,
@@ -91,8 +105,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (room.OwnerUserId == user!.Id) return (null, "CannotJoinOwnRoom");
-        if (room.Status is RoomStatus.Preparing or RoomStatus.Cooldown) return (null, "RoomLocked");
         if (room.Status == RoomStatus.BattleOver) return (null, "BattleOver");
+        if (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0) return (null, "RoomLocked");
         if (request.SlotIndex < 1 || request.SlotIndex > room.SlotCount) return (null, "InvalidSlotIndex");
         if (await dbContext.RoomSlots.AnyAsync(x => x.RoomId == roomId && x.UserId == user.Id)) return (null, "AlreadyInRoom");
         if (await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == character!.Id)) return (null, "CharacterAlreadyInRoom");
@@ -112,7 +126,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
         if (room.OwnerUserId == user!.Id) return (null, "NotRoomParticipant");
-        if (room.Status is RoomStatus.Preparing or RoomStatus.Cooldown) return (null, "RoomLocked");
+        if (room.Status != RoomStatus.BattleOver && (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (null, "RoomLocked");
         var slot = await dbContext.RoomSlots.SingleOrDefaultAsync(x => x.RoomId == roomId && x.UserId == user.Id);
         if (slot is null) return (null, "NotRoomParticipant");
         slot.CharacterId = null;
@@ -194,9 +208,11 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         dbContext.RoomSlots.RemoveRange(await dbContext.RoomSlots.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
+        var monsters = await dbContext.Monsters.Where(monster => monster.RoomId == roomId).ToListAsync();
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         dbContext.Rooms.Remove(room);
-        if (monster is not null) dbContext.Monsters.Remove(monster);
+        if (monsters.Count > 0) dbContext.Monsters.RemoveRange(monsters);
+        else if (monster is not null) dbContext.Monsters.Remove(monster);
         await dbContext.SaveChangesAsync();
         return (true, null);
     }
@@ -208,7 +224,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (room, null, error);
         if (room.OwnerUserId != user!.Id) return (room, user, "NotOwner");
-        if (room.Status is RoomStatus.Preparing or RoomStatus.Cooldown) return (room, user, "FormationLocked");
+        if (room.Status != RoomStatus.BattleOver && (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (room, user, "FormationLocked");
         return (room, user, null);
     }
 
@@ -217,6 +233,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (monster is null || dungeon is null) return null;
+        var enemiesInCurrentWave = monster.RoomId.HasValue
+            ? await dbContext.Monsters.CountAsync(candidate => candidate.RoomId == room.Id && candidate.WaveNumber == monster.WaveNumber)
+            : 1;
         var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).OrderBy(x => x.SlotIndex).ToListAsync();
         var characterIds = slots.Where(x => x.CharacterId.HasValue).Select(x => x.CharacterId!.Value).ToList();
         var characters = await dbContext.Characters.Where(x => characterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
@@ -264,13 +283,20 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
+            CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
+            CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
             IsRepeatBattle = room.IsRepeatBattle, NextBattleStartAtUtc = room.IsRepeatBattle && room.Status == RoomStatus.BattleOver && monster.Hp <= 0 ? room.BattleEndedAtUtc?.AddSeconds(BattleRules.RepeatBattleDelaySeconds) : null,
+            NextWaveStartAtUtc = room.Status == RoomStatus.WaveTransition ? room.NextRoundAvailableAtUtc : null,
             ServerTimeUtc = now,
             CanExecuteRound = room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
             IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationTimeoutSeconds = BattleRules.PreparationTimeoutSeconds, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
-            CanPrepare = currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && (room.Status == RoomStatus.Preparing || !room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
-            CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId && room.Status is not (RoomStatus.Preparing or RoomStatus.Cooldown) && slots.Any(x => x.UserId == currentUserId),
+            CanPrepare = currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 &&
+                room.Status is RoomStatus.NotStarted or RoomStatus.Preparing &&
+                (room.Status == RoomStatus.Preparing || !room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
+            CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId &&
+                (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0) &&
+                slots.Any(x => x.UserId == currentUserId),
             Rewards = rewardRun is null || rewardRun.Sequence < room.RunSequence && rewardEntries.Count == 0
                 ? null : new RoomRewardSummaryResponse
             {
@@ -349,7 +375,18 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
     {
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        return monster is null ? null : new RoomSummaryResponse { RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle, IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled };
+        if (monster is null) return null;
+        var enemiesInCurrentWave = monster.RoomId.HasValue
+            ? await dbContext.Monsters.CountAsync(candidate => candidate.RoomId == room.Id && candidate.WaveNumber == monster.WaveNumber)
+            : 1;
+        return new RoomSummaryResponse
+        {
+            RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
+            CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
+            CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
+            RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle,
+            IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled
+        };
     }
 
 }

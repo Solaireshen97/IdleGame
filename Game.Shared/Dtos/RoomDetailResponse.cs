@@ -13,6 +13,10 @@ public class RoomDetailResponse
     public ElementType MonsterElement { get; set; }
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
+    public int CurrentWaveNumber { get; set; }
+    public int TotalWaveCount { get; set; }
+    public int CurrentEnemyNumber { get; set; }
+    public int EnemiesInCurrentWave { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public int RoundNumber { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
@@ -21,6 +25,7 @@ public class RoomDetailResponse
     public DateTime? PreparationExpiresAtUtc { get; set; }
     public DateTime? BattleEndedAtUtc { get; set; }
     public DateTime? NextBattleStartAtUtc { get; set; }
+    public DateTime? NextWaveStartAtUtc { get; set; }
     public bool IsRepeatBattle { get; set; }
     public DateTime ServerTimeUtc { get; set; }
     public bool CanExecuteRound { get; set; }

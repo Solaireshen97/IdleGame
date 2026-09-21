@@ -42,6 +42,7 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
             .Where(room => room.Status == RoomStatus.NotStarted ||
                 room.Status == RoomStatus.Preparing ||
                 room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now ||
+                room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now ||
                 room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && room.BattleEndedAtUtc <= repeatCutoff)
             .Select(room => room.Id)
             .ToListAsync(cancellationToken);

@@ -18,5 +18,7 @@ public class Room
     public bool IsRepeatBattle { get; set; }
     public int RoundNumber { get; set; }
     public int RunSequence { get; set; } = 1;
+    public int CurrentWaveNumber { get; set; } = 1;
+    public int TotalWaveCount { get; set; } = 1;
     public int Version { get; set; }
 }

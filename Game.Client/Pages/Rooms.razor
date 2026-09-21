@@ -25,7 +25,7 @@ else
             <select id="dungeonSelect" @bind="_selectedDungeonId">
             @foreach (var dungeon in _dungeons)
             {
-                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.MonsterName（@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement)属性 / HP @dungeon.MonsterMaxHp / 攻击 @dungeon.MonsterAttack / 防御 @dungeon.MonsterDefense）</option>
+                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.WaveCount 波 / @dungeon.MonsterCount 名敌人 / 首领 @dungeon.MonsterName（@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement)属性）</option>
             }
             </select>
             <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@_isLoading">开启房间</button>
@@ -61,6 +61,7 @@ else
                     <article class="room-card">
                         <div class="room-card__topline"><span>ROOM · @room.RoomId · @(room.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span class="status-badge">@room.RoomStatus</span></div>
                         <h3>@room.MonsterName</h3>
+                        <p>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波 · 敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</p>
                         <div class="room-card__rules"><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "30 秒准备超时" : "无准备超时")</span></div>
                         <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
                         <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>

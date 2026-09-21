@@ -1,15 +1,48 @@
 using Game.Server.Data;
+using Game.Server.Configuration;
 using Game.Server.Services;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Game.Server.Tests;
 
 public class RoomServiceTests
 {
+    [Fact]
+    public async Task CreateRoomAsync_ConfiguredEncounterPersistsEveryWaveAndSelectsFirstEnemy()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var progression = ProgressionTestFactory.Create();
+        var encounters = new DungeonEncounterCatalog(Options.Create(new DungeonEncounterOptions
+        {
+            Dungeons = new Dictionary<string, List<DungeonWaveOptions>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["slime-field"] =
+                [
+                    new() { Monsters = [new() { Name = "Slime A", MaxHp = 30, Attack = 5, Defense = 1 }] },
+                    new() { Monsters = [new() { Name = "Slime B", MaxHp = 60, Attack = 9, Defense = 2 }] }
+                ]
+            }
+        }));
+        var service = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(),
+            RewardTestFactory.CreateService(test.Db, progression), encounters);
+
+        var (detail, error) = await service.CreateRoomAsync("Slime", test.Token);
+
+        Assert.Null(error);
+        Assert.Equal((1, 2, "Slime A"), (detail!.CurrentWaveNumber, detail.TotalWaveCount, detail.MonsterName));
+        var monsters = await test.Db.Monsters.OrderBy(monster => monster.WaveNumber).ToListAsync();
+        Assert.Equal(2, monsters.Count);
+        Assert.All(monsters, monster => Assert.Equal(detail.RoomId, monster.RoomId));
+        Assert.Equal(new[] { 1, 2 }, monsters.Select(monster => monster.WaveNumber));
+    }
+
     [Fact]
     public async Task CreateRoomAsync_StoresRepeatBattleChoice()
     {

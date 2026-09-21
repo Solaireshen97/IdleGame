@@ -233,11 +233,24 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("MaxHp")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("WaveNumber")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("RoomId", "WaveNumber", "Position")
+                        .IsUnique()
+                        .HasFilter("RoomId IS NOT NULL");
 
                     b.ToTable("Monsters");
                 });
@@ -290,6 +303,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("DungeonId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("CurrentWaveNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsRepeatBattle")
                         .HasColumnType("INTEGER");
 
@@ -321,6 +337,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RunSequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalWaveCount")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Version")

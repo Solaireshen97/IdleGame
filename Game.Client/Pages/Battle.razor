@@ -29,6 +29,7 @@ else
                 <h1>@_roomDetail.DungeonName</h1>
             </div>
             <div class="battle-stage__meta">
+                <span class="battle-mode">第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波</span>
                 <span class="battle-mode">@(_roomDetail.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span>
                 <span class="battle-status">@GetStatusText()</span>
             </div>
@@ -83,13 +84,13 @@ else
             <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "")">
                 <div class="battle-field__enemy-art"><img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" /></div>
                 <div class="enemy-vitals">
-                    <span>ENEMY / @_roomDetail.MonsterName.ToUpperInvariant() · @WeaponRules.ElementName(_roomDetail.MonsterElement)属性</span>
+                    <span>WAVE @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount · ENEMY @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
                     <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
                     <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
                 </div>
             </div>
         </div>
-        <div class="battle-stage__footer"><span>行动顺序：槽位 1 → @_roomDetail.SlotCount</span><span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备超时 {BattleRules.PreparationTimeoutSeconds} 秒 · 本回合临时 Auto" : "无准备超时")</span></div>
+        <div class="battle-stage__footer"><span>第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span>行动顺序：槽位 1 → @_roomDetail.SlotCount</span><span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备超时 {BattleRules.PreparationTimeoutSeconds} 秒 · 本回合临时 Auto" : "无准备超时")</span></div>
     </section>
 
     @if (_isLogOpen)
@@ -348,7 +349,8 @@ else
     private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
     private sealed record BattleLogEntry(long Id, string Text);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
-    private bool CanChangeFormation => _roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.BattleOver;
+    private bool CanChangeFormation => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
+        _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -619,6 +621,8 @@ else
     {
         if (_roomDetail?.NextBattleStartAtUtc is DateTime nextBattle)
             return new("副本重开", nextBattle, BattleRules.RepeatBattleDelaySeconds, "repeat");
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition && _roomDetail.NextWaveStartAtUtc is DateTime nextWave)
+            return new("下一名敌人", nextWave, BattleRules.WaveTransitionSeconds, "wave");
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown && _roomDetail.NextRoundAvailableAtUtc is DateTime nextRound)
         {
             var duration = _roomDetail.RoundCooldownDurationSeconds ??
@@ -644,16 +648,18 @@ else
 
     private static string FormatElementModifier(int percent) => percent > 0 ? $"+{percent}%" : $"{percent}%";
 
-    private string GetMonsterArtPath() => _roomDetail?.MonsterName.ToLowerInvariant() switch
+    private string GetMonsterArtPath()
     {
-        "slime" => "/art/slime.svg",
-        "goblin" => "/art/goblin.svg",
-        "wolf" => "/art/wolf.svg",
-        _ => "/art/monster.svg"
-    };
+        var name = _roomDetail?.MonsterName.ToLowerInvariant() ?? "";
+        if (name.Contains("slime")) return "/art/slime.svg";
+        if (name.Contains("goblin")) return "/art/goblin.svg";
+        if (name.Contains("wolf")) return "/art/wolf.svg";
+        return "/art/monster.svg";
+    }
     private string GetActionHint()
     {
         if (_roomDetail?.NextBattleStartAtUtc is not null) return "胜利！即将重开副本，全队恢复至满 HP。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition) return "敌人已击败，下一名敌人即将进入战场。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return _roomDetail.MonsterHp <= 0 ? "副本挑战完成。" : IsOwner ? "队伍战败，可重置后再次挑战。" : "队伍战败，等待房主重置战斗。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) return "冷却中，结束后进入下一回合。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) return _roomDetail.IsPreparationTimeoutEnabled ? "等待全员准备，超时后自动开始。" : "等待全员准备，当前未启用超时。";
@@ -672,6 +678,7 @@ else
         Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
         Game.Shared.Enums.RoomStatus.Cooldown => "冷却中",
         Game.Shared.Enums.RoomStatus.Preparing => "准备中",
+        Game.Shared.Enums.RoomStatus.WaveTransition => "波次切换",
         Game.Shared.Enums.RoomStatus.BattleOver when _roomDetail.MonsterHp <= 0 => "战斗胜利",
         Game.Shared.Enums.RoomStatus.BattleOver => "队伍战败",
         _ => "未知"
@@ -686,7 +693,7 @@ else
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 ticks++;
-                if (ticks % 2 == 0 && !_isBusy && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing ||
+                if (ticks % 2 == 0 && !_isBusy && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing or Game.Shared.Enums.RoomStatus.WaveTransition ||
                     _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.IsPreparationTimeoutEnabled ||
                     _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null)
                 )
