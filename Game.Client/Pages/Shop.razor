@@ -1,0 +1,190 @@
+@page "/shop"
+@using Game.Client.Services
+@using Game.Shared
+@using Game.Shared.Dtos.Shop
+@inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
+@inject AccountBalanceState AccountBalance
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>商店</PageTitle>
+
+<div class="shop-page">
+    <header class="shop-page__intro">
+        <a href="/rooms">← 返回大厅</a>
+        <span class="section-kicker">ADVENTURER'S SHOP</span>
+        <h1>商店</h1>
+        <p>用讨伐所得的金币，为当前角色补充消耗品和武器。</p>
+    </header>
+
+    @if (_loading)
+    {
+        <p class="shop-page__notice">正在读取商品...</p>
+    }
+    else if (_shop is null)
+    {
+        <div class="shop-page__notice" role="alert">
+            <p>@(_message ?? "暂时无法读取商店。")</p>
+            <button type="button" @onclick="LoadAsync">重试</button>
+        </div>
+    }
+    else
+    {
+        <section class="shop-summary" aria-label="购买账户">
+            <div><small>ACCOUNT GOLD</small><strong>◆ @_shop.Gold</strong><span>金币归当前账号</span></div>
+            <div><small>DELIVERY TO</small><strong>@_shop.CharacterName</strong><span>商品进入此角色的背包</span></div>
+        </section>
+
+        <div class="shop-tabs" role="group" aria-label="商品分类">
+            <button type="button" class="@(_kind == "Consumable" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Consumable")" @onclick="ShowConsumables">战斗消耗品</button>
+            <button type="button" class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Weapon")" @onclick="ShowWeapons">武器</button>
+        </div>
+
+        <div class="shop-grid">
+            @foreach (var item in _shop.Items.Where(item => item.Kind == _kind))
+            {
+                var quantity = GetQuantity(item);
+                var total = item.Price * quantity;
+                <article class="shop-item" @key="item.Code">
+                    <div class="shop-item__top">
+                        <span class="shop-item__symbol" aria-hidden="true">@(item.Kind == "Weapon" ? "⚔" : "✚")</span>
+                        <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : "CONSUMABLE")</span>
+                    </div>
+                    <h2>@item.Name</h2>
+                    @if (item.Kind == "Consumable")
+                    {
+                        <p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p>
+                    }
+                    else
+                    {
+                        <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>
+                        @if (item.WeaponSkills.Count > 0)
+                        {
+                            <div class="shop-item__skills">
+                                @foreach (var skill in item.WeaponSkills)
+                                {
+                                    <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span>
+                                }
+                            </div>
+                        }
+                    }
+                    <div class="shop-item__foot">
+                        <span>当前角色已有 @item.OwnedQuantity</span>
+                        <div class="shop-item__buy">
+                            @if (item.Kind == "Consumable")
+                            {
+                                <label>数量
+                                    <select value="@quantity" @onchange="e => SetQuantity(item.Code, e.Value?.ToString())" disabled="@_busy">
+                                        <option value="1">1</option>
+                                        <option value="5">5</option>
+                                        <option value="10">10</option>
+                                    </select>
+                                </label>
+                            }
+                            <button type="button" @onclick="() => PurchaseAsync(item)" disabled="@(_busy || _shop.Gold < total)">
+                                ◆ @total · 购买
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+
+        @if (_message is not null)
+        {
+            <p class="shop-page__message" role="status">@_message</p>
+        }
+        <div class="shop-page__links"><a href="/supplies">管理战斗补给 →</a><a href="/weapons">前往武器编成 →</a></div>
+    }
+</div>
+
+@code {
+    private ShopResponse? _shop;
+    private readonly Dictionary<string, int> _quantities = new(StringComparer.OrdinalIgnoreCase);
+    private string _kind = "Consumable";
+    private string? _message;
+    private bool _loading = true;
+    private bool _busy;
+
+    private void ShowConsumables() => _kind = "Consumable";
+    private void ShowWeapons() => _kind = "Weapon";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ActiveCharacters.RefreshAsync();
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        if (ActiveCharacters.Current is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _message = null;
+        var characterId = ActiveCharacters.Current?.CharacterId;
+        try
+        {
+            var response = await ApiService.GetShopAsync();
+            if (characterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _shop = response?.CharacterId == characterId ? response : null;
+                if (_shop is null) _message = "商店读取失败，请重试。";
+            }
+        }
+        catch
+        {
+            _shop = null;
+            _message = "暂时无法连接商店，请重试。";
+        }
+        finally { _loading = false; }
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        if (_shop?.CharacterId != ActiveCharacters.Current?.CharacterId) await LoadAsync();
+        StateHasChanged();
+    });
+
+    private int GetQuantity(ShopItemResponse item) => item.Kind == "Weapon" ? 1 :
+        _quantities.GetValueOrDefault(item.Code, 1);
+
+    private void SetQuantity(string code, string? raw)
+    {
+        if (int.TryParse(raw, out var quantity) && quantity is 1 or 5 or 10)
+            _quantities[code] = quantity;
+    }
+
+    private async Task PurchaseAsync(ShopItemResponse item)
+    {
+        if (_busy || _shop is null) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var quantity = GetQuantity(item);
+            var (response, error) = await ApiService.PurchaseShopItemAsync(_shop.CharacterId, item.Code, quantity);
+            if (response is null)
+            {
+                _message = error ?? "购买失败。";
+                if (error is "当前角色已切换，请刷新商店。" or "余额或背包刚刚发生变化，请重试。")
+                {
+                    await LoadAsync();
+                    _message = error;
+                }
+                return;
+            }
+            _shop = response;
+            _message = $"已为 {response.CharacterName} 购入 {item.Name} × {quantity}。";
+            AccountBalance.NotifyChanged();
+        }
+        catch { _message = "购买请求未能完成，请刷新商店核对余额和背包。"; }
+        finally { _busy = false; }
+    }
+
+    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+}

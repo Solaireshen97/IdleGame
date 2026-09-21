@@ -12,5 +12,6 @@ builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(apiBaseUr
 builder.Services.AddScoped<UserSessionService>();
 builder.Services.AddScoped<ApiService>();
 builder.Services.AddScoped<ActiveCharacterState>();
+builder.Services.AddScoped<AccountBalanceState>();
 
 await builder.Build().RunAsync();

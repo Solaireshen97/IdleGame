@@ -4,11 +4,47 @@ using System.Net.Http.Json;
 using Game.Shared.Dtos;
 using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
+using Game.Shared.Dtos.Shop;
 
 namespace Game.Client.Services;
 
 public class ApiService(HttpClient httpClient, UserSessionService userSessionService)
 {
+    public async Task<ShopResponse?> GetShopAsync()
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get, "api/shop", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ShopResponse>() : null;
+    }
+
+    public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseShopItemAsync(
+        int characterId, string code, int quantity)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/purchase", requiresAuth: true);
+        request.Content = JsonContent.Create(new PurchaseShopItemRequest
+        {
+            CharacterId = characterId, Code = code, Quantity = quantity
+        });
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "InsufficientGold" => "金币不足。",
+                "ActiveCharacterChanged" => "当前角色已切换，请刷新商店。",
+                "InvalidQuantity" => "购买数量无效。",
+                "InventoryLimitReached" => "该角色的道具数量已达到上限。",
+                "ProductNotFound" => "商品已下架，请刷新商店。",
+                "ConcurrencyConflict" => "余额或背包刚刚发生变化，请重试。",
+                _ => "购买失败，请稍后重试。"
+            });
+        }
+        return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
+    }
+
     public async Task<List<RoomSummaryResponse>?> GetRoomsAsync()
     {
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
