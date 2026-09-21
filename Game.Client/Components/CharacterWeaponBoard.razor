@@ -108,6 +108,19 @@
                 <button type="button" class="weapon-board__unequip" @onclick="() => EquipAsync(null)" disabled="@_isSaving">卸下此位</button>
             }
         </div>
+        <div class="weapon-board__batch" aria-label="批量处理武器">
+            <div class="weapon-board__batch-summary">
+                <strong>已选择 @_selectedWeaponIds.Count 把</strong>
+                <span>出售可得 @SelectedSellGold 金币 · 分解可得 @SelectedDismantleSummary</span>
+            </div>
+            <div class="weapon-board__batch-actions">
+                <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选可处理</button>
+                <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">清空</button>
+                <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">批量出售</button>
+                <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">批量分解</button>
+            </div>
+            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把。</small>
+        </div>
         <div class="weapon-board__inventory">
             @foreach (var weapon in _data.Weapons)
             {
@@ -116,7 +129,13 @@
                     _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
                 var previewAttack = weapon.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + weapon.Attack;
                 var previewHp = weapon.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + weapon.MaxHp;
-                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant() quality-@(weapon.QualityCode)" @key="weapon.Id">
+                var isBatchSelected = _selectedWeaponIds.Contains(weapon.Id);
+                var canBatchProcess = CanBatchProcess(weapon);
+                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant() quality-@(weapon.QualityCode) @(isBatchSelected ? "weapon-option--batch-selected" : null)" @key="weapon.Id">
+                    <label class="weapon-option__select" title="@(canBatchProcess ? "加入批量处理" : weapon.EquippedSlotIndex.HasValue ? "已装备武器不能批量处理" : "请先解锁武器")">
+                        <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" />
+                        <span>选择</span>
+                    </label>
                     <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
                     <div class="weapon-option__body">
                         <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
@@ -169,6 +188,7 @@
     private bool _isLoading = true;
     private bool _isSaving;
     private int _selectedSlot = 1;
+    private readonly HashSet<int> _selectedWeaponIds = [];
     private string? _error;
     private string? _notice;
 
@@ -183,6 +203,7 @@
         {
             var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
             _data = response;
+            _selectedWeaponIds.Clear();
             _error = GetError(error);
         }
         catch
@@ -226,6 +247,59 @@
 
     private int GetFragmentQuantity(int tier) => _data?.Fragments.FirstOrDefault(item => item.Tier == tier)?.Quantity ?? 0;
 
+    private List<CharacterWeaponResponse> ProcessableWeapons => _data?.Weapons
+        .Where(CanBatchProcess).Take(100).ToList() ?? [];
+
+    private List<CharacterWeaponResponse> SelectedWeapons => _data?.Weapons
+        .Where(weapon => _selectedWeaponIds.Contains(weapon.Id) && CanBatchProcess(weapon)).ToList() ?? [];
+
+    private int SelectedSellGold => SelectedWeapons.Sum(weapon => weapon.SellGold);
+
+    private string SelectedDismantleSummary
+    {
+        get
+        {
+            var returns = SelectedWeapons.GroupBy(weapon => weapon.FragmentTier)
+                .OrderBy(group => group.Key)
+                .Select(group => $"T{group.Key} ×{group.Sum(weapon => weapon.DismantleReturnQuantity)}")
+                .ToList();
+            return returns.Count == 0 ? "—" : string.Join("、", returns);
+        }
+    }
+
+    private static bool CanBatchProcess(CharacterWeaponResponse weapon) =>
+        weapon.EquippedSlotIndex is null && !weapon.IsLocked;
+
+    private void ToggleBatchSelection(CharacterWeaponResponse weapon)
+    {
+        if (_isSaving || !CanBatchProcess(weapon)) return;
+        if (_selectedWeaponIds.Contains(weapon.Id)) _selectedWeaponIds.Remove(weapon.Id);
+        else if (_selectedWeaponIds.Count >= 100)
+        {
+            _error = "单次最多选择 100 把武器。";
+            _notice = null;
+            return;
+        }
+        else _selectedWeaponIds.Add(weapon.Id);
+        _error = null;
+        _notice = null;
+    }
+
+    private void SelectAllProcessable()
+    {
+        _selectedWeaponIds.Clear();
+        foreach (var weapon in ProcessableWeapons) _selectedWeaponIds.Add(weapon.Id);
+        _error = null;
+        _notice = null;
+    }
+
+    private void ClearBatchSelection()
+    {
+        _selectedWeaponIds.Clear();
+        _error = null;
+        _notice = null;
+    }
+
     private async Task ToggleLockAsync(CharacterWeaponResponse weapon)
     {
         await RunWeaponActionAsync(
@@ -254,6 +328,30 @@
             $"已分解 {weapon.Name}，获得 T{weapon.FragmentTier} 武器碎片 ×{weapon.DismantleReturnQuantity}。");
     }
 
+    private async Task SellSelectedAsync()
+    {
+        var selected = SelectedWeapons;
+        if (selected.Count == 0) return;
+        var gold = selected.Sum(weapon => weapon.SellGold);
+        if (!await Js.InvokeAsync<bool>("confirm",
+                $"出售选中的 {selected.Count} 把武器？将获得 {gold} 金币，强化投入不会返还。")) return;
+        var ids = selected.Select(weapon => weapon.Id).ToArray();
+        await RunWeaponActionAsync(() => ApiService.SellWeaponsAsync(CharacterId, ids),
+            $"已批量出售 {selected.Count} 把武器，获得 {gold} 金币。", balanceChanged: true);
+    }
+
+    private async Task DismantleSelectedAsync()
+    {
+        var selected = SelectedWeapons;
+        if (selected.Count == 0) return;
+        var returns = SelectedDismantleSummary;
+        if (!await Js.InvokeAsync<bool>("confirm",
+                $"分解选中的 {selected.Count} 把武器？将获得 {returns}。")) return;
+        var ids = selected.Select(weapon => weapon.Id).ToArray();
+        await RunWeaponActionAsync(() => ApiService.DismantleWeaponsAsync(CharacterId, ids),
+            $"已批量分解 {selected.Count} 把武器，获得 {returns}。");
+    }
+
     private async Task RunWeaponActionAsync(
         Func<Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)>> action,
         string notice, bool refreshCharacter = false, bool balanceChanged = false)
@@ -267,6 +365,8 @@
             var (response, error) = await action();
             if (response is null) { _error = GetError(error) ?? "武器操作失败，请稍后重试。"; return; }
             _data = response;
+            _selectedWeaponIds.RemoveWhere(id =>
+                !response.Weapons.Any(weapon => weapon.Id == id && CanBatchProcess(weapon)));
             _notice = notice;
             if (refreshCharacter && OnChanged.HasDelegate) await OnChanged.InvokeAsync();
             if (balanceChanged) AccountBalance.NotifyChanged();

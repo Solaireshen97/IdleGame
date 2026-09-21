@@ -31,6 +31,8 @@ builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(Rewar
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
 builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
+builder.Services.Configure<MaterialOptions>(builder.Configuration.GetSection(MaterialOptions.SectionName));
+builder.Services.Configure<DungeonExchangeOptions>(builder.Configuration.GetSection(DungeonExchangeOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
@@ -39,6 +41,8 @@ builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
+builder.Services.AddSingleton<MaterialCatalog>();
+builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
 

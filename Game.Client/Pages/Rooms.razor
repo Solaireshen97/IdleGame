@@ -18,29 +18,82 @@ else
     <section class="dungeon-launcher">
         <div class="dungeon-launcher__heading">
             <span class="section-kicker">SELECT MISSION</span>
-            <h2>选择挑战副本</h2>
+            <h2>艾尔文森林</h2>
+            <p>从单体讨伐逐步成长，达到 Lv.8 后深入第一座正式副本。</p>
         </div>
-        <div class="dungeon-launcher__controls">
-            <label for="dungeonSelect">目标副本</label>
-            <select id="dungeonSelect" @bind="_selectedDungeonId">
-            @foreach (var dungeon in _dungeons)
-            {
-                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.WaveCount 波 / @dungeon.MonsterCount 名敌人 / 首领 @dungeon.MonsterName（@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement)属性）</option>
-            }
-            </select>
-            <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@_isLoading">开启房间</button>
+        <div class="dungeon-catalog">
+        @foreach (var region in _dungeons.GroupBy(dungeon => dungeon.RegionName))
+        {
+            <section class="dungeon-region">
+                <div class="dungeon-region__heading"><span>@region.Key</span><small>@region.Count() 个目标</small></div>
+                <div class="dungeon-grid">
+                @foreach (var dungeon in region)
+                {
+                    <button type="button"
+                            class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
+                            @onclick="() => SelectDungeon(dungeon.DungeonId)">
+                        <span class="dungeon-card__topline">
+                            <span>@DungeonKindName(dungeon.DungeonKind)</span>
+                            <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
+                        </span>
+                        <strong>@dungeon.Name</strong>
+                        <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
+                        <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
+                        @if (!dungeon.CanEnter)
+                        {
+                            <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
+                        }
+                    </button>
+                }
+                </div>
+            </section>
+        }
         </div>
+        @if (_selectedDungeon is not null)
+        {
+            <section class="mission-detail">
+                <div class="mission-detail__copy">
+                    <div class="mission-detail__title">
+                        <span class="status-badge">@DungeonKindName(_selectedDungeon.DungeonKind)</span>
+                        <span>最低 Lv.@_selectedDungeon.MinimumLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</span>
+                    </div>
+                    <h3>@_selectedDungeon.Name</h3>
+                    <p>@_selectedDungeon.Description</p>
+                    <div class="mission-detail__facts">
+                        <span>首领 @_selectedDungeon.MonsterName</span>
+                        <span>@_selectedDungeon.WaveCount 波</span>
+                        <span>@_selectedDungeon.MonsterCount 名敌人</span>
+                        <span>@Game.Shared.WeaponRules.ElementName(_selectedDungeon.MonsterElement)属性</span>
+                    </div>
+                </div>
+                <div class="mission-rewards">
+                    <strong>可能获得</strong>
+                    @if (_selectedDungeon.RewardPreview.Count == 0)
+                    {
+                        <small>金币、经验</small>
+                    }
+                    else
+                    {
+                        @foreach (var reward in _selectedDungeon.RewardPreview)
+                        {
+                            <span><b>@reward.Name × @reward.Quantity</b><small>@reward.Source · @reward.ChancePercent.ToString("0.##")%</small></span>
+                        }
+                    }
+                </div>
+            </section>
+        }
         <div class="dungeon-launcher__options">
             <label class="dungeon-launcher__mode"><span><input type="checkbox" @bind="_isRepeatBattle" /> 重复战斗</span><small>胜利后 @BattleRules.RepeatBattleDelaySeconds 秒重开副本</small></label>
             <label class="dungeon-launcher__mode"><span><input type="checkbox" @bind="_isPreparationTimeoutEnabled" /> 准备超时</span><small>@BattleRules.PreparationTimeoutSeconds 秒内未准备的角色仅本回合临时 Auto，不会永久开启 Auto</small></label>
         </div>
-        @if (_selectedDungeon is not null)
-        {
-            <div class="dungeon-launcher__details">
+        <div class="dungeon-launcher__action">
+            @if (_selectedDungeon is not null)
+            {
                 <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "已通关 · Auto 已解锁" : "首次挑战 · 手动战斗")</span>
-                <span>创建后，当前激活角色将自动进入 1 号位并成为主控。</span>
-            </div>
-        }
+                <span class="dungeon-launcher__level">当前角色 Lv.@_selectedDungeon.CurrentCharacterLevel</span>
+            }
+            <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@(_isLoading || _selectedDungeon is null || !_selectedDungeon.CanEnter)">开启房间</button>
+        </div>
     </section>
 
     @if (_isLoading)
@@ -100,7 +153,7 @@ else
 
         _isCheckingLoginState = false;
         _dungeons = await ApiService.GetDungeonsAsync() ?? new();
-        _selectedDungeonId = _dungeons.FirstOrDefault()?.DungeonId ?? 0;
+        _selectedDungeonId = (_dungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? _dungeons.FirstOrDefault())?.DungeonId ?? 0;
         await LoadRoomsAsync();
     }
 
@@ -116,12 +169,14 @@ else
         _isLoading = true;
         _message = null;
         if (_selectedDungeonId == 0) { _message = "暂无可用副本。"; _isLoading = false; return; }
+        if (_selectedDungeon is null || !_selectedDungeon.CanEnter) { _message = _selectedDungeon?.LockReason ?? "当前角色无法进入该副本。"; _isLoading = false; return; }
         var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId, _isRepeatBattle, _isPreparationTimeoutEnabled);
         if (roomDetail is null)
         {
             _message = errorMessage switch
             {
                 "Current character is already in another room." => "当前角色已在其他房间中，不能再创建新房间。",
+                "CharacterLevelTooLow" => _selectedDungeon.LockReason ?? "当前角色等级不足。",
                 _ => errorMessage ?? "创建房间失败。"
             };
             _isLoading = false;
@@ -136,5 +191,13 @@ else
     {
         Navigation.NavigateTo($"/battle/{roomId}");
     }
+
+    private void SelectDungeon(int dungeonId)
+    {
+        _selectedDungeonId = dungeonId;
+        _message = _selectedDungeon?.CanEnter == false ? _selectedDungeon.LockReason : null;
+    }
+
+    private static string DungeonKindName(string kind) => kind == "Dungeon" ? "正式副本" : "单体讨伐";
 
 }

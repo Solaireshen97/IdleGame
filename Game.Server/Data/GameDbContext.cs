@@ -79,6 +79,9 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<Dungeon>()
             .Property(dungeon => dungeon.MonsterElement)
             .HasConversion<string>();
+        modelBuilder.Entity<Dungeon>()
+            .ToTable(table => table.HasCheckConstraint("CK_Dungeons_Levels",
+                "MinimumLevel > 0 AND RecommendedLevel >= MinimumLevel"));
         modelBuilder.Entity<Monster>()
             .Property(monster => monster.Element)
             .HasConversion<string>();

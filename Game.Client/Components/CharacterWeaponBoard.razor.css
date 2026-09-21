@@ -51,8 +51,24 @@
 .weapon-card--empty .weapon-card__crest { color: #8aa6ad; font-size: 1.7rem; }
 .weapon-card--empty:hover, .weapon-card--empty.weapon-card--selected { opacity: 1; }
 .weapon-board__inventory-head { margin-top: 2rem; }
+.weapon-board__batch { display: grid; grid-template-columns: minmax(180px, 1fr) auto; align-items: center; gap: .45rem 1rem; margin-bottom: .7rem; padding: .7rem .8rem; border: 1px solid #415d70; border-radius: .7rem; background: #102130; }
+.weapon-board__batch-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .8rem; }
+.weapon-board__batch-summary strong { color: #f2d08d; font-size: .82rem; }
+.weapon-board__batch-summary span { color: #a9c0cb; font-size: .7rem; }
+.weapon-board__batch-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+.weapon-board__batch button { border: 1px solid #587386; border-radius: .42rem; padding: .42rem .62rem; color: #dce8ec; background: #1b3244; font-size: .68rem; font-weight: 800; }
+.weapon-board__batch button:hover:not(:disabled) { border-color: #8eb1bf; color: #fff; background: #29475d; }
+.weapon-board__batch button:disabled { opacity: .48; cursor: not-allowed; }
+.weapon-board__batch .weapon-board__batch-sell { border-color: #b99555; color: #f4d38e; background: #3a3225; }
+.weapon-board__batch .weapon-board__batch-dismantle { border-color: #a45c59; color: #ffc3bd; background: #3a252c; }
+.weapon-board__batch > small { grid-column: 1 / -1; color: #849faa; font-size: .62rem; }
 .weapon-board__inventory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .weapon-option { --element-color: #b7d9d9; --element-glow: #719aa455; min-width: 0; display: flex; align-items: flex-start; gap: .65rem; border: 1px solid #3c5768; border-radius: .7rem; padding: .75rem; background: linear-gradient(100deg, var(--element-glow), transparent 28%), #182b3b; }
+.weapon-option--batch-selected { outline: 2px solid #e4ba68; outline-offset: -2px; background: linear-gradient(100deg, var(--element-glow), #c6922630 42%, transparent 70%), #182b3b; }
+.weapon-option__select { flex: 0 0 2rem; display: grid; justify-items: center; gap: .18rem; color: #9fb6c0; font-size: .54rem; cursor: pointer; }
+.weapon-option__select input { width: 1rem; height: 1rem; margin: .1rem 0 0; accent-color: #e4b75f; cursor: pointer; }
+.weapon-option__select:has(input:disabled) { opacity: .42; cursor: not-allowed; }
+.weapon-option__select input:disabled { cursor: not-allowed; }
 .weapon-option__crest { flex: 0 0 2.5rem; width: 2.5rem; height: 2.7rem; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--element-color), #334a5c 55%); border-radius: .4rem; color: var(--element-color); background: #10202f; font: 700 1.45rem Georgia, serif; }
 .weapon-option__body { flex: 1; min-width: 0; }
 .weapon-option__meta { color: var(--element-color); font-size: .63rem; font-weight: 750; }
@@ -113,6 +129,9 @@
     .weapon-card--main::after { inset: 2rem 1rem 2.6rem; }
     .weapon-card--main .weapon-card__crest { font-size: 4rem; }
     .weapon-board__subgrid { grid-template-rows: repeat(3, minmax(145px, 1fr)); }
+    .weapon-board__batch { grid-template-columns: 1fr; }
+    .weapon-board__batch-actions { justify-content: flex-start; }
+    .weapon-board__batch > small { grid-column: 1; }
 }
 @media (max-width: 510px) {
     .weapon-board__inventory { grid-template-columns: 1fr; }

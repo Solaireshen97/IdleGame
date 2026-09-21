@@ -15,7 +15,7 @@
         <a href="/rooms">← 返回大厅</a>
         <span class="section-kicker">ADVENTURER'S SHOP</span>
         <h1>商店</h1>
-        <p>用讨伐所得的金币，为当前角色补充消耗品和武器。</p>
+        <p>使用金币购买补给，或将副本徽记兑换成当前角色的专属装备。</p>
     </header>
 
     @if (_loading)
@@ -36,60 +36,86 @@
             <div><small>DELIVERY TO</small><strong>@_shop.CharacterName</strong><span>商品进入此角色的背包</span></div>
         </section>
 
+        @if (_shop.Materials.Count > 0)
+        {
+            <section class="material-wallet" aria-label="角色材料">
+                @foreach (var material in _shop.Materials)
+                {
+                    <div><span aria-hidden="true">◆</span><strong>@material.Name × @material.Quantity</strong><small>@material.Description</small></div>
+                }
+            </section>
+        }
+
         <div class="shop-tabs" role="group" aria-label="商品分类">
             <button type="button" class="@(_kind == "Consumable" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Consumable")" @onclick="ShowConsumables">战斗消耗品</button>
             <button type="button" class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Weapon")" @onclick="ShowWeapons">武器</button>
+            <button type="button" class="@(_kind == "Exchange" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Exchange")" @onclick="ShowExchange">副本兑换</button>
         </div>
 
-        <div class="shop-grid">
-            @foreach (var item in _shop.Items.Where(item => item.Kind == _kind))
+        @if (_kind == "Exchange")
+        {
+            @foreach (var dungeon in _shop.DungeonExchangeOffers.GroupBy(offer => new { offer.DungeonCode, offer.DungeonName }))
             {
-                var quantity = GetQuantity(item);
-                var total = item.Price * quantity;
-                <article class="shop-item" @key="item.Code">
-                    <div class="shop-item__top">
-                        <span class="shop-item__symbol" aria-hidden="true">@(item.Kind == "Weapon" ? "⚔" : "✚")</span>
-                        <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : "CONSUMABLE")</span>
-                    </div>
-                    <h2>@item.Name</h2>
-                    @if (item.Kind == "Consumable")
+                var firstOffer = dungeon.First();
+                var balance = GetMaterialQuantity(firstOffer.CurrencyCode);
+                <section class="exchange-section">
+                    <header><div><span class="section-kicker">DUNGEON EXCHANGE</span><h2>@dungeon.Key.DungeonName</h2></div><strong>◆ @firstOffer.CurrencyName × @balance</strong></header>
+                    <p>兑换武器的属性与配置固定，获得时仍会按照正常规则生成品质。</p>
+                    <div class="shop-grid">
+                    @foreach (var offer in dungeon)
                     {
-                        <p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p>
+                        <article class="shop-item exchange-item" @key="offer.Code">
+                            <div class="shop-item__top"><span class="shop-item__symbol" aria-hidden="true">⚔</span><span class="shop-item__kind">@WeaponRules.ElementName(offer.Element) · EXCHANGE</span></div>
+                            <h2>@offer.WeaponName</h2>
+                            <p>@WeaponRules.ElementName(offer.Element)属性 · 攻击 +@offer.Attack · HP +@offer.MaxHp</p>
+                            <div class="shop-item__skills">
+                                @foreach (var skill in offer.WeaponSkills)
+                                { <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span> }
+                            </div>
+                            <div class="shop-item__foot"><span>当前角色已有 @offer.OwnedQuantity</span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost · 兑换</button></div></div>
+                        </article>
                     }
-                    else
-                    {
-                        <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>
-                        @if (item.WeaponSkills.Count > 0)
+                    </div>
+                </section>
+            }
+        }
+        else
+        {
+            <div class="shop-grid">
+                @foreach (var item in _shop.Items.Where(item => item.Kind == _kind))
+                {
+                    var quantity = GetQuantity(item);
+                    var total = item.Price * quantity;
+                    <article class="shop-item" @key="item.Code">
+                        <div class="shop-item__top">
+                            <span class="shop-item__symbol" aria-hidden="true">@(item.Kind == "Weapon" ? "⚔" : "✚")</span>
+                            <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : "CONSUMABLE")</span>
+                        </div>
+                        <h2>@item.Name</h2>
+                        @if (item.Kind == "Consumable")
+                        { <p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p> }
+                        else
                         {
+                            <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>
                             <div class="shop-item__skills">
                                 @foreach (var skill in item.WeaponSkills)
-                                {
-                                    <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span>
-                                }
+                                { <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span> }
                             </div>
                         }
-                    }
-                    <div class="shop-item__foot">
-                        <span>当前角色已有 @item.OwnedQuantity</span>
-                        <div class="shop-item__buy">
-                            @if (item.Kind == "Consumable")
-                            {
-                                <label>数量
-                                    <select value="@quantity" @onchange="e => SetQuantity(item.Code, e.Value?.ToString())" disabled="@_busy">
-                                        <option value="1">1</option>
-                                        <option value="5">5</option>
-                                        <option value="10">10</option>
-                                    </select>
-                                </label>
-                            }
-                            <button type="button" @onclick="() => PurchaseAsync(item)" disabled="@(_busy || _shop.Gold < total)">
-                                ◆ @total · 购买
-                            </button>
+                        <div class="shop-item__foot">
+                            <span>当前角色已有 @item.OwnedQuantity</span>
+                            <div class="shop-item__buy">
+                                @if (item.Kind == "Consumable")
+                                {
+                                    <label>数量<select value="@quantity" @onchange="e => SetQuantity(item.Code, e.Value?.ToString())" disabled="@_busy"><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label>
+                                }
+                                <button type="button" @onclick="() => PurchaseAsync(item)" disabled="@(_busy || _shop.Gold < total)">◆ @total · 购买</button>
+                            </div>
                         </div>
-                    </div>
-                </article>
-            }
-        </div>
+                    </article>
+                }
+            </div>
+        }
 
         @if (_message is not null)
         {
@@ -109,6 +135,7 @@
 
     private void ShowConsumables() => _kind = "Consumable";
     private void ShowWeapons() => _kind = "Weapon";
+    private void ShowExchange() => _kind = "Exchange";
 
     protected override async Task OnInitializedAsync()
     {
@@ -159,6 +186,9 @@
             _quantities[code] = quantity;
     }
 
+    private int GetMaterialQuantity(string code) =>
+        _shop?.Materials.FirstOrDefault(material => material.Code == code)?.Quantity ?? 0;
+
     private async Task PurchaseAsync(ShopItemResponse item)
     {
         if (_busy || _shop is null) return;
@@ -183,6 +213,31 @@
             AccountBalance.NotifyChanged();
         }
         catch { _message = "购买请求未能完成，请刷新商店核对余额和背包。"; }
+        finally { _busy = false; }
+    }
+
+    private async Task ExchangeAsync(DungeonExchangeOfferResponse offer)
+    {
+        if (_busy || _shop is null) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var (response, error) = await ApiService.ExchangeDungeonWeaponAsync(_shop.CharacterId, offer.Code);
+            if (response is null)
+            {
+                _message = error ?? "兑换失败。";
+                if (error is "当前角色已切换，请刷新兑换所。" or "材料或背包刚刚发生变化，请重试。")
+                {
+                    await LoadAsync();
+                    _message = error;
+                }
+                return;
+            }
+            _shop = response.Shop;
+            _message = $"已为 {_shop.CharacterName} 兑换 {response.WeaponDisplayName}。";
+        }
+        catch { _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
         finally { _busy = false; }
     }
 

@@ -18,7 +18,10 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var eventKey = defeatedMonster.RoomId.HasValue
             ? $"monster:{defeatedMonster.WaveNumber}:{defeatedMonster.Position}"
             : "monster:1";
-        await rewardService.RecordAsync(room, dungeon.Code, participants, eventKey, false);
+        var rewardProfileCode = string.IsNullOrWhiteSpace(defeatedMonster.RewardProfileCode)
+            ? dungeon.Code
+            : defeatedMonster.RewardProfileCode;
+        await rewardService.RecordAsync(room, rewardProfileCode, participants, eventKey, false);
         logs.Add($"{defeatedMonster.Name} 已被击败。");
         if (monsterCombatService is not null)
             await monsterCombatService.RemoveMonsterStateAsync(room.Id, defeatedMonster.Id);
@@ -46,9 +49,14 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         }
 
         SetBattleOver(room, now);
-        await RecordDungeonClearsAsync(room.DungeonId,
+        var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
             participants.Select(participant => participant.UserId), now);
         await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true);
+        var firstClearRewardCode = $"{dungeon.Code}-first-clear";
+        if (firstClearUserIds.Count > 0 && rewardService.HasRewardProfile(firstClearRewardCode, true))
+            await rewardService.RecordAsync(room, firstClearRewardCode,
+                participants.Where(participant => firstClearUserIds.Contains(participant.UserId)),
+                "first-clear", true);
         await rewardService.SettleAsync(room, true, now, logs);
         logs.Add("副本挑战成功。");
         return (defeatedMonster, true, null);
@@ -77,18 +85,20 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         return first;
     }
 
-    private async Task RecordDungeonClearsAsync(int dungeonId, IEnumerable<int> userIds, DateTime clearedAtUtc)
+    private async Task<HashSet<int>> RecordDungeonClearsAsync(int dungeonId, IEnumerable<int> userIds, DateTime clearedAtUtc)
     {
         var ids = userIds.Distinct().ToList();
         var existingIds = await dbContext.UserDungeonClears
             .Where(clear => clear.DungeonId == dungeonId && ids.Contains(clear.UserId))
             .Select(clear => clear.UserId).ToListAsync();
-        dbContext.UserDungeonClears.AddRange(ids.Except(existingIds).Select(userId => new UserDungeonClear
+        var firstClearIds = ids.Except(existingIds).ToHashSet();
+        dbContext.UserDungeonClears.AddRange(firstClearIds.Select(userId => new UserDungeonClear
         {
             UserId = userId,
             DungeonId = dungeonId,
             ClearedAtUtc = clearedAtUtc
         }));
+        return firstClearIds;
     }
 
     private static void SetBattleOver(Room room, DateTime now)

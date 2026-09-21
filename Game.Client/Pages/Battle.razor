@@ -546,7 +546,7 @@ else
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]);
-        if (detail is null) _message = error ?? "上阵角色失败。"; else _roomDetail = detail;
+        if (detail is null) _message = GetRoomOperationError(error, "上阵角色失败。"); else _roomDetail = detail;
         _isBusy = false;
     }
 
@@ -580,7 +580,7 @@ else
     {
         _isBusy = true;
         var (detail, error) = await ApiService.JoinRoomAsync(RoomId, slotIndex);
-        if (detail is null) _message = error ?? "加入房间失败。"; else _roomDetail = detail;
+        if (detail is null) _message = GetRoomOperationError(error, "加入房间失败。"); else _roomDetail = detail;
         _isBusy = false;
     }
 
@@ -606,6 +606,15 @@ else
         }
         _isBusy = false;
     }
+
+    private static string GetRoomOperationError(string? error, string fallback) => error?.Trim().Trim('"') switch
+    {
+        "CharacterLevelTooLow" => "当前角色等级未达到该副本的最低进入要求。",
+        "SlotOccupied" => "该槽位已被占用。",
+        "RoomLocked" => "战斗已开始，当前无法调整队伍。",
+        null or "" => fallback,
+        var message => message
+    };
 
     private bool CanQueueConsumable(RoomSlotResponse character, RoomConsumableSlotResponse supply) =>
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && supply.ItemCode is not null &&
@@ -985,9 +994,9 @@ else
     private string GetMonsterArtPath()
     {
         var name = _roomDetail?.MonsterName.ToLowerInvariant() ?? "";
-        if (name.Contains("slime")) return "/art/slime.svg";
-        if (name.Contains("goblin")) return "/art/goblin.svg";
-        if (name.Contains("wolf")) return "/art/wolf.svg";
+        if (name.Contains("slime") || name.Contains("史莱姆")) return "/art/slime.svg";
+        if (name.Contains("goblin") || name.Contains("狗头人") || name.Contains("金牙")) return "/art/goblin.svg";
+        if (name.Contains("wolf") || name.Contains("狼")) return "/art/wolf.svg";
         return "/art/monster.svg";
     }
     private string GetActionHint()

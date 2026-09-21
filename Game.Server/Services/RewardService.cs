@@ -6,6 +6,12 @@ namespace Game.Server.Services;
 
 public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression)
 {
+    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear) =>
+        catalog.GetDropPreview(rewardCode, isClear);
+
+    public bool HasRewardProfile(string rewardCode, bool isClear) =>
+        catalog.HasRewardProfile(rewardCode, isClear);
+
     public async Task RecordAsync(Room room, string dungeonCode, IEnumerable<RewardParticipant> participants,
         string eventKey, bool isClear)
     {
@@ -61,7 +67,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             }
             var gold = group.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity);
             if (gold > 0) logs.Add($"{character.Name} 获得 {gold} 金币。");
-            foreach (var items in group.Where(entry => entry.Kind == "Consumable").GroupBy(entry => entry.Code))
+            foreach (var items in group.Where(entry => entry.Kind is "Consumable" or "Material").GroupBy(entry => entry.Code))
             {
                 var stack = stacks.SingleOrDefault(item => item.CharacterId == character.Id && item.ItemCode == items.Key);
                 if (stack is null)

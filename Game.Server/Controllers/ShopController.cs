@@ -23,6 +23,15 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
         return error is null ? Ok(response) : ToError(error);
     }
 
+    [HttpPost("exchange")]
+    public async Task<ActionResult<DungeonExchangeResultResponse>> Exchange(
+        [FromBody] ExchangeDungeonWeaponRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await shopService.ExchangeAsync(GetToken(), request);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
     private string? GetToken()
     {
         const string prefix = "Bearer ";
@@ -34,7 +43,7 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
     private ActionResult ToError(string error) => error switch
     {
         "Unauthorized" => Unauthorized(error),
-        "UserNotFound" or "CharacterNotFound" or "ProductNotFound" => NotFound(error),
+        "UserNotFound" or "CharacterNotFound" or "ProductNotFound" or "ExchangeOfferNotFound" => NotFound(error),
         "ActiveCharacterChanged" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };

@@ -45,6 +45,31 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
     }
 
+    public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonWeaponAsync(
+        int characterId, string offerCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/exchange", requiresAuth: true);
+        request.Content = JsonContent.Create(new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = characterId, OfferCode = offerCode
+        });
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "InsufficientDungeonCurrency" => "副本徽记不足。",
+                "ActiveCharacterChanged" => "当前角色已切换，请刷新兑换所。",
+                "ExchangeOfferNotFound" => "兑换项目已下架，请刷新兑换所。",
+                "ConcurrencyConflict" => "材料或背包刚刚发生变化，请重试。",
+                _ => "兑换失败，请稍后重试。"
+            });
+        }
+        return (await response.Content.ReadFromJsonAsync<DungeonExchangeResultResponse>(), null);
+    }
+
     public async Task<List<RoomSummaryResponse>?> GetRoomsAsync()
     {
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");

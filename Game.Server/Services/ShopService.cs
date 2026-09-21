@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Game.Server.Services;
 
 public sealed class ShopService(GameDbContext dbContext, UserService userService, ShopCatalog shopCatalog,
-    ConsumableCatalog consumables, WeaponCatalog weapons)
+    ConsumableCatalog consumables, WeaponCatalog weapons, MaterialCatalog materials,
+    DungeonExchangeCatalog dungeonExchanges)
 {
     public async Task<(ShopResponse? Response, string? Error)> GetAsync(string? token)
     {
@@ -69,6 +70,39 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         return (await BuildResponseAsync(user, character), null);
     }
 
+    public async Task<(DungeonExchangeResultResponse? Response, string? Error)> ExchangeAsync(
+        string? token, ExchangeDungeonWeaponRequest request)
+    {
+        var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null) return (null, error);
+        if (character!.Id != request.CharacterId) return (null, "ActiveCharacterChanged");
+        var offer = dungeonExchanges.Find(request.OfferCode);
+        if (offer is null) return (null, "ExchangeOfferNotFound");
+        var currency = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(stack =>
+            stack.CharacterId == character.Id && stack.ItemCode == offer.CurrencyCode);
+        if (currency is null || currency.Quantity < offer.Cost) return (null, "InsufficientDungeonCurrency");
+
+        var snapshot = weapons.CreateDropSnapshot(offer.WeaponCode);
+        currency.Quantity -= offer.Cost;
+        currency.Version++;
+        character.Version++;
+        dbContext.CharacterWeapons.Add(snapshot.ToCharacterWeapon(character.Id));
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+
+        return (new DungeonExchangeResultResponse
+        {
+            Shop = await BuildResponseAsync(user!, character),
+            WeaponDisplayName = snapshot.DisplayName
+        }, null);
+    }
+
     private async Task<ShopResponse> BuildResponseAsync(User user, Character character)
     {
         var stocks = await dbContext.CharacterItemStacks.Where(item => item.CharacterId == character.Id).ToListAsync();
@@ -80,6 +114,11 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         return new ShopResponse
         {
             CharacterId = character.Id, CharacterName = character.Name, Gold = user.Gold,
+            Materials = materials.Items.Select(material => new ShopMaterialResponse
+            {
+                Code = material.Code, Name = material.Name, Description = material.Description,
+                Quantity = stocks.FirstOrDefault(stack => stack.ItemCode == material.Code)?.Quantity ?? 0
+            }).ToList(),
             Items = shopCatalog.Items.Select(product =>
             {
                 var consumable = product.Kind == "Consumable" ? consumables.FindItem(product.Code) : null;
@@ -93,17 +132,34 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
                         : ownedWeapons.GetValueOrDefault(product.Code),
                     HealAmount = consumable?.HealAmount, CooldownRounds = consumable?.CooldownRounds,
                     Element = weapon?.Element, Attack = weapon?.Attack, MaxHp = weapon?.MaxHp,
-                    WeaponSkills = weapon?.Skills.Select(skill =>
-                    {
-                        var definition = weapons.FindSkill(skill.Code)!;
-                        return new ShopWeaponSkillResponse
-                        {
-                            Name = definition.Name, Level = skill.Level,
-                            Percent = definition.PercentPerLevel * skill.Level
-                        };
-                    }).ToList() ?? []
+                    WeaponSkills = BuildWeaponSkills(weapon)
+                };
+            }).ToList(),
+            DungeonExchangeOffers = dungeonExchanges.Offers.Select(offer =>
+            {
+                var weapon = weapons.FindItem(offer.WeaponCode)!;
+                var currency = materials.FindItem(offer.CurrencyCode)!;
+                return new DungeonExchangeOfferResponse
+                {
+                    Code = offer.Code, DungeonCode = offer.DungeonCode, DungeonName = offer.DungeonName,
+                    CurrencyCode = offer.CurrencyCode, CurrencyName = currency.Name, Cost = offer.Cost,
+                    WeaponCode = weapon.Code, WeaponName = weapon.Name, Element = weapon.Element,
+                    Attack = weapon.Attack, MaxHp = weapon.MaxHp,
+                    OwnedQuantity = ownedWeapons.GetValueOrDefault(weapon.Code),
+                    WeaponSkills = BuildWeaponSkills(weapon)
                 };
             }).ToList()
         };
     }
+
+    private List<ShopWeaponSkillResponse> BuildWeaponSkills(Game.Server.Configuration.WeaponTemplateOptions? weapon) =>
+        weapon?.Skills.Select(skill =>
+        {
+            var definition = weapons.FindSkill(skill.Code)!;
+            return new ShopWeaponSkillResponse
+            {
+                Name = definition.Name, Level = skill.Level,
+                Percent = weapons.CalculateSkillPercent(definition, skill.Level)
+            };
+        }).ToList() ?? [];
 }

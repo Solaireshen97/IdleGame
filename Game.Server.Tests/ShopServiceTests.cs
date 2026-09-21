@@ -143,6 +143,34 @@ public class ShopServiceTests
         Assert.Equal(0, view.Items.Single(item => item.Code == "minor-healing-potion").OwnedQuantity);
     }
 
+    [Fact]
+    public async Task DungeonExchangeConsumesCharacterMaterialAndCreatesQualityWeapon()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = test.Character.Id, ItemCode = "kobold-mine-token", Quantity = 8
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = test.Character.Id, OfferCode = "kobold-fire"
+        });
+        var (rejected, rejectedError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = test.Character.Id, OfferCode = "kobold-fire"
+        });
+
+        Assert.Null(error);
+        Assert.Equal(2, result!.Shop.Materials.Single(material => material.Code == "kobold-mine-token").Quantity);
+        Assert.Contains("余烬短剑", result.WeaponDisplayName);
+        Assert.Equal(100, result.Shop.Gold);
+        Assert.Single(await test.Db.CharacterWeapons.ToListAsync());
+        Assert.Null(rejected);
+        Assert.Equal("InsufficientDungeonCurrency", rejectedError);
+    }
+
     private sealed class ShopTestContext : IAsyncDisposable
     {
         private readonly string _path;
@@ -207,8 +235,23 @@ public class ShopServiceTests
                     new ShopItemOptions { Kind = "Weapon", Code = "cinder-knife", Price = 45 }
                 ]
             }), consumables, weapons);
+            var materials = new MaterialCatalog(Options.Create(new MaterialOptions
+            {
+                Items = [new MaterialItemOptions
+                {
+                    Code = "kobold-mine-token", Name = "矿洞徽记", Description = "测试副本材料。"
+                }]
+            }));
+            var exchanges = new DungeonExchangeCatalog(Options.Create(new DungeonExchangeOptions
+            {
+                Offers = [new DungeonExchangeOfferOptions
+                {
+                    Code = "kobold-fire", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    CurrencyCode = "kobold-mine-token", Cost = 6, WeaponCode = "cinder-knife"
+                }]
+            }), materials, weapons);
             return new ShopService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
-                catalog, consumables, weapons);
+                catalog, consumables, weapons, materials, exchanges);
         }
 
         public GameDbContext CreateDbContext() => new(_options);

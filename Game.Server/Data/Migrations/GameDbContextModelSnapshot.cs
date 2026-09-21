@@ -236,17 +236,23 @@ namespace Game.Server.Data.Migrations
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
                     b.Property<string>("Code").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Description").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("DungeonKind").IsRequired().HasColumnType("TEXT");
+                    b.Property<bool>("IsVisible").HasColumnType("INTEGER");
+                    b.Property<int>("MinimumLevel").HasColumnType("INTEGER");
                     b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("MonsterName").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("MonsterElement").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("MonsterMaxHp").HasColumnType("INTEGER");
                     b.Property<int>("MonsterAttack").HasColumnType("INTEGER");
                     b.Property<int>("MonsterDefense").HasColumnType("INTEGER");
+                    b.Property<int>("RecommendedLevel").HasColumnType("INTEGER");
+                    b.Property<string>("RegionName").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("SlotCount").HasColumnType("INTEGER");
                     b.Property<int>("SortOrder").HasColumnType("INTEGER");
                     b.HasKey("Id");
                     b.HasIndex("Code").IsUnique();
-                    b.ToTable("Dungeons");
+                    b.ToTable("Dungeons", t => t.HasCheckConstraint("CK_Dungeons_Levels", "MinimumLevel > 0 AND RecommendedLevel >= MinimumLevel"));
                 });
 
             modelBuilder.Entity("Game.Shared.Models.Monster", b =>
@@ -261,6 +267,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("CombatProfileCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsBoss")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Element")
                         .IsRequired()
@@ -277,6 +286,10 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("Position")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("RewardProfileCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("RoomId")
                         .HasColumnType("INTEGER");

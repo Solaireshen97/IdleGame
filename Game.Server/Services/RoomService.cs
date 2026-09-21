@@ -38,14 +38,32 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var clearedDungeonIds = error is null
             ? await dbContext.UserDungeonClears.Where(clear => clear.UserId == user!.Id).Select(clear => clear.DungeonId).ToListAsync()
             : [];
-        return (await dbContext.Dungeons.OrderBy(dungeon => dungeon.SortOrder).ToListAsync()).Select(dungeon => new DungeonSummaryResponse
+        var currentLevel = error is null && user!.ActiveCharacterId.HasValue
+            ? await dbContext.Characters.Where(character => character.Id == user.ActiveCharacterId.Value && character.UserId == user.Id)
+                .Select(character => character.Level).SingleOrDefaultAsync()
+            : 0;
+        var dungeons = await dbContext.Dungeons.Where(dungeon => dungeon.IsVisible)
+            .OrderBy(dungeon => dungeon.SortOrder).ToListAsync();
+        return dungeons.Select(dungeon =>
         {
-            DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name, MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
-            MonsterMaxHp = dungeon.MonsterMaxHp, MonsterAttack = dungeon.MonsterAttack, MonsterDefense = dungeon.MonsterDefense,
-            SlotCount = dungeon.SlotCount,
-            WaveCount = encounterCatalog?.GetWaveCount(dungeon) ?? 1,
-            MonsterCount = encounterCatalog?.GetMonsterCount(dungeon) ?? 1,
-            IsClearedByCurrentUser = clearedDungeonIds.Contains(dungeon.Id), AutoUnlocked = clearedDungeonIds.Contains(dungeon.Id)
+            var canEnter = currentLevel >= dungeon.MinimumLevel;
+            return new DungeonSummaryResponse
+            {
+                DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
+                RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
+                Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
+                RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
+                CanEnter = canEnter,
+                LockReason = canEnter ? null : $"需要角色达到 Lv.{dungeon.MinimumLevel}",
+                MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
+                MonsterMaxHp = dungeon.MonsterMaxHp, MonsterAttack = dungeon.MonsterAttack,
+                MonsterDefense = dungeon.MonsterDefense, SlotCount = dungeon.SlotCount,
+                WaveCount = encounterCatalog?.GetWaveCount(dungeon) ?? 1,
+                MonsterCount = encounterCatalog?.GetMonsterCount(dungeon) ?? 1,
+                IsClearedByCurrentUser = clearedDungeonIds.Contains(dungeon.Id),
+                AutoUnlocked = clearedDungeonIds.Contains(dungeon.Id),
+                RewardPreview = BuildRewardPreview(dungeon)
+            };
         }).ToList();
     }
 
@@ -65,7 +83,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var dungeon = dungeonId.HasValue
             ? await dbContext.Dungeons.FindAsync(dungeonId.Value)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
-        if (dungeon is null) return (null, "DungeonNotFound");
+        if (dungeon is null || dungeonId.HasValue && !dungeon.IsVisible) return (null, "DungeonNotFound");
+        if (character!.Level < dungeon.MinimumLevel) return (null, "CharacterLevelTooLow");
         var monsters = (encounterCatalog?.CreateMonsters(dungeon) ??
             [new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense }]).ToList();
         var firstMonster = monsters.OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).First();
@@ -106,6 +125,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (room is null) return (null, "NotFound");
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
+        var minimumLevel = await dbContext.Dungeons.Where(dungeon => dungeon.Id == room.DungeonId)
+            .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
+        if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
+        if (character!.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
         if (room.OwnerUserId == user!.Id) return (null, "CannotJoinOwnRoom");
         if (room.Status == RoomStatus.BattleOver) return (null, "BattleOver");
         if (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0) return (null, "RoomLocked");
@@ -151,6 +174,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == request.CharacterId);
         if (character is null) return (null, "CharacterNotFound");
         if (character.UserId != user!.Id) return (null, "NotCharacterOwner");
+        var minimumLevel = await dbContext.Dungeons.Where(dungeon => dungeon.Id == room!.DungeonId)
+            .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
+        if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
+        if (character.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
         var existingSlot = await dbContext.RoomSlots.FirstOrDefaultAsync(x => x.CharacterId == character.Id);
         if (existingSlot is not null && existingSlot.RoomId != room!.Id) return (null, "CharacterAlreadyInRoom");
         if (existingSlot is not null && existingSlot.SlotIndex != request.SlotIndex) return (null, "CharacterAlreadyInTargetRoom");
@@ -416,6 +443,29 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle,
             IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled
         };
+    }
+
+    private List<DungeonRewardPreviewResponse> BuildRewardPreview(Dungeon dungeon)
+    {
+        var result = new List<DungeonRewardPreviewResponse>();
+        var sources = encounterCatalog?.GetRewardSources(dungeon) ?? [new EncounterRewardSource(dungeon.Code, false)];
+        foreach (var source in sources)
+        {
+            var sourceName = source.IsBoss ? "首领掉落" : "怪物掉落";
+            result.AddRange(rewardService.GetDropPreview(source.Code, false).Select(drop => new DungeonRewardPreviewResponse
+            {
+                Source = sourceName, Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
+            }));
+        }
+        result.AddRange(rewardService.GetDropPreview(dungeon.Code, true).Select(drop => new DungeonRewardPreviewResponse
+        {
+            Source = "通关奖励", Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
+        }));
+        result.AddRange(rewardService.GetDropPreview($"{dungeon.Code}-first-clear", true).Select(drop => new DungeonRewardPreviewResponse
+        {
+            Source = "首次通关", Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
+        }));
+        return result.DistinctBy(item => (item.Source, item.Name, item.Quantity, item.ChancePercent)).ToList();
     }
 
 }

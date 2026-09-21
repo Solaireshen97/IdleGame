@@ -14,11 +14,14 @@ public sealed class RewardCatalog
     private readonly Dictionary<string, RewardBundleOptions> _clears;
     private readonly ConsumableCatalog _consumables;
     private readonly WeaponCatalog _weapons;
+    private readonly MaterialCatalog? _materials;
 
-    public RewardCatalog(IOptions<RewardOptions> options, ConsumableCatalog consumables, WeaponCatalog weapons)
+    public RewardCatalog(IOptions<RewardOptions> options, ConsumableCatalog consumables, WeaponCatalog weapons,
+        MaterialCatalog? materials = null)
     {
         _consumables = consumables;
         _weapons = weapons;
+        _materials = materials;
         _kills = Validate(options.Value.MonsterKills);
         _clears = Validate(options.Value.DungeonClears);
     }
@@ -30,8 +33,14 @@ public sealed class RewardCatalog
         {
             if (string.IsNullOrWhiteSpace(code) || bundle is null || bundle.Gold < 0 || bundle.Experience < 0 ||
                 bundle.Drops.Any(drop => drop.Quantity <= 0 || drop.ChancePercent is < 0 or > 100 ||
-                    drop.Kind is not ("Consumable" or "Weapon") ||
-                    (drop.Kind == "Consumable" ? _consumables.FindItem(drop.Code) is null : _weapons.FindItem(drop.Code) is null)))
+                    drop.Kind is not ("Consumable" or "Weapon" or "Material") ||
+                    drop.Kind switch
+                    {
+                        "Consumable" => _consumables.FindItem(drop.Code) is null,
+                        "Weapon" => _weapons.FindItem(drop.Code) is null,
+                        "Material" => _materials?.FindItem(drop.Code) is null,
+                        _ => true
+                    }))
                 throw new InvalidOperationException($"Invalid rewards for dungeon: {code}");
             result.Add(code, bundle);
         }
@@ -70,11 +79,31 @@ public sealed class RewardCatalog
         };
     }
 
+    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear)
+    {
+        var bundles = isClear ? _clears : _kills;
+        if (!bundles.TryGetValue(rewardCode, out var bundle)) return [];
+        return bundle.Drops.Select(drop => new RewardDropPreview(
+            drop.Kind switch
+            {
+                "Consumable" => _consumables.FindItem(drop.Code)?.Name ?? drop.Code,
+                "Weapon" => _weapons.FindItem(drop.Code)?.Name ?? drop.Code,
+                "Material" => _materials?.FindItem(drop.Code)?.Name ?? drop.Code,
+                _ => drop.Code
+            },
+            drop.Quantity,
+            drop.ChancePercent)).ToList();
+    }
+
+    public bool HasRewardProfile(string rewardCode, bool isClear) =>
+        (isClear ? _clears : _kills).ContainsKey(rewardCode);
+
     public string Describe(RewardEntry entry) => entry.Kind switch
     {
         "Gold" => "金币",
         "Experience" => "经验",
         "Consumable" => _consumables.FindItem(entry.Code)?.Name ?? entry.Code,
+        "Material" => _materials?.FindItem(entry.Code)?.Name ?? entry.Code,
         "Weapon" => DeserializeWeapon(entry)?.DisplayName ?? _weapons.FindItem(entry.Code)?.Name ?? entry.Code,
         _ => entry.Code
     };
@@ -111,3 +140,4 @@ public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType 
 }
 
 public sealed record WeaponRewardSkillSnapshot(string Code, int Level, int QualityBonusLevel = 0);
+public sealed record RewardDropPreview(string Name, int Quantity, decimal ChancePercent);

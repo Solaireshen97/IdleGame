@@ -23,8 +23,8 @@ public class RoomServiceTests
             {
                 ["slime-field"] =
                 [
-                    new() { Monsters = [new() { Name = "Slime A", MaxHp = 30, Attack = 5, Defense = 1 }] },
-                    new() { Monsters = [new() { Name = "Slime B", MaxHp = 60, Attack = 9, Defense = 2 }] }
+                    new() { Monsters = [new() { Name = "Slime A", MaxHp = 30, Attack = 5, Defense = 1, RewardProfileCode = "slime-a" }] },
+                    new() { Monsters = [new() { Name = "Slime B", MaxHp = 60, Attack = 9, Defense = 2, RewardProfileCode = "slime-b", IsBoss = true }] }
                 ]
             }
         }));
@@ -41,6 +41,8 @@ public class RoomServiceTests
         Assert.Equal(2, monsters.Count);
         Assert.All(monsters, monster => Assert.Equal(detail.RoomId, monster.RoomId));
         Assert.Equal(new[] { 1, 2 }, monsters.Select(monster => monster.WaveNumber));
+        Assert.Equal(new[] { "slime-a", "slime-b" }, monsters.Select(monster => monster.RewardProfileCode));
+        Assert.True(monsters[1].IsBoss);
     }
 
     [Fact]
@@ -64,15 +66,34 @@ public class RoomServiceTests
         var (second, secondError) = await test.Service.CreateRoomAsync(dungeons.Single(dungeon => dungeon.Code == "goblin-camp").Id, null, test.Token);
 
         Assert.Null(firstError);
-        Assert.Equal(3, dungeons.Count);
-        Assert.Equal("slime-field", dungeons[0].Code);
-        Assert.Equal(ElementType.Wind, dungeons[0].MonsterElement);
-        Assert.Equal(ElementType.Earth, dungeons[1].MonsterElement);
-        Assert.Equal(ElementType.Water, dungeons[2].MonsterElement);
+        Assert.Equal(11, dungeons.Count);
+        Assert.Equal("northshire-wolves", dungeons[0].Code);
+        Assert.Equal(8, dungeons.Count(dungeon => dungeon.IsVisible));
+        Assert.False(dungeons.Single(dungeon => dungeon.Code == "slime-field").IsVisible);
+        Assert.Equal(8, dungeons.Single(dungeon => dungeon.Code == "kobold-mine").MinimumLevel);
         Assert.Null(second);
         Assert.Equal("CharacterAlreadyInRoom", secondError);
-        Assert.Equal(dungeons[0].Id, first!.DungeonId);
+        Assert.Equal(dungeons.Single(dungeon => dungeon.Code == "slime-field").Id, first!.DungeonId);
         Assert.Equal(ElementType.Wind, first.MonsterElement);
+    }
+
+    [Fact]
+    public async Task DungeonList_ExposesProgressionAndCreateRoomEnforcesMinimumLevel()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        await DbInitializer.EnsureDefaultDungeonsAsync(test.Db);
+
+        var dungeons = await test.Service.GetDungeonsAsync(test.Token);
+        var mine = Assert.Single(dungeons, dungeon => dungeon.Code == "kobold-mine");
+        var firstHunt = Assert.Single(dungeons, dungeon => dungeon.Code == "northshire-wolves");
+        var (room, error) = await test.Service.CreateRoomAsync(mine.DungeonId, null, test.Token);
+
+        Assert.Equal(8, dungeons.Count);
+        Assert.True(firstHunt.CanEnter);
+        Assert.False(mine.CanEnter);
+        Assert.Equal("需要角色达到 Lv.8", mine.LockReason);
+        Assert.Null(room);
+        Assert.Equal("CharacterLevelTooLow", error);
     }
 
     [Fact]

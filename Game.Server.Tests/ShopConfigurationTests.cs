@@ -18,12 +18,20 @@ public class ShopConfigurationTests
             configuration.GetSection(ConsumableOptions.SectionName).Get<ConsumableOptions>()!));
         var weapons = new WeaponCatalog(Options.Create(
             configuration.GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!));
+        var materials = new MaterialCatalog(Options.Create(
+            configuration.GetSection(MaterialOptions.SectionName).Get<MaterialOptions>()!));
 
         var catalog = new ShopCatalog(Options.Create(
             configuration.GetSection(ShopOptions.SectionName).Get<ShopOptions>()!), consumables, weapons);
+        var exchanges = new DungeonExchangeCatalog(Options.Create(
+            configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!),
+            materials, weapons);
 
         Assert.Equal(7, catalog.Items.Count);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
+        Assert.Equal(6, exchanges.Offers.Count);
+        Assert.Equal(6, exchanges.Offers.Select(offer => weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
+        Assert.All(exchanges.Offers, offer => Assert.Equal("kobold-mine-token", offer.CurrencyCode));
     }
 }

@@ -39,6 +39,7 @@ public class RoomController(RoomService roomService, BattleService battleService
                 "UserNotFound" => NotFound("User not found."),
                 "CharacterNotFound" => NotFound("Character not found."),
                 "CharacterAlreadyInRoom" => BadRequest("Current character is already in another room."),
+                "CharacterLevelTooLow" => BadRequest("CharacterLevelTooLow"),
                 _ => BadRequest("Failed to create room.")
             };
         }
@@ -147,7 +148,7 @@ public class RoomController(RoomService roomService, BattleService battleService
         "Unauthorized" => Unauthorized(),
         "NotFound" => NotFound(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
-        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" or "AutoNotUnlocked" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" or "AutoNotUnlocked" or "CharacterLevelTooLow" => StatusCode(StatusCodes.Status403Forbidden, error),
         "RoomCooldown" or "RoomLocked" or "BattleOver" => Conflict(error),
         _ => BadRequest(error)
     };

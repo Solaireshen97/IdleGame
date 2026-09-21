@@ -283,6 +283,39 @@ public sealed class WeaponServiceTests
     }
 
     [Fact]
+    public async Task BatchSellSumsGoldAndBatchDismantleGroupsFragmentsByTier()
+    {
+        await using var sellTest = await WeaponTestContext.CreateAsync();
+        var sellWeapons = sellTest.Weapons.Where(weapon => weapon.EquippedSlotIndex is null).ToList();
+        sellWeapons[0].SellGold = 11;
+        sellWeapons[1].SellGold = 17;
+
+        var (sold, sellError) = await sellTest.Service.SellAsync(sellTest.Token, 1,
+            new WeaponBatchRequest { WeaponIds = sellWeapons.Select(weapon => weapon.Id).ToList() });
+
+        Assert.Null(sellError);
+        Assert.Equal(28, sold!.Gold);
+        Assert.DoesNotContain(sold.Weapons, weapon => sellWeapons.Any(selected => selected.Id == weapon.Id));
+
+        await using var dismantleTest = await WeaponTestContext.CreateAsync();
+        var tierOne = dismantleTest.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        tierOne.ItemLevel = 8;
+        tierOne.DismantleFragments = 2;
+        var tierTwo = dismantleTest.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
+        tierTwo.ItemLevel = 12;
+        tierTwo.DismantleFragments = 3;
+
+        var (dismantled, dismantleError) = await dismantleTest.Service.DismantleAsync(
+            dismantleTest.Token, 1, new WeaponBatchRequest { WeaponIds = [tierOne.Id, tierTwo.Id] });
+
+        Assert.Null(dismantleError);
+        Assert.Equal(2, dismantled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
+        Assert.Equal(3, dismantled.Fragments.Single(fragment => fragment.Tier == 2).Quantity);
+        Assert.DoesNotContain(dismantled.Weapons,
+            weapon => weapon.Id == tierOne.Id || weapon.Id == tierTwo.Id);
+    }
+
+    [Fact]
     public async Task EquippedAndLockedWeaponsCannotBeRecycled()
     {
         await using var test = await WeaponTestContext.CreateAsync();

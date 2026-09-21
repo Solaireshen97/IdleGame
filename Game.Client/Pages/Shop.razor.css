@@ -8,6 +8,9 @@
 .shop-summary small { color: #e7b461; font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
 .shop-summary strong { font-size: 1.4rem; }
 .shop-summary span { color: #adbed0; font-size: .83rem; }
+.material-wallet { display: flex; flex-wrap: wrap; gap: 10px; margin: -10px 0 24px; }
+.material-wallet > div { display: grid; grid-template-columns: auto auto; align-items: center; gap: 2px 8px; padding: 10px 14px; border: 1px solid #79633c; border-radius: 10px; background: rgba(100, 73, 31, .22); }
+.material-wallet > div > span { grid-row: 1 / 3; color: #f0bd63; }.material-wallet strong { color: #f2dfb9; font-size: .85rem; }.material-wallet small { color: #aebdca; font-size: .7rem; }
 .shop-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .shop-tabs button { padding: 10px 16px; color: #c6d4e0; border: 1px solid #496078; border-radius: 9px; background: #172535; cursor: pointer; }
 .shop-tabs button.shop-tabs__active { color: #152231; border-color: #efbd68; background: #efbd68; font-weight: 700; }
@@ -32,4 +35,6 @@
 .shop-page__message { margin-top: 16px; color: #d8e9d3; }
 .shop-page__links { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 24px; }
 .shop-page__links a { color: #efbd68; text-decoration: none; }
+.exchange-section { margin-top: 18px; padding: 18px; border: 1px solid #40556c; border-radius: 14px; background: rgba(16, 30, 44, .66); }
+.exchange-section > header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 4px; }.exchange-section > header h2 { margin: 4px 0 0; font-family: Georgia, serif; }.exchange-section > header > strong { color: #f2c56f; }.exchange-section > p { margin: 0 0 16px; color: #9eb1c1; font-size: .8rem; }.exchange-item { min-height: 245px; }
 @media (max-width: 640px) { .shop-page { padding: 22px 14px 50px; } .shop-summary { grid-template-columns: 1fr; } }
