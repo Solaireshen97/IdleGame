@@ -12,5 +12,6 @@ public sealed class CharacterWeapon
     public int Attack { get; set; }
     public int MaxHp { get; set; }
     public int? EquippedSlotIndex { get; set; }
+    public List<CharacterWeaponSkill> Skills { get; set; } = [];
     public int Version { get; set; }
 }

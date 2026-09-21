@@ -20,6 +20,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
     public DbSet<CharacterWeapon> CharacterWeapons => Set<CharacterWeapon>();
+    public DbSet<CharacterWeaponSkill> CharacterWeaponSkills => Set<CharacterWeaponSkill>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +83,23 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             {
                 table.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
                 table.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
+            });
+        modelBuilder.Entity<CharacterWeaponSkill>()
+            .HasOne<CharacterWeapon>()
+            .WithMany(weapon => weapon.Skills)
+            .HasForeignKey(skill => skill.WeaponId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CharacterWeaponSkill>()
+            .HasIndex(skill => new { skill.WeaponId, skill.SlotIndex })
+            .IsUnique();
+        modelBuilder.Entity<CharacterWeaponSkill>()
+            .HasIndex(skill => new { skill.WeaponId, skill.SkillCode })
+            .IsUnique();
+        modelBuilder.Entity<CharacterWeaponSkill>()
+            .ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
+                table.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
             });
 
         modelBuilder.Entity<Room>()

@@ -10,6 +10,9 @@ public class Character
     public int MaxHp { get; set; }
     public int Attack { get; set; }
     public int Defense { get; set; }
+    public decimal WeaponAttackBonusPercent { get; set; }
+    public decimal WeaponHealthBonusPercent { get; set; }
+    public decimal WeaponCriticalChancePercent { get; set; }
     public int Level { get; set; } = 1;
     public int Experience { get; set; }
     public int TalentPoints { get; set; }

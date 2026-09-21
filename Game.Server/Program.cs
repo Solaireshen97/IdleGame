@@ -42,7 +42,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
-    await DbInitializer.InitializeAsync(dbContext);
+    await DbInitializer.InitializeAsync(dbContext, scope.ServiceProvider.GetRequiredService<WeaponCatalog>());
 }
 
 if (app.Environment.IsDevelopment())

@@ -21,5 +21,9 @@ public static class TalentRules
     };
     public static int EffectiveAttack(Character character) => character.Attack + character.AttackTalentRank * AttackPerRank;
     public static int EffectiveDefense(Character character) => character.Defense + character.DefenseTalentRank * DefensePerRank;
-    public static int EffectiveMaxHp(Character character) => character.MaxHp + character.HealthTalentRank * HealthPerRank;
+    public static int EffectiveMaxHp(Character character)
+    {
+        var weaponHp = decimal.Floor(character.MaxHp * (1m + character.WeaponHealthBonusPercent / 100m));
+        return (int)Math.Min(int.MaxValue, Math.Max(1m, weaponHp + character.HealthTalentRank * HealthPerRank));
+    }
 }

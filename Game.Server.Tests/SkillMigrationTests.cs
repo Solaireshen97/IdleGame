@@ -18,26 +18,18 @@ public class SkillMigrationTests
             var options = new DbContextOptionsBuilder<GameDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
             await using var db = new GameDbContext(options);
             await db.Database.GetService<IMigrator>().MigrateAsync("20260921000000_AddSkillTalentTree");
-            db.Users.Add(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 });
-            db.Characters.Add(new Character
-            {
-                Id = 1, UserId = 1, Name = "Knight", ProfessionCode = "knight", Level = 3,
-                TalentPoints = 0, AttackTalentRank = 1, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5
-            });
-            db.CharacterSkillTalents.Add(new CharacterSkillTalent
-            {
-                CharacterId = 1, NodeCode = "knight-vanguard", PointsSpent = 1
-            });
-            db.CharacterSkillSlots.Add(new CharacterSkillSlot
-            {
-                CharacterId = 1, SlotIndex = 3, SkillCode = "knight-break", AutoUseEnabled = true
-            });
-            db.BattleSkillCooldowns.Add(new BattleSkillCooldown
-            {
-                RoomId = 1, CharacterId = 1, SkillCode = "knight-break", ReadyAtRound = 4
-            });
-            await db.SaveChangesAsync();
-            db.ChangeTracker.Clear();
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO Users (Id, UserName, PasswordHash, ActiveCharacterId) VALUES (1, 'owner', 'x', 1);
+                INSERT INTO Characters (Id, UserId, Name, ProfessionCode, Level, Experience, TalentPoints,
+                    AttackTalentRank, DefenseTalentRank, HealthTalentRank, Hp, MaxHp, Attack, Defense, Version)
+                VALUES (1, 1, 'Knight', 'knight', 3, 0, 0, 1, 0, 0, 100, 100, 20, 5, 0);
+                INSERT INTO CharacterSkillTalents (CharacterId, NodeCode, PointsSpent)
+                VALUES (1, 'knight-vanguard', 1);
+                INSERT INTO CharacterSkillSlots (CharacterId, SlotIndex, SkillCode, AutoUseEnabled, AutoHpThresholdPercent, Version)
+                VALUES (1, 3, 'knight-break', 1, 70, 0);
+                INSERT INTO BattleSkillCooldowns (RoomId, CharacterId, SkillCode, ReadyAtRound)
+                VALUES (1, 1, 'knight-break', 4);
+                """);
 
             await db.Database.MigrateAsync();
 

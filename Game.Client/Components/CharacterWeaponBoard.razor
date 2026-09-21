@@ -26,9 +26,25 @@
                 <span>主属性</span>
                 <strong>@(_data.MainElement is { } mainElement ? WeaponRules.ElementName(mainElement) : "未确定")</strong>
             </div>
-            <div class="weapon-board__stat"><span>武器攻击总和</span><strong>@_data.TotalAttack</strong><small>天赋后 @_data.EffectiveAttack</small></div>
-            <div class="weapon-board__stat"><span>武器 HP 总和</span><strong>@_data.TotalMaxHp</strong><small>当前 @_data.Hp / @_data.EffectiveMaxHp</small></div>
+            <div class="weapon-board__stat"><span>武器攻击总和</span><strong>@_data.TotalAttack</strong><small>天赋后 @_data.EffectiveAttack · 技能 +@_data.AttackBonusPercent.ToString("0.##")%</small></div>
+            <div class="weapon-board__stat"><span>武器 HP 总和</span><strong>@_data.TotalMaxHp</strong><small>技能 +@_data.HealthBonusPercent.ToString("0.##")% · 当前 @_data.Hp / @_data.EffectiveMaxHp</small></div>
             <button type="button" class="weapon-board__refresh" @onclick="LoadAsync" disabled="@_isSaving">刷新</button>
+        </div>
+
+        <div class="weapon-board__effects" aria-label="已生效的武器技能">
+            <div><span class="weapon-board__eyebrow">ACTIVE WEAPON SKILLS</span><h2>生效技能</h2><p>只有与主武器同属性的已装备武器提供技能效果。</p></div>
+            @if (_data.ActiveSkills.Count == 0)
+            {
+                <span class="weapon-board__no-effects">暂无生效技能</span>
+            }
+            else
+            {
+                @foreach (var skill in _data.ActiveSkills)
+                {
+                    <div class="weapon-board__effect"><strong>@skill.Name Lv @skill.Level</strong><span>+@skill.TotalPercent.ToString("0.##")%</span></div>
+                }
+            }
+            <div class="weapon-board__effect"><strong>暴击率</strong><span>@_data.CriticalChancePercent.ToString("0.##")% <small>暴击伤害 150%</small></span></div>
         </div>
 
         <div class="weapon-board__grid-head">
@@ -43,6 +59,10 @@
                 <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
                 <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
                 <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
+                @if (main is not null)
+                {
+                    <span class="weapon-card__skills">@foreach (var skill in main.Skills) { <span>@skill.Name Lv @skill.Level</span> }</span>
+                }
                 <span class="weapon-card__stats"><span>⚔ @(main?.Attack ?? 0)</span><span>✚ @(main?.MaxHp ?? 0)</span></span>
             </button>
             <div class="weapon-board__subgrid" aria-label="九个副武器栏位">
@@ -58,6 +78,7 @@
                         <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
                         @if (weapon is not null)
                         {
+                            <span class="weapon-card__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level</span> }</span>
                             <span class="weapon-card__stats"><span>⚔ @weapon.Attack</span><span>✚ @weapon.MaxHp</span></span>
                         }
                     </button>
@@ -90,12 +111,12 @@
                         <span class="weapon-option__meta">@WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name</h3>
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
+                        @if (weapon.Skills.Count > 0)
+                        {
+                            <div class="weapon-option__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span> }</div>
+                        }
                         @if (wouldEmptyMain) { <small>主武器只能与已有武器交换</small> }
                         else if (!isHere) { <small>装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
-                        @if (!isHere && !wouldEmptyMain && _data.Hp > _data.EffectiveMaxHp - _data.TotalMaxHp + previewHp)
-                        {
-                            <small class="weapon-option__warning">当前 HP 将降至新的上限</small>
-                        }
                     </div>
                     <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
                 </article>
@@ -103,7 +124,7 @@
         </div>
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
-        <p class="weapon-board__footnote">当前阶段只计算十把武器的基础攻击与 HP。属性克制和武器技能会在后续阶段接入战斗。</p>
+        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器，同名技能等级相加。暴击由服务端逐次判定。</p>
     }
 </section>
 
@@ -159,8 +180,11 @@
         {
             var (response, error) = await ApiService.SetWeaponSlotAsync(CharacterId, _selectedSlot, weaponId);
             if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
+            var previousHp = _data?.Hp;
             _data = response;
-            _notice = weaponId is null ? "武器已卸下。" : "武器盘已更新。";
+            _notice = previousHp is int oldHp && oldHp > response.Hp
+                ? $"武器盘已更新，当前 HP 随生命上限降至 {response.Hp}。"
+                : weaponId is null ? "武器已卸下。" : "武器盘已更新。";
             if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
         }
         catch { _error = "连接失败，请稍后重试。"; }

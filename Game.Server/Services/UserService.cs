@@ -394,7 +394,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         var main = weapons.Single(weapon => weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex);
         character.Attack = main.Attack;
         character.MaxHp = main.MaxHp;
-        character.Hp = main.MaxHp;
+        catalog.ApplyBonuses(character, weapons);
+        character.Hp = TalentRules.EffectiveMaxHp(character);
         character.Version++;
     }
 

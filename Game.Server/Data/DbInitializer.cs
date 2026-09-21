@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Game.Shared.Models;
 using Game.Shared.Enums;
+using Game.Shared;
+using Game.Server.Services;
 
 namespace Game.Server.Data;
 
@@ -12,11 +14,29 @@ public static class DbInitializer
     private const string InitialCreateMigrationId = "20260612043042_InitialCreate";
     private const string AddActiveCharacterMigrationId = "20260612044400_AddActiveCharacterId";
 
-    public static async Task InitializeAsync(GameDbContext dbContext)
+    public static async Task InitializeAsync(GameDbContext dbContext, WeaponCatalog? weaponCatalog = null)
     {
         await AdoptLegacyEnsureCreatedDatabaseAsync(dbContext);
         await dbContext.Database.MigrateAsync();
         await EnsureDefaultDungeonsAsync(dbContext);
+        if (weaponCatalog is not null) await SynchronizeWeaponBonusesAsync(dbContext, weaponCatalog);
+    }
+
+    private static async Task SynchronizeWeaponBonusesAsync(GameDbContext dbContext, WeaponCatalog catalog)
+    {
+        var weaponsByCharacter = (await dbContext.CharacterWeapons.Include(weapon => weapon.Skills).ToListAsync())
+            .GroupBy(weapon => weapon.CharacterId).ToDictionary(group => group.Key, group => group.AsEnumerable());
+        var characters = await dbContext.Characters.ToListAsync();
+        foreach (var character in characters)
+        {
+            var previous = (character.WeaponAttackBonusPercent, character.WeaponHealthBonusPercent,
+                character.WeaponCriticalChancePercent, character.Hp);
+            catalog.ApplyBonuses(character, weaponsByCharacter.GetValueOrDefault(character.Id) ?? []);
+            character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
+            if (previous != (character.WeaponAttackBonusPercent, character.WeaponHealthBonusPercent,
+                    character.WeaponCriticalChancePercent, character.Hp)) character.Version++;
+        }
+        await dbContext.SaveChangesAsync();
     }
 
     public static async Task EnsureDefaultDungeonsAsync(GameDbContext dbContext)

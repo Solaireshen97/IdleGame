@@ -14,6 +14,10 @@ public sealed class CharacterWeaponsResponse
     public int EffectiveMaxHp { get; set; }
     public int Defense { get; set; }
     public ElementType? MainElement { get; set; }
+    public decimal AttackBonusPercent { get; set; }
+    public decimal HealthBonusPercent { get; set; }
+    public decimal CriticalChancePercent { get; set; }
+    public List<ActiveWeaponSkillResponse> ActiveSkills { get; set; } = [];
     public List<CharacterWeaponResponse> Weapons { get; set; } = [];
 }
 
@@ -26,4 +30,22 @@ public sealed class CharacterWeaponResponse
     public int Attack { get; set; }
     public int MaxHp { get; set; }
     public int? EquippedSlotIndex { get; set; }
+    public List<WeaponSkillResponse> Skills { get; set; } = [];
+}
+
+public sealed class WeaponSkillResponse
+{
+    public string SkillCode { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int Level { get; set; }
+    public decimal TotalPercent { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public sealed class ActiveWeaponSkillResponse
+{
+    public string SkillCode { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int Level { get; set; }
+    public decimal TotalPercent { get; set; }
 }

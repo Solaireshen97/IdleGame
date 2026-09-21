@@ -68,6 +68,15 @@ namespace Game.Server.Data.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal>("WeaponAttackBonusPercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("WeaponCriticalChancePercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("WeaponHealthBonusPercent")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.ToTable("Characters");
@@ -102,6 +111,23 @@ namespace Game.Server.Data.Migrations
                     {
                         t.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
                         t.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
+                    });
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterWeaponSkill", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("WeaponId").HasColumnType("INTEGER");
+                    b.Property<int>("SlotIndex").HasColumnType("INTEGER");
+                    b.Property<string>("SkillCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Level").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("WeaponId", "SlotIndex").IsUnique();
+                    b.HasIndex("WeaponId", "SkillCode").IsUnique();
+                    b.ToTable("CharacterWeaponSkills", t =>
+                    {
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
                     });
                 });
 
@@ -371,6 +397,19 @@ namespace Game.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("UserLoginSessions");
+                });
+            modelBuilder.Entity("Game.Shared.Models.CharacterWeaponSkill", b =>
+                {
+                    b.HasOne("Game.Shared.Models.CharacterWeapon", null)
+                        .WithMany("Skills")
+                        .HasForeignKey("WeaponId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterWeapon", b =>
+                {
+                    b.Navigation("Skills");
                 });
 #pragma warning restore 612, 618
         }

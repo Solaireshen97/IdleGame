@@ -296,10 +296,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         foreach (var entry in aliveSlots)
         {
             var element = mainWeaponElements.TryGetValue(entry.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
+            var critical = RollCritical(entry.Character);
             var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
-                factors: new DamageFactors(ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
+                factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent,
+                    CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                    ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
             monster.Hp = Math.Max(0, monster.Hp - damage);
-            logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage.");
+            logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
             if (monster.Hp <= 0) break;
         }
         var guardPercent = monster.Hp > 0 ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, logs) : 0;
@@ -394,10 +397,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
                 case "Damage":
                     if (monster.Hp <= 0) return false;
                     var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
+                    var critical = RollCritical(participant.Character);
                     var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
-                        skill.Power, new DamageFactors(ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
+                        skill.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent,
+                            CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                            ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
                     monster.Hp = Math.Max(0, monster.Hp - damage);
-                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage.");
+                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
                     break;
                 case "Heal":
                     if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character) ||
@@ -448,6 +454,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             if (monster.Hp <= 0) break;
         }
         return guardPercent;
+    }
+
+    private static bool RollCritical(Character character)
+    {
+        var chance = character.WeaponCriticalChancePercent;
+        return chance >= 100m || chance > 0m && (decimal)Random.Shared.NextDouble() * 100m < chance;
     }
 
     private async Task AwardVictoryConsumablesAsync(string dungeonCode, List<SlotCharacter> slots, List<string> logs)

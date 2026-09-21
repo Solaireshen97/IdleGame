@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog)
+public sealed class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog, WeaponCatalog weaponCatalog)
 {
     public async Task<(CharacterWeaponsResponse? Response, string? Error)> GetAsync(string? token, int characterId)
     {
@@ -28,7 +28,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (room is not null && room.Status != RoomStatus.BattleOver &&
             (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (null, "LoadoutLocked");
 
-        var weapons = await dbContext.CharacterWeapons.Where(weapon => weapon.CharacterId == characterId).ToListAsync();
+        var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
+            .Where(weapon => weapon.CharacterId == characterId).ToListAsync();
         var selected = request.WeaponId is int id ? weapons.SingleOrDefault(weapon => weapon.Id == id) : null;
         if (request.WeaponId is not null && selected is null) return (null, "WeaponNotOwned");
         var displaced = weapons.SingleOrDefault(weapon => weapon.EquippedSlotIndex == slotIndex);
@@ -63,6 +64,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             var equipped = weapons.Where(weapon => weapon.EquippedSlotIndex is not null).ToList();
             character!.Attack = equipped.Sum(weapon => weapon.Attack);
             character.MaxHp = equipped.Sum(weapon => weapon.MaxHp);
+            weaponCatalog.ApplyBonuses(character, weapons);
             character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
             character.Version++;
             if (room is not null) room.Version++;
@@ -87,10 +89,12 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
 
     private async Task<CharacterWeaponsResponse> BuildResponseAsync(Character character)
     {
-        var weapons = await dbContext.CharacterWeapons.Where(item => item.CharacterId == character.Id)
+        var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
+            .Where(item => item.CharacterId == character.Id)
             .OrderBy(item => item.EquippedSlotIndex == null).ThenBy(item => item.EquippedSlotIndex)
             .ThenBy(item => item.Id).ToListAsync();
         var main = weapons.SingleOrDefault(item => item.EquippedSlotIndex == WeaponRules.MainSlotIndex);
+        var bonuses = weaponCatalog.CalculateBonuses(weapons);
         return new CharacterWeaponsResponse
         {
             CharacterId = character.Id,
@@ -103,6 +107,14 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             EffectiveMaxHp = TalentRules.EffectiveMaxHp(character),
             Defense = TalentRules.EffectiveDefense(character),
             MainElement = main?.Element,
+            AttackBonusPercent = bonuses.AttackPercent,
+            HealthBonusPercent = bonuses.HealthPercent,
+            CriticalChancePercent = bonuses.CriticalChancePercent,
+            ActiveSkills = bonuses.ActiveSkills.Select(skill => new ActiveWeaponSkillResponse
+            {
+                SkillCode = skill.Code, Name = skill.Name, Level = skill.Level,
+                TotalPercent = skill.TotalPercent
+            }).ToList(),
             Weapons = weapons.Select(item => new CharacterWeaponResponse
             {
                 Id = item.Id,
@@ -111,7 +123,19 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 Element = item.Element,
                 Attack = item.Attack,
                 MaxHp = item.MaxHp,
-                EquippedSlotIndex = item.EquippedSlotIndex
+                EquippedSlotIndex = item.EquippedSlotIndex,
+                Skills = item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
+                {
+                    var definition = weaponCatalog.FindSkill(skill.SkillCode);
+                    return new WeaponSkillResponse
+                    {
+                        SkillCode = skill.SkillCode,
+                        Name = definition?.Name ?? skill.SkillCode,
+                        Level = skill.Level,
+                        TotalPercent = skill.Level * (definition?.PercentPerLevel ?? 0),
+                        IsActive = definition is not null && item.EquippedSlotIndex.HasValue && item.Element == main?.Element
+                    };
+                }).ToList()
             }).ToList()
         };
     }
