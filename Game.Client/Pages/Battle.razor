@@ -1007,7 +1007,8 @@ else
     }
     private string GetStatusText() => _roomDetail?.RoomStatus switch
     {
-        Game.Shared.Enums.RoomStatus.NotStarted => "未开始",
+        Game.Shared.Enums.RoomStatus.NotStarted when _roomDetail.RoundNumber > 0 => "等待操作",
+        Game.Shared.Enums.RoomStatus.NotStarted => "等待开战",
         Game.Shared.Enums.RoomStatus.Cooldown => "冷却中",
         Game.Shared.Enums.RoomStatus.Preparing => "准备中",
         Game.Shared.Enums.RoomStatus.WaveTransition => "波次切换",

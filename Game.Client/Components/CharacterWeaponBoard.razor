@@ -119,7 +119,7 @@
                 <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant()" @key="weapon.Id">
                     <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
                     <div class="weapon-option__body">
-                        <span class="weapon-option__meta">装等 @weapon.ItemLevel · T@weapon.FragmentTier · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
+                        <span class="weapon-option__meta">装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
@@ -130,7 +130,7 @@
                                     var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
                                     <div class="weapon-option__skill-row">
                                         <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span>
-                                        <small>基础 Lv@skill.BaseLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
+                                        <small>基础 Lv@(skill.BaseLevel) · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
                                         <button type="button" class="weapon-option__enhance"
                                                 @onclick="() => EnhanceAsync(weapon, skill)"
                                                 disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
@@ -149,7 +149,7 @@
                         @if (weapon.EquippedSlotIndex is null)
                         {
                             <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">出售 · @weapon.SellGold 金币</button>
-                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">分解 · T@weapon.FragmentTier ×@weapon.DismantleReturnQuantity</button>
+                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">分解 · T@(weapon.FragmentTier) ×@weapon.DismantleReturnQuantity</button>
                         }
                     </div>
                 </article>
