@@ -181,6 +181,13 @@
 .monster-intent__body > small { color: #b9c7d8; }
 .monster-intent__target { display: grid; gap: .2rem; text-align: right; }
 .monster-intent__target strong { color: #fff; font-size: .82rem; }
+.monster-intent__target small { font-size: .68rem; font-weight: 800; }
+.monster-intent--dangerous { border-color: rgba(238, 167, 73, .7); box-shadow: inset 3px 0 0 #eea749; }
+.monster-intent--dangerous .monster-intent__icon { background: #eea749; }
+.monster-intent--deadly { border-color: rgba(239, 92, 92, .8); box-shadow: inset 3px 0 0 #ef5c5c; background: rgba(91, 24, 31, .62); }
+.monster-intent--deadly .monster-intent__icon { background: #ef5c5c; }
+.intent-rule--yes { color: #8debc8; }
+.intent-rule--no { color: #ef9c92; }
 
 .battle-effects {
     display: flex;

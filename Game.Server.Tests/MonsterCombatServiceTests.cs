@@ -93,6 +93,39 @@ public class MonsterCombatServiceTests
         Assert.Empty(await test.Service.GetStatusResponsesAsync(test.Room, "Character", test.Character.Id));
     }
 
+    [Fact]
+    public async Task DeadlyIntentCanBeConfiguredAsUninterruptible()
+    {
+        await using var test = await Context.CreateAsync("toxic-slime");
+
+        var response = await test.Service.GetIntentResponseAsync(test.Room, test.Monster);
+        var interrupted = await test.Service.InterruptCurrentIntentAsync(test.Room, test.Monster);
+
+        Assert.NotNull(response);
+        Assert.Equal("Deadly", response.DangerLevel);
+        Assert.False(response.IsInterruptible);
+        Assert.False(interrupted);
+    }
+
+    [Fact]
+    public async Task DispelledStatusCanBeReappliedLaterInTheSameRound()
+    {
+        await using var test = await Context.CreateAsync("hardened-slime");
+        await test.Service.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id,
+            "slime-shell", 1, [], "Slime");
+        await test.Db.SaveChangesAsync();
+        var removed = await test.Service.RemoveFirstStatusAsync(test.Room, "Monster", [test.Monster.Id], true);
+
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+        await test.Db.SaveChangesAsync();
+
+        Assert.NotNull(removed);
+        var effect = await test.Db.BattleStatusEffects.SingleAsync();
+        Assert.Equal("slime-shell", effect.EffectCode);
+        Assert.Equal(2, effect.ExpiresAfterRound);
+    }
+
     private sealed class Context : IAsyncDisposable
     {
         private readonly string _path;

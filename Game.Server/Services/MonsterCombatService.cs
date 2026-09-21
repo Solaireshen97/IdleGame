@@ -62,9 +62,57 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             Description = skill?.Description ?? "攻击预告中指定的前排角色。",
             TargetType = intent.TargetType,
             TargetCharacterId = intent.TargetCharacterId,
-            TargetLabel = targetLabel
+            TargetLabel = targetLabel,
+            IsInterruptible = skill?.IsInterruptible == true,
+            IsInterrupted = intent.IsInterrupted,
+            DangerLevel = skill?.DangerLevel ?? "Normal"
         };
     }
+
+    public async Task<bool> CanInterruptCurrentIntentAsync(Room room, Monster monster)
+    {
+        var intent = await EnsureIntentAsync(room, monster);
+        return intent.ActionType == "Skill" && !intent.IsInterrupted &&
+               catalog.FindSkill(intent.SkillCode)?.IsInterruptible == true;
+    }
+
+    public async Task<bool> InterruptCurrentIntentAsync(Room room, Monster monster)
+    {
+        var intent = await EnsureIntentAsync(room, monster);
+        if (intent.ActionType != "Skill" || intent.IsInterrupted ||
+            catalog.FindSkill(intent.SkillCode)?.IsInterruptible != true) return false;
+        intent.IsInterrupted = true;
+        return true;
+    }
+
+    public async Task<bool> HasRemovableStatusAsync(Room room, string targetType,
+        IReadOnlyCollection<int> targetIds, bool isPositive)
+    {
+        var effects = await GetActiveEffectsAsync(room, targetType, targetIds);
+        return effects.Any(effect => catalog.FindStatus(effect.EffectCode) is { } definition &&
+            definition.IsPositive == isPositive && definition.IsDispellable);
+    }
+
+    public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
+        IReadOnlyList<int> targetIds, bool isPositive)
+    {
+        var effects = await GetActiveEffectsAsync(room, targetType, targetIds);
+        var targetOrder = targetIds.Select((id, index) => (id, index)).ToDictionary(entry => entry.id, entry => entry.index);
+        var effect = effects.OrderBy(effect => targetOrder.GetValueOrDefault(effect.TargetId, int.MaxValue))
+            .ThenBy(effect => effect.Id)
+            .FirstOrDefault(effect => catalog.FindStatus(effect.EffectCode) is { } definition &&
+                definition.IsPositive == isPositive && definition.IsDispellable);
+        if (effect is null) return null;
+        var status = catalog.FindStatus(effect.EffectCode)!;
+        dbContext.BattleStatusEffects.Remove(effect);
+        return new RemovedBattleStatus(effect.TargetId, status.Code, status.Name, status.IsPositive);
+    }
+
+    public Task<bool> ApplyStatusAsync(Room room, string targetType, int targetId, string statusCode,
+        int durationRounds, List<string> logs, string targetLabel) =>
+        ApplyStatusCoreAsync(room, targetType, targetId,
+            new MonsterStatusApplicationOptions { StatusCode = statusCode, DurationRounds = durationRounds },
+            logs, targetLabel);
 
     public async Task<List<BattleStatusEffectResponse>> GetStatusResponsesAsync(Room room, string targetType, int targetId)
     {
@@ -80,6 +128,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 Name = definition?.Name ?? effect.EffectCode,
                 Description = definition?.Description ?? string.Empty,
                 IsPositive = definition?.IsPositive ?? false,
+                CanDispel = definition?.IsDispellable ?? false,
                 Stacks = effect.Stacks,
                 RemainingRounds = Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1)
             };
@@ -94,6 +143,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var intent = await EnsureIntentAsync(room, monster);
         dbContext.MonsterIntents.Remove(intent);
         var skill = intent.ActionType == "Skill" ? catalog.FindSkill(intent.SkillCode) : null;
+        if (intent.IsInterrupted)
+        {
+            if (skill is not null) await StartCooldownAsync(room, monster, skill);
+            logs.Add($"{monster.Name}'s {skill?.Name ?? "action"} is interrupted.");
+            return;
+        }
         if (skill is null)
         {
             var target = participants.SingleOrDefault(entry => entry.Character.Id == intent.TargetCharacterId && entry.Character.Hp > 0);
@@ -128,15 +183,22 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         foreach (var application in skill.Statuses)
         {
             if (skill.TargetType == "Self")
-                await ApplyStatusAsync(room, "Monster", monster.Id, application, logs, monster.Name);
+                await ApplyStatusCoreAsync(room, "Monster", monster.Id, application, logs, monster.Name);
             else
                 foreach (var target in targets.Where(target => target.Character.Hp > 0))
-                    await ApplyStatusAsync(room, "Character", target.Character.Id, application, logs,
+                    await ApplyStatusCoreAsync(room, "Character", target.Character.Id, application, logs,
                         $"Slot {target.Slot.SlotIndex} {target.Character.Name}");
         }
 
-        var cooldown = await dbContext.BattleMonsterSkillCooldowns.SingleOrDefaultAsync(entry =>
-            entry.RoomId == room.Id && entry.MonsterId == monster.Id && entry.SkillCode == skill.Code);
+        await StartCooldownAsync(room, monster, skill);
+    }
+
+    private async Task StartCooldownAsync(Room room, Monster monster, MonsterSkillOptions skill)
+    {
+        var cooldown = dbContext.BattleMonsterSkillCooldowns.Local.FirstOrDefault(entry =>
+                entry.RoomId == room.Id && entry.MonsterId == monster.Id && entry.SkillCode == skill.Code)
+            ?? await dbContext.BattleMonsterSkillCooldowns.SingleOrDefaultAsync(entry =>
+                entry.RoomId == room.Id && entry.MonsterId == monster.Id && entry.SkillCode == skill.Code);
         if (cooldown is null)
         {
             cooldown = new BattleMonsterSkillCooldown
@@ -155,6 +217,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         var effects = await dbContext.BattleStatusEffects.Where(effect =>
             effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
+        effects.RemoveAll(effect => dbContext.Entry(effect).State == EntityState.Deleted);
         foreach (var effect in effects.Where(effect => effect.AppliedRound < room.RoundNumber))
         {
             var definition = catalog.FindStatus(effect.EffectCode);
@@ -194,9 +257,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     public async Task<decimal> GetModifierAsync(Room room, string targetType, int targetId, string effectType)
     {
-        var effects = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
-            effect.RunSequence == room.RunSequence && effect.TargetType == targetType && effect.TargetId == targetId &&
-            effect.ExpiresAfterRound >= room.RoundNumber).ToListAsync();
+        var effects = await GetActiveEffectsAsync(room, targetType, [targetId]);
         return effects.Sum(effect => catalog.FindStatus(effect.EffectCode) is { EffectType: var type } definition && type == effectType
             ? definition.ValuePerStack * effect.Stacks : 0m);
     }
@@ -227,17 +288,19 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         return eligible[^1].Skill;
     }
 
-    private async Task ApplyStatusAsync(Room room, string targetType, int targetId,
+    private async Task<bool> ApplyStatusCoreAsync(Room room, string targetType, int targetId,
         MonsterStatusApplicationOptions application, List<string> logs, string targetLabel)
     {
         var definition = catalog.FindStatus(application.StatusCode);
-        if (definition is null) return;
+        if (definition is null) return false;
         var effect = dbContext.BattleStatusEffects.Local.FirstOrDefault(entry => entry.RoomId == room.Id &&
                 entry.RunSequence == room.RunSequence && entry.TargetType == targetType && entry.TargetId == targetId &&
-                entry.EffectCode == definition.Code)
-            ?? await dbContext.BattleStatusEffects.SingleOrDefaultAsync(entry => entry.RoomId == room.Id &&
-                entry.RunSequence == room.RunSequence && entry.TargetType == targetType && entry.TargetId == targetId &&
                 entry.EffectCode == definition.Code);
+        effect ??= await dbContext.BattleStatusEffects.SingleOrDefaultAsync(entry => entry.RoomId == room.Id &&
+            entry.RunSequence == room.RunSequence && entry.TargetType == targetType && entry.TargetId == targetId &&
+            entry.EffectCode == definition.Code);
+        if (effect is not null && dbContext.Entry(effect).State == EntityState.Deleted)
+            dbContext.Entry(effect).State = EntityState.Modified;
         if (effect is null)
         {
             effect = new BattleStatusEffect
@@ -254,6 +317,22 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         }
         effect.ExpiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
         logs.Add($"{targetLabel} gains {definition.Name} for {application.DurationRounds} round(s){(effect.Stacks > 1 ? $" (x{effect.Stacks})" : "")}.");
+        return true;
+    }
+
+    private async Task<List<BattleStatusEffect>> GetActiveEffectsAsync(Room room, string targetType,
+        IReadOnlyCollection<int> targetIds)
+    {
+        var effects = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
+            effect.RunSequence == room.RunSequence && effect.TargetType == targetType &&
+            targetIds.Contains(effect.TargetId) && effect.ExpiresAfterRound >= room.RoundNumber).ToListAsync();
+        effects.RemoveAll(effect => dbContext.Entry(effect).State == EntityState.Deleted);
+        foreach (var local in dbContext.BattleStatusEffects.Local.Where(effect => effect.RoomId == room.Id &&
+                     effect.RunSequence == room.RunSequence && effect.TargetType == targetType &&
+                     targetIds.Contains(effect.TargetId) && effect.ExpiresAfterRound >= room.RoundNumber &&
+                     dbContext.Entry(effect).State != EntityState.Deleted))
+            if (!effects.Contains(local)) effects.Add(local);
+        return effects;
     }
 
     private async Task DealDamageAsync(Room room, Monster monster, MonsterCombatParticipant target,
@@ -293,3 +372,4 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
 public sealed record MonsterCombatParticipant(RoomSlot Slot, Character Character);
 public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId);
+public sealed record RemovedBattleStatus(int TargetId, string Code, string Name, bool IsPositive);

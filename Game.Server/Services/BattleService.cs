@@ -1,3 +1,4 @@
+using Game.Server.Configuration;
 using Game.Server.Data;
 using Game.Shared;
 using Game.Shared.Dtos;
@@ -262,8 +263,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
                 entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber) return (false, "SkillCooldown");
-            if (skill.EffectType == "Heal" && !slots.Any(entry => entry.Character.Hp > 0 &&
-                entry.Character.Hp < TalentRules.EffectiveMaxHp(entry.Character))) return (false, "NoInjuredTarget");
+            if (!await CanSkillApplyAsync(room, monster, skill, participant, slots))
+                return (false, "NoValidSkillTarget");
             participant.Slot.PendingSkillSlotMask |= mask;
         }
         else participant.Slot.PendingSkillSlotMask &= ~mask;
@@ -423,17 +424,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 group => group.Select(node => node.NodeCode).ToHashSet(StringComparer.OrdinalIgnoreCase));
         var guardPercent = 0;
         int? guardTargetCharacterId = null;
-        var monsterReduction = monsterCombatService is null ? 0m :
-            await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
-        var characterAttackModifiers = new Dictionary<int, decimal>();
-        if (monsterCombatService is not null)
-            foreach (var entry in aliveSlots)
-                characterAttackModifiers[entry.Character.Id] = await monsterCombatService.GetModifierAsync(
-                    room, "Character", entry.Character.Id, "AttackPercent");
         var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
-        bool TryUse(SlotCharacter participant, CharacterSkillSlot slot, bool automatic)
+        async Task<bool> TryUseAsync(SlotCharacter participant, CharacterSkillSlot slot, bool automatic)
         {
             var skill = skillCatalog.FindSkill(slot.SkillCode);
             var used = usedByCharacter[participant.Character.Id];
@@ -442,42 +436,100 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 used.Contains(skill.Code)) return false;
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
-            var target = aliveSlots.Where(entry => entry.Character.Hp > 0)
-                .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
-                .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
-            var front = aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
-            switch (skill.EffectType)
+            if (automatic && !await MeetsAutoConditionAsync(room, monster, skill, participant, aliveSlots,
+                    slot.AutoHpThresholdPercent)) return false;
+            if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots)) return false;
+
+            var applied = false;
+            foreach (var effect in SkillCatalog.EffectsFor(skill))
             {
-                case "Damage":
-                    if (monster.Hp <= 0) return false;
-                    var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
-                    var critical = RollCritical(participant.Character);
-                    var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
-                        skill.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent +
-                            characterAttackModifiers.GetValueOrDefault(participant.Character.Id),
-                            CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                            ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
-                            ReductionPercent: monsterReduction));
-                    monster.Hp = Math.Max(0, monster.Hp - damage);
-                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
-                    break;
-                case "Heal":
-                    if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character) ||
-                        automatic && (long)target.Character.Hp * 100 >
-                        (long)TalentRules.EffectiveMaxHp(target.Character) * slot.AutoHpThresholdPercent) return false;
-                    var healed = Math.Min(skill.Power, TalentRules.EffectiveMaxHp(target.Character) - target.Character.Hp);
-                    target.Character.Hp += healed;
-                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on Slot {target.Slot.SlotIndex} {target.Character.Name} and restores {healed} HP.");
-                    break;
-                case "Guard":
-                    if (front is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent || automatic && (long)front.Character.Hp * 100 >
-                        (long)TalentRules.EffectiveMaxHp(front.Character) * slot.AutoHpThresholdPercent) return false;
-                    guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + skill.Power);
-                    guardTargetCharacterId = front.Character.Id;
-                    logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} to protect Slot {front.Slot.SlotIndex} {front.Character.Name}.");
-                    break;
-                default: return false;
+                switch (effect.Type)
+                {
+                    case "Damage" when monster.Hp > 0:
+                    {
+                        var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement)
+                            ? mainElement : (ElementType?)null;
+                        var critical = RollCritical(participant.Character);
+                        var attackModifier = monsterCombatService is null ? 0m :
+                            await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
+                        var monsterReduction = monsterCombatService is null ? 0m :
+                            await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
+                        var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
+                            effect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + attackModifier,
+                                CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                                ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
+                                ReductionPercent: monsterReduction));
+                        monster.Hp = Math.Max(0, monster.Hp - damage);
+                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
+                        applied = true;
+                        break;
+                    }
+                    case "Heal":
+                    {
+                        var target = effect.Target == "Self" ? participant : FindLowestHpTarget(aliveSlots);
+                        if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character)) break;
+                        var healed = Math.Min(effect.Power, TalentRules.EffectiveMaxHp(target.Character) - target.Character.Hp);
+                        target.Character.Hp += healed;
+                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on Slot {target.Slot.SlotIndex} {target.Character.Name} and restores {healed} HP.");
+                        applied = true;
+                        break;
+                    }
+                    case "Guard":
+                    {
+                        var front = aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
+                        if (front is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
+                        guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + effect.Power);
+                        guardTargetCharacterId = front.Character.Id;
+                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} to protect Slot {front.Slot.SlotIndex} {front.Character.Name}.");
+                        applied = true;
+                        break;
+                    }
+                    case "Cleanse" when monsterCombatService is not null:
+                    {
+                        var targetIds = effect.Target == "Self"
+                            ? new[] { participant.Character.Id }
+                            : aliveSlots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex)
+                                .Select(entry => entry.Character.Id).ToArray();
+                        var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", targetIds, false);
+                        if (removed is null) break;
+                        var target = aliveSlots.Single(entry => entry.Character.Id == removed.TargetId);
+                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and removes {removed.Name} from Slot {target.Slot.SlotIndex} {target.Character.Name}.");
+                        applied = true;
+                        break;
+                    }
+                    case "Dispel" when monsterCombatService is not null:
+                    {
+                        var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Monster", [monster.Id], true);
+                        if (removed is null) break;
+                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and removes {removed.Name} from {monster.Name}.");
+                        applied = true;
+                        break;
+                    }
+                    case "Interrupt" when monsterCombatService is not null:
+                        if (await monsterCombatService.InterruptCurrentIntentAsync(room, monster))
+                        {
+                            logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and interrupts {monster.Name}.");
+                            applied = true;
+                        }
+                        break;
+                    case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
+                    {
+                        var targetType = effect.Target == "Monster" ? "Monster" : "Character";
+                        var targetId = effect.Target switch
+                        {
+                            "Monster" => monster.Id,
+                            "Self" => participant.Character.Id,
+                            _ => aliveSlots.First(entry => entry.Character.Hp > 0).Character.Id
+                        };
+                        var targetLabel = effect.Target == "Monster" ? monster.Name :
+                            $"Slot {aliveSlots.Single(entry => entry.Character.Id == targetId).Slot.SlotIndex} {aliveSlots.Single(entry => entry.Character.Id == targetId).Character.Name}";
+                        applied |= await monsterCombatService.ApplyStatusAsync(room, targetType, targetId, effect.StatusCode,
+                            effect.DurationRounds, logs, targetLabel);
+                        break;
+                    }
+                }
             }
+            if (!applied) return false;
             if (cooldown is null)
             {
                 cooldown = new BattleSkillCooldown { RoomId = room.Id, CharacterId = participant.Character.Id, SkillCode = skill.Code };
@@ -495,7 +547,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             foreach (var slot in characterEquipment.Where(slot => (participant.Slot.PendingSkillSlotMask & SkillRules.SlotMask(slot.SlotIndex)) != 0))
             {
                 if (monster.Hp <= 0) break;
-                TryUse(participant, slot, automatic: false);
+                await TryUseAsync(participant, slot, automatic: false);
             }
             if (monster.Hp <= 0) break;
         }
@@ -506,12 +558,85 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             {
                 if (monster.Hp <= 0) break;
                 if ((participant.Slot.PendingSkillSlotMask & SkillRules.SlotMask(slot.SlotIndex)) == 0)
-                    TryUse(participant, slot, automatic: true);
+                    await TryUseAsync(participant, slot, automatic: true);
             }
             if (monster.Hp <= 0) break;
         }
         return new PlayerRoundDefense(guardPercent, guardTargetCharacterId);
     }
+
+    private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CombatSkillOptions skill,
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots)
+    {
+        var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
+        foreach (var effect in SkillCatalog.EffectsFor(skill))
+        {
+            switch (effect.Type)
+            {
+                case "Damage" when monster.Hp > 0:
+                case "Guard" when alive.Count > 0:
+                    return true;
+                case "Heal":
+                    var healTarget = effect.Target == "Self" ? participant : FindLowestHpTarget(alive);
+                    if (healTarget is not null && healTarget.Character.Hp < TalentRules.EffectiveMaxHp(healTarget.Character))
+                        return true;
+                    break;
+                case "Cleanse" when monsterCombatService is not null:
+                    var cleanseTargets = effect.Target == "Self"
+                        ? new[] { participant.Character.Id }
+                        : alive.Select(entry => entry.Character.Id).ToArray();
+                    if (await monsterCombatService.HasRemovableStatusAsync(room, "Character", cleanseTargets, false))
+                        return true;
+                    break;
+                case "Dispel" when monsterCombatService is not null:
+                    if (await monsterCombatService.HasRemovableStatusAsync(room, "Monster", [monster.Id], true))
+                        return true;
+                    break;
+                case "Interrupt" when monsterCombatService is not null:
+                    if (await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster)) return true;
+                    break;
+                case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
+                    if (effect.Target != "Monster" || monster.Hp > 0) return true;
+                    break;
+            }
+        }
+        return false;
+    }
+
+    private async Task<bool> MeetsAutoConditionAsync(Room room, Monster monster, CombatSkillOptions skill,
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int hpThresholdPercent)
+    {
+        var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
+        return SkillCatalog.AutoConditionFor(skill) switch
+        {
+            "Always" => true,
+            "LowestHpBelowThreshold" => GetHpConditionTarget(skill, participant, alive) is { } target &&
+                (long)target.Character.Hp * 100 <=
+                (long)TalentRules.EffectiveMaxHp(target.Character) * hpThresholdPercent,
+            "AllyHasDebuff" => monsterCombatService is not null &&
+                await monsterCombatService.HasRemovableStatusAsync(room, "Character",
+                    alive.Select(entry => entry.Character.Id).ToArray(), false),
+            "MonsterHasBuff" => monsterCombatService is not null &&
+                await monsterCombatService.HasRemovableStatusAsync(room, "Monster", [monster.Id], true),
+            "InterruptibleIntent" => monsterCombatService is not null &&
+                await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster),
+            _ => false
+        };
+    }
+
+    private static SlotCharacter? GetHpConditionTarget(CombatSkillOptions skill, SlotCharacter participant,
+        IReadOnlyList<SlotCharacter> alive)
+    {
+        var effects = SkillCatalog.EffectsFor(skill);
+        if (effects.Any(effect => effect.Type == "Guard")) return alive.FirstOrDefault();
+        if (effects.Any(effect => effect.Type == "Heal" && effect.Target == "Self")) return participant;
+        return FindLowestHpTarget(alive);
+    }
+
+    private static SlotCharacter? FindLowestHpTarget(IEnumerable<SlotCharacter> slots) => slots
+        .Where(entry => entry.Character.Hp > 0)
+        .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
+        .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
 
     private static bool RollCritical(Character character)
     {

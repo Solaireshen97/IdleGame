@@ -11,5 +11,6 @@ public sealed class MonsterIntent
     public string? SkillCode { get; set; }
     public string TargetType { get; set; } = "Front";
     public int? TargetCharacterId { get; set; }
+    public bool IsInterrupted { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

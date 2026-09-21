@@ -292,6 +292,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
                     b.Property<string>("ActionType").IsRequired().HasColumnType("TEXT");
                     b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<bool>("IsInterrupted").HasColumnType("INTEGER");
                     b.Property<int>("MonsterId").HasColumnType("INTEGER");
                     b.Property<int>("RoomId").HasColumnType("INTEGER");
                     b.Property<int>("RoundNumber").HasColumnType("INTEGER");

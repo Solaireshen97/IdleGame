@@ -25,7 +25,7 @@
         <div class="skill-board__learned">
             @foreach (var skill in _skills.LearnedSkills)
             {
-                <div class="skill-board__learned-item"><strong>@skill.Name</strong><span>@skill.Description · 冷却 @skill.CooldownRounds 回合</span></div>
+                <div class="skill-board__learned-item"><strong>@skill.Name</strong><span>@skill.Description · 冷却 @skill.CooldownRounds 回合</span><small>@GetAutoConditionText(skill.AutoCondition)</small></div>
             }
         </div>
         <div class="skill-board__slots">
@@ -45,9 +45,13 @@
                         </select>
                     </label>
                     <label class="skill-board__auto"><input type="checkbox" checked="@slot.AutoUseEnabled" disabled="@(_isSaving || activeSkill is null)" @onchange="e => SaveSlotAsync(slot, slot.SkillCode, (bool)e.Value!, slot.AutoHpThresholdPercent)" /> 自动使用</label>
-                    @if (activeSkill?.EffectType is "Heal" or "Guard")
+                    @if (activeSkill?.AutoCondition == "LowestHpBelowThreshold")
                     {
                         <label class="skill-board__threshold"><span>目标 HP ≤</span><input type="number" min="1" max="100" value="@slot.AutoHpThresholdPercent" disabled="@_isSaving" @onchange="e => ChangeThresholdAsync(slot, e.Value?.ToString())" /><span>%</span></label>
+                    }
+                    else if (activeSkill is not null)
+                    {
+                        <span class="skill-board__condition">@GetAutoConditionText(activeSkill.AutoCondition)</span>
                     }
                     <div class="skill-board__reorder">
                         <button type="button" title="优先级上移" aria-label="@slot.SlotIndex 号位上移" disabled="@(_isSaving || slot.SlotIndex == 1)" @onclick="() => MoveAsync(slot.SlotIndex, slot.SlotIndex - 1)">↑</button>
@@ -127,5 +131,14 @@
         "InvalidHpThreshold" => "自动使用阈值应为 1～100%。",
         "ConcurrencyConflict" => "技能栏状态已变化，请重试。",
         _ => error
+    };
+
+    private static string GetAutoConditionText(string condition) => condition switch
+    {
+        "LowestHpBelowThreshold" => "Auto：目标生命低于阈值",
+        "AllyHasDebuff" => "Auto：队友存在可净化状态",
+        "MonsterHasBuff" => "Auto：怪物存在可驱散增益",
+        "InterruptibleIntent" => "Auto：怪物预告可打断技能",
+        _ => "Auto：冷却结束后使用"
     };
 }

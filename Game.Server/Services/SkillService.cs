@@ -208,9 +208,18 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                 Code = skill.Code,
                 Name = skill.Name,
                 Description = skill.Description,
-                EffectType = skill.EffectType,
-                Power = skill.Power,
-                CooldownRounds = skill.CooldownRounds
+                EffectType = SkillCatalog.PrimaryEffectType(skill),
+                Power = SkillCatalog.PrimaryPower(skill),
+                CooldownRounds = skill.CooldownRounds,
+                AutoCondition = SkillCatalog.AutoConditionFor(skill),
+                Effects = SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
+                {
+                    Type = effect.Type,
+                    Target = effect.Target,
+                    Power = effect.Power,
+                    StatusCode = effect.StatusCode,
+                    DurationRounds = effect.DurationRounds
+                }).ToList()
             }).ToList(),
             TalentNodes = catalog.TalentNodesForProfession(profession.Code).Select(node =>
             {

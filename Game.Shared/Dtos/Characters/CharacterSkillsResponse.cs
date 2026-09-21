@@ -40,6 +40,17 @@ public class LearnedSkillResponse
     public string EffectType { get; set; } = string.Empty;
     public int Power { get; set; }
     public int CooldownRounds { get; set; }
+    public string AutoCondition { get; set; } = "Always";
+    public List<SkillEffectResponse> Effects { get; set; } = [];
+}
+
+public class SkillEffectResponse
+{
+    public string Type { get; set; } = string.Empty;
+    public string Target { get; set; } = string.Empty;
+    public int Power { get; set; }
+    public string? StatusCode { get; set; }
+    public int DurationRounds { get; set; }
 }
 
 public class EquippedSkillResponse

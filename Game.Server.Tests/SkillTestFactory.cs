@@ -41,4 +41,56 @@ internal static class SkillTestFactory
             new SkillTalentNodeOptions { Code = "cleric-devotion", ProfessionCode = "cleric", Name = "神圣信念", Description = "学习神圣审判", SkillCode = "cleric-judgment", Cost = 1, Tier = 1, Column = 1, RequiredTalentType = TalentType.Attack, RequiredTalentRank = 1 }
         ]
     }));
+
+    public static SkillCatalog CreateResponses() => new(Options.Create(new SkillOptions
+    {
+        Professions =
+        [
+            new ProfessionOptions
+            {
+                Code = "knight", Name = "骑士",
+                StartingSkills = ["knight-interrupt", "knight-break"]
+            },
+            new ProfessionOptions
+            {
+                Code = "cleric", Name = "牧师",
+                StartingSkills = ["cleric-purify", "cleric-dispel"]
+            }
+        ],
+        Abilities =
+        [
+            new CombatSkillOptions
+            {
+                Code = "knight-interrupt", ProfessionCode = "knight", Name = "盾击", Description = "伤害并打断",
+                CooldownRounds = 2, AutoCondition = "InterruptibleIntent",
+                Effects =
+                [
+                    new() { Type = "Damage", Target = "Monster", Power = 8 },
+                    new() { Type = "Interrupt", Target = "Monster" }
+                ]
+            },
+            new CombatSkillOptions
+            {
+                Code = "knight-break", ProfessionCode = "knight", Name = "破甲斩", Description = "伤害并破甲",
+                CooldownRounds = 3,
+                Effects =
+                [
+                    new() { Type = "Damage", Target = "Monster", Power = 12 },
+                    new() { Type = "ApplyStatus", Target = "Monster", StatusCode = "armor-break", DurationRounds = 2 }
+                ]
+            },
+            new CombatSkillOptions
+            {
+                Code = "cleric-purify", ProfessionCode = "cleric", Name = "净化", Description = "移除负面状态",
+                CooldownRounds = 2, AutoCondition = "AllyHasDebuff",
+                Effects = [new() { Type = "Cleanse", Target = "FirstDebuffedAlly" }]
+            },
+            new CombatSkillOptions
+            {
+                Code = "cleric-dispel", ProfessionCode = "cleric", Name = "驱散", Description = "移除怪物增益",
+                CooldownRounds = 3, AutoCondition = "MonsterHasBuff",
+                Effects = [new() { Type = "Dispel", Target = "Monster" }]
+            }
+        ]
+    }));
 }

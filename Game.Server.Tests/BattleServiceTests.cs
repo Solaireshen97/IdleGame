@@ -1414,6 +1414,103 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task AutomaticInterruptSkillCancelsTelegraphedMonsterSkillAndStartsBothCooldowns()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, characterDefense: 2);
+        test.Monster.CombatProfileCode = "acid-slime";
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "knight-interrupt", autoUse: true);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var monsterCombat = new MonsterCombatService(test.Db, MonsterCombatTestFactory.CreateCatalog());
+        var skills = SkillTestFactory.CreateResponses();
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Contains(result!.Logs, log => log.Contains("interrupts Slime"));
+        Assert.Contains(result.Logs, log => log.Contains("is interrupted"));
+        Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
+        Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
+        Assert.Single(await test.Db.BattleMonsterSkillCooldowns.ToListAsync());
+        Assert.Equal("BasicAttack", (await test.Db.MonsterIntents.SingleAsync()).ActionType);
+    }
+
+    [Fact]
+    public async Task AutomaticPurifyRemovesAllyDebuffBeforeEndOfRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, characterDefense: 2);
+        test.Character.ProfessionCode = "cleric";
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "cleric-purify", autoUse: true);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var monsterCombat = new MonsterCombatService(test.Db, MonsterCombatTestFactory.CreateCatalog());
+        var skills = SkillTestFactory.CreateResponses();
+        await monsterCombat.ApplyStatusAsync(test.Room, "Character", test.Character.Id, "poison", 2, [], "Knight");
+        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        await test.Db.SaveChangesAsync();
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+
+        var (result, error) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(result!.Logs, log => log.Contains("removes 中毒"));
+        Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
+        Assert.Equal(92, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task AutomaticDispelRemovesMonsterBuffAndPlayerStatusSkillAppliesDebuff()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1, characterDefense: 99);
+        test.Character.ProfessionCode = "cleric";
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "cleric-dispel", autoUse: true);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var monsterCombat = new MonsterCombatService(test.Db, MonsterCombatTestFactory.CreateCatalog());
+        var clericSkills = SkillTestFactory.CreateResponses();
+        await monsterCombat.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id, "slime-shell", 2, [], "Slime");
+        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        await test.Db.SaveChangesAsync();
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, clericSkills),
+            ConsumableTestFactory.Create(), clericSkills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+
+        var (result, error) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(result!.Logs, log => log.Contains("removes 黏液硬化"));
+        Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Character.ProfessionCode = "knight";
+        var slot = await test.Db.CharacterSkillSlots.SingleAsync();
+        slot.SkillCode = "knight-break";
+        slot.AutoUseEnabled = true;
+        await test.Db.SaveChangesAsync();
+        var knightSkills = SkillTestFactory.CreateResponses();
+        service = new BattleService(test.Db, new UserService(test.Db, progression, knightSkills),
+            ConsumableTestFactory.Create(), knightSkills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+
+        var (second, secondError) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(secondError);
+        Assert.Contains(second!.Logs, log => log.Contains("gains 破甲"));
+        Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
+    }
+
+    [Fact]
     public async Task ExecuteRoundAsync_TargetsNextLivingLowestSlot()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 5, monsterAttack: 100);

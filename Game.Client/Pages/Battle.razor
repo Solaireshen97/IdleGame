@@ -43,14 +43,22 @@ else
 
         @if (_roomDetail.MonsterIntent is { } intent)
         {
-            <section class="monster-intent" aria-label="敌方行动预告">
+            <section class="monster-intent monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
                 <div class="monster-intent__icon" aria-hidden="true">!</div>
                 <div class="monster-intent__body">
-                    <span>ENEMY INTENT · 敌方行动预告</span>
+                    <span>ENEMY INTENT · 敌方行动预告 · @GetDangerLabel(intent.DangerLevel)</span>
                     <strong>@intent.ActionName</strong>
                     <small>@intent.Description</small>
                 </div>
-                <div class="monster-intent__target"><span>目标</span><strong>@intent.TargetLabel</strong></div>
+                <div class="monster-intent__target">
+                    <span>目标</span><strong>@intent.TargetLabel</strong>
+                    @if (intent.ActionType == "Skill")
+                    {
+                        <small class="@(intent.IsInterruptible ? "intent-rule--yes" : "intent-rule--no")">
+                            @(intent.IsInterrupted ? "已打断" : intent.IsInterruptible ? "可打断" : "不可打断")
+                        </small>
+                    }
+                </div>
             </section>
         }
 
@@ -87,7 +95,7 @@ else
                                     <div class="battle-effects" aria-label="@slot.CharacterName 状态">
                                         @foreach (var effect in slot.StatusEffects)
                                         {
-                                            <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@effect.Description">
+                                            <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@($"{effect.Description}{(effect.CanDispel ? " · 可移除" : " · 不可移除")}")">
                                                 @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds
                                             </span>
                                         }
@@ -116,7 +124,7 @@ else
                         <div class="battle-effects battle-effects--enemy" aria-label="怪物状态">
                             @foreach (var effect in _roomDetail.MonsterEffects)
                             {
-                                <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@effect.Description">
+                                <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@($"{effect.Description}{(effect.CanDispel ? " · 可移除" : " · 不可移除")}")">
                                     @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds 回合
                                 </span>
                             }
@@ -502,8 +510,7 @@ else
 
     private bool CanQueueSkill(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && skill.SkillCode is not null &&
-        (IsSkillQueued(character, skill) || skill.CooldownRoundsRemaining == 0 &&
-            (skill.EffectType != "Heal" || _roomDetail!.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp)));
+        (IsSkillQueued(character, skill) || skill.CooldownRoundsRemaining == 0 && HasApplicableSkillEffect(character, skill));
 
     private string GetSkillHint(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
@@ -511,18 +518,58 @@ else
         if (!character.IsAlive) return "角色已阵亡";
         if (IsSkillQueued(character, skill)) return "点击取消本回合手动施放";
         if (skill.CooldownRoundsRemaining > 0) return $"冷却中，还需 {skill.CooldownRoundsRemaining} 回合";
-        if (skill.EffectType == "Heal" && !_roomDetail!.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp)) return "没有受伤队友";
-        return "安排在下一次结算中手动施放";
+        if (!HasApplicableSkillEffect(character, skill)) return GetUnavailableSkillReason(skill);
+        return string.IsNullOrWhiteSpace(skill.Description) ? "安排在下一次结算中手动施放" : skill.Description;
     }
 
     private static string GetSkillStatus(RoomSkillSlotResponse skill, bool selected)
     {
         if (selected) return "已安排手动施放";
         if (skill.CooldownRoundsRemaining > 0) return $"冷却 {skill.CooldownRoundsRemaining} 回合";
-        if (skill.AutoUseEnabled) return skill.EffectType is "Heal" or "Guard"
-            ? $"自动 · 目标 HP ≤ {skill.AutoHpThresholdPercent}%" : "自动使用已启用";
+        if (skill.AutoUseEnabled) return skill.AutoCondition switch
+        {
+            "LowestHpBelowThreshold" => $"自动 · 目标 HP ≤ {skill.AutoHpThresholdPercent}%",
+            "AllyHasDebuff" => "自动 · 队友存在负面状态",
+            "MonsterHasBuff" => "自动 · 怪物存在增益",
+            "InterruptibleIntent" => "自动 · 敌方技能可打断",
+            _ => "自动使用已启用"
+        };
         return "可手动施放";
     }
+
+    private bool HasApplicableSkillEffect(RoomSlotResponse character, RoomSkillSlotResponse skill)
+    {
+        if (_roomDetail is null) return false;
+        return skill.Effects.Any(effect => effect.Type switch
+        {
+            "Damage" => _roomDetail.MonsterHp > 0,
+            "Heal" when effect.Target == "Self" => character.CharacterHp < character.CharacterMaxHp,
+            "Heal" => _roomDetail.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp),
+            "Guard" => _roomDetail.Slots.Any(slot => slot.IsAlive),
+            "Cleanse" when effect.Target == "Self" => character.StatusEffects.Any(status => !status.IsPositive && status.CanDispel),
+            "Cleanse" => _roomDetail.Slots.Any(slot => slot.IsAlive && slot.StatusEffects.Any(status => !status.IsPositive && status.CanDispel)),
+            "Dispel" => _roomDetail.MonsterEffects.Any(status => status.IsPositive && status.CanDispel),
+            "Interrupt" => _roomDetail.MonsterIntent is { ActionType: "Skill", IsInterruptible: true, IsInterrupted: false },
+            "ApplyStatus" => effect.Target != "Monster" || _roomDetail.MonsterHp > 0,
+            _ => false
+        });
+    }
+
+    private string GetUnavailableSkillReason(RoomSkillSlotResponse skill)
+    {
+        if (skill.Effects.Any(effect => effect.Type == "Cleanse")) return "没有可净化的负面状态";
+        if (skill.Effects.Any(effect => effect.Type == "Dispel")) return "怪物没有可驱散的增益";
+        if (skill.Effects.Any(effect => effect.Type == "Interrupt")) return "当前没有可打断的敌方技能";
+        if (skill.Effects.Any(effect => effect.Type == "Heal")) return "没有受伤队友";
+        return "当前没有有效目标";
+    }
+
+    private static string GetDangerLabel(string dangerLevel) => dangerLevel switch
+    {
+        "Dangerous" => "危险",
+        "Deadly" => "致命",
+        _ => "普通"
+    };
 
     private async Task ToggleSkillAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
@@ -552,7 +599,7 @@ else
     private static string GetSkillError(string? error) => error?.Trim().Trim('"') switch
     {
         "SkillCooldown" => "技能仍在冷却中。",
-        "NoInjuredTarget" => "当前没有需要治疗的队友。",
+        "NoInjuredTarget" or "NoValidSkillTarget" => "当前没有符合技能条件的目标。",
         "SkillNotEquipped" => "技能栏已变化，请刷新页面。",
         "CharacterDead" => "角色已阵亡。",
         "BattleOver" => "战斗已结束。",

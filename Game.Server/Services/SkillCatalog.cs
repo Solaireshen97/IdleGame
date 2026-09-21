@@ -11,7 +11,7 @@ public sealed class SkillCatalog
     private readonly Dictionary<string, CombatSkillOptions> _skills;
     private readonly Dictionary<string, SkillTalentNodeOptions> _talentNodes;
 
-    public SkillCatalog(IOptions<SkillOptions> options)
+    public SkillCatalog(IOptions<SkillOptions> options, MonsterCombatCatalog? monsterCombatCatalog = null)
     {
         var settings = options.Value;
         _professions = new(StringComparer.OrdinalIgnoreCase);
@@ -28,10 +28,14 @@ public sealed class SkillCatalog
 
         foreach (var skill in settings.Abilities)
         {
+            var effects = EffectsFor(skill);
             if (string.IsNullOrWhiteSpace(skill.Code) || string.IsNullOrWhiteSpace(skill.Name) ||
                 string.IsNullOrWhiteSpace(skill.Description) || !_professions.ContainsKey(skill.ProfessionCode) ||
-                skill.EffectType is not ("Damage" or "Heal" or "Guard") ||
-                skill.Power <= 0 || (skill.EffectType == "Guard" && skill.Power > 100) ||
+                effects.Count == 0 || effects.Any(effect => !IsValidEffect(effect) ||
+                    effect.Type == "ApplyStatus" && monsterCombatCatalog is not null &&
+                    monsterCombatCatalog.FindStatus(effect.StatusCode) is null) ||
+                AutoConditionFor(skill) is not ("Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or
+                    "MonsterHasBuff" or "InterruptibleIntent") ||
                 skill.CooldownRounds < 0 || !_skills.TryAdd(skill.Code, skill))
                 throw new InvalidOperationException($"Invalid skill configuration: {skill.Code}");
         }
@@ -85,6 +89,28 @@ public sealed class SkillCatalog
         code is not null && _professions.TryGetValue(code, out var profession) ? profession : null;
     public CombatSkillOptions? FindSkill(string? code) =>
         code is not null && _skills.TryGetValue(code, out var skill) ? skill : null;
+    public static IReadOnlyList<CombatSkillEffectOptions> EffectsFor(CombatSkillOptions skill) =>
+        skill.Effects.Count > 0
+            ? skill.Effects
+            : string.IsNullOrWhiteSpace(skill.EffectType)
+                ? []
+                : [new CombatSkillEffectOptions
+                {
+                    Type = skill.EffectType,
+                    Target = skill.EffectType switch
+                    {
+                        "Damage" => "Monster",
+                        "Heal" => "LowestHpAlly",
+                        "Guard" => "FrontAlly",
+                        _ => string.Empty
+                    },
+                    Power = skill.Power
+                }];
+    public static string AutoConditionFor(CombatSkillOptions skill) =>
+        !string.IsNullOrWhiteSpace(skill.AutoCondition) ? skill.AutoCondition :
+        EffectsFor(skill).Any(effect => effect.Type is "Heal" or "Guard") ? "LowestHpBelowThreshold" : "Always";
+    public static string PrimaryEffectType(CombatSkillOptions skill) => EffectsFor(skill).First().Type;
+    public static int PrimaryPower(CombatSkillOptions skill) => EffectsFor(skill).First().Power;
     public SkillTalentNodeOptions? FindTalentNode(string? code) =>
         code is not null && _talentNodes.TryGetValue(code, out var node) ? node : null;
     public IReadOnlyList<SkillTalentNodeOptions> TalentNodesForProfession(string professionCode) =>
@@ -116,4 +142,24 @@ public sealed class SkillCatalog
         TalentRules.GetRank(character, node.RequiredTalentType) >= node.RequiredTalentRank &&
         node.Prerequisites.All(code => _talentNodes.TryGetValue(code, out var parent) &&
             IsNodeActive(character, parent, purchasedNodes));
+
+    private static bool IsValidEffect(CombatSkillEffectOptions effect)
+    {
+        if (effect.Type is not ("Damage" or "Heal" or "Guard" or "Cleanse" or "Dispel" or "Interrupt" or "ApplyStatus"))
+            return false;
+        var validTarget = effect.Type switch
+        {
+            "Damage" or "Dispel" or "Interrupt" => effect.Target == "Monster",
+            "Heal" => effect.Target is "LowestHpAlly" or "Self",
+            "Guard" => effect.Target == "FrontAlly",
+            "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self",
+            "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly",
+            _ => false
+        };
+        if (!validTarget) return false;
+        if (effect.Type is "Damage" or "Heal" or "Guard" && effect.Power <= 0) return false;
+        if (effect.Type == "Guard" && effect.Power > 100) return false;
+        return effect.Type != "ApplyStatus" ||
+               !string.IsNullOrWhiteSpace(effect.StatusCode) && effect.DurationRounds > 0;
+    }
 }

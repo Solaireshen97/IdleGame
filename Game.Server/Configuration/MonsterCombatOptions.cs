@@ -19,6 +19,7 @@ public sealed class BattleStatusOptions
     public int MaxStacks { get; set; } = 1;
     public string Stacking { get; set; } = "RefreshDuration";
     public bool IsPositive { get; set; }
+    public bool IsDispellable { get; set; } = true;
 }
 
 public sealed class MonsterSkillOptions
@@ -30,6 +31,8 @@ public sealed class MonsterSkillOptions
     public int DamagePowerPercent { get; set; }
     public int CooldownRounds { get; set; }
     public int? SelfHpBelowPercent { get; set; }
+    public bool IsInterruptible { get; set; } = true;
+    public string DangerLevel { get; set; } = "Normal";
     public List<MonsterStatusApplicationOptions> Statuses { get; set; } = [];
 }
 

@@ -6,6 +6,7 @@ public sealed class BattleStatusEffectResponse
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool IsPositive { get; set; }
+    public bool CanDispel { get; set; }
     public int Stacks { get; set; }
     public int RemainingRounds { get; set; }
 }
@@ -19,4 +20,7 @@ public sealed class MonsterIntentResponse
     public string TargetType { get; set; } = string.Empty;
     public int? TargetCharacterId { get; set; }
     public string TargetLabel { get; set; } = string.Empty;
+    public bool IsInterruptible { get; set; }
+    public bool IsInterrupted { get; set; }
+    public string DangerLevel { get; set; } = "Normal";
 }

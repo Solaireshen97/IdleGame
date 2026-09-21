@@ -1,6 +1,7 @@
 using Game.Server.Data;
 using Game.Shared;
 using Game.Shared.Dtos;
+using Game.Shared.Dtos.Characters;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -371,8 +372,15 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                             SlotIndex = index,
                             SkillCode = skill?.Code,
                             SkillName = skill?.Name,
-                            EffectType = skill?.EffectType,
-                            Power = skill?.Power ?? 0,
+                            Description = skill?.Description,
+                            EffectType = skill is null ? null : SkillCatalog.PrimaryEffectType(skill),
+                            Power = skill is null ? 0 : SkillCatalog.PrimaryPower(skill),
+                            AutoCondition = skill is null ? "Always" : SkillCatalog.AutoConditionFor(skill),
+                            Effects = skill is null ? [] : SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
+                            {
+                                Type = effect.Type, Target = effect.Target, Power = effect.Power,
+                                StatusCode = effect.StatusCode, DurationRounds = effect.DurationRounds
+                            }).ToList(),
                             CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
                             AutoUseEnabled = skill is not null && equipped?.AutoUseEnabled == true,
                             AutoHpThresholdPercent = equipped?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent
