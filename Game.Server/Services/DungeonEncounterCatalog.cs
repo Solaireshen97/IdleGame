@@ -25,6 +25,8 @@ public sealed class DungeonEncounterCatalog
         }
     }
 
+    public bool HasDefinition(string code) => _dungeons.ContainsKey(code);
+
     public IReadOnlyList<Monster> CreateMonsters(Dungeon dungeon)
     {
         if (!_dungeons.TryGetValue(dungeon.Code, out var waves))

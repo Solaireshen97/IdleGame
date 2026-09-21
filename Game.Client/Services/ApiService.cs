@@ -75,6 +75,9 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
     }
 
+    public Task<List<RegionSummaryResponse>?> GetRegionsAsync() =>
+        httpClient.GetFromJsonAsync<List<RegionSummaryResponse>>("api/regions");
+
     public async Task<List<DungeonSummaryResponse>?> GetDungeonsAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Get, "api/dungeons", requiresAuth: true);

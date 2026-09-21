@@ -4,6 +4,7 @@ using Game.Server.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("world.json", optional: false, reloadOnChange: false);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -33,6 +34,7 @@ builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 builder.Services.Configure<MaterialOptions>(builder.Configuration.GetSection(MaterialOptions.SectionName));
 builder.Services.Configure<DungeonExchangeOptions>(builder.Configuration.GetSection(DungeonExchangeOptions.SectionName));
+builder.Services.Configure<WorldOptions>(builder.Configuration.GetSection(WorldOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
@@ -43,6 +45,7 @@ builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
+builder.Services.AddSingleton<WorldCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
 
@@ -59,7 +62,11 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
-    await DbInitializer.InitializeAsync(dbContext, scope.ServiceProvider.GetRequiredService<WeaponCatalog>());
+    var world = scope.ServiceProvider.GetRequiredService<WorldCatalog>();
+    var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
+    world.ValidateContent(weapons, scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>(),
+        scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
+    await DbInitializer.InitializeAsync(dbContext, weapons, world);
 }
 
 if (app.Environment.IsDevelopment())

@@ -8,6 +8,7 @@ public class RoomDetailResponse
     public int OwnerUserId { get; set; }
     public int DungeonId { get; set; }
     public string DungeonName { get; set; } = string.Empty;
+    public string RegionName { get; set; } = string.Empty;
     public int SlotCount { get; set; }
     public string MonsterName { get; set; } = string.Empty;
     public ElementType MonsterElement { get; set; }

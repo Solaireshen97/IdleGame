@@ -248,6 +248,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("MonsterDefense").HasColumnType("INTEGER");
                     b.Property<int>("RecommendedLevel").HasColumnType("INTEGER");
                     b.Property<string>("RegionName").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("RegionCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("SlotCount").HasColumnType("INTEGER");
                     b.Property<int>("SortOrder").HasColumnType("INTEGER");
                     b.HasKey("Id");

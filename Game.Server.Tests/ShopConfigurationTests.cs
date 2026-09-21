@@ -30,8 +30,13 @@ public class ShopConfigurationTests
         Assert.Equal(7, catalog.Items.Count);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
-        Assert.Equal(6, exchanges.Offers.Count);
+        Assert.Equal(36, exchanges.Offers.Count);
         Assert.Equal(6, exchanges.Offers.Select(offer => weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
-        Assert.All(exchanges.Offers, offer => Assert.Equal("kobold-mine-token", offer.CurrencyCode));
+        Assert.Equal(6, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
+        Assert.All(exchanges.Offers.GroupBy(offer => offer.DungeonCode), group =>
+        {
+            Assert.Equal(6, group.Select(offer => weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
+            Assert.Single(group.Select(offer => offer.CurrencyCode).Distinct());
+        });
     }
 }

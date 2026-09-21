@@ -8,6 +8,7 @@ public class DungeonSummaryResponse
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string RegionName { get; set; } = string.Empty;
+    public string RegionCode { get; set; } = string.Empty;
     public string DungeonKind { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public int MinimumLevel { get; set; }

@@ -94,6 +94,9 @@
 
 ## API
 
+六个初始地区、正式副本、特色武器与徽记兑换的设计及配置说明见 [初始地区文档](docs/starter-regions.md)。
+
+- `GET /api/regions`：获取地区介绍、等级范围、特色副本和专属武器；大厅按地区切换挑战。
 - `GET /api/dungeons`、`GET /api/dungeons/{dungeonId}`：获取副本配置及当前用户首通和 Auto 解锁状态。
 - `GET /api/shop`：读取当前角色的商品列表、持有数量和账号金币。
 - `POST /api/shop/purchase`：为当前角色购买商品，请求体为 `characterId`、`code`、`quantity`；价格由服务端读取。

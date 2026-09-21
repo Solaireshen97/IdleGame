@@ -5,6 +5,9 @@ namespace Game.Shared.Dtos;
 public class RoomSummaryResponse
 {
     public int RoomId { get; set; }
+    public string RegionCode { get; set; } = string.Empty;
+    public string RegionName { get; set; } = string.Empty;
+    public string DungeonName { get; set; } = string.Empty;
     public string MonsterName { get; set; } = string.Empty;
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }

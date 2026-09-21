@@ -54,7 +54,13 @@
 
         @if (_kind == "Exchange")
         {
-            @foreach (var dungeon in _shop.DungeonExchangeOffers.GroupBy(offer => new { offer.DungeonCode, offer.DungeonName }))
+            <label class="exchange-filter">选择副本兑换所
+                <select @bind="_exchangeDungeonCode">
+                    @foreach (var dungeon in _shop.DungeonExchangeOffers.GroupBy(offer => new { offer.DungeonCode, offer.DungeonName }))
+                    { <option value="@dungeon.Key.DungeonCode">@dungeon.Key.DungeonName</option> }
+                </select>
+            </label>
+            @foreach (var dungeon in _shop.DungeonExchangeOffers.Where(offer => offer.DungeonCode == _exchangeDungeonCode).GroupBy(offer => new { offer.DungeonCode, offer.DungeonName }))
             {
                 var firstOffer = dungeon.First();
                 var balance = GetMaterialQuantity(firstOffer.CurrencyCode);
@@ -129,6 +135,7 @@
     private ShopResponse? _shop;
     private readonly Dictionary<string, int> _quantities = new(StringComparer.OrdinalIgnoreCase);
     private string _kind = "Consumable";
+    private string _exchangeDungeonCode = "";
     private string? _message;
     private bool _loading = true;
     private bool _busy;
@@ -160,6 +167,8 @@
             if (characterId == ActiveCharacters.Current?.CharacterId)
             {
                 _shop = response?.CharacterId == characterId ? response : null;
+                if (_shop is not null && !_shop.DungeonExchangeOffers.Any(offer => offer.DungeonCode == _exchangeDungeonCode))
+                    _exchangeDungeonCode = _shop.DungeonExchangeOffers.FirstOrDefault()?.DungeonCode ?? "";
                 if (_shop is null) _message = "商店读取失败，请重试。";
             }
         }

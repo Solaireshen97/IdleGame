@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null)
 {
     private const int SlotCount = 5;
 
@@ -50,7 +50,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             return new DungeonSummaryResponse
             {
                 DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
-                RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
+                RegionCode = dungeon.RegionCode, RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
                 CanEnter = canEnter,
@@ -79,7 +79,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (error is not null) return (null, error);
         if (await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == character!.Id)) return (null, "CharacterAlreadyInRoom");
 
-        await DbInitializer.EnsureDefaultDungeonsAsync(dbContext);
+        await DbInitializer.EnsureDefaultDungeonsAsync(dbContext, worldCatalog);
         var dungeon = dungeonId.HasValue
             ? await dbContext.Dungeons.FindAsync(dungeonId.Value)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
@@ -326,6 +326,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
+            RegionName = dungeon.RegionName,
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
@@ -430,6 +431,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
 
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room)
     {
+        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         if (monster is null) return null;
         var enemiesInCurrentWave = monster.RoomId.HasValue
@@ -438,6 +440,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return new RoomSummaryResponse
         {
             RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
+            RegionCode = dungeon?.RegionCode ?? "", RegionName = dungeon?.RegionName ?? "", DungeonName = dungeon?.Name ?? "",
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle,

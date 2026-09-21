@@ -18,5 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Game.Shared\Game.Shared.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Update="world.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

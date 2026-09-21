@@ -1,4 +1,16 @@
 .rooms-page { max-width: 1180px; margin: 0 auto; padding-top: 1.5rem; }
+.region-picker { margin-bottom:1.5rem; }
+.region-picker__heading { margin-bottom:1rem; }
+.region-picker__heading h2 { margin:.25rem 0; color:#f0e4cb; font-family:Georgia,serif; font-size:1.5rem; }
+.region-picker__heading p { margin:.3rem 0; color:#96aabc; font-size:.82rem; }
+.region-picker__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; }
+.region-card { --region-color:#d8bd86; display:flex; flex-direction:column; gap:.4rem; min-width:0; padding:1rem; text-align:left; color:#dce7f0; border:1px solid #33495d; border-top:3px solid var(--region-color); border-radius:.7rem; background:linear-gradient(140deg,#1c3043,#111e2d); cursor:pointer; }
+.region-card--dark { --region-color:#bc9eea; }.region-card--fire { --region-color:#ed9c7e; }.region-card--water { --region-color:#86cde7; }.region-card--wind { --region-color:#86d3ad; }.region-card--light { --region-color:#f4df9b; }
+.region-card:hover, .region-card:focus-visible { border-color:var(--region-color); }
+.region-card--selected { outline:1px solid var(--region-color); border-color:var(--region-color); background:linear-gradient(140deg,#2c4052,#182939); }
+.region-card__topline { display:flex; justify-content:space-between; gap:.5rem; color:var(--region-color); font-size:.7rem; }
+.region-card strong { font-size:1.05rem; color:#f0e4cb; }.region-card__dungeon { color:#bbccdb; font-size:.82rem; }.region-card__weapon { color:#93a8ba; font-size:.72rem; }
+@media (max-width:600px) { .region-picker__grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.region-card { padding:.75rem; }.dungeon-launcher { padding:1rem; }.dungeon-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .room-list h2, .dungeon-launcher h2 { margin:.25rem 0; font-family:Georgia, serif; letter-spacing:.03em; }
 .section-kicker { color:#d8a957; font-size:.72rem; font-weight:800; letter-spacing:.16em; }
 .dungeon-launcher { padding:1.5rem; border:1px solid #37465b; border-radius:1rem; background:linear-gradient(125deg, #17283b, #111b2a); box-shadow:0 16px 32px rgba(0,0,0,.2); }

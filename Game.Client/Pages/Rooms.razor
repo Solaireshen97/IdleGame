@@ -5,6 +5,8 @@
 @using Game.Shared
 @inject ApiService ApiService
 @inject NavigationManager Navigation
+@inject ActiveCharacterState ActiveCharacters
+@implements IDisposable
 
 <PageTitle>副本大厅</PageTitle>
 
@@ -15,19 +17,33 @@
 }
 else
 {
+    <section class="region-picker" aria-label="选择冒险地区">
+        <div class="region-picker__heading"><span class="section-kicker">EXPLORE THE WORLD</span><h2>选择冒险地区</h2><p>六片初始区域 · 自由选择成长路线</p></div>
+        <div class="region-picker__grid">
+        @foreach (var region in _regions)
+        {
+            <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
+                    aria-pressed="@(region.Code == _selectedRegionCode)" @onclick="() => SelectRegion(region.Code)">
+                <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
+                <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
+                <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
+            </button>
+        }
+        </div>
+    </section>
     <section class="dungeon-launcher">
         <div class="dungeon-launcher__heading">
             <span class="section-kicker">SELECT MISSION</span>
-            <h2>艾尔文森林</h2>
-            <p>从单体讨伐逐步成长，达到 Lv.8 后深入第一座正式副本。</p>
+            <h2>@(_selectedRegion?.Name ?? "冒险地区")</h2>
+            <p>@_selectedRegion?.Description</p>
         </div>
         <div class="dungeon-catalog">
-        @foreach (var region in _dungeons.GroupBy(dungeon => dungeon.RegionName))
+        @if (_selectedRegion is not null)
         {
             <section class="dungeon-region">
-                <div class="dungeon-region__heading"><span>@region.Key</span><small>@region.Count() 个目标</small></div>
+                <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
                 <div class="dungeon-grid">
-                @foreach (var dungeon in region)
+                @foreach (var dungeon in RegionDungeons)
                 {
                     <button type="button"
                             class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
@@ -114,6 +130,7 @@ else
                     <article class="room-card">
                         <div class="room-card__topline"><span>ROOM · @room.RoomId · @(room.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span class="status-badge">@room.RoomStatus</span></div>
                         <h3>@room.MonsterName</h3>
+                        <p>@room.RegionName · @room.DungeonName</p>
                         <p>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波 · 敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</p>
                         <div class="room-card__rules"><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "30 秒准备超时" : "无准备超时")</span></div>
                         <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
@@ -138,6 +155,13 @@ else
     private bool _isLoading;
     private string? _message;
     private List<DungeonSummaryResponse> _dungeons = new();
+    private List<RegionSummaryResponse> _regions = new();
+    private string _selectedRegionCode = "";
+    private RegionSummaryResponse? _selectedRegion => _regions.FirstOrDefault(region => region.Code == _selectedRegionCode);
+    private IEnumerable<DungeonSummaryResponse> RegionDungeons => _dungeons.Where(dungeon => dungeon.RegionCode == _selectedRegionCode);
+    private (int? Id, int? Level) _loadedCharacter;
+    private int _catalogRequest;
+    private bool _disposed;
     private int _selectedDungeonId;
     private bool _isRepeatBattle;
     private bool _isPreparationTimeoutEnabled = true;
@@ -151,10 +175,43 @@ else
             return;
         }
 
-        _isCheckingLoginState = false;
-        _dungeons = await ApiService.GetDungeonsAsync() ?? new();
-        _selectedDungeonId = (_dungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? _dungeons.FirstOrDefault())?.DungeonId ?? 0;
-        await LoadRoomsAsync();
+        await ActiveCharacters.RefreshAsync();
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        try
+        {
+            _regions = await ApiService.GetRegionsAsync() ?? [];
+            _selectedRegionCode = _regions.FirstOrDefault()?.Code ?? "";
+            await LoadDungeonsAsync();
+            await LoadRoomsAsync();
+        }
+        catch { _message = "地区信息读取失败，请刷新页面重试。"; }
+        finally { _isCheckingLoginState = false; }
+    }
+
+    private async Task LoadDungeonsAsync()
+    {
+        var request = ++_catalogRequest;
+        var character = (ActiveCharacters.Current?.CharacterId, ActiveCharacters.Current?.Level);
+        var dungeons = await ApiService.GetDungeonsAsync();
+        if (_disposed || request != _catalogRequest) return;
+        _dungeons = dungeons ?? [];
+        _loadedCharacter = character;
+        if (!RegionDungeons.Any(dungeon => dungeon.DungeonId == _selectedDungeonId)) SelectRegion(_selectedRegionCode);
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        if (_disposed || _loadedCharacter == (ActiveCharacters.Current?.CharacterId, ActiveCharacters.Current?.Level)) return;
+        try { await LoadDungeonsAsync(); _message = null; }
+        catch { _message = "角色信息更新失败，请刷新页面重试。"; }
+        StateHasChanged();
+    });
+
+    private void SelectRegion(string code)
+    {
+        _selectedRegionCode = code;
+        _selectedDungeonId = (RegionDungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? RegionDungeons.FirstOrDefault())?.DungeonId ?? 0;
+        _message = null;
     }
 
     private async Task LoadRoomsAsync()
@@ -198,6 +255,15 @@ else
         _message = _selectedDungeon?.CanEnter == false ? _selectedDungeon.LockReason : null;
     }
 
-    private static string DungeonKindName(string kind) => kind == "Dungeon" ? "正式副本" : "单体讨伐";
+    private static string DungeonKindName(string kind) => kind switch
+    {
+        "Dungeon" => "正式副本", "Elite" => "精英讨伐", _ => "单体讨伐"
+    };
+
+    public void Dispose()
+    {
+        _disposed = true;
+        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+    }
 
 }
