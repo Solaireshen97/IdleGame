@@ -13,6 +13,7 @@ public sealed class WeaponCatalog
     private readonly Dictionary<string, List<string>> _starterPacks = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<int> _enhancementFragmentCosts;
     private readonly IReadOnlyList<WeaponSkillGrowthSegmentOptions> _skillGrowth;
+    private readonly IReadOnlyList<int> _dropQualityWeights;
 
     public WeaponCatalog(IOptions<WeaponOptions> options)
     {
@@ -23,6 +24,16 @@ public sealed class WeaponCatalog
             enhancementCosts.Any(cost => cost <= 0))
             throw new InvalidOperationException("Weapon enhancement costs must define three positive steps.");
         _enhancementFragmentCosts = enhancementCosts.ToList();
+        var qualityOptions = options.Value.DropQualityWeights;
+        var dropQualityWeights = new[]
+        {
+            qualityOptions.Common, qualityOptions.Uncommon, qualityOptions.Rare, qualityOptions.Epic
+        };
+        if (dropQualityWeights.Length != WeaponRules.MaxQualityBonusLevels + 1 ||
+            dropQualityWeights.Any(weight => weight < 0) ||
+            dropQualityWeights.Sum(weight => (long)weight) <= 0)
+            throw new InvalidOperationException("Weapon drop quality weights must define four non-negative values with a positive total.");
+        _dropQualityWeights = dropQualityWeights.ToList();
         _skillGrowth = options.Value.SkillGrowth.ToList();
         if (_skillGrowth.Count > 0 && (_skillGrowth.Any(segment => segment.MultiplierPercent <= 0) ||
             _skillGrowth[^1].MaximumLevel is not null ||
@@ -135,6 +146,43 @@ public sealed class WeaponCatalog
         return new WeaponRewardSnapshot(item.Code, item.Name, item.Element, item.Attack, item.MaxHp,
             item.ItemLevel, item.SellGold, item.DismantleFragments,
             item.Skills.Select(skill => new WeaponRewardSkillSnapshot(skill.Code, skill.Level)).ToList());
+    }
+
+    public WeaponRewardSnapshot CreateDropSnapshot(string code, Random? random = null)
+    {
+        var snapshot = CreateRewardSnapshot(code);
+        if (snapshot.Skills.Count == 0) return snapshot;
+
+        random ??= Random.Shared;
+        var targetBonusLevels = RollQualityBonusLevels(random);
+        var allocated = new int[snapshot.Skills.Count];
+        for (var point = 0; point < targetBonusLevels; point++)
+        {
+            var candidates = Enumerable.Range(0, snapshot.Skills.Count)
+                .Where(index => snapshot.Skills[index].Level + allocated[index] +
+                    WeaponRules.MaxEnhancementPerSkill < WeaponRules.MaxSkillLevel)
+                .ToList();
+            if (candidates.Count == 0) break;
+            allocated[candidates[random.Next(candidates.Count)]]++;
+        }
+
+        return snapshot with
+        {
+            Skills = snapshot.Skills.Select((skill, index) =>
+                skill with { QualityBonusLevel = allocated[index] }).ToList()
+        };
+    }
+
+    private int RollQualityBonusLevels(Random random)
+    {
+        var totalWeight = _dropQualityWeights.Sum(weight => (long)weight);
+        var roll = random.NextInt64(totalWeight);
+        for (var index = 0; index < _dropQualityWeights.Count; index++)
+        {
+            if (roll < _dropQualityWeights[index]) return index;
+            roll -= _dropQualityWeights[index];
+        }
+        return 0;
     }
 
     public WeaponSkillBonuses CalculateBonuses(IEnumerable<CharacterWeapon> weapons)

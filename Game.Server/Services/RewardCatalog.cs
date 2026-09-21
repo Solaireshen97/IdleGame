@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Game.Server.Configuration;
+using Game.Shared;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.Extensions.Options;
@@ -48,10 +50,16 @@ public sealed class RewardCatalog
         {
             if (drop.ChancePercent <= 0 || drop.ChancePercent < 100 &&
                 (decimal)Random.Shared.NextDouble() * 100 >= drop.ChancePercent) continue;
-            var entry = NewEntry(drop.Kind, drop.Code, drop.Quantity);
             if (drop.Kind == "Weapon")
-                entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateRewardSnapshot(drop.Code));
-            entries.Add(entry);
+            {
+                for (var index = 0; index < drop.Quantity; index++)
+                {
+                    var entry = NewEntry(drop.Kind, drop.Code, 1);
+                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateDropSnapshot(drop.Code));
+                    entries.Add(entry);
+                }
+            }
+            else entries.Add(NewEntry(drop.Kind, drop.Code, drop.Quantity));
         }
         return entries;
 
@@ -67,14 +75,27 @@ public sealed class RewardCatalog
         "Gold" => "金币",
         "Experience" => "经验",
         "Consumable" => _consumables.FindItem(entry.Code)?.Name ?? entry.Code,
-        "Weapon" => _weapons.FindItem(entry.Code)?.Name ?? entry.Code,
+        "Weapon" => DeserializeWeapon(entry)?.DisplayName ?? _weapons.FindItem(entry.Code)?.Name ?? entry.Code,
         _ => entry.Code
     };
+
+    public static WeaponRewardSnapshot? DeserializeWeapon(RewardEntry entry) =>
+        string.IsNullOrWhiteSpace(entry.WeaponSnapshotJson)
+            ? null
+            : JsonSerializer.Deserialize<WeaponRewardSnapshot>(entry.WeaponSnapshotJson);
 }
 
 public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType Element, int Attack, int MaxHp,
     int ItemLevel, int SellGold, int DismantleFragments, List<WeaponRewardSkillSnapshot> Skills)
 {
+    [JsonIgnore]
+    public int QualityBonusLevel => Math.Clamp(Skills.Sum(skill => skill.QualityBonusLevel),
+        0, WeaponRules.MaxQualityBonusLevels);
+    [JsonIgnore]
+    public string QualityName => WeaponRules.QualityName(QualityBonusLevel);
+    [JsonIgnore]
+    public string DisplayName => QualityBonusLevel == 0 ? Name : $"{QualityName}·{Name}";
+
     public CharacterWeapon ToCharacterWeapon(int characterId) => new()
     {
         CharacterId = characterId, WeaponCode = Code, Name = Name, Element = Element,
@@ -82,9 +103,11 @@ public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType 
         DismantleFragments = Math.Max(1, DismantleFragments),
         Skills = Skills.Select((skill, index) => new CharacterWeaponSkill
         {
-            SlotIndex = index + 1, SkillCode = skill.Code, Level = skill.Level, BaseLevel = skill.Level
+            SlotIndex = index + 1, SkillCode = skill.Code,
+            Level = skill.Level + skill.QualityBonusLevel, BaseLevel = skill.Level,
+            QualityBonusLevel = skill.QualityBonusLevel
         }).ToList()
     };
 }
 
-public sealed record WeaponRewardSkillSnapshot(string Code, int Level);
+public sealed record WeaponRewardSkillSnapshot(string Code, int Level, int QualityBonusLevel = 0);

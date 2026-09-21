@@ -64,7 +64,7 @@
         </div>
         <div class="weapon-board__grid">
             @{ var main = FindEquipped(1); }
-            <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
+            <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
                     @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1)" disabled="@_isSaving">
                 <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
                 <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
@@ -81,7 +81,7 @@
                 {
                     var slotIndex = index;
                     var weapon = FindEquipped(slotIndex);
-                    <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
+                    <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
                             @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex)" disabled="@_isSaving">
                         <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
                         <span class="weapon-card__crest" aria-hidden="true">@(weapon is null ? "+" : GetSymbol(weapon.Element))</span>
@@ -116,10 +116,10 @@
                     _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
                 var previewAttack = weapon.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + weapon.Attack;
                 var previewHp = weapon.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + weapon.MaxHp;
-                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant()" @key="weapon.Id">
+                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant() quality-@(weapon.QualityCode)" @key="weapon.Id">
                     <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
                     <div class="weapon-option__body">
-                        <span class="weapon-option__meta">装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
+                        <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
@@ -130,7 +130,7 @@
                                     var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
                                     <div class="weapon-option__skill-row">
                                         <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span>
-                                        <small>基础 Lv@(skill.BaseLevel) · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
+                                        <small>基础 Lv@(skill.BaseLevel) · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
                                         <button type="button" class="weapon-option__enhance"
                                                 @onclick="() => EnhanceAsync(weapon, skill)"
                                                 disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">

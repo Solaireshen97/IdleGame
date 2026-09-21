@@ -10,6 +10,15 @@ public sealed class WeaponOptions
     public Dictionary<string, List<string>> StarterPacks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<int> EnhancementFragmentCosts { get; set; } = [];
     public List<WeaponSkillGrowthSegmentOptions> SkillGrowth { get; set; } = [];
+    public WeaponDropQualityWeightsOptions DropQualityWeights { get; set; } = new();
+}
+
+public sealed class WeaponDropQualityWeightsOptions
+{
+    public int Common { get; set; } = 60;
+    public int Uncommon { get; set; } = 25;
+    public int Rare { get; set; } = 12;
+    public int Epic { get; set; } = 3;
 }
 
 public sealed class WeaponTemplateOptions

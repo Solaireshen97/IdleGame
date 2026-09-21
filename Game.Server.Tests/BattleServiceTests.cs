@@ -314,13 +314,15 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task GuaranteedKillWeaponDropCreatesUnequippedWeaponWithSkillSnapshot()
+    public async Task GuaranteedEpicWeaponDropPersistsQualitySkillBonusAndDisplaysIt()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         var progression = ProgressionTestFactory.Create();
+        var rewardService = RewardTestFactory.CreateService(test.Db, progression,
+            guaranteedWeapon: true, qualityBonusLevels: 3);
         var service = new BattleService(test.Db,
             new UserService(test.Db, progression, SkillTestFactory.Create()), ConsumableTestFactory.Create(),
-            SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression, guaranteedWeapon: true));
+            SkillTestFactory.Create(), rewardService);
 
         var (victory, error) = await service.StartPreparationAsync(1, test.Token);
 
@@ -331,9 +333,17 @@ public class BattleServiceTests
         Assert.Equal("gale-bow", weapon.WeaponCode);
         Assert.Null(weapon.EquippedSlotIndex);
         Assert.Equal(7, weapon.Attack);
-        Assert.Equal(2, Assert.Single(weapon.Skills).Level);
+        var skill = Assert.Single(weapon.Skills);
+        Assert.Equal((5, 2, 3, 0),
+            (skill.Level, skill.BaseLevel, skill.QualityBonusLevel, skill.EnhancementLevel));
+        Assert.Contains(victory.Logs, log => log.Contains("史诗·疾风短弓"));
         Assert.Contains(await test.Db.RewardEntries.ToListAsync(), entry =>
             entry.Kind == "Weapon" && entry.EventKey == "monster:1" && entry.WeaponSnapshotJson is not null);
+        var roomService = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(), rewardService);
+        var detail = await roomService.GetRoomDetailAsync(test.Room.Id, test.Token);
+        Assert.Equal("史诗·疾风短弓", detail!.Rewards!.Items.Single(item => item.Kind == "Weapon").Name);
     }
 
     [Fact]

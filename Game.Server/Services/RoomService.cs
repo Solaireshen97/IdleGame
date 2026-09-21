@@ -5,7 +5,6 @@ using Game.Shared.Dtos.Characters;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 
 namespace Game.Server.Services;
 
@@ -332,7 +331,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                         Kind = entry.Kind, Quantity = entry.Quantity,
                         Source = entry.EventKey == "clear" ? "通关" : "击杀",
                         Name = entry.Kind == "Consumable" ? consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code
-                            : JsonSerializer.Deserialize<WeaponRewardSnapshot>(entry.WeaponSnapshotJson!)?.Name ?? entry.Code
+                            : RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
                     }).ToList()
             },
             Slots = slots.Select(slot =>

@@ -56,6 +56,16 @@
 .weapon-option__crest { flex: 0 0 2.5rem; width: 2.5rem; height: 2.7rem; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--element-color), #334a5c 55%); border-radius: .4rem; color: var(--element-color); background: #10202f; font: 700 1.45rem Georgia, serif; }
 .weapon-option__body { flex: 1; min-width: 0; }
 .weapon-option__meta { color: var(--element-color); font-size: .63rem; font-weight: 750; }
+.weapon-quality { color: #c4d2d8; }
+.weapon-quality--uncommon { color: #78dda0; }
+.weapon-quality--rare { color: #79bfff; }
+.weapon-quality--epic { color: #cf91ff; }
+.weapon-option.quality-uncommon { border-color: #4e9c6d; box-shadow: inset 0 0 0 1px #4e9c6d24; }
+.weapon-option.quality-rare { border-color: #4b8fcb; box-shadow: inset 0 0 0 1px #4b8fcb2b; }
+.weapon-option.quality-epic { border-color: #9559bd; box-shadow: inset 0 0 0 1px #9559bd35; }
+.weapon-card.quality-uncommon .weapon-card__name { color: #78dda0; }
+.weapon-card.quality-rare .weapon-card__name { color: #79bfff; }
+.weapon-card.quality-epic .weapon-card__name { color: #d29aff; text-shadow: 0 0 .65rem #a65cce66; }
 .weapon-option h3 { margin: .1rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; }
 .weapon-option__lock { margin-left: .35rem; border: 1px solid #d9bc6c66; border-radius: 999px; padding: .08rem .35rem; color: #efce82 !important; font-size: .56rem !important; }
 .weapon-option p { display: flex; gap: .65rem; margin: 0; color: #d9e4e5; font-size: .75rem; font-weight: 700; }

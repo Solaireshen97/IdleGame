@@ -300,6 +300,10 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 SellGold = item.SellGold,
                 DismantleFragments = item.DismantleFragments,
                 DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),
+                QualityBonusLevel = Math.Clamp(item.Skills.Sum(skill => skill.QualityBonusLevel),
+                    0, WeaponRules.MaxQualityBonusLevels),
+                QualityName = WeaponRules.QualityName(item.Skills.Sum(skill => skill.QualityBonusLevel)),
+                QualityCode = WeaponRules.QualityCode(item.Skills.Sum(skill => skill.QualityBonusLevel)),
                 IsLocked = item.IsLocked,
                 EquippedSlotIndex = item.EquippedSlotIndex,
                 Skills = item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>

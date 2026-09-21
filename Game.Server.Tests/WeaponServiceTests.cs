@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using Xunit;
 
 namespace Game.Server.Tests;
@@ -366,6 +367,69 @@ public sealed class WeaponServiceTests
 
         Assert.Equal(8, Assert.Single(bonus.ActiveSkills).Level);
         Assert.Equal(13.6m, bonus.AttackPercent);
+    }
+
+    [Fact]
+    public void EpicDropDistributesThreeQualityLevelsWithoutChangingBaseSnapshot()
+    {
+        var options = new WeaponOptions
+        {
+            DropQualityWeights = new WeaponDropQualityWeightsOptions
+            {
+                Common = 0, Uncommon = 0, Rare = 0, Epic = 1
+            },
+            Skills =
+            [
+                new WeaponSkillDefinitionOptions { Code = "weapon-attack", Name = "攻击", EffectType = WeaponSkillEffectType.AttackPercent, PercentPerLevel = 2 },
+                new WeaponSkillDefinitionOptions { Code = "weapon-health", Name = "生命", EffectType = WeaponSkillEffectType.MaxHpPercent, PercentPerLevel = 3 }
+            ],
+            Items =
+            [
+                new WeaponTemplateOptions
+                {
+                    Code = "stone-hammer", Name = "磐岩战锤", Element = ElementType.Earth,
+                    Attack = 12, MaxHp = 34,
+                    Skills =
+                    [
+                        new WeaponSkillGrantOptions { Code = "weapon-attack", Level = 2 },
+                        new WeaponSkillGrantOptions { Code = "weapon-health", Level = 1 }
+                    ]
+                }
+            ],
+            StarterPacks = new Dictionary<string, List<string>> { ["knight"] = ["stone-hammer"] }
+        };
+        var catalog = new WeaponCatalog(Options.Create(options));
+
+        var shopSnapshot = catalog.CreateRewardSnapshot("stone-hammer");
+        var dropSnapshot = catalog.CreateDropSnapshot("stone-hammer", new Random(42));
+        var weapon = dropSnapshot.ToCharacterWeapon(1);
+
+        Assert.Equal(0, shopSnapshot.QualityBonusLevel);
+        Assert.Equal(3, dropSnapshot.QualityBonusLevel);
+        Assert.Equal("史诗", dropSnapshot.QualityName);
+        Assert.Equal(3, weapon.Skills.Sum(skill => skill.QualityBonusLevel));
+        Assert.All(weapon.Skills, skill =>
+            Assert.Equal(skill.BaseLevel + skill.QualityBonusLevel, skill.Level));
+        Assert.All(weapon.Skills, skill => Assert.Equal(0, skill.EnhancementLevel));
+    }
+
+    [Fact]
+    public void LegacyWeaponRewardSnapshotWithoutQualityStillDeserializesAsCommon()
+    {
+        const string json = """
+            {"Code":"gale-bow","Name":"疾风短弓","Element":3,"Attack":7,"MaxHp":28,
+             "ItemLevel":8,"SellGold":15,"DismantleFragments":2,
+             "Skills":[{"Code":"weapon-critical","Level":2}]}
+            """;
+
+        var snapshot = JsonSerializer.Deserialize<WeaponRewardSnapshot>(json);
+        var weapon = snapshot!.ToCharacterWeapon(1);
+
+        Assert.Equal(0, snapshot.QualityBonusLevel);
+        Assert.Equal("普通", snapshot.QualityName);
+        Assert.Equal((2, 2, 0),
+            (weapon.Skills.Single().Level, weapon.Skills.Single().BaseLevel,
+                weapon.Skills.Single().QualityBonusLevel));
     }
 
     [Fact]

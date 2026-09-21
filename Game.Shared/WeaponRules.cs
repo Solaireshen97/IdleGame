@@ -8,6 +8,7 @@ public static class WeaponRules
     public const int MainSlotIndex = 1;
     public const int MaxSkillsPerWeapon = 3;
     public const int MaxSkillLevel = 20;
+    public const int MaxQualityBonusLevels = 3;
     public const int MaxEnhancementPerSkill = 3;
 
     public static int FragmentTier(int itemLevel)
@@ -21,6 +22,22 @@ public static class WeaponRules
         : throw new ArgumentOutOfRangeException(nameof(tier));
 
     public static string FragmentName(int tier) => $"T{tier} 武器碎片";
+
+    public static string QualityName(int bonusLevels) => bonusLevels switch
+    {
+        <= 0 => "普通",
+        1 => "精良",
+        2 => "稀有",
+        _ => "史诗"
+    };
+
+    public static string QualityCode(int bonusLevels) => bonusLevels switch
+    {
+        <= 0 => "common",
+        1 => "uncommon",
+        2 => "rare",
+        _ => "epic"
+    };
 
     public static string ElementName(ElementType element) => element switch
     {

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Game.Server.Data;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -78,11 +77,11 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             }
             foreach (var weapon in group.Where(entry => entry.Kind == "Weapon"))
             {
-                var snapshot = JsonSerializer.Deserialize<WeaponRewardSnapshot>(weapon.WeaponSnapshotJson!)
+                var snapshot = RewardCatalog.DeserializeWeapon(weapon)
                     ?? throw new InvalidOperationException("Missing weapon reward snapshot.");
                 for (var i = 0; i < weapon.Quantity; i++)
                     dbContext.CharacterWeapons.Add(snapshot.ToCharacterWeapon(character.Id));
-                logs.Add($"{character.Name} 获得 {snapshot.Name} × {weapon.Quantity}。");
+                logs.Add($"{character.Name} 获得 {snapshot.DisplayName} × {weapon.Quantity}。");
             }
         }
         run.Status = victory ? "Victory" : "Defeat";

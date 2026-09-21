@@ -36,6 +36,9 @@ public sealed class CharacterWeaponResponse
     public int SellGold { get; set; }
     public int DismantleFragments { get; set; }
     public int DismantleReturnQuantity { get; set; }
+    public int QualityBonusLevel { get; set; }
+    public string QualityName { get; set; } = string.Empty;
+    public string QualityCode { get; set; } = string.Empty;
     public bool IsLocked { get; set; }
     public int? EquippedSlotIndex { get; set; }
     public List<WeaponSkillResponse> Skills { get; set; } = [];
