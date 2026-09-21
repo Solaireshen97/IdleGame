@@ -1,5 +1,6 @@
 using Game.Server.Configuration;
 using Game.Shared;
+using Game.Shared.Models;
 using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
@@ -52,6 +53,8 @@ public sealed class SkillCatalog
                 !string.Equals(skill.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) ||
                 _professions[node.ProfessionCode].StartingSkills.Contains(node.SkillCode, StringComparer.OrdinalIgnoreCase) ||
                 node.Cost <= 0 || node.Tier < 1 || node.Column is < 1 or > 3 ||
+                !Enum.IsDefined(node.RequiredTalentType) || node.RequiredTalentRank is < 1 or > TalentRules.MaxRank ||
+                node.Column != (int)node.RequiredTalentType + 1 ||
                 !_talentNodes.TryAdd(node.Code, node))
                 throw new InvalidOperationException($"Invalid skill talent configuration: {node.Code}");
         }
@@ -59,11 +62,9 @@ public sealed class SkillCatalog
         foreach (var node in _talentNodes.Values)
         {
             if (node.Prerequisites.Distinct(StringComparer.OrdinalIgnoreCase).Count() != node.Prerequisites.Count ||
-                (node.Tier == 1 && node.Prerequisites.Count != 0) ||
-                (node.Tier > 1 && node.Prerequisites.Count == 0) ||
                 node.Prerequisites.Any(code => !_talentNodes.TryGetValue(code, out var parent) ||
                     !string.Equals(parent.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) ||
-                    parent.Tier != node.Tier - 1) ||
+                    parent.Tier >= node.Tier) ||
                 _talentNodes.Values.Any(other => other != node &&
                     string.Equals(other.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) &&
                     (string.Equals(other.SkillCode, node.SkillCode, StringComparison.OrdinalIgnoreCase) ||
@@ -98,7 +99,7 @@ public sealed class SkillCatalog
             !string.Equals(skill.ProfessionCode, profession.Code, StringComparison.OrdinalIgnoreCase)) return false;
         return profession.StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) ||
                _talentNodes.Values.Any(node => string.Equals(node.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase) &&
-                   IsNodeActive(node, purchasedNodes));
+                   IsNodeActive(character, node, purchasedNodes));
     }
 
     public IReadOnlyList<CombatSkillOptions> LearnedSkills(Game.Shared.Models.Character character, IReadOnlySet<string> purchasedNodes)
@@ -106,11 +107,13 @@ public sealed class SkillCatalog
         var profession = FindProfession(character.ProfessionCode);
         if (profession is null) return [];
         return profession.StartingSkills.Select(code => _skills[code])
-            .Concat(TalentNodesForProfession(profession.Code).Where(node => IsNodeActive(node, purchasedNodes))
+            .Concat(TalentNodesForProfession(profession.Code).Where(node => IsNodeActive(character, node, purchasedNodes))
                 .Select(node => _skills[node.SkillCode])).ToList();
     }
 
-    private bool IsNodeActive(SkillTalentNodeOptions node, IReadOnlySet<string> purchasedNodes) =>
-        purchasedNodes.Contains(node.Code) && node.Prerequisites.All(code =>
-            _talentNodes.TryGetValue(code, out var parent) && IsNodeActive(parent, purchasedNodes));
+    public bool IsNodeActive(Character character, SkillTalentNodeOptions node, IReadOnlySet<string> purchasedNodes) =>
+        purchasedNodes.Contains(node.Code) &&
+        TalentRules.GetRank(character, node.RequiredTalentType) >= node.RequiredTalentRank &&
+        node.Prerequisites.All(code => _talentNodes.TryGetValue(code, out var parent) &&
+            IsNodeActive(character, parent, purchasedNodes));
 }

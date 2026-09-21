@@ -180,7 +180,10 @@
                 return;
             }
             _data = response;
-            SetDrafts(response);
+            var saved = response.Slots.Single(item => item.SlotIndex == slot.SlotIndex);
+            slot.ItemCode = saved.ItemCode;
+            slot.AutoUseEnabled = saved.AutoUseEnabled;
+            slot.AutoHpThresholdPercent = saved.AutoHpThresholdPercent;
             _notice = $"补给槽 {slot.SlotIndex} 已保存。";
         }
         catch

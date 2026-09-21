@@ -252,6 +252,7 @@ public class UserController(UserService userService, TalentService talentService
         "InsufficientTalentPoints" => BadRequest("Not enough talent points."),
         "TalentMaxRank" => BadRequest("Talent is already at maximum rank."),
         "InvalidTalent" => BadRequest("Invalid talent type."),
+        "LoadoutLocked" => Conflict("LoadoutLocked"),
         "ConcurrencyConflict" => Conflict("Character changed. Please refresh and try again."),
         _ => BadRequest("Talent operation failed.")
     };

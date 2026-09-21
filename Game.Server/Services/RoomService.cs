@@ -235,6 +235,11 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync();
         var skillCooldowns = await dbContext.BattleSkillCooldowns
             .Where(entry => entry.RoomId == room.Id && currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync();
+        var purchasedSkillNodes = (await dbContext.CharacterSkillTalents
+            .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync())
+            .GroupBy(entry => entry.CharacterId)
+            .ToDictionary(group => group.Key,
+                group => group.Select(entry => entry.NodeCode).ToHashSet(StringComparer.OrdinalIgnoreCase));
         var isCurrentUserAutoUnlocked = currentUserId.HasValue && clearedDungeonUserIds.Contains(currentUserId.Value);
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
@@ -255,6 +260,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 characters.TryGetValue(slot.CharacterId ?? 0, out var character);
                 users.TryGetValue(slot.UserId ?? 0, out var player);
                 var ownCharacterId = slot.UserId == currentUserId ? slot.CharacterId : null;
+                var ownedSkillNodes = ownCharacterId is int ownedId && purchasedSkillNodes.TryGetValue(ownedId, out var nodes)
+                    ? nodes : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var ownConsumables = ownCharacterId is int id
                     ? Enumerable.Range(1, ConsumableRules.SlotCount).Select(index =>
                     {
@@ -279,6 +286,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                     {
                         var equipped = skillSlots.FirstOrDefault(entry => entry.CharacterId == skillCharacterId && entry.SlotIndex == index);
                         var skill = skillCatalog.FindSkill(equipped?.SkillCode);
+                        if (skill is not null && (character is null || !skillCatalog.IsLearned(character, skill.Code, ownedSkillNodes)))
+                            skill = null;
                         var cooldown = skill is null ? null : skillCooldowns.FirstOrDefault(entry => entry.CharacterId == skillCharacterId && entry.SkillCode == skill.Code);
                         return new RoomSkillSlotResponse
                         {
@@ -288,7 +297,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                             EffectType = skill?.EffectType,
                             Power = skill?.Power ?? 0,
                             CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
-                            AutoUseEnabled = equipped?.AutoUseEnabled ?? false,
+                            AutoUseEnabled = skill is not null && equipped?.AutoUseEnabled == true,
                             AutoHpThresholdPercent = equipped?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent
                         };
                     }).ToList()

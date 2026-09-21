@@ -397,9 +397,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
                     logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on Slot {target.Slot.SlotIndex} {target.Character.Name} and restores {healed} HP.");
                     break;
                 case "Guard":
-                    if (front is null || automatic && (long)front.Character.Hp * 100 >
+                    if (front is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent || automatic && (long)front.Character.Hp * 100 >
                         (long)TalentRules.EffectiveMaxHp(front.Character) * slot.AutoHpThresholdPercent) return false;
-                    guardPercent = Math.Min(75, guardPercent + skill.Power);
+                    guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + skill.Power);
                     logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} to protect Slot {front.Slot.SlotIndex} {front.Character.Name}.");
                     break;
                 default: return false;

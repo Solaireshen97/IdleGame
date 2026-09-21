@@ -37,7 +37,7 @@
                 <section class="talents-page__roadmap">
                     <span class="talents-page__eyebrow">CAREER PATH</span>
                     <h2>职业路线</h2>
-                    <p>点亮前置节点，沿职业路线学习新技能。后续可在这里扩展转职条件与专属路线。</p>
+                    <p>从基础属性出发，沿路线学习新技能。后续可在这里扩展转职条件与专属路线。</p>
                 </section>
             </aside>
 
@@ -46,7 +46,7 @@
                                       CharacterId="@character.CharacterId"
                                       OnChanged="RefreshCurrentAsync" />
                 <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
-                                     CharacterId="@character.CharacterId" OnChanged="RefreshCurrentAsync" />
+                                     CharacterId="@character.CharacterId" />
                 <section class="talents-page__next">
                     <span class="talents-page__next-icon" aria-hidden="true">✦</span>
                     <div>

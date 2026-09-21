@@ -281,6 +281,26 @@ public class BattleServiceTests
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
+    [Theory]
+    [InlineData(40, 59, 1)]
+    [InlineData(10, 49, 0)]
+    public async Task AutomaticPotionChecksHealthAfterHealingSkill(int startingHp, int endingHp, int remainingPotions)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: startingHp, characterAttack: 1,
+            characterDefense: 99, monsterAttack: 1);
+        test.Character.ProfessionCode = "cleric";
+        await test.AddSkillAsync(test.Character, 1, "cleric-heal", autoUse: true, threshold: 70);
+        await test.AddPotionAsync(test.Character, quantity: 1, autoUse: true, threshold: 50);
+
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(round!.Logs, log => log.Contains("uses 治疗术"));
+        Assert.Equal(remainingPotions == 0, round.Logs.Any(log => log.Contains("uses 小型治疗药水")));
+        Assert.Equal(endingHp, test.Character.Hp);
+        Assert.Equal(remainingPotions, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
+    }
+
     [Fact]
     public async Task MixedPartyUsesEachCharactersOwnPotionWhenBothPlayersPrepare()
     {
@@ -359,14 +379,36 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task GuardSkillsStopUsingCooldownOncePartyProtectionReachesItsCap()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
+        var second = await test.AddSlotAsync(2, "Second", hp: 60, attack: 1);
+        var third = await test.AddSlotAsync(3, "Third", hp: 60, attack: 1);
+        test.Monster.Hp = test.Monster.MaxHp = 100;
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "knight-guard", autoUse: true, threshold: 70);
+        await test.AddSkillAsync(second, 1, "knight-guard", autoUse: true, threshold: 70);
+        await test.AddSkillAsync(third, 1, "knight-guard", autoUse: true, threshold: 70);
+
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(2, round!.Logs.Count(log => log.Contains("uses 守护")));
+        Assert.Equal(2, await test.Db.BattleSkillCooldowns.CountAsync());
+        Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown => cooldown.CharacterId == third.Id);
+    }
+
+    [Fact]
     public async Task SwappingSkillSlotsChangesAutomaticCastOrder()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1);
         await test.AddSkillAsync(test.Character, 1, "knight-guard", autoUse: true, threshold: 70);
         await test.AddSkillAsync(test.Character, 2, "knight-strike", autoUse: true);
         var progression = ProgressionTestFactory.Create();
-        var skillService = new SkillService(test.Db,
-            new UserService(test.Db, progression, SkillTestFactory.Create()), SkillTestFactory.Create());
+        var skillCatalog = SkillTestFactory.Create();
+        var userService = new UserService(test.Db, progression, skillCatalog);
+        var skillService = new SkillService(test.Db, userService, skillCatalog,
+            new TalentService(test.Db, userService, skillCatalog));
 
         var (configuration, swapError) = await skillService.SwapSlotsAsync(test.Token, 1,
             new Game.Shared.Dtos.Characters.SwapSkillSlotsRequest { FromSlotIndex = 1, ToSlotIndex = 2 });
@@ -386,8 +428,10 @@ public class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync();
         var progression = ProgressionTestFactory.Create();
-        var skillService = new SkillService(test.Db,
-            new UserService(test.Db, progression, SkillTestFactory.Create()), SkillTestFactory.Create());
+        var skillCatalog = SkillTestFactory.Create();
+        var userService = new UserService(test.Db, progression, skillCatalog);
+        var skillService = new SkillService(test.Db, userService, skillCatalog,
+            new TalentService(test.Db, userService, skillCatalog));
         var (foreign, foreignError) = await skillService.SetSlotAsync(test.Token, 1, 1,
             new Game.Shared.Dtos.Characters.SetSkillSlotRequest { SkillCode = "cleric-heal" });
         Assert.Null(foreign);
@@ -449,6 +493,10 @@ public class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1);
         await test.AddSkillAsync(test.Character, 3, "knight-break", autoUse: true);
+        var initialDetail = await test.GetRoomDetailAsync();
+        var skillSlot = initialDetail!.Slots.Single(slot => slot.CharacterId == test.Character.Id).Skills.Single(slot => slot.SlotIndex == 3);
+        Assert.Null(skillSlot.SkillCode);
+        Assert.False(skillSlot.AutoUseEnabled);
 
         var (firstRound, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(firstError);
@@ -458,6 +506,7 @@ public class BattleServiceTests
         {
             CharacterId = test.Character.Id, NodeCode = "knight-vanguard", PointsSpent = 1
         });
+        test.Character.AttackTalentRank = 1;
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
@@ -617,6 +666,29 @@ public class BattleServiceTests
         Assert.Null(firstError);
         Assert.Equal("ConsumableAlreadyEquipped", duplicateError);
         Assert.Equal("LoadoutLocked", lockedError);
+    }
+
+    [Fact]
+    public async Task ChangingConsumableSlotClearsItsQueuedUse()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 60);
+        await test.AddPotionAsync(test.Character, quantity: 1, autoUse: false);
+        var (queued, queueError) = await test.Service.QueueConsumableAsync(
+            new Game.Shared.Dtos.QueueConsumableRequest
+            {
+                RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1
+            }, test.Token);
+        Assert.True(queued);
+        Assert.Null(queueError);
+        var roomSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
+        Assert.Equal(1, roomSlot.PendingConsumableSlotIndex);
+
+        var (_, error) = await test.CreateConsumableService().SetSlotAsync(test.Token, test.Character.Id, 1,
+            new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = null });
+
+        Assert.Null(error);
+        Assert.Null(roomSlot.PendingConsumableSlotIndex);
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
     [Fact]

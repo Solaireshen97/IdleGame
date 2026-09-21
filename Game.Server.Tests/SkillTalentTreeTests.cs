@@ -11,30 +11,39 @@ namespace Game.Server.Tests;
 public class SkillTalentTreeTests
 {
     [Fact]
-    public async Task BranchesRequireTheRootAndCapstoneRequiresBothBranches()
+    public async Task SkillBranchesRequireAttributeRanksAndCapstoneRequiresBothBranches()
     {
-        await using var test = await TreeTestContext.CreateAsync(points: 5);
+        await using var test = await TreeTestContext.CreateAsync(points: 9);
+        var stats = new TalentService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
 
-        var (blocked, prerequisiteError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-fortitude");
+        var (blocked, prerequisiteError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
         Assert.Null(blocked);
         Assert.Equal("SkillTalentPrerequisiteRequired", prerequisiteError);
-        Assert.Equal(5, test.Character.TalentPoints);
+        Assert.Equal(9, test.Character.TalentPoints);
 
+        await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
         var (root, rootError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
         Assert.Null(rootError);
-        Assert.Equal(4, root!.TalentPoints);
+        Assert.Equal(7, root!.TalentPoints);
         Assert.Contains(root.LearnedSkills, skill => skill.Code == "knight-break");
         Assert.False(root.TalentNodes.Single(node => node.Code == "knight-oath").CanUnlock);
 
+        var (defenseBlocked, defenseError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-fortitude");
+        Assert.Null(defenseBlocked);
+        Assert.Equal("SkillTalentPrerequisiteRequired", defenseError);
+        await stats.AllocateAsync(test.Token, 1, TalentType.Defense);
         await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-fortitude");
         var (stillBlocked, branchError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-oath");
         Assert.Null(stillBlocked);
         Assert.Equal("SkillTalentPrerequisiteRequired", branchError);
 
+        await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
         await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-offense");
+        await stats.AllocateAsync(test.Token, 1, TalentType.Health);
         var (capstone, capstoneError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-oath");
         Assert.Null(capstoneError);
-        Assert.Equal(1, capstone!.TalentPoints);
+        Assert.Equal(0, capstone!.TalentPoints);
         Assert.Contains(capstone.LearnedSkills, skill => skill.Code == "knight-verdict");
         Assert.Equal(4, await test.Db.CharacterSkillTalents.CountAsync());
 
@@ -52,7 +61,7 @@ public class SkillTalentTreeTests
         Assert.Equal("InvalidSkillTalent", foreignError);
 
         var stats = new TalentService(test.Db,
-            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()));
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
         var (attack, attackError) = await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
         Assert.Null(attackError);
         Assert.Equal(0, attack!.TalentPoints);
@@ -62,11 +71,36 @@ public class SkillTalentTreeTests
 
         await stats.ResetAsync(test.Token, 1);
         var (root, rootError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
-        Assert.Null(rootError);
-        Assert.Equal(0, root!.TalentPoints);
-        var (unaffordable, nextPointsError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-offense");
+        Assert.Null(root);
+        Assert.Equal("SkillTalentPrerequisiteRequired", rootError);
+        await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
+        var (unaffordable, nextPointsError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
         Assert.Null(unaffordable);
         Assert.Equal("InsufficientTalentPoints", nextPointsError);
+    }
+
+    [Fact]
+    public async Task ClericHealingBranchGrowsFromHealthTalent()
+    {
+        await using var test = await TreeTestContext.CreateAsync(points: 5, professionCode: "cleric");
+        var stats = new TalentService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
+
+        var (before, beforeError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "cleric-light");
+        Assert.Null(before);
+        Assert.Equal("SkillTalentPrerequisiteRequired", beforeError);
+
+        await stats.AllocateAsync(test.Token, 1, TalentType.Health);
+        var (light, lightError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "cleric-light");
+        Assert.Null(lightError);
+        Assert.Contains(light!.LearnedSkills, skill => skill.Code == "cleric-blessing");
+        Assert.False(light.TalentNodes.Single(node => node.Code == "cleric-compassion").CanUnlock);
+
+        await stats.AllocateAsync(test.Token, 1, TalentType.Health);
+        var (mercy, mercyError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "cleric-compassion");
+        Assert.Null(mercyError);
+        Assert.Contains(mercy!.LearnedSkills, skill => skill.Code == "cleric-mercy");
+        Assert.Equal(0, mercy.TalentPoints);
     }
 
     [Fact]
@@ -78,6 +112,9 @@ public class SkillTalentTreeTests
         Assert.Null(before);
         Assert.Equal("SkillNotLearned", beforeError);
 
+        var stats = new TalentService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
+        await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
         await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
         var (equipped, equipError) = await test.Service.SetSlotAsync(test.Token, 1, 3,
             new SetSkillSlotRequest { SkillCode = "knight-break", AutoUseEnabled = true });
@@ -94,6 +131,7 @@ public class SkillTalentTreeTests
         var (reset, resetError) = await test.Service.ResetTalentTreeAsync(test.Token, 1);
         Assert.Null(resetError);
         Assert.Equal(2, reset!.TalentPoints);
+        Assert.Equal(0, test.Character.AttackTalentRank);
         Assert.DoesNotContain(reset.LearnedSkills, skill => skill.Code == "knight-break");
         Assert.Null(reset.Slots.Single(slot => slot.SlotIndex == 3).SkillCode);
         Assert.Equal(0, (await test.Db.RoomSlots.SingleAsync()).PendingSkillSlotMask);
@@ -115,10 +153,15 @@ public class SkillTalentTreeTests
 
         var (unlock, unlockError) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-vanguard");
         var (reset, resetError) = await test.Service.ResetTalentTreeAsync(test.Token, 1);
+        var stats = new TalentService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
+        var (allocate, allocateError) = await stats.AllocateAsync(test.Token, 1, TalentType.Attack);
         Assert.Null(unlock);
         Assert.Null(reset);
+        Assert.Null(allocate);
         Assert.Equal("LoadoutLocked", unlockError);
         Assert.Equal("LoadoutLocked", resetError);
+        Assert.Equal("LoadoutLocked", allocateError);
         Assert.Equal(2, test.Character.TalentPoints);
     }
 
@@ -130,6 +173,10 @@ public class SkillTalentTreeTests
         {
             CharacterId = 1, NodeCode = "knight-oath", PointsSpent = 1
         });
+        test.Db.CharacterSkillSlots.Add(new CharacterSkillSlot
+        {
+            CharacterId = 1, SlotIndex = 3, SkillCode = "knight-verdict", AutoUseEnabled = true
+        });
         await test.Db.SaveChangesAsync();
 
         var (skills, error) = await test.Service.GetAsync(test.Token, 1);
@@ -138,8 +185,30 @@ public class SkillTalentTreeTests
 
         Assert.Null(error);
         Assert.DoesNotContain(skills!.LearnedSkills, skill => skill.Code == "knight-verdict");
+        Assert.Null(skills.Slots.Single(slot => slot.SlotIndex == 3).SkillCode);
+        Assert.False(skills.Slots.Single(slot => slot.SlotIndex == 3).AutoUseEnabled);
         Assert.Null(equipped);
         Assert.Equal("SkillNotLearned", equipError);
+    }
+
+    [Fact]
+    public async Task PurchasedButInactivePrerequisiteCannotUnlockChild()
+    {
+        await using var test = await TreeTestContext.CreateAsync(points: 1);
+        test.Character.AttackTalentRank = 2;
+        test.Character.HealthTalentRank = 1;
+        test.Db.CharacterSkillTalents.AddRange(
+            new CharacterSkillTalent { CharacterId = 1, NodeCode = "knight-vanguard", PointsSpent = 1 },
+            new CharacterSkillTalent { CharacterId = 1, NodeCode = "knight-offense", PointsSpent = 1 },
+            new CharacterSkillTalent { CharacterId = 1, NodeCode = "knight-fortitude", PointsSpent = 1 });
+        await test.Db.SaveChangesAsync();
+
+        var (unlocked, error) = await test.Service.UnlockTalentNodeAsync(test.Token, 1, "knight-oath");
+
+        Assert.Null(unlocked);
+        Assert.Equal("SkillTalentPrerequisiteRequired", error);
+        Assert.Equal(1, test.Character.TalentPoints);
+        Assert.Equal(3, await test.Db.CharacterSkillTalents.CountAsync());
     }
 
     private sealed class TreeTestContext : IAsyncDisposable
@@ -151,7 +220,8 @@ public class SkillTalentTreeTests
             Db = db;
             Character = character;
             var catalog = SkillTestFactory.Create();
-            Service = new SkillService(db, new UserService(db, ProgressionTestFactory.Create(), catalog), catalog);
+            var userService = new UserService(db, ProgressionTestFactory.Create(), catalog);
+            Service = new SkillService(db, userService, catalog, new TalentService(db, userService, catalog));
         }
 
         public string Token => "token";
@@ -159,7 +229,7 @@ public class SkillTalentTreeTests
         public Character Character { get; }
         public SkillService Service { get; }
 
-        public static async Task<TreeTestContext> CreateAsync(int points)
+        public static async Task<TreeTestContext> CreateAsync(int points, string professionCode = "knight")
         {
             var path = Path.Combine(Path.GetTempPath(), $"idlegame-skill-tree-{Guid.NewGuid():N}.db");
             var options = new DbContextOptionsBuilder<GameDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
@@ -167,7 +237,7 @@ public class SkillTalentTreeTests
             await db.Database.EnsureCreatedAsync();
             var character = new Character
             {
-                Id = 1, UserId = 1, Name = "Knight", ProfessionCode = "knight",
+                Id = 1, UserId = 1, Name = "Hero", ProfessionCode = professionCode,
                 Level = points + 1, TalentPoints = points, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5
             };
             db.AddRange(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },

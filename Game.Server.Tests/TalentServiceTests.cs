@@ -62,7 +62,7 @@ public class TalentServiceTests
     {
         await using var test = await TalentTestContext.CreateAsync(points: 1);
         await using var otherDb = test.CreateDbContext();
-        var otherService = new TalentService(otherDb, new UserService(otherDb, ProgressionTestFactory.Create(), SkillTestFactory.Create()));
+        var otherService = new TalentService(otherDb, new UserService(otherDb, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
         await test.Service.GetAsync("token", 1);
         await otherService.GetAsync("token", 1);
 
@@ -77,6 +77,30 @@ public class TalentServiceTests
         Assert.Equal((0, 1, 0), (character.TalentPoints, character.AttackTalentRank, character.DefenseTalentRank));
     }
 
+    [Fact]
+    public async Task ResetTalentsAlsoRefundsUnlockedSkillNodes()
+    {
+        await using var test = await TalentTestContext.CreateAsync(points: 2);
+        var catalog = SkillTestFactory.Create();
+        var userService = new UserService(test.Db, ProgressionTestFactory.Create(), catalog);
+        var skillService = new SkillService(test.Db, userService, catalog,
+            new TalentService(test.Db, userService, catalog));
+        await test.Service.AllocateAsync("token", 1, TalentType.Attack);
+        var (learned, learnError) = await skillService.UnlockTalentNodeAsync("token", 1, "knight-vanguard");
+        Assert.Null(learnError);
+        Assert.Contains(learned!.LearnedSkills, skill => skill.Code == "knight-break");
+
+        var (reset, resetError) = await test.Service.ResetAsync("token", 1);
+        var (skills, skillsError) = await skillService.GetAsync("token", 1);
+
+        Assert.Null(resetError);
+        Assert.Null(skillsError);
+        Assert.Equal(2, reset!.TalentPoints);
+        Assert.Equal(0, test.Character.AttackTalentRank);
+        Assert.Empty(await test.Db.CharacterSkillTalents.ToListAsync());
+        Assert.DoesNotContain(skills!.LearnedSkills, skill => skill.Code == "knight-break");
+    }
+
     private sealed class TalentTestContext : IAsyncDisposable
     {
         private readonly string _path;
@@ -88,7 +112,7 @@ public class TalentServiceTests
             _options = options;
             Db = db;
             Character = character;
-            Service = new TalentService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()));
+            Service = new TalentService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), SkillTestFactory.Create());
         }
 
         public GameDbContext Db { get; }

@@ -1,4 +1,5 @@
 using Game.Shared.Models;
+using Game.Shared.Enums;
 
 namespace Game.Shared;
 
@@ -11,6 +12,13 @@ public static class TalentRules
 
     public static int NextRankCost(int currentRank) => currentRank + 1;
     public static int SpentPoints(int rank) => rank * (rank + 1) / 2;
+    public static int GetRank(Character character, TalentType type) => type switch
+    {
+        TalentType.Attack => character.AttackTalentRank,
+        TalentType.Defense => character.DefenseTalentRank,
+        TalentType.Health => character.HealthTalentRank,
+        _ => throw new ArgumentOutOfRangeException(nameof(type))
+    };
     public static int EffectiveAttack(Character character) => character.Attack + character.AttackTalentRank * AttackPerRank;
     public static int EffectiveDefense(Character character) => character.Defense + character.DefenseTalentRank * DefensePerRank;
     public static int EffectiveMaxHp(Character character) => character.MaxHp + character.HealthTalentRank * HealthPerRank;

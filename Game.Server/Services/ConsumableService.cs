@@ -58,6 +58,8 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
         if (room is not null) room.Version++;
+        if (roomSlot?.PendingConsumableSlotIndex == slotIndex)
+            roomSlot.PendingConsumableSlotIndex = null;
 
         try
         {

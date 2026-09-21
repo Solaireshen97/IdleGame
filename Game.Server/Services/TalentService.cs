@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class TalentService(GameDbContext dbContext, UserService userService)
+public class TalentService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog)
 {
     public async Task<(CharacterTalentsResponse? Response, string? Error)> GetAsync(string? token, int characterId)
     {
@@ -20,8 +20,9 @@ public class TalentService(GameDbContext dbContext, UserService userService)
         if (!Enum.IsDefined(type)) return (null, "InvalidTalent");
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        if (await IsTreeLockedAsync(characterId)) return (null, "LoadoutLocked");
 
-        var rank = GetRank(character!, type);
+        var rank = TalentRules.GetRank(character!, type);
         if (rank >= TalentRules.MaxRank) return (null, "TalentMaxRank");
         var cost = TalentRules.NextRankCost(rank);
         if (character!.TalentPoints < cost) return (null, "InsufficientTalentPoints");
@@ -44,24 +45,45 @@ public class TalentService(GameDbContext dbContext, UserService userService)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        if (await IsTreeLockedAsync(characterId)) return (null, "LoadoutLocked");
 
         var spent = TalentRules.SpentPoints(character!.AttackTalentRank) +
                     TalentRules.SpentPoints(character.DefenseTalentRank) +
                     TalentRules.SpentPoints(character.HealthTalentRank);
-        if (spent == 0) return (BuildResponse(character), null);
+        var purchased = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == characterId).ToListAsync();
+        if (spent == 0 && purchased.Count == 0) return (BuildResponse(character), null);
 
-        character.TalentPoints += spent;
+        character.TalentPoints = checked(character.TalentPoints + spent + purchased.Sum(node => node.PointsSpent));
         character.AttackTalentRank = 0;
         character.DefenseTalentRank = 0;
         character.HealthTalentRank = 0;
         character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
+        var startingSkills = skillCatalog.FindProfession(character.ProfessionCode)?.StartingSkills
+            .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var equipped = await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync();
+        foreach (var slot in equipped.Where(slot => slot.SkillCode is not null && !startingSkills.Contains(slot.SkillCode)))
+        {
+            slot.SkillCode = null;
+            slot.AutoUseEnabled = false;
+            slot.Version++;
+        }
+        var cooldowns = await dbContext.BattleSkillCooldowns.Where(entry => entry.CharacterId == characterId).ToListAsync();
+        dbContext.BattleSkillCooldowns.RemoveRange(cooldowns.Where(entry => !startingSkills.Contains(entry.SkillCode)));
+        dbContext.CharacterSkillTalents.RemoveRange(purchased);
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is not null)
+        {
+            roomSlot.PendingSkillSlotMask = 0;
+            var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+            if (room is not null) room.Version++;
+        }
         character.Version++;
         try
         {
             await dbContext.SaveChangesAsync();
             return (BuildResponse(character), null);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateException)
         {
             return (null, "ConcurrencyConflict");
         }
@@ -76,13 +98,14 @@ public class TalentService(GameDbContext dbContext, UserService userService)
         return character.UserId == user!.Id ? (character, null) : (null, "NotOwner");
     }
 
-    private static int GetRank(Character character, TalentType type) => type switch
+    private async Task<bool> IsTreeLockedAsync(int characterId)
     {
-        TalentType.Attack => character.AttackTalentRank,
-        TalentType.Defense => character.DefenseTalentRank,
-        TalentType.Health => character.HealthTalentRank,
-        _ => throw new ArgumentOutOfRangeException(nameof(type))
-    };
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is null) return false;
+        var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+        return room is not null && room.Status != RoomStatus.BattleOver &&
+               (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0);
+    }
 
     private static void SetRank(Character character, TalentType type, int rank)
     {

@@ -1,3 +1,5 @@
+using Game.Shared.Enums;
+
 namespace Game.Server.Configuration;
 
 public sealed class SkillOptions
@@ -37,5 +39,7 @@ public sealed class SkillTalentNodeOptions
     public int Cost { get; set; } = 1;
     public int Tier { get; set; }
     public int Column { get; set; }
+    public TalentType RequiredTalentType { get; set; }
+    public int RequiredTalentRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
 }

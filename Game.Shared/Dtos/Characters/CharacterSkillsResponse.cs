@@ -1,3 +1,5 @@
+using Game.Shared.Enums;
+
 namespace Game.Shared.Dtos.Characters;
 
 public class CharacterSkillsResponse
@@ -22,6 +24,8 @@ public class SkillTalentNodeResponse
     public int Cost { get; set; }
     public int Tier { get; set; }
     public int Column { get; set; }
+    public TalentType RequiredTalentType { get; set; }
+    public int RequiredTalentRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
     public bool IsUnlocked { get; set; }
     public bool ArePrerequisitesMet { get; set; }
