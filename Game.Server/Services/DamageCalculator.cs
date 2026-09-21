@@ -19,7 +19,7 @@ public static class DamageCalculator
         var healthMultiplier = Math.Max(0m, 1m + factors.HealthPercent / 100m);
         var criticalMultiplier = Math.Max(0m, 1m + factors.CriticalPercent / 100m);
         var elementMultiplier = Math.Max(0m, 1m + factors.ElementPercent / 100m);
-        var reductionMultiplier = Math.Clamp(1m - factors.ReductionPercent / 100m, 0m, 1m);
+        var reductionMultiplier = Math.Max(0m, 1m - factors.ReductionPercent / 100m);
 
         // Skill power is flat attack. Defense is removed before the remaining zones.
         var afterDefense = Math.Max(1m, (attack + (decimal)skillPower) * attackMultiplier - defense);

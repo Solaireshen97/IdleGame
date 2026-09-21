@@ -8,14 +8,15 @@ public sealed class DungeonEncounterCatalog
 {
     private readonly Dictionary<string, List<DungeonWaveOptions>> _dungeons;
 
-    public DungeonEncounterCatalog(IOptions<DungeonEncounterOptions> options)
+    public DungeonEncounterCatalog(IOptions<DungeonEncounterOptions> options, MonsterCombatCatalog? combatCatalog = null)
     {
         _dungeons = new Dictionary<string, List<DungeonWaveOptions>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (code, waves) in options.Value.Dungeons)
         {
             if (string.IsNullOrWhiteSpace(code) || waves.Count == 0 || waves.Any(wave => wave.Monsters.Count == 0) ||
                 waves.SelectMany(wave => wave.Monsters).Any(monster => string.IsNullOrWhiteSpace(monster.Name) ||
-                    monster.MaxHp <= 0 || monster.Attack < 0 || monster.Defense < 0))
+                    monster.MaxHp <= 0 || monster.Attack < 0 || monster.Defense < 0 ||
+                    !string.IsNullOrWhiteSpace(monster.CombatProfileCode) && combatCatalog?.FindProfile(monster.CombatProfileCode) is null))
                 throw new InvalidOperationException($"Invalid dungeon encounter: {code}");
             _dungeons.Add(code, waves);
         }
@@ -35,7 +36,8 @@ public sealed class DungeonEncounterCatalog
             Attack = monster.Attack,
             Defense = monster.Defense,
             WaveNumber = waveIndex + 1,
-            Position = monsterIndex + 1
+            Position = monsterIndex + 1,
+            CombatProfileCode = monster.CombatProfileCode
         })).ToList();
     }
 
@@ -54,6 +56,7 @@ public sealed class DungeonEncounterCatalog
         Attack = dungeon.MonsterAttack,
         Defense = dungeon.MonsterDefense,
         WaveNumber = 1,
-        Position = 1
+        Position = 1,
+        CombatProfileCode = string.Empty
     };
 }

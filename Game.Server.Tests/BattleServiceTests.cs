@@ -1302,7 +1302,7 @@ public class BattleServiceTests
         var secondService = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(secondDb, progression));
 
         var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token), secondService.StartPreparationAsync(1, test.Token));
-        Assert.Single(results.Where(result => result.Error is null));
+        Assert.Single(results, result => result.Error is null);
         await using var verificationDb = test.CreateDbContext();
         Assert.Equal(0, (await verificationDb.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(73, (await verificationDb.Characters.SingleAsync()).Hp);
@@ -1330,7 +1330,7 @@ public class BattleServiceTests
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Single(result!.Logs.Where(x => x.Contains("attacks Slime")));
+        Assert.Single(result!.Logs, x => x.Contains("attacks Slime"));
         Assert.DoesNotContain(result.Logs, x => x.Contains("Slot 2 Mage attacks"));
         Assert.DoesNotContain(result.Logs, x => x.Contains("Slime attacks"));
     }
@@ -1376,6 +1376,41 @@ public class BattleServiceTests
         Assert.True(victory.IsVictory);
         Assert.Equal("Victory", (await test.Db.RewardRuns.SingleAsync()).Status);
         Assert.Equal(3, await test.Db.RewardEvents.CountAsync());
+    }
+
+    [Fact]
+    public async Task MonsterIntentExecutesOnceAndNextRoundIsPlannedBeforePlayerPrepares()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, characterDefense: 2);
+        test.Monster.CombatProfileCode = "acid-slime";
+        await test.Db.SaveChangesAsync();
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var monsterCombat = new MonsterCombatService(test.Db, MonsterCombatTestFactory.CreateCatalog());
+        var dungeonRun = new DungeonRunService(test.Db, rewards, monsterCombat);
+        var service = new BattleService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), ConsumableTestFactory.Create(),
+            SkillTestFactory.Create(), rewards, dungeonRun, monsterCombat);
+        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(90, test.Character.Hp);
+        Assert.Contains(result.Logs, log => log.Contains("uses 腐蚀喷射"));
+        Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
+        var nextIntent = await test.Db.MonsterIntents.SingleAsync();
+        Assert.Equal(1, nextIntent.RoundNumber);
+        Assert.Equal("BasicAttack", nextIntent.ActionType);
+
+        var rooms = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(), rewards, null, monsterCombat);
+        var detail = await rooms.GetRoomDetailAsync(1, test.Token);
+        Assert.Equal("普通攻击", detail!.MonsterIntent!.ActionName);
+        Assert.Equal("破甲", Assert.Single(detail.Slots[0].StatusEffects).Name);
     }
 
     [Fact]

@@ -31,6 +31,7 @@ public class RoomSlotResponse
     public bool IsTemporaryAuto { get; set; }
     public bool IsAutoUnlockedForCurrentUser { get; set; }
     public bool CanConfigureAuto { get; set; }
+    public List<BattleStatusEffectResponse> StatusEffects { get; set; } = [];
 }
 
 public class RoomSkillSlotResponse

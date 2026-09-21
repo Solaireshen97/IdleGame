@@ -15,6 +15,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<DungeonRunService>();
+builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<RewardService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TalentService>();
@@ -28,6 +29,7 @@ builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillO
 builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(WeaponOptions.SectionName));
 builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
+builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
@@ -35,6 +37,7 @@ builder.Services.AddSingleton<SkillCatalog>();
 builder.Services.AddSingleton<WeaponCatalog>();
 builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
+builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddHostedService<RoomCycleService>();
 

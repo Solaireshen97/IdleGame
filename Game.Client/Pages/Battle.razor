@@ -41,6 +41,19 @@ else
             <span class="battle-feed__open">详细战报 <span aria-hidden="true">↗</span></span>
         </button>
 
+        @if (_roomDetail.MonsterIntent is { } intent)
+        {
+            <section class="monster-intent" aria-label="敌方行动预告">
+                <div class="monster-intent__icon" aria-hidden="true">!</div>
+                <div class="monster-intent__body">
+                    <span>ENEMY INTENT · 敌方行动预告</span>
+                    <strong>@intent.ActionName</strong>
+                    <small>@intent.Description</small>
+                </div>
+                <div class="monster-intent__target"><span>目标</span><strong>@intent.TargetLabel</strong></div>
+            </section>
+        }
+
         <div class="battle-field">
             <div class="battle-field__party">
                 <div class="battle-field__label"><span>YOUR PARTY</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount</strong></div>
@@ -69,6 +82,17 @@ else
                             {
                                 <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
                                 <small>@slot.CharacterHp / @slot.CharacterMaxHp</small>
+                                @if (slot.StatusEffects.Count > 0)
+                                {
+                                    <div class="battle-effects" aria-label="@slot.CharacterName 状态">
+                                        @foreach (var effect in slot.StatusEffects)
+                                        {
+                                            <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@effect.Description">
+                                                @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds
+                                            </span>
+                                        }
+                                    </div>
+                                }
                             }
                             else
                             {
@@ -87,6 +111,17 @@ else
                     <span>WAVE @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount · ENEMY @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
                     <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
                     <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
+                    @if (_roomDetail.MonsterEffects.Count > 0)
+                    {
+                        <div class="battle-effects battle-effects--enemy" aria-label="怪物状态">
+                            @foreach (var effect in _roomDetail.MonsterEffects)
+                            {
+                                <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@effect.Description">
+                                    @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds 回合
+                                </span>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
         </div>

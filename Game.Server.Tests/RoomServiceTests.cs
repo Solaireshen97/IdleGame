@@ -122,7 +122,7 @@ public class RoomServiceTests
         Assert.Null(error);
         Assert.NotNull(detail);
         Assert.Equal(5, detail!.Slots.Count);
-        var firstSlot = Assert.Single(detail.Slots.Where(x => x.SlotIndex == 1));
+        var firstSlot = Assert.Single(detail.Slots, x => x.SlotIndex == 1);
         Assert.Equal(test.ActiveCharacter.Id, firstSlot.CharacterId);
         Assert.True(firstSlot.IsMainControl);
     }

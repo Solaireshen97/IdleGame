@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService)
+public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService, MonsterCombatService? monsterCombatService = null)
 {
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
@@ -20,6 +20,8 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             : "monster:1";
         await rewardService.RecordAsync(room, dungeon.Code, participants, eventKey, false);
         logs.Add($"{defeatedMonster.Name} is defeated.");
+        if (monsterCombatService is not null)
+            await monsterCombatService.RemoveMonsterStateAsync(room.Id, defeatedMonster.Id);
 
         var nextMonster = defeatedMonster.RoomId.HasValue
             ? await dbContext.Monsters.Where(monster => monster.RoomId == room.Id &&
@@ -54,6 +56,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
 
     public async Task<Monster> ResetEncounterAsync(Room room)
     {
+        if (monsterCombatService is not null) await monsterCombatService.ResetRoomStateAsync(room.Id);
         var monsters = await dbContext.Monsters.Where(monster => monster.RoomId == room.Id)
             .OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).ToListAsync();
         if (monsters.Count == 0)

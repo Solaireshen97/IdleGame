@@ -48,4 +48,11 @@ public class DamageCalculatorTests
         Assert.Equal(23, DamageCalculator.Calculate(20, 5, skillPower: 8));
         Assert.Equal(3, DamageCalculator.Calculate(12, 5, factors: new DamageFactors(ReductionPercent: 50)));
     }
+
+    [Fact]
+    public void NegativeReductionActsAsVulnerability()
+    {
+        Assert.Equal(18, DamageCalculator.Calculate(20, 5,
+            factors: new DamageFactors(ReductionPercent: -20)));
+    }
 }

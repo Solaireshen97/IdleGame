@@ -36,6 +36,8 @@ public class RoomDetailResponse
     public bool IsAllAliveMembersAuto { get; set; }
     public bool CanPrepare { get; set; }
     public bool CanLeaveRoom { get; set; }
+    public MonsterIntentResponse? MonsterIntent { get; set; }
+    public List<BattleStatusEffectResponse> MonsterEffects { get; set; } = [];
     public List<RoomSlotResponse> Slots { get; set; } = new();
     public RoomRewardSummaryResponse? Rewards { get; set; }
 }

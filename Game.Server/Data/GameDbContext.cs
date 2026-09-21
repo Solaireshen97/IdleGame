@@ -24,6 +24,9 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<RewardRun> RewardRuns => Set<RewardRun>();
     public DbSet<RewardEvent> RewardEvents => Set<RewardEvent>();
     public DbSet<RewardEntry> RewardEntries => Set<RewardEntry>();
+    public DbSet<MonsterIntent> MonsterIntents => Set<MonsterIntent>();
+    public DbSet<BattleStatusEffect> BattleStatusEffects => Set<BattleStatusEffect>();
+    public DbSet<BattleMonsterSkillCooldown> BattleMonsterSkillCooldowns => Set<BattleMonsterSkillCooldown>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,6 +86,18 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .HasIndex(monster => new { monster.RoomId, monster.WaveNumber, monster.Position })
             .IsUnique()
             .HasFilter("RoomId IS NOT NULL");
+        modelBuilder.Entity<MonsterIntent>()
+            .HasIndex(intent => new { intent.RoomId, intent.RunSequence, intent.RoundNumber, intent.MonsterId })
+            .IsUnique();
+        modelBuilder.Entity<BattleStatusEffect>()
+            .HasIndex(effect => new { effect.RoomId, effect.RunSequence, effect.TargetType, effect.TargetId, effect.EffectCode })
+            .IsUnique();
+        modelBuilder.Entity<BattleStatusEffect>()
+            .ToTable(table => table.HasCheckConstraint("CK_BattleStatusEffects_Values",
+                "Stacks > 0 AND ExpiresAfterRound >= AppliedRound"));
+        modelBuilder.Entity<BattleMonsterSkillCooldown>()
+            .HasIndex(cooldown => new { cooldown.RoomId, cooldown.MonsterId, cooldown.SkillCode })
+            .IsUnique();
         modelBuilder.Entity<CharacterWeapon>()
             .Property(weapon => weapon.Version)
             .IsConcurrencyToken();

@@ -21,4 +21,5 @@ public sealed class EncounterMonsterOptions
     public int MaxHp { get; set; }
     public int Attack { get; set; }
     public int Defense { get; set; }
+    public string CombatProfileCode { get; set; } = string.Empty;
 }

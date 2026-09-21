@@ -194,6 +194,34 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("BattleSkillCooldowns");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.BattleMonsterSkillCooldown", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("MonsterId").HasColumnType("INTEGER");
+                    b.Property<int>("ReadyAtRound").HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<string>("SkillCode").IsRequired().HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "MonsterId", "SkillCode").IsUnique();
+                    b.ToTable("BattleMonsterSkillCooldowns");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.BattleStatusEffect", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("AppliedRound").HasColumnType("INTEGER");
+                    b.Property<string>("EffectCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("ExpiresAfterRound").HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<int>("Stacks").HasColumnType("INTEGER");
+                    b.Property<int>("TargetId").HasColumnType("INTEGER");
+                    b.Property<string>("TargetType").IsRequired().HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "RunSequence", "TargetType", "TargetId", "EffectCode").IsUnique();
+                    b.ToTable("BattleStatusEffects", t => t.HasCheckConstraint("CK_BattleStatusEffects_Values", "Stacks > 0 AND ExpiresAfterRound >= AppliedRound"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Dungeon", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -219,6 +247,10 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("Attack")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("CombatProfileCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Element")
                         .IsRequired()
@@ -253,6 +285,23 @@ namespace Game.Server.Data.Migrations
                         .HasFilter("RoomId IS NOT NULL");
 
                     b.ToTable("Monsters");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.MonsterIntent", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<string>("ActionType").IsRequired().HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("MonsterId").HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RoundNumber").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<string>("SkillCode").HasColumnType("TEXT");
+                    b.Property<int?>("TargetCharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("TargetType").IsRequired().HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "RunSequence", "RoundNumber", "MonsterId").IsUnique();
+                    b.ToTable("MonsterIntents");
                 });
 
             modelBuilder.Entity("Game.Shared.Models.RewardRun", b =>

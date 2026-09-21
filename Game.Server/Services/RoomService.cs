@@ -8,7 +8,7 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null)
 {
     private const int SlotCount = 5;
 
@@ -93,6 +93,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             UserId = index == 1 ? user.Id : null,
             IsMainControl = index == 1
         }));
+        await dbContext.SaveChangesAsync();
+        if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, firstMonster);
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
         return (await BuildRoomDetailAsync(room, user.Id), null);
@@ -208,6 +210,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         dbContext.RoomSlots.RemoveRange(await dbContext.RoomSlots.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
+        dbContext.MonsterIntents.RemoveRange(await dbContext.MonsterIntents.Where(x => x.RoomId == roomId).ToListAsync());
+        dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects.Where(x => x.RoomId == roomId).ToListAsync());
+        dbContext.BattleMonsterSkillCooldowns.RemoveRange(await dbContext.BattleMonsterSkillCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         var monsters = await dbContext.Monsters.Where(monster => monster.RoomId == roomId).ToListAsync();
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         dbContext.Rooms.Remove(room);
@@ -279,6 +284,17 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var rewardCharacterIds = rewardEntries.Select(entry => entry.CharacterId).Distinct().ToList();
         var rewardCharacters = await dbContext.Characters.Where(character => rewardCharacterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id, character => character.Name);
+        var monsterIntent = monsterCombatService is null ? null : await monsterCombatService.GetIntentResponseAsync(room, monster);
+        var monsterEffects = monsterCombatService is null ? [] : await monsterCombatService.GetStatusResponsesAsync(room, "Monster", monster.Id);
+        var characterEffects = new Dictionary<int, List<BattleStatusEffectResponse>>();
+        if (monsterCombatService is not null)
+        {
+            foreach (var characterId in characterIds)
+                characterEffects[characterId] = await monsterCombatService.GetStatusResponsesAsync(room, "Character", characterId);
+            if (dbContext.ChangeTracker.Entries<MonsterIntent>().Any(entry =>
+                    entry.State is EntityState.Added or EntityState.Modified))
+                await dbContext.SaveChangesAsync();
+        }
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
@@ -297,6 +313,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId &&
                 (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0) &&
                 slots.Any(x => x.UserId == currentUserId),
+            MonsterIntent = monsterIntent,
+            MonsterEffects = monsterEffects,
             Rewards = rewardRun is null || rewardRun.Sequence < room.RunSequence && rewardEntries.Count == 0
                 ? null : new RoomRewardSummaryResponse
             {
@@ -363,7 +381,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                     : [];
                 var characterElement = slot.CharacterId is int characterId && mainWeaponElements.TryGetValue(characterId, out var element)
                     ? element : (ElementType?)null;
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, Consumables = ownConsumables, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.FindProfession(character.ProfessionCode)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = IsSlotAuto(room, slot, clearedDungeonUserIds), IsTemporaryAuto = slot.IsTemporaryAuto, IsAutoUnlockedForCurrentUser = slot.UserId == currentUserId && isCurrentUserAutoUnlocked && character?.Hp > 0 && (slot.UserId != room.OwnerUserId || slot.IsMainControl) };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, Consumables = ownConsumables, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.FindProfession(character.ProfessionCode)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = IsSlotAuto(room, slot, clearedDungeonUserIds), IsTemporaryAuto = slot.IsTemporaryAuto, IsAutoUnlockedForCurrentUser = slot.UserId == currentUserId && isCurrentUserAutoUnlocked && character?.Hp > 0 && (slot.UserId != room.OwnerUserId || slot.IsMainControl), StatusEffects = character is null ? [] : characterEffects.GetValueOrDefault(character.Id) ?? [] };
             }).ToList()
         };
     }
