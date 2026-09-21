@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -26,7 +26,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         {
             ClearRoundState(room, slots);
             SetBattleOver(room, now);
-            return await SaveResultAsync(room, slots, monster, now, [monster.Hp <= 0 ? "Monster is already defeated. Please reset the room." : "All characters are defeated and cannot battle."]);
+            var logs = new List<string>();
+            if (aliveSlots.Count == 0) await rewardService.SettleAsync(room, false, now, logs);
+            logs.Add(monster.Hp <= 0 ? "Monster is already defeated. Please reset the room." : "All characters are defeated and cannot battle.");
+            return await SaveResultAsync(room, slots, monster, now, logs);
         }
 
         if (!aliveSlots.Any(x => x.Slot.UserId == user!.Id)) return (null, "NoOwnedAliveCharacters");
@@ -76,6 +79,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             await ResetSkillCooldownsAsync(room.Id);
             ClearRoundState(room, slots);
             room.RoundNumber = 0;
+            room.RunSequence++;
             room.Status = RoomStatus.NotStarted;
             room.NextRoundAvailableAtUtc = null;
             room.RoundCooldownDurationSeconds = null;
@@ -276,6 +280,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         await ResetSkillCooldownsAsync(room.Id);
         ClearRoundState(room, slots);
         room.RoundNumber = 0;
+        room.RunSequence++;
         room.Status = RoomStatus.NotStarted;
         room.NextRoundAvailableAtUtc = null;
         room.RoundCooldownDurationSeconds = null;
@@ -315,7 +320,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         {
             await ApplyCombatConsumablesAsync(room, aliveSlots, logs);
             var target = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).FirstOrDefault();
-            if (target is null) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
+            if (target is null) { SetBattleOver(room, now); await rewardService.SettleAsync(room, false, now, logs); logs.Add("All characters are defeated."); }
             else
             {
                 var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
@@ -324,7 +329,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
                         ReductionPercent: guardPercent));
                 target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                 logs.Add($"{monster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
-                if (!slots.Any(x => x.Character.Hp > 0)) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
+                if (!slots.Any(x => x.Character.Hp > 0)) { SetBattleOver(room, now); await rewardService.SettleAsync(room, false, now, logs); logs.Add("All characters are defeated."); }
                 else
                 {
                     var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
@@ -346,16 +351,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         await RecordDungeonClearsAsync(room.DungeonId, slots.Select(slot => slot.Slot.UserId).OfType<int>().Distinct(), now);
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return "DungeonNotFound";
-        var reward = progressionService.GetVictoryExperience(dungeon.Code);
-        foreach (var participant in slots.DistinctBy(slot => slot.Character.Id))
-        {
-            var gain = progressionService.AwardVictoryExperience(participant.Character, reward);
-            if (gain.ExperienceGained > 0)
-                logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} gains {gain.ExperienceGained} EXP.");
-            if (gain.LevelsGained > 0)
-                logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} reached Lv.{participant.Character.Level} and gained {gain.LevelsGained} talent point(s).");
-        }
-        await AwardVictoryConsumablesAsync(dungeon.Code, slots, logs);
+        var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
+            .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
+        await rewardService.RecordAsync(room, dungeon.Code, participants, "monster:1", false);
+        await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true);
+        await rewardService.SettleAsync(room, true, now, logs);
         logs.Add($"{monster.Name} is defeated.");
         return null;
     }
@@ -460,34 +460,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
     {
         var chance = character.WeaponCriticalChancePercent;
         return chance >= 100m || chance > 0m && (decimal)Random.Shared.NextDouble() * 100m < chance;
-    }
-
-    private async Task AwardVictoryConsumablesAsync(string dungeonCode, List<SlotCharacter> slots, List<string> logs)
-    {
-        var drops = consumableCatalog.GetVictoryDrops(dungeonCode);
-        if (drops.Count == 0) return;
-        var characterIds = slots.Select(slot => slot.Character.Id).Distinct().ToList();
-        var stacks = await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync();
-        foreach (var participant in slots.DistinctBy(slot => slot.Character.Id))
-        {
-            foreach (var drop in drops)
-            {
-                var stack = stacks.SingleOrDefault(item => item.CharacterId == participant.Character.Id && item.ItemCode == drop.ItemCode);
-                if (stack is null)
-                {
-                    stack = new CharacterItemStack { CharacterId = participant.Character.Id, ItemCode = drop.ItemCode };
-                    stacks.Add(stack);
-                    dbContext.CharacterItemStacks.Add(stack);
-                }
-                else
-                {
-                    stack.Version++;
-                }
-                stack.Quantity = checked(stack.Quantity + drop.Quantity);
-                var item = consumableCatalog.FindItem(drop.ItemCode)!;
-                logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} receives {drop.Quantity} {item.Name}.");
-            }
-        }
     }
 
     private async Task ApplyCombatConsumablesAsync(Room room, List<SlotCharacter> aliveSlots, List<string> logs)

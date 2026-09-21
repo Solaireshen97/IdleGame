@@ -242,6 +242,42 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("Monsters");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.RewardRun", b =>
+                {
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("Sequence").HasColumnType("INTEGER");
+                    b.Property<string>("Status").IsRequired().HasColumnType("TEXT");
+                    b.Property<DateTime?>("SettledAtUtc").HasColumnType("TEXT");
+                    b.HasKey("RoomId", "Sequence");
+                    b.ToTable("RewardRuns");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.RewardEvent", b =>
+                {
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("Sequence").HasColumnType("INTEGER");
+                    b.Property<string>("EventKey").HasColumnType("TEXT");
+                    b.HasKey("RoomId", "Sequence", "EventKey");
+                    b.ToTable("RewardEvents");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.RewardEntry", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("Sequence").HasColumnType("INTEGER");
+                    b.Property<string>("EventKey").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("Kind").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Code").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Quantity").HasColumnType("INTEGER");
+                    b.Property<string>("WeaponSnapshotJson").HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "Sequence", "UserId");
+                    b.ToTable("RewardEntries", t => t.HasCheckConstraint("CK_RewardEntries_Quantity", "Quantity > 0"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Room", b =>
                 {
                     b.Property<int>("Id")
@@ -282,6 +318,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoundNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RunSequence")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Version")
@@ -362,6 +401,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int?>("ActiveCharacterId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Gold")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -369,6 +411,10 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("UserName")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

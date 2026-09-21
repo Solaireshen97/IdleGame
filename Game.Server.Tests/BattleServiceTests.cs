@@ -122,7 +122,7 @@ public class BattleServiceTests
         var progression = ProgressionTestFactory.Create();
         var userService = new UserService(test.Db, progression, SkillTestFactory.Create());
         var (roster, _) = await userService.GetCurrentCharactersAsync(test.Token);
-        var room = await new RoomService(test.Db, userService, progression, ConsumableTestFactory.Create(), SkillTestFactory.Create()).GetRoomDetailAsync(1, test.Token);
+        var room = await new RoomService(test.Db, userService, progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression)).GetRoomDetailAsync(1, test.Token);
         Assert.Equal(110, Assert.Single(roster!).MaxHp);
         Assert.Equal(110, room!.Slots.Single(slot => slot.SlotIndex == 1).CharacterMaxHp);
     }
@@ -258,7 +258,7 @@ public class BattleServiceTests
         Assert.Equal(100, test.Character.Attack);
         Assert.Contains(victory.Logs, log => log.Contains("Mage gains 10 EXP"));
         var progression = ProgressionTestFactory.Create();
-        var detail = await new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create()).GetRoomDetailAsync(1, test.Token);
+        var detail = await new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression)).GetRoomDetailAsync(1, test.Token);
         var mainSlot = detail!.Slots.Single(slot => slot.SlotIndex == 1);
         Assert.Equal(1, mainSlot.CharacterLevel);
         Assert.Equal(10, mainSlot.CharacterExperience);
@@ -280,6 +280,127 @@ public class BattleServiceTests
         Assert.Equal(2, stacks.Count);
         Assert.Equal(new[] { test.Character.Id, second.Id }, stacks.Select(stack => stack.CharacterId));
         Assert.All(stacks, stack => Assert.Equal(1, stack.Quantity));
+    }
+
+    [Fact]
+    public async Task VictorySettlesKillAndClearRewardsOnceAndReportsOnlyOwnedRewards()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        await test.AddOtherMemberAsync();
+
+        var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Preparing, victory!.RoomStatus);
+        await test.Service.StartPreparationAsync(1, "other-token");
+        await test.Service.SyncRoomAsync(1);
+
+        Assert.Equal(13, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(13, (await test.Db.Users.FindAsync(2))!.Gold);
+        Assert.Equal(10, test.Character.Experience);
+        Assert.Equal("Victory", (await test.Db.RewardRuns.SingleAsync()).Status);
+        Assert.Equal(2, await test.Db.RewardEvents.CountAsync());
+        var progression = ProgressionTestFactory.Create();
+        var rooms = new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()),
+            progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression));
+        var owner = await rooms.GetRoomDetailAsync(1, test.Token);
+        var guest = await rooms.GetRoomDetailAsync(1, "other-token");
+        Assert.Equal(13, owner!.Rewards!.Gold);
+        Assert.Equal(10, owner.Rewards.Experience);
+        Assert.Single(owner.Rewards.Items);
+        Assert.Equal("Knight", owner.Rewards.Items[0].CharacterName);
+        Assert.Equal(13, guest!.Rewards!.Gold);
+        Assert.Single(guest.Rewards.Items);
+        Assert.Equal("Mage", guest.Rewards.Items[0].CharacterName);
+    }
+
+    [Fact]
+    public async Task GuaranteedKillWeaponDropCreatesUnequippedWeaponWithSkillSnapshot()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        var progression = ProgressionTestFactory.Create();
+        var service = new BattleService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), ConsumableTestFactory.Create(),
+            SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression, guaranteedWeapon: true));
+
+        var (victory, error) = await service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        var weapon = Assert.Single(await test.Db.CharacterWeapons.Include(item => item.Skills).ToListAsync());
+        Assert.Equal(test.Character.Id, weapon.CharacterId);
+        Assert.Equal("gale-bow", weapon.WeaponCode);
+        Assert.Null(weapon.EquippedSlotIndex);
+        Assert.Equal(7, weapon.Attack);
+        Assert.Equal(2, Assert.Single(weapon.Skills).Level);
+        Assert.Contains(await test.Db.RewardEntries.ToListAsync(), entry =>
+            entry.Kind == "Weapon" && entry.EventKey == "monster:1" && entry.WeaponSnapshotJson is not null);
+    }
+
+    [Fact]
+    public async Task DefeatSettlesEarlierKillPoolWithoutClearBonus()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 1, characterAttack: 1, monsterAttack: 100);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        await rewards.RecordAsync(test.Room, "slime-field",
+            [new RewardParticipant(1, test.Character)], "monster:earlier", isClear: false);
+        await test.Db.SaveChangesAsync();
+        Assert.Equal(0, (await test.Db.Users.FindAsync(1))!.Gold);
+
+        var (defeat, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, defeat!.RoomStatus);
+        Assert.True(defeat.IsCharacterDead);
+        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(2, test.Character.Experience);
+        Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
+        Assert.Equal("Defeat", (await test.Db.RewardRuns.SingleAsync()).Status);
+        Assert.Single(await test.Db.RewardEvents.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DismissingRoomSettlesPendingKillPool()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        await rewards.RecordAsync(test.Room, "slime-field",
+            [new RewardParticipant(1, test.Character)], "monster:earlier", isClear: false);
+        await test.Db.SaveChangesAsync();
+        var rooms = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(), rewards);
+
+        var (success, error) = await rooms.DeleteRoomAsync(1, test.Token);
+
+        Assert.True(success);
+        Assert.Null(error);
+        Assert.Null(await test.Db.Rooms.FindAsync(1));
+        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(2, test.Character.Experience);
+        Assert.Equal("Defeat", (await test.Db.RewardRuns.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task SameKillEventCannotRollOrPayTwice()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var rewards = RewardTestFactory.CreateService(test.Db, ProgressionTestFactory.Create());
+        var participants = new[] { new RewardParticipant(1, test.Character) };
+        await rewards.RecordAsync(test.Room, "slime-field", participants, "monster:1", isClear: false);
+        await rewards.RecordAsync(test.Room, "slime-field", participants, "monster:1", isClear: false);
+        await test.Db.SaveChangesAsync();
+        await rewards.SettleAsync(test.Room, false, DateTime.UtcNow, []);
+        await test.Db.SaveChangesAsync();
+        await rewards.RecordAsync(test.Room, "slime-field", participants, "monster:1", isClear: false);
+        await rewards.SettleAsync(test.Room, false, DateTime.UtcNow, []);
+        await test.Db.SaveChangesAsync();
+
+        Assert.Single(await test.Db.RewardEvents.ToListAsync());
+        Assert.Equal(2, await test.Db.RewardEntries.CountAsync());
+        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(2, test.Character.Experience);
     }
 
     [Fact]
@@ -657,13 +778,15 @@ public class BattleServiceTests
         await using var secondDb = test.CreateDbContext();
         var progression = ProgressionTestFactory.Create();
         var catalog = ConsumableTestFactory.Create();
-        var first = new BattleService(firstDb, new UserService(firstDb, progression, SkillTestFactory.Create()), progression, catalog, SkillTestFactory.Create());
-        var second = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), progression, catalog, SkillTestFactory.Create());
+        var first = new BattleService(firstDb, new UserService(firstDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(firstDb, progression));
+        var second = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(secondDb, progression));
         var results = await Task.WhenAll(first.SyncRoomAsync(1), second.SyncRoomAsync(1));
 
         Assert.All(results, result => Assert.True(result.Error is null or "ConcurrencyConflict"));
         await using var verificationDb = test.CreateDbContext();
         Assert.Equal(2, (await verificationDb.CharacterItemStacks.SingleAsync()).Quantity);
+        Assert.Equal(26, (await verificationDb.Users.SingleAsync()).Gold);
+        Assert.Equal(new[] { 1, 2 }, (await verificationDb.RewardRuns.OrderBy(run => run.Sequence).ToListAsync()).Select(run => run.Sequence));
         Assert.Equal(1, (await verificationDb.Rooms.SingleAsync()).RoundNumber);
         Assert.Equal(RoomStatus.BattleOver, (await verificationDb.Rooms.SingleAsync()).Status);
     }
@@ -692,7 +815,7 @@ public class BattleServiceTests
         var guestCharacter = await test.Db.Characters.SingleAsync(character => character.Id == guest.CharacterId);
         await test.AddPotionAsync(guestCharacter, quantity: 5, autoUse: true);
         var progression = ProgressionTestFactory.Create();
-        var roomService = new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create());
+        var roomService = new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression));
 
         var ownerView = await roomService.GetRoomDetailAsync(1, test.Token);
         var guestView = await roomService.GetRoomDetailAsync(1, "other-token");
@@ -1175,8 +1298,8 @@ public class BattleServiceTests
         await using var secondDb = test.CreateDbContext();
         var progression = ProgressionTestFactory.Create();
         var catalog = ConsumableTestFactory.Create();
-        var firstService = new BattleService(firstDb, new UserService(firstDb, progression, SkillTestFactory.Create()), progression, catalog, SkillTestFactory.Create());
-        var secondService = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), progression, catalog, SkillTestFactory.Create());
+        var firstService = new BattleService(firstDb, new UserService(firstDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(firstDb, progression));
+        var secondService = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(secondDb, progression));
 
         var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token), secondService.StartPreparationAsync(1, test.Token));
         Assert.Single(results.Where(result => result.Error is null));
@@ -1268,7 +1391,7 @@ public class BattleServiceTests
             Character = character;
             Monster = monster;
             var progression = ProgressionTestFactory.Create();
-            Service = new BattleService(db, new UserService(db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create());
+            Service = new BattleService(db, new UserService(db, progression, SkillTestFactory.Create()), ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(db, progression));
         }
 
         public string Token => "token";
@@ -1314,7 +1437,7 @@ public class BattleServiceTests
         public Task<Game.Shared.Dtos.RoomDetailResponse?> GetRoomDetailAsync()
         {
             var progression = ProgressionTestFactory.Create();
-            return new RoomService(Db, new UserService(Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create()).GetRoomDetailAsync(Room.Id, Token);
+            return new RoomService(Db, new UserService(Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(Db, progression)).GetRoomDetailAsync(Room.Id, Token);
         }
 
         public async Task CompleteCooldownAndPrepareAsync()

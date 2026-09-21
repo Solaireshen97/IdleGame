@@ -103,7 +103,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         return (new CurrentUserResponse
         {
             UserId = user.Id,
-            UserName = user.UserName
+            UserName = user.UserName,
+            Gold = user.Gold
         }, null);
     }
 

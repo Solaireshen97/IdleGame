@@ -179,7 +179,7 @@ public class RoomServiceTests
             Db = db;
             ActiveCharacter = activeCharacter;
             var progression = ProgressionTestFactory.Create();
-            Service = new RoomService(db, new UserService(db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create());
+            Service = new RoomService(db, new UserService(db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(db, progression));
         }
 
         public string Token => "token";

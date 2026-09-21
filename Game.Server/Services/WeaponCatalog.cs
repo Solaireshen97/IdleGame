@@ -71,6 +71,16 @@ public sealed class WeaponCatalog
     public WeaponSkillDefinitionOptions? FindSkill(string? code) =>
         code is not null && _skills.TryGetValue(code, out var skill) ? skill : null;
 
+    public WeaponTemplateOptions? FindItem(string? code) =>
+        code is not null && _items.TryGetValue(code, out var item) ? item : null;
+
+    public WeaponRewardSnapshot CreateRewardSnapshot(string code)
+    {
+        var item = FindItem(code) ?? throw new InvalidOperationException($"Unknown weapon reward: {code}");
+        return new WeaponRewardSnapshot(item.Code, item.Name, item.Element, item.Attack, item.MaxHp,
+            item.Skills.Select(skill => new WeaponRewardSkillSnapshot(skill.Code, skill.Level)).ToList());
+    }
+
     public WeaponSkillBonuses CalculateBonuses(IEnumerable<CharacterWeapon> weapons)
     {
         var equipped = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).ToList();

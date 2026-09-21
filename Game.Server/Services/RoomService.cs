@@ -4,10 +4,11 @@ using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService)
 {
     private const int SlotCount = 5;
 
@@ -188,6 +189,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (false, error);
         if (room.OwnerUserId != user!.Id) return (false, "NotOwner");
+        if (await dbContext.RewardRuns.AnyAsync(run => run.RoomId == roomId && run.Sequence == room.RunSequence && run.Status == "Pending"))
+            await rewardService.SettleAsync(room, false, DateTime.UtcNow, []);
         dbContext.RoomSlots.RemoveRange(await dbContext.RoomSlots.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
@@ -247,6 +250,16 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
         var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot => IsSlotAuto(room, slot, clearedDungeonUserIds));
+        var rewardRun = currentUserId.HasValue
+            ? await dbContext.RewardRuns.Where(run => run.RoomId == room.Id && run.Sequence <= room.RunSequence)
+                .OrderByDescending(run => run.Sequence).FirstOrDefaultAsync()
+            : null;
+        var rewardEntries = rewardRun is null ? [] : await dbContext.RewardEntries
+            .Where(entry => entry.RoomId == room.Id && entry.Sequence == rewardRun.Sequence && entry.UserId == currentUserId)
+            .OrderBy(entry => entry.Id).ToListAsync();
+        var rewardCharacterIds = rewardEntries.Select(entry => entry.CharacterId).Distinct().ToList();
+        var rewardCharacters = await dbContext.Characters.Where(character => rewardCharacterIds.Contains(character.Id))
+            .ToDictionaryAsync(character => character.Id, character => character.Name);
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
@@ -258,6 +271,23 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationTimeoutSeconds = BattleRules.PreparationTimeoutSeconds, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
             CanPrepare = currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && (room.Status == RoomStatus.Preparing || !room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
             CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId && room.Status is not (RoomStatus.Preparing or RoomStatus.Cooldown) && slots.Any(x => x.UserId == currentUserId),
+            Rewards = rewardRun is null || rewardRun.Sequence < room.RunSequence && rewardEntries.Count == 0
+                ? null : new RoomRewardSummaryResponse
+            {
+                RunSequence = rewardRun.Sequence, IsCurrentRun = rewardRun.Sequence == room.RunSequence,
+                Status = rewardRun.Status, SettledAtUtc = rewardRun.SettledAtUtc,
+                Gold = rewardEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity),
+                Experience = rewardEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity),
+                Items = rewardEntries.Where(entry => entry.Kind is "Consumable" or "Weapon")
+                    .Select(entry => new RoomRewardItemResponse
+                    {
+                        CharacterName = rewardCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
+                        Kind = entry.Kind, Quantity = entry.Quantity,
+                        Source = entry.EventKey == "clear" ? "通关" : "击杀",
+                        Name = entry.Kind == "Consumable" ? consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code
+                            : JsonSerializer.Deserialize<WeaponRewardSnapshot>(entry.WeaponSnapshotJson!)?.Name ?? entry.Code
+                    }).ToList()
+            },
             Slots = slots.Select(slot =>
             {
                 characters.TryGetValue(slot.CharacterId ?? 0, out var character);

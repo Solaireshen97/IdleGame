@@ -246,6 +246,30 @@ else
         }
     </section>
 
+    @if (_roomDetail.Rewards is { } rewards)
+    {
+        <section class="battle-rewards" aria-label="本轮奖励">
+            <div class="battle-rewards__heading">
+                <div><span class="section-kicker">REWARD POOL</span><h2>@(rewards.IsCurrentRun ? "本轮奖励" : "上一轮奖励")</h2></div>
+                <span>@(rewards.Status == "Pending" ? "待结算" : rewards.Status == "Victory" ? "通关已结算" : "战败已结算") · 第 @rewards.RunSequence 轮</span>
+            </div>
+            <div class="battle-rewards__totals"><strong>金币 +@rewards.Gold</strong><strong>经验 +@rewards.Experience</strong></div>
+            @if (rewards.Items.Count > 0)
+            {
+                <ul>
+                    @foreach (var item in rewards.Items)
+                    {
+                        <li><span>@item.CharacterName · @item.Source</span><strong>@item.Name × @item.Quantity</strong></li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p>@(rewards.Status == "Defeat" ? "本轮没有可结算的击杀奖励。" : "本轮暂无物品奖励。")</p>
+            }
+        </section>
+    }
+
     <details class="formation-panel">
         <summary class="formation-panel__heading"><span><span class="section-kicker">FORMATION</span><strong>队伍编成与槽位管理</strong></span><span>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人 · 展开管理 <span aria-hidden="true">⌄</span></span></summary>
         <p class="formation-panel__progress-note">角色升级会获得天赋点；可在职业天赋页分配点数并配置技能。</p>

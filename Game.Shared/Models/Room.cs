@@ -17,5 +17,6 @@ public class Room
     public bool IsPreparationTimeoutEnabled { get; set; } = true;
     public bool IsRepeatBattle { get; set; }
     public int RoundNumber { get; set; }
+    public int RunSequence { get; set; } = 1;
     public int Version { get; set; }
 }

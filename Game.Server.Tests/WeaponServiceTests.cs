@@ -111,7 +111,7 @@ public sealed class WeaponServiceTests
         var progression = ProgressionTestFactory.Create();
         var skills = SkillTestFactory.Create();
         var battle = new BattleService(test.Db, new UserService(test.Db, progression, skills),
-            progression, ConsumableTestFactory.Create(), skills);
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
 
         var (round, error) = await battle.StartPreparationAsync(1, test.Token);
 
@@ -210,7 +210,7 @@ public sealed class WeaponServiceTests
         var progression = ProgressionTestFactory.Create();
         var skills = SkillTestFactory.Create();
         var battle = new BattleService(test.Db, new UserService(test.Db, progression, skills),
-            progression, ConsumableTestFactory.Create(), skills);
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
 
         var (round, error) = await battle.StartPreparationAsync(1, test.Token);
 

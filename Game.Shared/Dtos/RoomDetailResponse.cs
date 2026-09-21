@@ -32,4 +32,5 @@ public class RoomDetailResponse
     public bool CanPrepare { get; set; }
     public bool CanLeaveRoom { get; set; }
     public List<RoomSlotResponse> Slots { get; set; } = new();
+    public RoomRewardSummaryResponse? Rewards { get; set; }
 }

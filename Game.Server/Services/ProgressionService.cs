@@ -13,21 +13,16 @@ public sealed class ProgressionService
         _settings = options.Value;
         if (_settings.MaximumLevel < 2 ||
             _settings.ExperienceToNextLevel.Count != _settings.MaximumLevel - 1 ||
-            _settings.ExperienceToNextLevel.Any(required => required <= 0) ||
-            _settings.DefaultVictoryExperience <= 0 ||
-            _settings.DungeonVictoryExperience.Values.Any(reward => reward <= 0))
-            throw new InvalidOperationException("Progression settings must define positive experience requirements and rewards for every level.");
+            _settings.ExperienceToNextLevel.Any(required => required <= 0))
+            throw new InvalidOperationException("Progression settings must define positive experience requirements for every level.");
     }
 
     public int? GetExperienceToNextLevel(int level) =>
         level >= _settings.MaximumLevel ? null : _settings.ExperienceToNextLevel[level - 1];
 
-    public int GetVictoryExperience(string dungeonCode) =>
-        _settings.DungeonVictoryExperience.TryGetValue(dungeonCode, out var reward)
-            ? reward : _settings.DefaultVictoryExperience;
-
-    public ProgressionGain AwardVictoryExperience(Character character, int reward)
+    public ProgressionGain AwardExperience(Character character, int reward)
     {
+        if (reward < 0) throw new ArgumentOutOfRangeException(nameof(reward));
         if (character.Level >= _settings.MaximumLevel) return new ProgressionGain(0, 0);
 
         character.Experience = checked(character.Experience + reward);

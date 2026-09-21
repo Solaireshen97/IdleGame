@@ -893,3 +893,11 @@
     .battle-countdown__fill { animation: none; }
     .battle-countdown__fill { transition: none; }
 }
+.battle-rewards { margin-top: 16px; padding: 20px 24px; border: 1px solid #415669; border-radius: 16px; background: #1a2b3d; }
+.battle-rewards__heading, .battle-rewards__totals, .battle-rewards li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.battle-rewards__heading h2 { margin: 4px 0 0; font-size: 1.25rem; }
+.battle-rewards__heading > span, .battle-rewards li span, .battle-rewards p { color: #b9c9d7; font-size: .85rem; }
+.battle-rewards__totals { justify-content: flex-start; gap: 24px; margin-top: 14px; color: #f0bc64; }
+.battle-rewards ul { list-style: none; margin: 14px 0 0; padding: 0; }
+.battle-rewards li { padding: 8px 0; border-top: 1px solid #34485b; }
+.battle-rewards p { margin: 12px 0 0; }

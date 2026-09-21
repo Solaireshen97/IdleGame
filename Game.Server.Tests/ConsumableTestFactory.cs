@@ -18,10 +18,6 @@ internal static class ConsumableTestFactory
                 CooldownRounds = 3,
                 CooldownGroup = "healing"
             }
-        ],
-        DungeonVictoryDrops = new Dictionary<string, List<ConsumableDropOptions>>
-        {
-            ["slime-field"] = [new ConsumableDropOptions { ItemCode = "minor-healing-potion", Quantity = 1 }]
-        }
+        ]
     }));
 }

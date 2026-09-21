@@ -21,9 +21,17 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
     public DbSet<CharacterWeapon> CharacterWeapons => Set<CharacterWeapon>();
     public DbSet<CharacterWeaponSkill> CharacterWeaponSkills => Set<CharacterWeaponSkill>();
+    public DbSet<RewardRun> RewardRuns => Set<RewardRun>();
+    public DbSet<RewardEvent> RewardEvents => Set<RewardEvent>();
+    public DbSet<RewardEntry> RewardEntries => Set<RewardEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
+        modelBuilder.Entity<RewardRun>().HasKey(run => new { run.RoomId, run.Sequence });
+        modelBuilder.Entity<RewardEvent>().HasKey(entry => new { entry.RoomId, entry.Sequence, entry.EventKey });
+        modelBuilder.Entity<RewardEntry>().HasIndex(entry => new { entry.RoomId, entry.Sequence, entry.UserId });
+        modelBuilder.Entity<RewardEntry>().ToTable(table => table.HasCheckConstraint("CK_RewardEntries_Quantity", "Quantity > 0"));
         modelBuilder.Entity<Character>()
             .Property(character => character.Version)
             .IsConcurrencyToken();

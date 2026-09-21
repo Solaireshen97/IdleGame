@@ -6,12 +6,12 @@ namespace Game.Server.Tests;
 public class ProgressionServiceTests
 {
     [Fact]
-    public void AwardVictoryExperience_CanGrantMultipleLevelsWithoutChangingCombatStats()
+    public void AwardExperience_CanGrantMultipleLevelsWithoutChangingCombatStats()
     {
         var progression = ProgressionTestFactory.Create();
         var character = new Character { Level = 1, Hp = 76, MaxHp = 100, Attack = 20, Defense = 5 };
 
-        var gain = progression.AwardVictoryExperience(character, 55);
+        var gain = progression.AwardExperience(character, 55);
 
         Assert.Equal(55, gain.ExperienceGained);
         Assert.Equal(2, gain.LevelsGained);
@@ -22,13 +22,13 @@ public class ProgressionServiceTests
     }
 
     [Fact]
-    public void AwardVictoryExperience_StopsAtConfiguredLevelCap()
+    public void AwardExperience_StopsAtConfiguredLevelCap()
     {
         var progression = ProgressionTestFactory.Create();
         var character = new Character { Level = 1 };
 
-        progression.AwardVictoryExperience(character, 1_000);
-        var afterCap = progression.AwardVictoryExperience(character, 10);
+        progression.AwardExperience(character, 1_000);
+        var afterCap = progression.AwardExperience(character, 10);
 
         Assert.Equal(10, character.Level);
         Assert.Equal(9, character.TalentPoints);
@@ -38,13 +38,4 @@ public class ProgressionServiceTests
         Assert.Equal(0, afterCap.LevelsGained);
     }
 
-    [Fact]
-    public void GetVictoryExperience_UsesDungeonRewardConfiguration()
-    {
-        var progression = ProgressionTestFactory.Create();
-
-        Assert.Equal(10, progression.GetVictoryExperience("slime-field"));
-        Assert.Equal(15, progression.GetVictoryExperience("goblin-camp"));
-        Assert.Equal(20, progression.GetVictoryExperience("wolf-forest"));
-    }
 }

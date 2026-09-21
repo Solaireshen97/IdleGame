@@ -14,6 +14,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
+builder.Services.AddScoped<RewardService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TalentService>();
 builder.Services.AddScoped<ConsumableService>();
@@ -23,10 +24,12 @@ builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
 builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(WeaponOptions.SectionName));
+builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
 builder.Services.AddSingleton<WeaponCatalog>();
+builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddHostedService<RoomCycleService>();
 
 builder.Services.AddCors(options =>

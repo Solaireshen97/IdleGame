@@ -39,6 +39,7 @@
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <div class="top-row__account">
+                    <span class="top-row__gold" title="账号金币">金币 @_currentUser.Gold</span>
                     <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
                     <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录">@(_isLoggingOut ? "退出中..." : "退出")</button>
                 </div>
@@ -192,7 +193,16 @@
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
-                if (_currentUser is not null) await ActiveCharacters.RefreshAsync();
+                if (_currentUser is not null)
+                {
+                    await ActiveCharacters.RefreshAsync();
+                    var refreshed = await ApiService.GetCurrentUserAsync();
+                    if (refreshed is not null)
+                    {
+                        _currentUser = refreshed;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                }
             }
             catch (OperationCanceledException) { break; }
             catch { /* Keep the header available during a transient connection failure. */ }
