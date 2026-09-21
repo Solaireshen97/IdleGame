@@ -146,7 +146,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         if (intent.IsInterrupted)
         {
             if (skill is not null) await StartCooldownAsync(room, monster, skill);
-            logs.Add($"{monster.Name}'s {skill?.Name ?? "action"} is interrupted.");
+            logs.Add($"{monster.Name} 的 {skill?.Name ?? "行动"} 已被打断，本回合行动取消。");
             return;
         }
         if (skill is null)
@@ -154,10 +154,10 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             var target = participants.SingleOrDefault(entry => entry.Character.Id == intent.TargetCharacterId && entry.Character.Hp > 0);
             if (target is null)
             {
-                logs.Add($"{monster.Name}'s intended target is no longer available. The attack is cancelled.");
+                logs.Add($"{monster.Name} 的预定目标已经失效，本回合攻击取消。");
                 return;
             }
-            await DealDamageAsync(room, monster, target, 100, mainWeaponElements, defense, logs, "attacks");
+            await DealDamageAsync(room, monster, target, 100, mainWeaponElements, defense, logs, null);
             return;
         }
 
@@ -169,11 +169,11 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         };
         if (skill.TargetType != "Self" && targets.Count == 0)
         {
-            logs.Add($"{monster.Name}'s {skill.Name} loses its target and is cancelled.");
+            logs.Add($"{monster.Name} 的 {skill.Name} 失去有效目标，本回合行动取消。");
             return;
         }
 
-        logs.Add($"{monster.Name} uses {skill.Name}.");
+        logs.Add($"{monster.Name} 使用 {skill.Name}。");
         if (skill.DamagePowerPercent > 0)
         {
             foreach (var target in targets)
@@ -187,7 +187,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             else
                 foreach (var target in targets.Where(target => target.Character.Hp > 0))
                     await ApplyStatusCoreAsync(room, "Character", target.Character.Id, application, logs,
-                        $"Slot {target.Slot.SlotIndex} {target.Character.Name}");
+                        $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
         }
 
         await StartCooldownAsync(room, monster, skill);
@@ -228,12 +228,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 var target = participants.SingleOrDefault(entry => entry.Character.Id == effect.TargetId);
                 if (target is null || target.Character.Hp <= 0) continue;
                 target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
-                logs.Add($"Slot {target.Slot.SlotIndex} {target.Character.Name} takes {damage} damage from {definition.Name}.");
+                logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 受到 {definition.Name} 造成的 {damage} 点伤害。");
             }
             else if (effect.TargetType == "Monster" && effect.TargetId == monster.Id && monster.Hp > 0)
             {
                 monster.Hp = Math.Max(0, monster.Hp - damage);
-                logs.Add($"{monster.Name} takes {damage} damage from {definition.Name}.");
+                logs.Add($"{monster.Name} 受到 {definition.Name} 造成的 {damage} 点伤害。");
             }
         }
 
@@ -316,7 +316,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             effect.AppliedRound = room.RoundNumber;
         }
         effect.ExpiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
-        logs.Add($"{targetLabel} gains {definition.Name} for {application.DurationRounds} round(s){(effect.Stacks > 1 ? $" (x{effect.Stacks})" : "")}.");
+        logs.Add($"{targetLabel} 获得 {definition.Name}，持续 {application.DurationRounds} 回合{(effect.Stacks > 1 ? $"（{effect.Stacks} 层）" : "")}。");
         return true;
     }
 
@@ -337,7 +337,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     private async Task DealDamageAsync(Room room, Monster monster, MonsterCombatParticipant target,
         int powerPercent, IReadOnlyDictionary<int, ElementType> mainWeaponElements,
-        PlayerRoundDefense defense, List<string> logs, string actionName)
+        PlayerRoundDefense defense, List<string> logs, string? skillName)
     {
         var attackPercent = await GetModifierAsync(room, "Monster", monster.Id, "AttackPercent");
         var targetReduction = await GetModifierAsync(room, "Character", target.Character.Id, "ReductionPercent");
@@ -349,7 +349,9 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
                 ReductionPercent: guard + targetReduction));
         target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
-        logs.Add($"{monster.Name} {actionName} Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
+        logs.Add(skillName is null
+            ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
+            : $"{monster.Name} 使用 {skillName} 攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
     }
 
     private async Task<int?> FindFrontCharacterIdAsync(int roomId) => await (

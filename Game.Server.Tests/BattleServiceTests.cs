@@ -82,8 +82,8 @@ public class BattleServiceTests
         Assert.Equal(-25, fighter.IncomingElementModifierPercent);
         Assert.Equal(28, round!.MonsterHp); // floor((10-5)*1.25) + floor((10+8-5)*1.25) = 6 + 16
         Assert.Equal(98, test.Character.Hp); // floor((12-5)*0.75*0.5) = 2
-        Assert.Contains(round.Logs, log => log.Contains("uses 盾击") && log.Contains("16 damage"));
-        Assert.Contains(round.Logs, log => log.Contains("uses 守护"));
+        Assert.Contains(round.Logs, log => log.Contains("使用 盾击") && log.Contains("造成 16 点伤害"));
+        Assert.Contains(round.Logs, log => log.Contains("使用 守护"));
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
         Assert.Equal(0, test.Monster.Hp);
         Assert.Equal(test.Character.MaxHp, test.Character.Hp);
-        Assert.Contains(result.Logs, log => log.Contains("next dungeon battle"));
+        Assert.Contains(result.Logs, log => log.Contains("下一场副本战斗"));
         Assert.True(test.Room.BattleEndedAtUtc > DateTime.UtcNow.AddSeconds(-5));
         Assert.Equal(2, test.Character.Level);
         Assert.Equal(1, test.Character.TalentPoints);
@@ -256,7 +256,7 @@ public class BattleServiceTests
         Assert.Equal(0, test.Character.TalentPoints);
         Assert.Equal(100, test.Character.MaxHp);
         Assert.Equal(100, test.Character.Attack);
-        Assert.Contains(victory.Logs, log => log.Contains("Mage gains 10 EXP"));
+        Assert.Contains(victory.Logs, log => log.Contains("Mage 获得 10 点经验值"));
         var progression = ProgressionTestFactory.Create();
         var detail = await new RoomService(test.Db, new UserService(test.Db, progression, SkillTestFactory.Create()), progression, ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression)).GetRoomDetailAsync(1, test.Token);
         var mainSlot = detail!.Slots.Single(slot => slot.SlotIndex == 1);
@@ -416,7 +416,7 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
-        Assert.DoesNotContain(victory.Logs, log => log.Contains("uses 小型治疗药水"));
+        Assert.DoesNotContain(victory.Logs, log => log.Contains("使用 小型治疗药水"));
         Assert.Equal(50, test.Character.Hp);
         Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
@@ -436,7 +436,7 @@ public class BattleServiceTests
 
         var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(firstError);
-        Assert.Contains(first!.Logs, log => log.Contains("uses 小型治疗药水"));
+        Assert.Contains(first!.Logs, log => log.Contains("使用 小型治疗药水"));
         Assert.Equal(77, test.Character.Hp);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(1, test.Room.RoundNumber);
@@ -472,7 +472,7 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(round!.Logs, log => log.Contains("uses 小型治疗药水"));
+        Assert.Contains(round!.Logs, log => log.Contains("使用 小型治疗药水"));
         Assert.False((await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id)).IsAutoEnabled);
         Assert.Equal(77, test.Character.Hp);
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
@@ -492,8 +492,8 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(round!.Logs, log => log.Contains("uses 治疗术"));
-        Assert.Equal(remainingPotions == 0, round.Logs.Any(log => log.Contains("uses 小型治疗药水")));
+        Assert.Contains(round!.Logs, log => log.Contains("使用 治疗术"));
+        Assert.Equal(remainingPotions == 0, round.Logs.Any(log => log.Contains("使用 小型治疗药水")));
         Assert.Equal(endingHp, test.Character.Hp);
         Assert.Equal(remainingPotions, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
@@ -523,7 +523,7 @@ public class BattleServiceTests
 
         Assert.Null(guestError);
         Assert.Equal(RoomStatus.Cooldown, round!.RoomStatus);
-        Assert.Equal(2, round.Logs.Count(log => log.Contains("uses 小型治疗药水")));
+        Assert.Equal(2, round.Logs.Count(log => log.Contains("使用 小型治疗药水")));
         Assert.Equal(77, test.Character.Hp);
         Assert.Equal(60, guest.Hp);
         Assert.All(await test.Db.CharacterItemStacks.ToListAsync(), stack => Assert.Equal(0, stack.Quantity));
@@ -551,9 +551,9 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.Cooldown, round!.RoomStatus);
         Assert.Equal(45, round.MonsterHp);
         Assert.Equal(57, test.Character.Hp);
-        var strike = round.Logs.FindIndex(log => log.Contains("uses 盾击"));
-        var guard = round.Logs.FindIndex(log => log.Contains("uses 守护"));
-        var counterattack = round.Logs.FindIndex(log => log.Contains("Slime attacks"));
+        var strike = round.Logs.FindIndex(log => log.Contains("使用 盾击"));
+        var guard = round.Logs.FindIndex(log => log.Contains("使用 守护"));
+        var counterattack = round.Logs.FindIndex(log => log.Contains("Slime 普通攻击"));
         Assert.True(strike > 0 && guard > strike && counterattack > guard);
         Assert.Equal(new[] { 3, 4 }, (await test.Db.BattleSkillCooldowns.OrderBy(entry => entry.SkillCode).ToListAsync())
             .Select(entry => entry.ReadyAtRound).OrderBy(round => round));
@@ -570,8 +570,8 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(round!.Logs, log => log.Contains("uses 盾击"));
-        Assert.DoesNotContain(round.Logs, log => log.Contains("uses 守护"));
+        Assert.Contains(round!.Logs, log => log.Contains("使用 盾击"));
+        Assert.DoesNotContain(round.Logs, log => log.Contains("使用 守护"));
         Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
     }
 
@@ -590,7 +590,7 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(2, round!.Logs.Count(log => log.Contains("uses 守护")));
+        Assert.Equal(2, round!.Logs.Count(log => log.Contains("使用 守护")));
         Assert.Equal(2, await test.Db.BattleSkillCooldowns.CountAsync());
         Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown => cooldown.CharacterId == third.Id);
     }
@@ -615,8 +615,8 @@ public class BattleServiceTests
         Assert.Null(battleError);
         Assert.Equal("knight-strike", configuration!.Slots[0].SkillCode);
         Assert.Equal("knight-guard", configuration.Slots[1].SkillCode);
-        var strike = round!.Logs.FindIndex(log => log.Contains("uses 盾击"));
-        var guard = round.Logs.FindIndex(log => log.Contains("uses 守护"));
+        var strike = round!.Logs.FindIndex(log => log.Contains("使用 盾击"));
+        var guard = round.Logs.FindIndex(log => log.Contains("使用 守护"));
         Assert.True(strike >= 0 && guard > strike);
     }
 
@@ -656,8 +656,8 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(round!.Logs, log => log.Contains("uses 治疗术 on Slot 1"));
-        Assert.Contains(round.Logs, log => log.Contains("uses 圣光击"));
+        Assert.Contains(round!.Logs, log => log.Contains("使用 治疗术，为 1号位"));
+        Assert.Contains(round.Logs, log => log.Contains("使用 圣光击"));
         Assert.Equal(73, test.Character.Hp);
         Assert.Equal(2, await test.Db.BattleSkillCooldowns.CountAsync());
     }
@@ -680,8 +680,8 @@ public class BattleServiceTests
         Assert.True(queued);
         Assert.Null(queueError);
         Assert.Null(error);
-        var heal = round!.Logs.FindIndex(log => log.Contains("uses 治疗术"));
-        var strike = round.Logs.FindIndex(log => log.Contains("uses 盾击"));
+        var heal = round!.Logs.FindIndex(log => log.Contains("使用 治疗术"));
+        var strike = round.Logs.FindIndex(log => log.Contains("使用 盾击"));
         Assert.True(heal >= 0 && strike > heal);
     }
 
@@ -697,7 +697,7 @@ public class BattleServiceTests
 
         var (firstRound, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(firstError);
-        Assert.DoesNotContain(firstRound!.Logs, log => log.Contains("uses 破甲斩"));
+        Assert.DoesNotContain(firstRound!.Logs, log => log.Contains("使用 破甲斩"));
 
         test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
         {
@@ -710,7 +710,7 @@ public class BattleServiceTests
 
         var (secondRound, secondError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(secondError);
-        Assert.Contains(secondRound!.Logs, log => log.Contains("uses 破甲斩"));
+        Assert.Contains(secondRound!.Logs, log => log.Contains("使用 破甲斩"));
     }
 
     [Fact]
@@ -971,7 +971,7 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
-        Assert.Contains(result.Logs, log => log.Contains("temporarily set to Auto"));
+        Assert.Contains(result.Logs, log => log.Contains("临时切换为自动战斗"));
         Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsTemporaryAuto));
     }
 
@@ -1317,8 +1317,8 @@ public class BattleServiceTests
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.StartsWith("Slot 1 Knight attacks", result!.Logs[0]);
-        Assert.StartsWith("Slot 2 Mage attacks", result.Logs[1]);
+        Assert.StartsWith("1号位 Knight 普通攻击", result!.Logs[0]);
+        Assert.StartsWith("2号位 Mage 普通攻击", result.Logs[1]);
     }
 
     [Fact]
@@ -1330,9 +1330,9 @@ public class BattleServiceTests
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Single(result!.Logs, x => x.Contains("attacks Slime"));
-        Assert.DoesNotContain(result.Logs, x => x.Contains("Slot 2 Mage attacks"));
-        Assert.DoesNotContain(result.Logs, x => x.Contains("Slime attacks"));
+        Assert.Single(result!.Logs, x => x.Contains("普通攻击 Slime"));
+        Assert.DoesNotContain(result.Logs, x => x.Contains("2号位 Mage 普通攻击"));
+        Assert.DoesNotContain(result.Logs, x => x.Contains("Slime 普通攻击"));
     }
 
     [Fact]
@@ -1399,7 +1399,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
         Assert.Equal(90, test.Character.Hp);
-        Assert.Contains(result.Logs, log => log.Contains("uses 腐蚀喷射"));
+        Assert.Contains(result.Logs, log => log.Contains("使用 腐蚀喷射"));
         Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
         var nextIntent = await test.Db.MonsterIntents.SingleAsync();
         Assert.Equal(1, nextIntent.RoundNumber);
@@ -1434,8 +1434,8 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(100, test.Character.Hp);
-        Assert.Contains(result!.Logs, log => log.Contains("interrupts Slime"));
-        Assert.Contains(result.Logs, log => log.Contains("is interrupted"));
+        Assert.Contains(result!.Logs, log => log.Contains("打断了 Slime"));
+        Assert.Contains(result.Logs, log => log.Contains("已被打断"));
         Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
         Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
         Assert.Single(await test.Db.BattleMonsterSkillCooldowns.ToListAsync());
@@ -1463,7 +1463,7 @@ public class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("removes 中毒"));
+        Assert.Contains(result!.Logs, log => log.Contains("移除了") && log.Contains("中毒"));
         Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
         Assert.Equal(92, test.Character.Hp);
     }
@@ -1489,7 +1489,7 @@ public class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("removes 黏液硬化"));
+        Assert.Contains(result!.Logs, log => log.Contains("驱散了") && log.Contains("黏液硬化"));
         Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
 
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
@@ -1506,7 +1506,7 @@ public class BattleServiceTests
         var (second, secondError) = await service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(secondError);
-        Assert.Contains(second!.Logs, log => log.Contains("gains 破甲"));
+        Assert.Contains(second!.Logs, log => log.Contains("获得 破甲"));
         Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
     }
 
@@ -1525,7 +1525,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(0, test.Character.Hp);
         Assert.Equal(5, second.Hp);
-        Assert.Contains(result!.Logs, x => x.Contains("attacks Slot 2 Mage"));
+        Assert.Contains(result!.Logs, x => x.Contains("普通攻击 2号位 Mage"));
     }
 
     [Fact]

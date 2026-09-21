@@ -77,6 +77,37 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         }
     }
 
+    public async Task<(CharacterSkillsResponse? Response, string? Error)> SetAutoAsync(
+        string? token, int characterId, int slotIndex, SetSkillAutoRequest request)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        if (slotIndex < 1 || slotIndex > SkillRules.SlotCount) return (null, "InvalidSlotIndex");
+        if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
+
+        var target = await dbContext.CharacterSkillSlots.SingleOrDefaultAsync(slot =>
+            slot.CharacterId == characterId && slot.SlotIndex == slotIndex);
+        if (target?.SkillCode is null) return (null, "SkillNotEquipped");
+
+        var purchasedNodes = await GetPurchasedNodeCodesAsync(characterId);
+        if (!catalog.IsLearned(character!, target.SkillCode, purchasedNodes)) return (null, "SkillNotLearned");
+
+        target.AutoUseEnabled = request.AutoUseEnabled;
+        target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
+        target.Version++;
+        character!.Version++;
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return (await BuildResponseAsync(character), null);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
     public async Task<(CharacterSkillsResponse? Response, string? Error)> SwapSlotsAsync(
         string? token, int characterId, SwapSkillSlotsRequest request)
     {

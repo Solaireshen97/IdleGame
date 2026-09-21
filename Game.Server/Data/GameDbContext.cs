@@ -109,6 +109,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .ToTable(table =>
             {
                 table.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
+                table.HasCheckConstraint("CK_CharacterWeapons_Progression", "ItemLevel > 0");
+                table.HasCheckConstraint("CK_CharacterWeapons_Recycling", "SellGold >= 0 AND DismantleFragments > 0");
                 table.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
             });
         modelBuilder.Entity<CharacterWeaponSkill>()
@@ -126,6 +128,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .ToTable(table =>
             {
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
+                table.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel BETWEEN 0 AND 3 AND EnhancementLevel BETWEEN 0 AND 3 AND Level = BaseLevel + QualityBonusLevel + EnhancementLevel");
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
             });
 

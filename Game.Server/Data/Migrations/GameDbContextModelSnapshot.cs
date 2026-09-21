@@ -103,12 +103,18 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("Element").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("Attack").HasColumnType("INTEGER");
                     b.Property<int>("MaxHp").HasColumnType("INTEGER");
+                    b.Property<int>("ItemLevel").HasColumnType("INTEGER");
+                    b.Property<int>("SellGold").HasColumnType("INTEGER");
+                    b.Property<int>("DismantleFragments").HasColumnType("INTEGER");
+                    b.Property<bool>("IsLocked").HasColumnType("INTEGER");
                     b.Property<int?>("EquippedSlotIndex").HasColumnType("INTEGER");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("Id");
                     b.HasIndex("CharacterId", "EquippedSlotIndex").IsUnique().HasFilter("EquippedSlotIndex IS NOT NULL");
                     b.ToTable("CharacterWeapons", t =>
                     {
+                        t.HasCheckConstraint("CK_CharacterWeapons_Progression", "ItemLevel > 0");
+                        t.HasCheckConstraint("CK_CharacterWeapons_Recycling", "SellGold >= 0 AND DismantleFragments > 0");
                         t.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
                         t.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
                     });
@@ -121,12 +127,16 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("SlotIndex").HasColumnType("INTEGER");
                     b.Property<string>("SkillCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("Level").HasColumnType("INTEGER");
+                    b.Property<int>("BaseLevel").HasColumnType("INTEGER");
+                    b.Property<int>("QualityBonusLevel").HasColumnType("INTEGER");
+                    b.Property<int>("EnhancementLevel").HasColumnType("INTEGER");
                     b.HasKey("Id");
                     b.HasIndex("WeaponId", "SlotIndex").IsUnique();
                     b.HasIndex("WeaponId", "SkillCode").IsUnique();
                     b.ToTable("CharacterWeaponSkills", t =>
                     {
                         t.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel BETWEEN 0 AND 3 AND EnhancementLevel BETWEEN 0 AND 3 AND Level = BaseLevel + QualityBonusLevel + EnhancementLevel");
                         t.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
                     });
                 });

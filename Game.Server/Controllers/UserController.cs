@@ -195,6 +195,14 @@ public class UserController(UserService userService, TalentService talentService
         return SkillResult(response, error);
     }
 
+    [HttpPatch("characters/{characterId:int}/skills/{slotIndex:int}/auto")]
+    public async Task<IActionResult> SetSkillAuto(int characterId, int slotIndex, [FromBody] SetSkillAutoRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await skillService.SetAutoAsync(GetBearerToken(), characterId, slotIndex, request);
+        return SkillResult(response, error);
+    }
+
     [HttpPost("characters/{characterId:int}/skills/swap")]
     public async Task<IActionResult> SwapSkillSlots(int characterId, [FromBody] SwapSkillSlotsRequest? request)
     {

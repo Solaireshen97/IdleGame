@@ -77,7 +77,7 @@ public sealed class WeaponServiceTests
             Element = ElementType.Fire, Attack = 5, MaxHp = 20,
             Skills =
             [
-                new CharacterWeaponSkill { SlotIndex = 1, SkillCode = "weapon-attack", Level = 2 },
+                new CharacterWeaponSkill { SlotIndex = 1, SkillCode = "weapon-attack", Level = 2, BaseLevel = 2 },
                 new CharacterWeaponSkill { SlotIndex = 2, SkillCode = "weapon-health", Level = 1 }
             ]
         };
@@ -118,8 +118,8 @@ public sealed class WeaponServiceTests
         Assert.Null(error);
         Assert.Equal(100, test.Character.WeaponCriticalChancePercent);
         Assert.Equal(126, round!.MonsterHp); // 29 normal + 45 skill damage.
-        Assert.Equal(2, round.Logs.Count(log => log.Contains("(critical)")));
-        Assert.Contains(round.Logs, log => log.Contains("uses 盾击") && log.Contains("45 damage"));
+        Assert.Equal(2, round.Logs.Count(log => log.Contains("（暴击）")));
+        Assert.Contains(round.Logs, log => log.Contains("使用 盾击") && log.Contains("造成 45 点伤害"));
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class WeaponServiceTests
 
         Assert.Null(equipError);
         Assert.Null(error);
-        Assert.Contains(round!.Logs, log => log.Contains("Knight attacks Slime for 32 damage"));
+        Assert.Contains(round!.Logs, log => log.Contains("Knight 普通攻击 Slime，造成 32 点伤害"));
         Assert.Equal(18, round.MonsterHp);
         Assert.Equal(98, test.Character.Hp);
     }
@@ -257,6 +257,118 @@ public sealed class WeaponServiceTests
     }
 
     [Fact]
+    public async Task SellAndDismantleUnequippedWeaponsReturnAccountGoldAndMatchingTierFragments()
+    {
+        await using var test = await WeaponTestContext.CreateAsync();
+        var wind = test.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
+        wind.SellGold = 15;
+        var (sold, sellError) = await test.Service.SellAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [wind.Id] });
+
+        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        water.ItemLevel = 12;
+        water.DismantleFragments = 3;
+        var (dismantled, dismantleError) = await test.Service.DismantleAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [water.Id] });
+
+        Assert.Null(sellError);
+        Assert.Equal(15, sold!.Gold);
+        Assert.DoesNotContain(sold.Weapons, weapon => weapon.Id == wind.Id);
+        Assert.Null(dismantleError);
+        Assert.DoesNotContain(dismantled!.Weapons, weapon => weapon.Id == water.Id);
+        Assert.Equal(3, dismantled.Fragments.Single(fragment => fragment.Tier == 2).Quantity);
+        Assert.Equal(3, (await test.Db.CharacterItemStacks.SingleAsync(stack =>
+            stack.ItemCode == WeaponRules.FragmentCode(2))).Quantity);
+    }
+
+    [Fact]
+    public async Task EquippedAndLockedWeaponsCannotBeRecycled()
+    {
+        await using var test = await WeaponTestContext.CreateAsync();
+        var main = test.Weapons.Single(weapon => weapon.EquippedSlotIndex == 1);
+        var (_, equippedError) = await test.Service.SellAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [main.Id] });
+
+        var wind = test.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
+        var (_, lockError) = await test.Service.SetLockAsync(test.Token, 1, wind.Id,
+            new SetWeaponLockRequest { IsLocked = true });
+        var (_, dismantleError) = await test.Service.DismantleAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [wind.Id] });
+
+        Assert.Equal("WeaponEquipped", equippedError);
+        Assert.Null(lockError);
+        Assert.Equal("WeaponLocked", dismantleError);
+        Assert.Equal(3, await test.Db.CharacterWeapons.CountAsync());
+    }
+
+    [Fact]
+    public async Task SkillEnhancementConsumesMatchingFragmentsAndStopsAfterThreeSteps()
+    {
+        await using var test = await WeaponTestContext.CreateAsync(CreateSkillCatalog());
+        var main = test.Weapons.Single(weapon => weapon.EquippedSlotIndex == 1);
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = 1, ItemCode = WeaponRules.FragmentCode(1), Quantity = 14
+        });
+        await test.Db.SaveChangesAsync();
+
+        CharacterWeaponsResponse? response = null;
+        for (var index = 0; index < 3; index++)
+        {
+            var enhancement = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+            response = enhancement.Response;
+            Assert.Null(enhancement.Error);
+        }
+        var (_, maximumError) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+
+        var skill = Assert.Single(response!.Weapons.Single(weapon => weapon.Id == main.Id).Skills);
+        Assert.Equal((5, 2, 3), (skill.Level, skill.BaseLevel, skill.EnhancementLevel));
+        Assert.Null(skill.NextEnhancementCost);
+        Assert.Equal(10, response.AttackBonusPercent);
+        Assert.Equal(0, response.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
+        Assert.Equal("WeaponSkillAtMaximum", maximumError);
+
+        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        await test.Service.SetSlotAsync(test.Token, 1, 1, new SetWeaponSlotRequest { WeaponId = water.Id });
+        await test.Service.SetLockAsync(test.Token, 1, main.Id, new SetWeaponLockRequest { IsLocked = false });
+        var (recycled, recycleError) = await test.Service.DismantleAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [main.Id] });
+        Assert.Null(recycleError);
+        Assert.Equal(8, recycled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity); // base 1 + 50% of 14 invested.
+    }
+
+    [Fact]
+    public void ConfiguredSkillGrowthReducesLaterLevelValue()
+    {
+        var options = new WeaponOptions
+        {
+            EnhancementFragmentCosts = [2, 4, 8],
+            SkillGrowth =
+            [
+                new WeaponSkillGrowthSegmentOptions { MaximumLevel = 5, MultiplierPercent = 100 },
+                new WeaponSkillGrowthSegmentOptions { MaximumLevel = 10, MultiplierPercent = 60 },
+                new WeaponSkillGrowthSegmentOptions { MaximumLevel = null, MultiplierPercent = 30 }
+            ],
+            Skills =
+            [
+                new WeaponSkillDefinitionOptions { Code = "weapon-attack", Name = "攻击", EffectType = WeaponSkillEffectType.AttackPercent, PercentPerLevel = 2 }
+            ],
+            Items =
+            [
+                new WeaponTemplateOptions { Code = "blade", Name = "测试剑", Element = ElementType.Fire,
+                    Attack = 10, MaxHp = 10, Skills = [new WeaponSkillGrantOptions { Code = "weapon-attack", Level = 8 }] }
+            ],
+            StarterPacks = new Dictionary<string, List<string>> { ["knight"] = ["blade"] }
+        };
+        var catalog = new WeaponCatalog(Options.Create(options));
+
+        var bonus = catalog.CalculateBonuses(catalog.CreateStarterWeapons(1, "knight"));
+
+        Assert.Equal(8, Assert.Single(bonus.ActiveSkills).Level);
+        Assert.Equal(13.6m, bonus.AttackPercent);
+    }
+
+    [Fact]
     public async Task MigrationPreservesBaseStatsAndAddsWeaponSkillToExistingMain()
     {
         var path = Path.Combine(Path.GetTempPath(), $"idlegame-weapon-migration-{Guid.NewGuid():N}.db");
@@ -286,6 +398,8 @@ public sealed class WeaponServiceTests
             Assert.Equal(4, (await db.Characters.SingleAsync()).WeaponAttackBonusPercent);
             var mainSkill = await db.CharacterWeaponSkills.SingleAsync(skill => skill.WeaponId == main.Id);
             Assert.Equal(("weapon-attack", 2), (mainSkill.SkillCode, mainSkill.Level));
+            Assert.Equal((2, 0, 0), (mainSkill.BaseLevel, mainSkill.QualityBonusLevel, mainSkill.EnhancementLevel));
+            Assert.True(main.IsLocked);
 
             var adjustedCatalog = CreateSkillCatalog(attackPerLevel: 3);
             await DbInitializer.InitializeAsync(db, adjustedCatalog);

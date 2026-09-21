@@ -11,6 +11,10 @@ public sealed class CharacterWeapon
     public ElementType Element { get; set; }
     public int Attack { get; set; }
     public int MaxHp { get; set; }
+    public int ItemLevel { get; set; } = 1;
+    public int SellGold { get; set; } = 1;
+    public int DismantleFragments { get; set; } = 1;
+    public bool IsLocked { get; set; }
     public int? EquippedSlotIndex { get; set; }
     public List<CharacterWeaponSkill> Skills { get; set; } = [];
     public int Version { get; set; }

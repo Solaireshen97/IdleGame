@@ -57,11 +57,11 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             if (experience > 0)
             {
                 var gain = progression.AwardExperience(character, experience);
-                if (gain.ExperienceGained > 0) logs.Add($"{character.Name} gains {gain.ExperienceGained} EXP.");
-                if (gain.LevelsGained > 0) logs.Add($"{character.Name} reached Lv.{character.Level} and gained {gain.LevelsGained} talent point(s).");
+                if (gain.ExperienceGained > 0) logs.Add($"{character.Name} 获得 {gain.ExperienceGained} 点经验值。");
+                if (gain.LevelsGained > 0) logs.Add($"{character.Name} 升至 Lv.{character.Level}，获得 {gain.LevelsGained} 点天赋点。");
             }
             var gold = group.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity);
-            if (gold > 0) logs.Add($"{character.Name} receives {gold} gold.");
+            if (gold > 0) logs.Add($"{character.Name} 获得 {gold} 金币。");
             foreach (var items in group.Where(entry => entry.Kind == "Consumable").GroupBy(entry => entry.Code))
             {
                 var stack = stacks.SingleOrDefault(item => item.CharacterId == character.Id && item.ItemCode == items.Key);
@@ -74,7 +74,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 else stack.Version++;
                 var quantity = items.Sum(entry => entry.Quantity);
                 stack.Quantity = checked(stack.Quantity + quantity);
-                logs.Add($"{character.Name} receives {quantity} {catalog.Describe(items.First())}.");
+                logs.Add($"{character.Name} 获得 {catalog.Describe(items.First())} × {quantity}。");
             }
             foreach (var weapon in group.Where(entry => entry.Kind == "Weapon"))
             {
@@ -82,12 +82,12 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                     ?? throw new InvalidOperationException("Missing weapon reward snapshot.");
                 for (var i = 0; i < weapon.Quantity; i++)
                     dbContext.CharacterWeapons.Add(snapshot.ToCharacterWeapon(character.Id));
-                logs.Add($"{character.Name} receives {weapon.Quantity} {snapshot.Name}.");
+                logs.Add($"{character.Name} 获得 {snapshot.Name} × {weapon.Quantity}。");
             }
         }
         run.Status = victory ? "Victory" : "Defeat";
         run.SettledAtUtc = now;
-        logs.Add(victory ? "Dungeon rewards settled." : "Earned kill rewards settled after defeat.");
+        logs.Add(victory ? "副本奖励结算完毕。" : "战败，已结算本次战斗中获得的击杀奖励。");
     }
 
     private async Task<RewardRun> GetRunAsync(Room room)

@@ -22,6 +22,10 @@
 }
 else
 {
+    var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
+    var ownSlots = _roomDetail.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied).ToList();
+    var countdown = GetActiveCountdown();
+
     <section class="battle-stage" aria-label="战斗场景">
         <div class="battle-stage__header">
             <div>
@@ -38,7 +42,7 @@ else
         <button type="button" class="battle-feed" @onclick="OpenBattleLog" @ref="_logTrigger" aria-haspopup="dialog">
             <span class="battle-feed__live">● LIVE LOG</span>
             <span class="battle-feed__latest">@GetLatestLog()</span>
-            <span class="battle-feed__open">详细战报 <span aria-hidden="true">↗</span></span>
+            <span class="battle-feed__open">打开完整战报 <span aria-hidden="true">↗</span></span>
         </button>
 
         @if (_roomDetail.MonsterIntent is { } intent)
@@ -64,11 +68,11 @@ else
 
         <div class="battle-field">
             <div class="battle-field__party">
-                <div class="battle-field__label"><span>YOUR PARTY</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount</strong></div>
+                <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人</strong></div>
                 <div class="fighter-line">
                     @foreach (var slot in _roomDetail.Slots.OrderBy(slot => slot.SlotIndex))
                     {
-                        <div class="fighter @(slot.IsOccupied ? "fighter--occupied" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")" title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")">
+                        <div class="fighter @(slot.IsOccupied ? "fighter--occupied" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")" title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")" aria-label="@(slot.IsOccupied ? $"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")">
                             <div class="fighter__portrait">
                                 @if (slot.IsOccupied)
                                 {
@@ -89,7 +93,7 @@ else
                             @if (slot.IsOccupied)
                             {
                                 <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
-                                <small>@slot.CharacterHp / @slot.CharacterMaxHp</small>
+                                <small class="fighter__hp-text">HP @slot.CharacterHp / @slot.CharacterMaxHp</small>
                                 @if (slot.StatusEffects.Count > 0)
                                 {
                                     <div class="battle-effects" aria-label="@slot.CharacterName 状态">
@@ -116,7 +120,7 @@ else
             <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "")">
                 <div class="battle-field__enemy-art"><img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" /></div>
                 <div class="enemy-vitals">
-                    <span>WAVE @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount · ENEMY @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
+                    <span>当前敌人 · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
                     <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
                     <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
                     @if (_roomDetail.MonsterEffects.Count > 0)
@@ -133,7 +137,64 @@ else
                 </div>
             </div>
         </div>
-        <div class="battle-stage__footer"><span>第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span>行动顺序：槽位 1 → @_roomDetail.SlotCount</span><span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"准备超时 {BattleRules.PreparationTimeoutSeconds} 秒 · 本回合临时 Auto" : "无准备超时")</span></div>
+        <div class="battle-stage__footer"><span><strong>进度</strong> 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @_roomDetail.SlotCount</span><span><strong>规则</strong> @(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则临时 Auto" : "无准备超时")</span></div>
+    </section>
+
+    <section class="battle-command" aria-label="本回合操作">
+        <div class="battle-command__heading">
+            <span class="section-kicker">YOUR TURN</span>
+            <div>
+                <h2>本回合操作</h2>
+                <p>@GetActionHint()</p>
+            </div>
+        </div>
+        <div class="battle-command__state" aria-live="polite">
+            <span>当前状态</span>
+            <strong>@GetStatusText()</strong>
+        </div>
+        <div class="battle-command__action">
+            @if (_roomDetail.IsAllAliveMembersAuto && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver)
+            {
+                <span class="auto-indicator"><span aria-hidden="true">✦</span> 自动战斗中</span>
+            }
+            else if (_roomDetail.CanPrepare)
+            {
+                <button class="button button--primary battle-controls__primary" @onclick="StartPreparationAsync" disabled="@_isBusy">
+                    <span class="battle-controls__primary-label">准备并结算</span><span aria-hidden="true">→</span>
+                </button>
+            }
+            else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
+            {
+                <span class="battle-controls__waiting"><span class="status-dot" aria-hidden="true"></span>已准备 · 等待队友</span>
+            }
+            else
+            {
+                <span class="battle-controls__waiting">@GetStatusText()</span>
+            }
+            @if (autoSlot is not null)
+            {
+                <label class="battle-auto @(autoSlot.CanConfigureAuto ? "" : "battle-auto--locked")" title="@(autoSlot.IsAutoUnlockedForCurrentUser ? "自动准备开关" : "首次通关此副本后解锁 Auto")">
+                    <span><input type="checkbox" checked="@autoSlot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(autoSlot.SlotIndex, (bool)e.Value!)" disabled="@(_isBusy || !autoSlot.CanConfigureAuto)" /> Auto 自动准备</span>
+                    @if (!autoSlot.IsAutoUnlockedForCurrentUser) { <small>通关后解锁</small> }
+                </label>
+            }
+        </div>
+        <div class="battle-command__shortcuts" aria-label="快捷操作">
+            <button type="button" class="battle-shortcut" @onclick="OpenBattleLog" aria-haspopup="dialog"><span aria-hidden="true">☷</span> 战报</button>
+            @if (ownSlots.Count > 0)
+            {
+                <a class="battle-shortcut" href="@($"/battle/{RoomId}#battle-loadout")"><span aria-hidden="true">✦</span> 技能与补给</a>
+            }
+        </div>
+        @if (countdown is not null)
+        {
+            var remainingSeconds = GetRemainingSeconds(countdown.DeadlineUtc);
+            var progress = GetCountdownProgress(countdown);
+            <div class="battle-countdown battle-countdown--@countdown.Kind">
+                <div class="battle-countdown__heading"><span>@countdown.Label</span><strong>@FormatCountdown(remainingSeconds)</strong></div>
+                <div class="battle-countdown__track" role="progressbar" aria-label="@countdown.Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@progress"><span class="battle-countdown__fill" style="width: @(progress)%"></span></div>
+            </div>
+        }
     </section>
 
     @if (_isLogOpen)
@@ -163,67 +224,108 @@ else
         </div>
     }
 
-    var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
-    var ownSlots = _roomDetail.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied).ToList();
-    <section class="battle-controls" aria-label="行动控制">
-        <div class="battle-controls__main">
-            <div class="battle-controls__heading"><span class="section-kicker">COMMAND PHASE</span><h2>行动指令</h2><p>@GetActionHint()</p></div>
-            <div class="battle-controls__action">
-                @if (_roomDetail.IsAllAliveMembersAuto && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver)
-                {
-                    <span class="auto-indicator"><span aria-hidden="true">✦</span> 自动战斗中</span>
-                }
-                else if (_roomDetail.CanPrepare)
-                {
-                    <button class="button button--primary battle-controls__primary" @onclick="StartPreparationAsync" disabled="@_isBusy">准备并结算 <span aria-hidden="true">→</span></button>
-                }
-                else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
-                {
-                    <span class="battle-controls__waiting">已准备 · 等待队友</span>
-                }
-                else
-                {
-                    <span class="battle-controls__waiting">@GetStatusText()</span>
-                }
-                @if (autoSlot is not null)
-                {
-                    <label class="battle-auto @(autoSlot.CanConfigureAuto ? "" : "battle-auto--locked")" title="@(autoSlot.IsAutoUnlockedForCurrentUser ? "自动准备开关" : "首次通关此副本后解锁 Auto")">
-                        <span><input type="checkbox" checked="@autoSlot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(autoSlot.SlotIndex, (bool)e.Value!)" disabled="@(_isBusy || !autoSlot.CanConfigureAuto)" /> Auto 自动准备</span>
-                        @if (!autoSlot.IsAutoUnlockedForCurrentUser) { <small>通关后解锁</small> }
-                    </label>
-                }
-            </div>
+    @if (GetSkillDialogContext() is { } skillDialog)
+    {
+        var dialogSelected = IsSkillQueued(skillDialog.Character, skillDialog.Skill);
+        var dialogCanUse = CanQueueSkill(skillDialog.Character, skillDialog.Skill);
+        <div class="skill-dialog-overlay" @onclick="CloseSkillDialog">
+            <section class="skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title" @onclick:stopPropagation>
+                <header class="skill-dialog__header">
+                    <div class="skill-dialog__skill">
+                        <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skillDialog.Skill)" aria-hidden="true">
+                            <span class="battle-skill-card__flare"></span>
+                            <span class="battle-skill-card__glyph">@GetSkillGlyph(skillDialog.Skill)</span>
+                        </span>
+                        <div><span class="section-kicker">SKILL @skillDialog.Skill.SlotIndex</span><h2 id="skill-dialog-title">@skillDialog.Skill.SkillName</h2><p>@skillDialog.Character.CharacterName · @skillDialog.Character.ProfessionName</p></div>
+                    </div>
+                    <button type="button" class="skill-dialog__close" @onclick="CloseSkillDialog" @ref="_skillDialogCloseButton" aria-label="关闭技能详情">×</button>
+                </header>
+                <div class="skill-dialog__content">
+                    <p class="skill-dialog__description">@(string.IsNullOrWhiteSpace(skillDialog.Skill.Description) ? "该技能暂无详细说明。" : skillDialog.Skill.Description)</p>
+                    <div class="skill-dialog__facts">
+                        @foreach (var effect in skillDialog.Skill.Effects)
+                        {
+                            <span><i aria-hidden="true">✦</i>@GetSkillEffectText(effect)</span>
+                        }
+                        <span><i aria-hidden="true">⌛</i>@(skillDialog.Skill.CooldownRoundsRemaining > 0 ? $"剩余冷却 {skillDialog.Skill.CooldownRoundsRemaining} 回合" : "技能已就绪")</span>
+                    </div>
+                    <section class="skill-dialog__automation" aria-label="技能自动使用设置">
+                        <div class="skill-dialog__automation-heading">
+                            <div><strong>自动使用</strong><small>@GetSkillAutoConditionText(skillDialog.Skill)</small></div>
+                            <label class="switch-control">
+                                <input type="checkbox" aria-label="@($"自动使用 {skillDialog.Skill.SkillName}")" checked="@skillDialog.Skill.AutoUseEnabled" @onchange="e => SetSkillAutoAsync(skillDialog, (bool)e.Value!, skillDialog.Skill.AutoHpThresholdPercent)" disabled="@(_isBusy || _isSkillAutoSaving)" />
+                                <span aria-hidden="true"></span>
+                            </label>
+                        </div>
+                        @if (skillDialog.Skill.AutoCondition == "LowestHpBelowThreshold")
+                        {
+                            <label class="skill-threshold">
+                                <span>生命值阈值 <strong>@skillDialog.Skill.AutoHpThresholdPercent%</strong></span>
+                                <input type="range" min="1" max="100" step="1" value="@skillDialog.Skill.AutoHpThresholdPercent" @onchange="e => SetSkillAutoThresholdAsync(skillDialog, e)" disabled="@(_isBusy || _isSkillAutoSaving)" />
+                            </label>
+                        }
+                        @if (_skillDialogMessage is not null)
+                        {
+                            <p class="skill-dialog__message" role="alert">@_skillDialogMessage</p>
+                        }
+                    </section>
+                </div>
+                <footer class="skill-dialog__footer">
+                    <button type="button" class="button button--quiet" @onclick="CloseSkillDialog">返回</button>
+                    <button type="button" class="button button--primary" @onclick="() => ConfirmSkillAsync(skillDialog)" disabled="@(_isBusy || !dialogCanUse)">
+                        @(dialogSelected ? "取消本回合施放" : dialogCanUse ? "本回合使用" : GetSkillHint(skillDialog.Character, skillDialog.Skill))
+                    </button>
+                </footer>
+            </section>
         </div>
+    }
+
+    <section id="battle-loadout" class="battle-controls battle-controls--loadout" aria-label="技能与战斗补给">
         @if (ownSlots.Count > 0)
         {
             <div class="battle-skills" aria-label="职业技能">
                 <div class="battle-supplies__header">
                     <div><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
-                    <a href="/talents">调整技能优先级 ↗</a>
+                    <div class="battle-skills__tools">
+                        <label class="quick-skill-toggle" title="开启后，点击可用技能会直接安排到本回合">
+                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
+                            <span><strong>快速施放</strong><small>@(_isQuickSkillCastEnabled ? "点击技能立即安排" : "点击技能先查看详情")</small></span>
+                        </label>
+                        <a href="/talents">调整技能 ↗</a>
+                    </div>
                 </div>
                 @foreach (var characterSlot in ownSlots)
                 {
                     <div class="battle-skills__character" @key="characterSlot.CharacterId">
-                        <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName · @characterSlot.ProfessionName</strong><span>按 1 → 5 号位依次自动判定</span></div>
-                        <div class="battle-skills__slots">
+                        <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName · @characterSlot.ProfessionName</strong><span>自动技能按 1 → 5 号位依次判定</span></div>
+                        <div class="battle-skill-grid">
                             @foreach (var skill in characterSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
                             {
                                 var selected = IsSkillQueued(characterSlot, skill);
+                                var available = CanQueueSkill(characterSlot, skill);
                                 <button type="button"
-                                        class="battle-supply @(selected ? "battle-supply--selected" : "")"
-                                        disabled="@(_isBusy || !CanQueueSkill(characterSlot, skill))"
+                                        class="battle-skill-card battle-skill-card--@GetSkillTone(skill) @(selected ? "battle-skill-card--selected" : "") @(!available ? "battle-skill-card--unavailable" : "")"
+                                        disabled="@_isBusy"
                                         title="@GetSkillHint(characterSlot, skill)"
                                         aria-pressed="@selected"
-                                        @onclick="() => ToggleSkillAsync(characterSlot, skill)">
-                                    <span class="battle-supply__icon" aria-hidden="true">@skill.SlotIndex</span>
-                                    <span class="battle-supply__body"><strong>@skill.SkillName</strong><small>@GetSkillStatus(skill, selected)</small></span>
-                                    <span class="battle-supply__action">@(selected ? "取消" : "施放")</span>
+                                        aria-haspopup="dialog"
+                                        @onclick="() => HandleSkillClickAsync(characterSlot, skill)">
+                                    <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
+                                        <span class="battle-skill-card__flare"></span>
+                                        <span class="battle-skill-card__glyph">@GetSkillGlyph(skill)</span>
+                                        <span class="battle-skill-card__slot">@skill.SlotIndex</span>
+                                        @if (skill.CooldownRoundsRemaining > 0) { <span class="battle-skill-card__cooldown">@skill.CooldownRoundsRemaining</span> }
+                                        @if (selected) { <span class="battle-skill-card__check">✓</span> }
+                                    </span>
+                                    <strong class="battle-skill-card__name">@skill.SkillName</strong>
+                                    <small class="battle-skill-card__status">@GetSkillStatus(skill, selected)</small>
+                                    @if (skill.AutoUseEnabled) { <span class="battle-skill-card__auto">AUTO</span> }
                                 </button>
                             }
                         </div>
                     </div>
                 }
-                <p>可手动安排多个技能；手动技能先执行，其余按栏位顺序自动检查。技能与药水可在同一回合触发。</p>
+                <p>可手动安排多个技能；关闭“快速施放”时，点击图标可查看效果、确认使用并设置该技能的自动策略。</p>
                 @if (_skillMessage is not null) { <p class="battle-supplies__message" role="alert">@_skillMessage</p> }
             </div>
         }
@@ -276,18 +378,6 @@ else
                 <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">解散房间</button>
             }
         </div>
-        @{
-            var countdown = GetActiveCountdown();
-        }
-        @if (countdown is not null)
-        {
-            var remainingSeconds = GetRemainingSeconds(countdown.DeadlineUtc);
-            var progress = GetCountdownProgress(countdown);
-            <div class="battle-countdown battle-countdown--@countdown.Kind">
-                <div class="battle-countdown__heading"><span>@countdown.Label</span><strong>@FormatCountdown(remainingSeconds)</strong></div>
-                <div class="battle-countdown__track" role="progressbar" aria-label="@countdown.Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@progress"><span class="battle-countdown__fill" style="width: @(progress)%"></span></div>
-            </div>
-        }
     </section>
 
     @if (_roomDetail.Rewards is { } rewards)
@@ -386,11 +476,20 @@ else
     private DateTime _serverTimeReceivedAtUtc;
     private ElementReference _logTrigger;
     private ElementReference _logCloseButton;
+    private ElementReference _skillDialogCloseButton;
     private bool _isLogOpen;
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
+    private bool _isQuickSkillCastEnabled;
+    private bool _isSkillDialogOpen;
+    private bool _focusSkillDialogCloseButton;
+    private bool _isSkillAutoSaving;
+    private int? _selectedSkillCharacterId;
+    private int? _selectedSkillSlotIndex;
+    private string? _skillDialogMessage;
     private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
     private sealed record BattleLogEntry(long Id, string Text);
+    private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
     private bool CanChangeFormation => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
         _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0;
@@ -406,7 +505,12 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focusLogCloseButton)
+        if (_focusSkillDialogCloseButton)
+        {
+            _focusSkillDialogCloseButton = false;
+            await _skillDialogCloseButton.FocusAsync();
+        }
+        else if (_focusLogCloseButton)
         {
             _focusLogCloseButton = false;
             await _logCloseButton.FocusAsync();
@@ -432,7 +536,9 @@ else
 
     private void HandleBattleLogKeyDown(KeyboardEventArgs args)
     {
-        if (_isLogOpen && args.Key == "Escape") CloseBattleLog();
+        if (args.Key != "Escape") return;
+        if (_isSkillDialogOpen) CloseSkillDialog();
+        else if (_isLogOpen) CloseBattleLog();
     }
 
     private async Task AssignSlotAsync(int slotIndex)
@@ -505,6 +611,86 @@ else
         (character.PendingConsumableSlotIndex == supply.SlotIndex ||
             supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 && character.CharacterHp < character.CharacterMaxHp);
 
+    private SkillDialogContext? GetSkillDialogContext()
+    {
+        if (!_isSkillDialogOpen || _roomDetail is null || _selectedSkillCharacterId is null || _selectedSkillSlotIndex is null)
+            return null;
+        var character = _roomDetail.Slots.FirstOrDefault(slot => slot.CharacterId == _selectedSkillCharacterId);
+        var skill = character?.Skills.FirstOrDefault(item => item.SlotIndex == _selectedSkillSlotIndex && item.SkillCode is not null);
+        return character is null || skill is null ? null : new SkillDialogContext(character, skill);
+    }
+
+    private async Task HandleSkillClickAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
+    {
+        if (_isBusy) return;
+        if (IsSkillQueued(character, skill) || _isQuickSkillCastEnabled && CanQueueSkill(character, skill))
+        {
+            await ToggleSkillAsync(character, skill);
+            return;
+        }
+
+        _selectedSkillCharacterId = character.CharacterId;
+        _selectedSkillSlotIndex = skill.SlotIndex;
+        _skillDialogMessage = null;
+        _isSkillDialogOpen = true;
+        _focusSkillDialogCloseButton = true;
+    }
+
+    private void CloseSkillDialog()
+    {
+        _isSkillDialogOpen = false;
+        _selectedSkillCharacterId = null;
+        _selectedSkillSlotIndex = null;
+        _skillDialogMessage = null;
+    }
+
+    private async Task ConfirmSkillAsync(SkillDialogContext context)
+    {
+        if (await ToggleSkillAsync(context.Character, context.Skill)) CloseSkillDialog();
+    }
+
+    private async Task SetSkillAutoThresholdAsync(SkillDialogContext context, ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var threshold))
+            await SetSkillAutoAsync(context, context.Skill.AutoUseEnabled, threshold);
+    }
+
+    private async Task SetSkillAutoAsync(SkillDialogContext context, bool enabled, int threshold)
+    {
+        if (_isSkillAutoSaving || context.Character.CharacterId is null) return;
+        _isSkillAutoSaving = true;
+        _skillDialogMessage = null;
+        try
+        {
+            var (response, error) = await ApiService.SetSkillAutoAsync(context.Character.CharacterId.Value,
+                context.Skill.SlotIndex, new SetSkillAutoRequest
+                {
+                    AutoUseEnabled = enabled,
+                    AutoHpThresholdPercent = threshold
+                });
+            if (response is null)
+                _skillDialogMessage = GetSkillAutoError(error);
+            else
+                await RefreshRoomDetailAsync();
+        }
+        catch
+        {
+            _skillDialogMessage = "连接失败，自动使用设置未保存。";
+        }
+        finally
+        {
+            _isSkillAutoSaving = false;
+        }
+    }
+
+    private static string GetSkillAutoError(string? error) => error?.Trim().Trim('"') switch
+    {
+        "InvalidHpThreshold" => "生命值阈值需要设置在 1% 到 100% 之间。",
+        "SkillNotEquipped" or "SkillNotLearned" => "技能配置已变化，请刷新页面。",
+        "ConcurrencyConflict" => "技能设置刚刚发生变化，请重试。",
+        _ => "自动使用设置保存失败，请稍后重试。"
+    };
+
     private static bool IsSkillQueued(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
         (character.PendingSkillSlotMask & SkillRules.SlotMask(skill.SlotIndex)) != 0;
 
@@ -536,6 +722,67 @@ else
         };
         return "可手动施放";
     }
+
+    private static string GetSkillTone(RoomSkillSlotResponse skill)
+    {
+        if (skill.Effects.Any(effect => effect.Type is "Heal" or "Cleanse")) return "support";
+        if (skill.Effects.Any(effect => effect.Type == "Guard")) return "guard";
+        if (skill.Effects.Any(effect => effect.Type is "Interrupt" or "Dispel")) return "utility";
+        return "damage";
+    }
+
+    private static string GetSkillGlyph(RoomSkillSlotResponse skill)
+    {
+        if (skill.Effects.Any(effect => effect.Type == "Heal")) return "✚";
+        if (skill.Effects.Any(effect => effect.Type == "Guard")) return "◆";
+        if (skill.Effects.Any(effect => effect.Type == "Cleanse")) return "✦";
+        if (skill.Effects.Any(effect => effect.Type == "Dispel")) return "◉";
+        if (skill.Effects.Any(effect => effect.Type == "Interrupt")) return "ϟ";
+        return "⚔";
+    }
+
+    private static string GetSkillAutoConditionText(RoomSkillSlotResponse skill) => skill.AutoCondition switch
+    {
+        "LowestHpBelowThreshold" => $"有队友生命值不高于 {skill.AutoHpThresholdPercent}% 时自动使用",
+        "AllyHasDebuff" => "队友存在可净化的负面状态时自动使用",
+        "MonsterHasBuff" => "敌人存在可驱散的增益时自动使用",
+        "InterruptibleIntent" => "敌人准备施放可打断技能时自动使用",
+        _ => "技能就绪且存在有效目标时自动使用"
+    };
+
+    private static string GetSkillEffectText(SkillEffectResponse effect)
+    {
+        var target = effect.Target switch
+        {
+            "Self" => "自身",
+            "LowestHpAlly" => "生命值最低的队友",
+            "AllAllies" => "全体队友",
+            "FrontAlly" => "前排队友",
+            "Monster" => "敌人",
+            _ => "目标"
+        };
+        return effect.Type switch
+        {
+            "Damage" => $"对{target}造成 {effect.Power}% 威力伤害",
+            "Heal" => $"为{target}恢复 {effect.Power}% 治疗量",
+            "Guard" => $"使{target}在本回合获得 {effect.Power}% 伤害减免",
+            "Cleanse" => $"净化{target}的负面状态",
+            "Dispel" => $"驱散{target}的增益状态",
+            "Interrupt" => "打断敌人当前可打断技能",
+            "ApplyStatus" => $"对{target}施加{GetStatusName(effect.StatusCode)}，持续 {effect.DurationRounds} 回合",
+            _ => $"对{target}产生技能效果"
+        };
+    }
+
+    private static string GetStatusName(string? code) => code switch
+    {
+        "armor-break" => "破甲",
+        "attack-down" => "攻击降低",
+        "attack-up" => "攻击提升",
+        "defense-up" => "防御提升",
+        "regen" => "持续恢复",
+        _ => "状态效果"
+    };
 
     private bool HasApplicableSkillEffect(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
@@ -571,11 +818,12 @@ else
         _ => "普通"
     };
 
-    private async Task ToggleSkillAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
+    private async Task<bool> ToggleSkillAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
-        if (_isBusy || character.CharacterId is null || !CanQueueSkill(character, skill)) return;
+        if (_isBusy || character.CharacterId is null || !CanQueueSkill(character, skill)) return false;
         _isBusy = true;
         _skillMessage = null;
+        var succeeded = false;
         try
         {
             var (detail, error) = await ApiService.QueueSkillAsync(RoomId, character.CharacterId.Value,
@@ -590,10 +838,12 @@ else
                 _roomDetail = detail;
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
+                succeeded = true;
             }
         }
         catch { _skillMessage = "连接失败，请稍后重试。"; }
         finally { _isBusy = false; }
+        return succeeded;
     }
 
     private static string GetSkillError(string? error) => error?.Trim().Trim('"') switch

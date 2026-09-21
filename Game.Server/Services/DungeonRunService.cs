@@ -19,7 +19,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             ? $"monster:{defeatedMonster.WaveNumber}:{defeatedMonster.Position}"
             : "monster:1";
         await rewardService.RecordAsync(room, dungeon.Code, participants, eventKey, false);
-        logs.Add($"{defeatedMonster.Name} is defeated.");
+        logs.Add($"{defeatedMonster.Name} 已被击败。");
         if (monsterCombatService is not null)
             await monsterCombatService.RemoveMonsterStateAsync(room.Id, defeatedMonster.Id);
 
@@ -40,8 +40,8 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             room.PreparationStartedAtUtc = null;
             room.BattleEndedAtUtc = null;
             logs.Add(changedWave
-                ? $"Wave {defeatedMonster.WaveNumber} cleared. Wave {nextMonster.WaveNumber} begins shortly."
-                : $"The next enemy in wave {nextMonster.WaveNumber} approaches.");
+                ? $"第 {defeatedMonster.WaveNumber} 波已清空，第 {nextMonster.WaveNumber} 波即将开始。"
+                : $"第 {nextMonster.WaveNumber} 波的下一名敌人正在接近。");
             return (nextMonster, false, null);
         }
 
@@ -50,7 +50,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             participants.Select(participant => participant.UserId), now);
         await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true);
         await rewardService.SettleAsync(room, true, now, logs);
-        logs.Add("Dungeon cleared.");
+        logs.Add("副本挑战成功。");
         return (defeatedMonster, true, null);
     }
 

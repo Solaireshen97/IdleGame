@@ -8,6 +8,19 @@ public static class WeaponRules
     public const int MainSlotIndex = 1;
     public const int MaxSkillsPerWeapon = 3;
     public const int MaxSkillLevel = 20;
+    public const int MaxEnhancementPerSkill = 3;
+
+    public static int FragmentTier(int itemLevel)
+    {
+        if (itemLevel < 1) throw new ArgumentOutOfRangeException(nameof(itemLevel));
+        return itemLevel / 10 + 1;
+    }
+
+    public static string FragmentCode(int tier) => tier > 0
+        ? $"weapon-fragment-t{tier}"
+        : throw new ArgumentOutOfRangeException(nameof(tier));
+
+    public static string FragmentName(int tier) => $"T{tier} 武器碎片";
 
     public static string ElementName(ElementType element) => element switch
     {

@@ -166,6 +166,42 @@ public class SkillTalentTreeTests
     }
 
     [Fact]
+    public async Task AutoPolicyCanChangeDuringBattleWithoutUnlockingLoadout()
+    {
+        await using var test = await TreeTestContext.CreateAsync(points: 2);
+        var (equipped, equipError) = await test.Service.SetSlotAsync(test.Token, 1, 1,
+            new SetSkillSlotRequest
+            {
+                SkillCode = "knight-strike",
+                AutoUseEnabled = false,
+                AutoHpThresholdPercent = 65
+            });
+        Assert.Null(equipError);
+        Assert.NotNull(equipped);
+
+        test.Db.Rooms.Add(new Room { Id = 1, OwnerUserId = 1, Status = RoomStatus.Preparing });
+        test.Db.RoomSlots.Add(new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1 });
+        await test.Db.SaveChangesAsync();
+
+        var (locked, lockedError) = await test.Service.SetSlotAsync(test.Token, 1, 1,
+            new SetSkillSlotRequest { SkillCode = "knight-guard", AutoUseEnabled = true });
+        var (updated, updateError) = await test.Service.SetAutoAsync(test.Token, 1, 1,
+            new SetSkillAutoRequest { AutoUseEnabled = true, AutoHpThresholdPercent = 42 });
+
+        Assert.Null(locked);
+        Assert.Equal("LoadoutLocked", lockedError);
+        Assert.Null(updateError);
+        var slot = Assert.Single(updated!.Slots, item => item.SlotIndex == 1);
+        Assert.Equal("knight-strike", slot.SkillCode);
+        Assert.True(slot.AutoUseEnabled);
+        Assert.Equal(42, slot.AutoHpThresholdPercent);
+        var stored = await test.Db.CharacterSkillSlots.SingleAsync(item => item.CharacterId == 1 && item.SlotIndex == 1);
+        Assert.Equal("knight-strike", stored.SkillCode);
+        Assert.True(stored.AutoUseEnabled);
+        Assert.Equal(42, stored.AutoHpThresholdPercent);
+    }
+
+    [Fact]
     public async Task IncompleteTreeRowsDoNotGrantSkills()
     {
         await using var test = await TreeTestContext.CreateAsync(points: 2);

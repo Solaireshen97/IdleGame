@@ -7,6 +7,7 @@ public sealed class CharacterWeaponsResponse
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
     public string ProfessionName { get; set; } = string.Empty;
+    public int Gold { get; set; }
     public int Hp { get; set; }
     public int TotalAttack { get; set; }
     public int TotalMaxHp { get; set; }
@@ -18,6 +19,7 @@ public sealed class CharacterWeaponsResponse
     public decimal HealthBonusPercent { get; set; }
     public decimal CriticalChancePercent { get; set; }
     public List<ActiveWeaponSkillResponse> ActiveSkills { get; set; } = [];
+    public List<WeaponFragmentResponse> Fragments { get; set; } = [];
     public List<CharacterWeaponResponse> Weapons { get; set; } = [];
 }
 
@@ -29,17 +31,37 @@ public sealed class CharacterWeaponResponse
     public ElementType Element { get; set; }
     public int Attack { get; set; }
     public int MaxHp { get; set; }
+    public int ItemLevel { get; set; }
+    public int FragmentTier { get; set; }
+    public int SellGold { get; set; }
+    public int DismantleFragments { get; set; }
+    public int DismantleReturnQuantity { get; set; }
+    public bool IsLocked { get; set; }
     public int? EquippedSlotIndex { get; set; }
     public List<WeaponSkillResponse> Skills { get; set; } = [];
 }
 
 public sealed class WeaponSkillResponse
 {
+    public int SlotIndex { get; set; }
     public string SkillCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Level { get; set; }
+    public int BaseLevel { get; set; }
+    public int QualityBonusLevel { get; set; }
+    public int EnhancementLevel { get; set; }
+    public int MaximumEnhancementLevel { get; set; }
+    public int? NextEnhancementCost { get; set; }
     public decimal TotalPercent { get; set; }
     public bool IsActive { get; set; }
+}
+
+public sealed class WeaponFragmentResponse
+{
+    public int Tier { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public int Quantity { get; set; }
 }
 
 public sealed class ActiveWeaponSkillResponse

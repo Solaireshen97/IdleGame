@@ -68,6 +68,12 @@ public class SetSkillSlotRequest
     public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
 }
 
+public class SetSkillAutoRequest
+{
+    public bool AutoUseEnabled { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
+}
+
 public class SwapSkillSlotsRequest
 {
     public int FromSlotIndex { get; set; }

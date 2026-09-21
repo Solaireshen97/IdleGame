@@ -73,14 +73,16 @@ public sealed class RewardCatalog
 }
 
 public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType Element, int Attack, int MaxHp,
-    List<WeaponRewardSkillSnapshot> Skills)
+    int ItemLevel, int SellGold, int DismantleFragments, List<WeaponRewardSkillSnapshot> Skills)
 {
     public CharacterWeapon ToCharacterWeapon(int characterId) => new()
     {
         CharacterId = characterId, WeaponCode = Code, Name = Name, Element = Element,
-        Attack = Attack, MaxHp = MaxHp, Skills = Skills.Select((skill, index) => new CharacterWeaponSkill
+        Attack = Attack, MaxHp = MaxHp, ItemLevel = Math.Max(1, ItemLevel), SellGold = Math.Max(0, SellGold),
+        DismantleFragments = Math.Max(1, DismantleFragments),
+        Skills = Skills.Select((skill, index) => new CharacterWeaponSkill
         {
-            SlotIndex = index + 1, SkillCode = skill.Code, Level = skill.Level
+            SlotIndex = index + 1, SkillCode = skill.Code, Level = skill.Level, BaseLevel = skill.Level
         }).ToList()
     };
 }

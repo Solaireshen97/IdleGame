@@ -19,9 +19,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
-        if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["Battle is over. Please reset the room."]), "BattleOver");
-        if (room.Status == RoomStatus.WaveTransition) return (BuildResult(room, slots!, monster!, now, ["The next enemy is approaching."]), "WaveTransition");
-        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc > now) return (BuildResult(room, slots!, monster!, now, ["Round is on cooldown."]), "RoundCooldown");
+        if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["战斗已经结束，请重置房间。"]), "BattleOver");
+        if (room.Status == RoomStatus.WaveTransition) return (BuildResult(room, slots!, monster!, now, ["下一名敌人正在接近。"]), "WaveTransition");
+        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc > now) return (BuildResult(room, slots!, monster!, now, ["当前回合仍在冷却中。"]), "RoundCooldown");
 
         var aliveSlots = slots!.Where(x => x.Character.Hp > 0).ToList();
         if (monster!.Hp <= 0 || aliveSlots.Count == 0)
@@ -30,7 +30,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             SetBattleOver(room, now);
             var logs = new List<string>();
             if (aliveSlots.Count == 0) await rewardService.SettleAsync(room, false, now, logs);
-            logs.Add(monster.Hp <= 0 ? "Monster is already defeated. Please reset the room." : "All characters are defeated and cannot battle.");
+            logs.Add(monster.Hp <= 0 ? "怪物已经被击败，请重置房间。" : "全队已经战败，无法继续战斗。");
             return await SaveResultAsync(room, slots, monster, now, logs);
         }
 
@@ -45,7 +45,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         else if (aliveSlots.Where(x => x.Slot.UserId == user.Id).All(x => x.Slot.IsConfirmed))
         {
-            return (BuildResult(room, slots, monster, now, ["Your characters are already prepared."]), "AlreadyPrepared");
+            return (BuildResult(room, slots, monster, now, ["你的角色已经准备完毕。"]), "AlreadyPrepared");
         }
 
         var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
@@ -129,9 +129,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 {
                     entry.Slot.IsTemporaryAuto = true;
                     entry.Slot.IsConfirmed = true;
-                    logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} timed out and was temporarily set to Auto.");
+                    logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 准备超时，本回合临时切换为自动战斗。");
                 }
-                logs.Add("Preparation timed out. The round starts automatically.");
+                logs.Add("准备阶段已超时，本回合自动开始。");
                 return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
             }
         }
@@ -143,8 +143,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         {
             return stateChanged
                 ? await SaveResultAsync(room, slots, monster, now, restartedBattle
-                    ? ["The next dungeon battle is ready. The party is at full HP."]
-                    : transitionCompleted ? [$"Wave {room.CurrentWaveNumber} is ready."] : [])
+                    ? ["下一场副本战斗已经就绪，全队生命值已恢复。"]
+                    : transitionCompleted ? [$"第 {room.CurrentWaveNumber} 波战斗已经就绪。"] : [])
                 : (BuildResult(room, slots, monster, now, []), null);
         }
 
@@ -157,14 +157,14 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             room.PreparationStartedAtUtc = now;
             foreach (var entry in aliveSlots) entry.Slot.IsConfirmed = true;
             var logs = restartedBattle
-                ? new List<string> { "The next dungeon battle begins with the party at full HP.", "All members are on Auto. The round starts automatically." }
+                ? new List<string> { "下一场副本战斗开始，全队生命值已恢复。", "全队均已开启自动战斗，本回合自动开始。" }
                 : transitionCompleted
-                    ? new List<string> { $"Wave {room.CurrentWaveNumber} begins.", "All members are on Auto. The round starts automatically." }
-                    : new List<string> { "All members are on Auto. The round starts automatically." };
+                    ? new List<string> { $"第 {room.CurrentWaveNumber} 波战斗开始。", "全队均已开启自动战斗，本回合自动开始。" }
+                    : new List<string> { "全队均已开启自动战斗，本回合自动开始。" };
             return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
         }
         return restartedBattle
-            ? await SaveResultAsync(room, slots, monster, now, ["The next dungeon battle is ready. The party is at full HP."])
+            ? await SaveResultAsync(room, slots, monster, now, ["下一场副本战斗已经就绪，全队生命值已恢复。"])
             : (BuildResult(room, slots, monster, now, []), null);
     }
 
@@ -278,7 +278,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
-        if (room!.Status != RoomStatus.Preparing || slots!.Where(x => x.Character.Hp > 0).Any(x => !x.Slot.IsConfirmed)) return (BuildResult(room, slots, monster!, now, ["Preparation is required before executing a round."]), "PreparationRequired");
+        if (room!.Status != RoomStatus.Preparing || slots!.Where(x => x.Character.Hp > 0).Any(x => !x.Slot.IsConfirmed)) return (BuildResult(room, slots, monster!, now, ["所有存活角色准备完毕后才能执行本回合。"]), "PreparationRequired");
         return await ExecutePreparedRoundAsync(room, slots, monster!, now, []);
     }
 
@@ -332,7 +332,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
                     ReductionPercent: monsterReduction));
             monster.Hp = Math.Max(0, monster.Hp - damage);
-            logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
+            logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 普通攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
             if (monster.Hp <= 0) break;
         }
         var roundDefense = monster.Hp > 0
@@ -354,7 +354,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             {
                 SetBattleOver(room, now);
                 await rewardService.SettleAsync(room, false, now, logs);
-                logs.Add("All characters are defeated.");
+                logs.Add("全队已战败。");
             }
             else
             {
@@ -372,7 +372,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
                             ReductionPercent: roundDefense.ReductionPercent));
                     target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
-                    logs.Add($"{monster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
+                    logs.Add($"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
                 }
 
                 if (monster.Hp <= 0)
@@ -387,7 +387,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 {
                     SetBattleOver(room, now);
                     await rewardService.SettleAsync(room, false, now, logs);
-                    logs.Add("All characters are defeated.");
+                    logs.Add("全队已战败。");
                 }
                 else
                 {
@@ -460,7 +460,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                                 ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
                                 ReductionPercent: monsterReduction));
                         monster.Hp = Math.Max(0, monster.Hp - damage);
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage{(critical ? " (critical)" : "")}.");
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                         applied = true;
                         break;
                     }
@@ -470,7 +470,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character)) break;
                         var healed = Math.Min(effect.Power, TalentRules.EffectiveMaxHp(target.Character) - target.Character.Hp);
                         target.Character.Hp += healed;
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on Slot {target.Slot.SlotIndex} {target.Character.Name} and restores {healed} HP.");
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
                         applied = true;
                         break;
                     }
@@ -480,7 +480,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         if (front is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
                         guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + effect.Power);
                         guardTargetCharacterId = front.Character.Id;
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} to protect Slot {front.Slot.SlotIndex} {front.Character.Name}.");
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {front.Slot.SlotIndex}号位 {front.Character.Name}。");
                         applied = true;
                         break;
                     }
@@ -493,7 +493,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", targetIds, false);
                         if (removed is null) break;
                         var target = aliveSlots.Single(entry => entry.Character.Id == removed.TargetId);
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and removes {removed.Name} from Slot {target.Slot.SlotIndex} {target.Character.Name}.");
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {removed.Name}。");
                         applied = true;
                         break;
                     }
@@ -501,14 +501,14 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     {
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Monster", [monster.Id], true);
                         if (removed is null) break;
-                        logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and removes {removed.Name} from {monster.Name}.");
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，驱散了 {monster.Name} 的 {removed.Name}。");
                         applied = true;
                         break;
                     }
                     case "Interrupt" when monsterCombatService is not null:
                         if (await monsterCombatService.InterruptCurrentIntentAsync(room, monster))
                         {
-                            logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} and interrupts {monster.Name}.");
+                            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，打断了 {monster.Name} 的行动。");
                             applied = true;
                         }
                         break;
@@ -522,7 +522,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                             _ => aliveSlots.First(entry => entry.Character.Hp > 0).Character.Id
                         };
                         var targetLabel = effect.Target == "Monster" ? monster.Name :
-                            $"Slot {aliveSlots.Single(entry => entry.Character.Id == targetId).Slot.SlotIndex} {aliveSlots.Single(entry => entry.Character.Id == targetId).Character.Name}";
+                            $"{aliveSlots.Single(entry => entry.Character.Id == targetId).Slot.SlotIndex}号位 {aliveSlots.Single(entry => entry.Character.Id == targetId).Character.Name}";
                         applied |= await monsterCombatService.ApplyStatusAsync(room, targetType, targetId, effect.StatusCode,
                             effect.DurationRounds, logs, targetLabel);
                         break;
@@ -695,7 +695,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     dbContext.BattleConsumableCooldowns.Add(cooldown);
                 }
                 cooldown.ReadyAtRound = checked(room.RoundNumber + item.CooldownRounds + 1);
-                logs.Add($"Slot {participant.Slot.SlotIndex} {character.Name} uses {item.Name} and restores {healed} HP.");
+                logs.Add($"{participant.Slot.SlotIndex}号位 {character.Name} 使用 {item.Name}，恢复 {healed} 点生命值。");
                 return true;
             }
 

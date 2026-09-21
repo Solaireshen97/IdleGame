@@ -8,6 +8,8 @@ public sealed class WeaponOptions
     public List<WeaponTemplateOptions> Items { get; set; } = [];
     public List<WeaponSkillDefinitionOptions> Skills { get; set; } = [];
     public Dictionary<string, List<string>> StarterPacks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<int> EnhancementFragmentCosts { get; set; } = [];
+    public List<WeaponSkillGrowthSegmentOptions> SkillGrowth { get; set; } = [];
 }
 
 public sealed class WeaponTemplateOptions
@@ -17,7 +19,16 @@ public sealed class WeaponTemplateOptions
     public ElementType Element { get; set; }
     public int Attack { get; set; }
     public int MaxHp { get; set; }
+    public int ItemLevel { get; set; } = 1;
+    public int SellGold { get; set; } = 1;
+    public int DismantleFragments { get; set; } = 1;
     public List<WeaponSkillGrantOptions> Skills { get; set; } = [];
+}
+
+public sealed class WeaponSkillGrowthSegmentOptions
+{
+    public int? MaximumLevel { get; set; }
+    public decimal MultiplierPercent { get; set; }
 }
 
 public sealed class WeaponSkillDefinitionOptions

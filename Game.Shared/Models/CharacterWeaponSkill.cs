@@ -7,4 +7,7 @@ public sealed class CharacterWeaponSkill
     public int SlotIndex { get; set; }
     public string SkillCode { get; set; } = string.Empty;
     public int Level { get; set; }
+    public int BaseLevel { get; set; } = 1;
+    public int QualityBonusLevel { get; set; }
+    public int EnhancementLevel { get; set; }
 }

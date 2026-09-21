@@ -3,6 +3,8 @@
 @using Game.Shared.Dtos.Characters
 @using Game.Shared.Enums
 @inject ApiService ApiService
+@inject AccountBalanceState AccountBalance
+@inject IJSRuntime Js
 
 <section class="weapon-board" aria-label="角色武器盘">
     @if (_isLoading)
@@ -29,6 +31,15 @@
             <div class="weapon-board__stat"><span>武器攻击总和</span><strong>@_data.TotalAttack</strong><small>天赋后 @_data.EffectiveAttack · 技能 +@_data.AttackBonusPercent.ToString("0.##")%</small></div>
             <div class="weapon-board__stat"><span>武器 HP 总和</span><strong>@_data.TotalMaxHp</strong><small>技能 +@_data.HealthBonusPercent.ToString("0.##")% · 当前 @_data.Hp / @_data.EffectiveMaxHp</small></div>
             <button type="button" class="weapon-board__refresh" @onclick="LoadAsync" disabled="@_isSaving">刷新</button>
+        </div>
+
+        <div class="weapon-board__resources" aria-label="武器养成资源">
+            <div><span>账号金币</span><strong>◆ @_data.Gold</strong></div>
+            @foreach (var fragment in _data.Fragments)
+            {
+                <div><span>@fragment.Name</span><strong>@fragment.Quantity</strong></div>
+            }
+            <p>装等 1～9 使用 T1 碎片，10～19 使用 T2 碎片；碎片归当前角色所有。</p>
         </div>
 
         <div class="weapon-board__effects" aria-label="已生效的武器技能">
@@ -89,8 +100,8 @@
         <div class="weapon-board__inventory-head">
             <div>
                 <span class="weapon-board__eyebrow">CHARACTER ARMORY</span>
-                <h2>选择装备到 @(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</h2>
-                <p>每把武器只能占一个栏位。选择已装备的武器会与当前栏位交换。</p>
+                <h2>武器仓库 · 当前选择 @(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</h2>
+                <p>可以在这里编成、锁定、强化、出售或分解武器。</p>
             </div>
             @if (_selectedSlot > 1 && FindEquipped(_selectedSlot) is not null)
             {
@@ -108,23 +119,45 @@
                 <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant()" @key="weapon.Id">
                     <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
                     <div class="weapon-option__body">
-                        <span class="weapon-option__meta">@WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
-                        <h3>@weapon.Name</h3>
+                        <span class="weapon-option__meta">装等 @weapon.ItemLevel · T@weapon.FragmentTier · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
+                        <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
                         {
-                            <div class="weapon-option__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span> }</div>
+                            <div class="weapon-option__skills weapon-option__skills--manage">
+                                @foreach (var skill in weapon.Skills)
+                                {
+                                    var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
+                                    <div class="weapon-option__skill-row">
+                                        <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span>
+                                        <small>基础 Lv@skill.BaseLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
+                                        <button type="button" class="weapon-option__enhance"
+                                                @onclick="() => EnhanceAsync(weapon, skill)"
+                                                disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
+                                            @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{weapon.FragmentTier} ×{nextCost}" : "强化已满")
+                                        </button>
+                                    </div>
+                                }
+                            </div>
                         }
                         @if (wouldEmptyMain) { <small>主武器只能与已有武器交换</small> }
                         else if (!isHere) { <small>装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
                     </div>
-                    <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
+                    <div class="weapon-option__actions">
+                        <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
+                        <button type="button" class="weapon-option__secondary" @onclick="() => ToggleLockAsync(weapon)" disabled="@_isSaving">@(weapon.IsLocked ? "解锁" : "锁定")</button>
+                        @if (weapon.EquippedSlotIndex is null)
+                        {
+                            <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">出售 · @weapon.SellGold 金币</button>
+                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">分解 · T@weapon.FragmentTier ×@weapon.DismantleReturnQuantity</button>
+                        }
+                    </div>
                 </article>
             }
         </div>
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
-        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器，同名技能等级相加。暴击由服务端逐次判定。</p>
+        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器，同名技能等级相加并采用递减收益。强化、出售与分解结果均由服务端结算。</p>
     }
 </section>
 
@@ -191,6 +224,57 @@
         finally { _isSaving = false; }
     }
 
+    private int GetFragmentQuantity(int tier) => _data?.Fragments.FirstOrDefault(item => item.Tier == tier)?.Quantity ?? 0;
+
+    private async Task ToggleLockAsync(CharacterWeaponResponse weapon)
+    {
+        await RunWeaponActionAsync(
+            () => ApiService.SetWeaponLockAsync(CharacterId, weapon.Id, !weapon.IsLocked),
+            weapon.IsLocked ? "武器已解锁。" : "武器已锁定。");
+    }
+
+    private async Task EnhanceAsync(CharacterWeaponResponse weapon, WeaponSkillResponse skill)
+    {
+        await RunWeaponActionAsync(
+            () => ApiService.EnhanceWeaponSkillAsync(CharacterId, weapon.Id, skill.SlotIndex),
+            $"{weapon.Name} 的{skill.Name}提升至 Lv{skill.Level + 1}。", refreshCharacter: true);
+    }
+
+    private async Task SellAsync(CharacterWeaponResponse weapon)
+    {
+        if (!await Js.InvokeAsync<bool>("confirm", $"出售 {weapon.Name}？将获得 {weapon.SellGold} 金币，强化投入不会返还。")) return;
+        await RunWeaponActionAsync(() => ApiService.SellWeaponsAsync(CharacterId, weapon.Id),
+            $"已出售 {weapon.Name}，获得 {weapon.SellGold} 金币。", balanceChanged: true);
+    }
+
+    private async Task DismantleAsync(CharacterWeaponResponse weapon)
+    {
+        if (!await Js.InvokeAsync<bool>("confirm", $"分解 {weapon.Name}？将获得 T{weapon.FragmentTier} 武器碎片 ×{weapon.DismantleReturnQuantity}。")) return;
+        await RunWeaponActionAsync(() => ApiService.DismantleWeaponsAsync(CharacterId, weapon.Id),
+            $"已分解 {weapon.Name}，获得 T{weapon.FragmentTier} 武器碎片 ×{weapon.DismantleReturnQuantity}。");
+    }
+
+    private async Task RunWeaponActionAsync(
+        Func<Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)>> action,
+        string notice, bool refreshCharacter = false, bool balanceChanged = false)
+    {
+        if (_isSaving) return;
+        _isSaving = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var (response, error) = await action();
+            if (response is null) { _error = GetError(error) ?? "武器操作失败，请稍后重试。"; return; }
+            _data = response;
+            _notice = notice;
+            if (refreshCharacter && OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+            if (balanceChanged) AccountBalance.NotifyChanged();
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
+    }
+
     private static string GetSymbol(ElementType element) => element switch
     {
         ElementType.Fire => "⚔", ElementType.Water => "♢", ElementType.Earth => "◆",
@@ -202,6 +286,12 @@
         null or "" => null,
         "LoadoutLocked" => "战斗进行时不能调整武器盘。",
         "WeaponNotOwned" => "这把武器不属于当前角色。",
+        "WeaponEquipped" => "已装备的武器不能出售或分解，请先卸下。",
+        "WeaponLocked" => "锁定的武器不能出售或分解。",
+        "WeaponSkillNotFound" => "没有找到需要强化的武器技能。",
+        "WeaponSkillAtMaximum" => "这项武器技能已经强化至当前上限。",
+        "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",
+        "InvalidWeaponSelection" => "请选择有效的武器。",
         "MainWeaponRequired" => "主武器不能留空，请选择武器替换或与已装备的副武器交换。",
         "ConcurrencyConflict" => "武器盘已发生变化，请刷新后重试。",
         "InvalidSlotIndex" => "武器栏位无效。",

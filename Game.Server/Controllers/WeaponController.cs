@@ -23,6 +23,39 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
         return error is null ? Ok(response) : ToError(error);
     }
 
+    [HttpPut("{weaponId:int}/lock")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> SetLock(
+        int characterId, int weaponId, [FromBody] SetWeaponLockRequest request)
+    {
+        var (response, error) = await weaponService.SetLockAsync(GetToken(), characterId, weaponId, request);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
+    [HttpPost("sell")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> Sell(
+        int characterId, [FromBody] WeaponBatchRequest request)
+    {
+        var (response, error) = await weaponService.SellAsync(GetToken(), characterId, request);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
+    [HttpPost("dismantle")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> Dismantle(
+        int characterId, [FromBody] WeaponBatchRequest request)
+    {
+        var (response, error) = await weaponService.DismantleAsync(GetToken(), characterId, request);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
+    [HttpPost("{weaponId:int}/skills/{skillSlotIndex:int}/enhance")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> EnhanceSkill(
+        int characterId, int weaponId, int skillSlotIndex)
+    {
+        var (response, error) = await weaponService.EnhanceSkillAsync(
+            GetToken(), characterId, weaponId, skillSlotIndex);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
     private string? GetToken()
     {
         const string prefix = "Bearer ";
@@ -36,7 +69,7 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
         "Unauthorized" => Unauthorized(error),
         "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(StatusCodes.Status403Forbidden, error),
-        "LoadoutLocked" or "ConcurrencyConflict" => Conflict(error),
+        "LoadoutLocked" or "ConcurrencyConflict" or "WeaponEquipped" or "WeaponLocked" => Conflict(error),
         _ => BadRequest(error)
     };
 }

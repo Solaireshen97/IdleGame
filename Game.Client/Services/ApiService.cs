@@ -348,6 +348,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         int characterId, int slotIndex, SetSkillSlotRequest configuration) =>
         SendSkillRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/skills/{slotIndex}", configuration);
 
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SetSkillAutoAsync(
+        int characterId, int slotIndex, SetSkillAutoRequest configuration) =>
+        SendSkillRequestAsync(HttpMethod.Patch, $"api/user/characters/{characterId}/skills/{slotIndex}/auto", configuration);
+
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SwapSkillSlotsAsync(
         int characterId, int fromSlotIndex, int toSlotIndex) =>
         SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/swap",
@@ -402,8 +406,28 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         SendWeaponRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/weapons/slots/{slotIndex}",
             new SetWeaponSlotRequest { WeaponId = weaponId });
 
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SetWeaponLockAsync(
+        int characterId, int weaponId, bool isLocked) =>
+        SendWeaponRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/weapons/{weaponId}/lock",
+            new SetWeaponLockRequest { IsLocked = isLocked });
+
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SellWeaponsAsync(
+        int characterId, params int[] weaponIds) =>
+        SendWeaponRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/weapons/sell",
+            new WeaponBatchRequest { WeaponIds = weaponIds.ToList() });
+
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> DismantleWeaponsAsync(
+        int characterId, params int[] weaponIds) =>
+        SendWeaponRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/weapons/dismantle",
+            new WeaponBatchRequest { WeaponIds = weaponIds.ToList() });
+
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> EnhanceWeaponSkillAsync(
+        int characterId, int weaponId, int skillSlotIndex) =>
+        SendWeaponRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/weapons/{weaponId}/skills/{skillSlotIndex}/enhance");
+
     private async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SendWeaponRequestAsync(
-        HttpMethod method, string url, SetWeaponSlotRequest? configuration = null)
+        HttpMethod method, string url, object? configuration = null)
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
