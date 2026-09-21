@@ -1,0 +1,47 @@
+@page "/weapons"
+@using Game.Client.Services
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>武器编成</PageTitle>
+
+<div class="weapons-page">
+    <header class="weapons-page__intro">
+        <a href="/rooms">← 返回大厅</a>
+        <div>
+            <span>WEAPON GRID</span>
+            <h1>武器编成</h1>
+            <p>以一把主武器定下属性，用九把副武器构成你的武器盘。</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="weapons-page__notice">正在读取当前角色...</p>
+    }
+    else if (ActiveCharacters.Current is { } character)
+    {
+        <CharacterWeaponBoard @key="character.CharacterId" CharacterId="@character.CharacterId"
+                              OnChanged="ActiveCharacters.RefreshAsync" />
+    }
+    else
+    {
+        <p class="weapons-page__notice" role="alert">暂时无法读取当前角色。</p>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        await ActiveCharacters.RefreshAsync();
+        _isLoading = false;
+        if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+}

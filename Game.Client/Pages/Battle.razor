@@ -60,6 +60,10 @@ else
                             </div>
                             <strong>@(slot.IsOccupied ? slot.CharacterName : "空位")</strong>
                             @if (slot.IsOccupied) { <small class="fighter__level">Lv @slot.CharacterLevel</small> }
+                            @if (slot.CharacterElement is { } characterElement)
+                            {
+                                <small class="battle-element" title="攻击 @FormatElementModifier(slot.OutgoingElementModifierPercent) · 受击 @FormatElementModifier(slot.IncomingElementModifierPercent)">@WeaponRules.ElementName(characterElement)属性 · @GetElementRelation(slot)</small>
+                            }
                             @if (slot.IsOccupied)
                             {
                                 <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
@@ -79,7 +83,7 @@ else
             <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "")">
                 <div class="battle-field__enemy-art"><img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" /></div>
                 <div class="enemy-vitals">
-                    <span>ENEMY / @_roomDetail.MonsterName.ToUpperInvariant()</span>
+                    <span>ENEMY / @_roomDetail.MonsterName.ToUpperInvariant() · @WeaponRules.ElementName(_roomDetail.MonsterElement)属性</span>
                     <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
                     <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
                 </div>
@@ -607,6 +611,15 @@ else
         Math.Round(100 * (1 - (countdown.DeadlineUtc - GetEstimatedServerTimeUtc()).TotalSeconds / Math.Max(1, countdown.DurationSeconds))), 0, 100);
     private static string FormatCountdown(int remainingSeconds) => $"{remainingSeconds / 60:00}:{remainingSeconds % 60:00}";
     private string GetLatestLog() => _logs.Count == 0 ? "战斗尚未开始，行动记录会在这里出现。" : _logs[^1].Text;
+    private static string GetElementRelation(RoomSlotResponse slot) => slot.OutgoingElementModifierPercent switch
+    {
+        > 0 => "克制",
+        < 0 => "被克制",
+        _ => "均势"
+    };
+
+    private static string FormatElementModifier(int percent) => percent > 0 ? $"+{percent}%" : $"{percent}%";
+
     private string GetMonsterArtPath() => _roomDetail?.MonsterName.ToLowerInvariant() switch
     {
         "slime" => "/art/slime.svg",

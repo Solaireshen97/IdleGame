@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog)
+public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog, WeaponCatalog? weaponCatalog = null)
 {
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
@@ -52,6 +52,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
         await dbContext.SaveChangesAsync();
         AddStartingSkills(character);
+        AddStartingWeapons(character);
         user.ActiveCharacterId = character.Id;
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -229,6 +230,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.Characters.Add(character);
         await dbContext.SaveChangesAsync();
         AddStartingSkills(character);
+        AddStartingWeapons(character);
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -282,6 +284,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterWeapons.RemoveRange(await dbContext.CharacterWeapons.Where(weapon => weapon.CharacterId == characterId).ToListAsync());
         dbContext.Characters.Remove(character);
         await dbContext.SaveChangesAsync();
         return (true, null);
@@ -363,9 +366,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             UserId = userId,
             Name = name,
             ProfessionCode = professionCode,
-            Hp = 100,
-            MaxHp = 100,
-            Attack = 20,
+            Hp = 0,
+            MaxHp = 0,
+            Attack = 0,
             Defense = 5
         };
     }
@@ -381,6 +384,18 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
                 SkillCode = profession.StartingSkills[index],
                 AutoHpThresholdPercent = SkillRules.DefaultAutoHpThresholdPercent
             });
+    }
+
+    private void AddStartingWeapons(Character character)
+    {
+        var catalog = weaponCatalog ?? throw new InvalidOperationException("A weapon catalog is required to create characters.");
+        var weapons = catalog.CreateStarterWeapons(character.Id, character.ProfessionCode);
+        dbContext.CharacterWeapons.AddRange(weapons);
+        var main = weapons.Single(weapon => weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex);
+        character.Attack = main.Attack;
+        character.MaxHp = main.MaxHp;
+        character.Hp = main.MaxHp;
+        character.Version++;
     }
 
     private async Task<Character?> ResolveActiveCharacterAsync(User user, List<Character>? characters = null)

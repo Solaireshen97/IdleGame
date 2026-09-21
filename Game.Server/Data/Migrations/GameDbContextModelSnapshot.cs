@@ -85,6 +85,26 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterItemStacks", t => t.HasCheckConstraint("CK_CharacterItemStacks_Quantity", "Quantity >= 0"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterWeapon", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("WeaponCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Element").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Attack").HasColumnType("INTEGER");
+                    b.Property<int>("MaxHp").HasColumnType("INTEGER");
+                    b.Property<int?>("EquippedSlotIndex").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "EquippedSlotIndex").IsUnique().HasFilter("EquippedSlotIndex IS NOT NULL");
+                    b.ToTable("CharacterWeapons", t =>
+                    {
+                        t.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
+                        t.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
+                    });
+                });
+
             modelBuilder.Entity("Game.Shared.Models.CharacterConsumableSlot", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -154,6 +174,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("Code").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("MonsterName").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("MonsterElement").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("MonsterMaxHp").HasColumnType("INTEGER");
                     b.Property<int>("MonsterAttack").HasColumnType("INTEGER");
                     b.Property<int>("MonsterDefense").HasColumnType("INTEGER");
@@ -172,6 +193,10 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("Attack")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Element")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Defense")
                         .HasColumnType("INTEGER");

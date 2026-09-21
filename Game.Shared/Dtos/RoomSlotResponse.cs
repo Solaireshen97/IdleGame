@@ -1,3 +1,5 @@
+using Game.Shared.Enums;
+
 namespace Game.Shared.Dtos;
 
 public class RoomSlotResponse
@@ -9,6 +11,9 @@ public class RoomSlotResponse
     public List<RoomSkillSlotResponse> Skills { get; set; } = [];
     public List<RoomConsumableSlotResponse> Consumables { get; set; } = [];
     public string? CharacterName { get; set; }
+    public ElementType? CharacterElement { get; set; }
+    public int OutgoingElementModifierPercent { get; set; }
+    public int IncomingElementModifierPercent { get; set; }
     public string? ProfessionName { get; set; }
     public int? CharacterHp { get; set; }
     public int? CharacterMaxHp { get; set; }

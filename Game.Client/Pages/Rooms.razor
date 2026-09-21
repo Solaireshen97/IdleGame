@@ -25,7 +25,7 @@ else
             <select id="dungeonSelect" @bind="_selectedDungeonId">
             @foreach (var dungeon in _dungeons)
             {
-                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.MonsterName（HP @dungeon.MonsterMaxHp / 攻击 @dungeon.MonsterAttack / 防御 @dungeon.MonsterDefense）</option>
+                <option value="@dungeon.DungeonId">@dungeon.Name — @dungeon.MonsterName（@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement)属性 / HP @dungeon.MonsterMaxHp / 攻击 @dungeon.MonsterAttack / 防御 @dungeon.MonsterDefense）</option>
             }
             </select>
             <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@_isLoading">开启房间</button>

@@ -1,3 +1,5 @@
+using Game.Shared.Enums;
+
 namespace Game.Shared.Dtos;
 
 public class DungeonSummaryResponse
@@ -6,6 +8,7 @@ public class DungeonSummaryResponse
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string MonsterName { get; set; } = string.Empty;
+    public ElementType MonsterElement { get; set; }
     public int MonsterMaxHp { get; set; }
     public int MonsterAttack { get; set; }
     public int MonsterDefense { get; set; }

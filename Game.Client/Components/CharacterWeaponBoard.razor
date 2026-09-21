@@ -1,0 +1,187 @@
+@using Game.Client.Services
+@using Game.Shared
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Enums
+@inject ApiService ApiService
+
+<section class="weapon-board" aria-label="角色武器盘">
+    @if (_isLoading)
+    {
+        <p class="weapon-board__notice">正在整理武器盘...</p>
+    }
+    else if (_data is null)
+    {
+        <p class="weapon-board__notice" role="alert">@(_error ?? "暂时无法读取武器。")</p>
+        <button type="button" class="weapon-board__refresh" @onclick="LoadAsync">重试</button>
+    }
+    else
+    {
+        <div class="weapon-board__summary">
+            <div class="weapon-board__identity">
+                <span class="weapon-board__eyebrow">CURRENT FORMATION</span>
+                <h2>@_data.CharacterName <small>@_data.ProfessionName</small></h2>
+                <p>已装备 @_data.Weapons.Count(item => item.EquippedSlotIndex.HasValue) / @WeaponRules.SlotCount 把武器</p>
+            </div>
+            <div class="weapon-board__element element-@_data.MainElement?.ToString().ToLowerInvariant()">
+                <span>主属性</span>
+                <strong>@(_data.MainElement is { } mainElement ? WeaponRules.ElementName(mainElement) : "未确定")</strong>
+            </div>
+            <div class="weapon-board__stat"><span>武器攻击总和</span><strong>@_data.TotalAttack</strong><small>天赋后 @_data.EffectiveAttack</small></div>
+            <div class="weapon-board__stat"><span>武器 HP 总和</span><strong>@_data.TotalMaxHp</strong><small>当前 @_data.Hp / @_data.EffectiveMaxHp</small></div>
+            <button type="button" class="weapon-board__refresh" @onclick="LoadAsync" disabled="@_isSaving">刷新</button>
+        </div>
+
+        <div class="weapon-board__grid-head">
+            <div><span class="weapon-board__eyebrow">TEN WEAPON GRID</span><h2>武器盘</h2></div>
+            <p>点击栏位，再从下方背包选择武器。主武器决定角色属性。</p>
+        </div>
+        <div class="weapon-board__grid">
+            @{ var main = FindEquipped(1); }
+            <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
+                    @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1)" disabled="@_isSaving">
+                <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
+                <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
+                <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
+                <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
+                <span class="weapon-card__stats"><span>⚔ @(main?.Attack ?? 0)</span><span>✚ @(main?.MaxHp ?? 0)</span></span>
+            </button>
+            <div class="weapon-board__subgrid" aria-label="九个副武器栏位">
+                @for (var index = 2; index <= WeaponRules.SlotCount; index++)
+                {
+                    var slotIndex = index;
+                    var weapon = FindEquipped(slotIndex);
+                    <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
+                            @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex)" disabled="@_isSaving">
+                        <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
+                        <span class="weapon-card__crest" aria-hidden="true">@(weapon is null ? "+" : GetSymbol(weapon.Element))</span>
+                        <span class="weapon-card__name">@(weapon?.Name ?? "空栏位")</span>
+                        <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
+                        @if (weapon is not null)
+                        {
+                            <span class="weapon-card__stats"><span>⚔ @weapon.Attack</span><span>✚ @weapon.MaxHp</span></span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="weapon-board__inventory-head">
+            <div>
+                <span class="weapon-board__eyebrow">CHARACTER ARMORY</span>
+                <h2>选择装备到 @(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</h2>
+                <p>每把武器只能占一个栏位。选择已装备的武器会与当前栏位交换。</p>
+            </div>
+            @if (_selectedSlot > 1 && FindEquipped(_selectedSlot) is not null)
+            {
+                <button type="button" class="weapon-board__unequip" @onclick="() => EquipAsync(null)" disabled="@_isSaving">卸下此位</button>
+            }
+        </div>
+        <div class="weapon-board__inventory">
+            @foreach (var weapon in _data.Weapons)
+            {
+                var isHere = weapon.EquippedSlotIndex == _selectedSlot;
+                var wouldEmptyMain = weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex &&
+                    _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
+                var previewAttack = weapon.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + weapon.Attack;
+                var previewHp = weapon.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + weapon.MaxHp;
+                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant()" @key="weapon.Id">
+                    <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
+                    <div class="weapon-option__body">
+                        <span class="weapon-option__meta">@WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
+                        <h3>@weapon.Name</h3>
+                        <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
+                        @if (wouldEmptyMain) { <small>主武器只能与已有武器交换</small> }
+                        else if (!isHere) { <small>装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
+                        @if (!isHere && !wouldEmptyMain && _data.Hp > _data.EffectiveMaxHp - _data.TotalMaxHp + previewHp)
+                        {
+                            <small class="weapon-option__warning">当前 HP 将降至新的上限</small>
+                        }
+                    </div>
+                    <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
+                </article>
+            }
+        </div>
+        @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
+        @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
+        <p class="weapon-board__footnote">当前阶段只计算十把武器的基础攻击与 HP。属性克制和武器技能会在后续阶段接入战斗。</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public int CharacterId { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private CharacterWeaponsResponse? _data;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private int _selectedSlot = 1;
+    private string? _error;
+    private string? _notice;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
+            _data = response;
+            _error = GetError(error);
+        }
+        catch
+        {
+            _data = null;
+            _error = "连接失败，请稍后重试。";
+        }
+        finally { _isLoading = false; }
+    }
+
+    private CharacterWeaponResponse? FindEquipped(int slotIndex) =>
+        _data?.Weapons.FirstOrDefault(item => item.EquippedSlotIndex == slotIndex);
+
+    private void SelectSlot(int index)
+    {
+        _selectedSlot = index;
+        _error = null;
+        _notice = null;
+    }
+
+    private async Task EquipAsync(int? weaponId)
+    {
+        if (_isSaving) return;
+        _isSaving = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.SetWeaponSlotAsync(CharacterId, _selectedSlot, weaponId);
+            if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
+            _data = response;
+            _notice = weaponId is null ? "武器已卸下。" : "武器盘已更新。";
+            if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
+    }
+
+    private static string GetSymbol(ElementType element) => element switch
+    {
+        ElementType.Fire => "⚔", ElementType.Water => "♢", ElementType.Earth => "◆",
+        ElementType.Wind => "✥", ElementType.Light => "✦", ElementType.Dark => "☾", _ => "⚔"
+    };
+
+    private static string? GetError(string? error) => error?.Trim().Trim('"') switch
+    {
+        null or "" => null,
+        "LoadoutLocked" => "战斗进行时不能调整武器盘。",
+        "WeaponNotOwned" => "这把武器不属于当前角色。",
+        "MainWeaponRequired" => "主武器不能留空，请选择武器替换或与已装备的副武器交换。",
+        "ConcurrencyConflict" => "武器盘已发生变化，请刷新后重试。",
+        "InvalidSlotIndex" => "武器栏位无效。",
+        "NotOwner" => "只能调整自己的角色。",
+        _ => "武器操作失败，请稍后重试。"
+    };
+}

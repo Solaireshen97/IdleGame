@@ -395,6 +395,11 @@
     white-space: nowrap;
 }
 
+.fighter .battle-element {
+    color: #e9c17c;
+    font-size: .65rem;
+}
+
 .fighter > small {
     color: #a5b7c2;
     font-size: .66rem;

@@ -10,6 +10,7 @@ public class RoomDetailResponse
     public string DungeonName { get; set; } = string.Empty;
     public int SlotCount { get; set; }
     public string MonsterName { get; set; } = string.Empty;
+    public ElementType MonsterElement { get; set; }
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
     public RoomStatus RoomStatus { get; set; }

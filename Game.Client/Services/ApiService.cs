@@ -358,6 +358,29 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId) =>
         SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables");
 
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> GetCharacterWeaponsAsync(int characterId) =>
+        SendWeaponRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/weapons");
+
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SetWeaponSlotAsync(
+        int characterId, int slotIndex, int? weaponId) =>
+        SendWeaponRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/weapons/slots/{slotIndex}",
+            new SetWeaponSlotRequest { WeaponId = weaponId });
+
+    private async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SendWeaponRequestAsync(
+        HttpMethod method, string url, SetWeaponSlotRequest? configuration = null)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        if (configuration is not null) request.Content = JsonContent.Create(configuration);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "武器操作失败。" : error);
+        }
+        return (await response.Content.ReadFromJsonAsync<CharacterWeaponsResponse>(), null);
+    }
+
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SetConsumableSlotAsync(
         int characterId, int slotIndex, SetConsumableSlotRequest configuration) =>
         SendConsumableRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/consumables/{slotIndex}", configuration);

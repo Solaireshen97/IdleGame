@@ -19,6 +19,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
     public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
+    public DbSet<CharacterWeapon> CharacterWeapons => Set<CharacterWeapon>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +61,28 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .IsUnique();
         modelBuilder.Entity<CharacterSkillTalent>()
             .ToTable(table => table.HasCheckConstraint("CK_CharacterSkillTalents_PointsSpent", "PointsSpent > 0"));
+        modelBuilder.Entity<CharacterWeapon>()
+            .Property(weapon => weapon.Element)
+            .HasConversion<string>();
+        modelBuilder.Entity<Dungeon>()
+            .Property(dungeon => dungeon.MonsterElement)
+            .HasConversion<string>();
+        modelBuilder.Entity<Monster>()
+            .Property(monster => monster.Element)
+            .HasConversion<string>();
+        modelBuilder.Entity<CharacterWeapon>()
+            .Property(weapon => weapon.Version)
+            .IsConcurrencyToken();
+        modelBuilder.Entity<CharacterWeapon>()
+            .HasIndex(weapon => new { weapon.CharacterId, weapon.EquippedSlotIndex })
+            .IsUnique()
+            .HasFilter("EquippedSlotIndex IS NOT NULL");
+        modelBuilder.Entity<CharacterWeapon>()
+            .ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
+                table.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
+            });
 
         modelBuilder.Entity<Room>()
             .Property(room => room.Version)

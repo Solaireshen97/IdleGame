@@ -289,14 +289,20 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
     {
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
         if (aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed)) return (null, "PreparationRequired");
+        var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
+        var mainWeaponElements = await dbContext.CharacterWeapons
+            .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
+            .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);
         foreach (var entry in aliveSlots)
         {
-            var damage = Math.Max(1, TalentRules.EffectiveAttack(entry.Character) - monster.Defense);
+            var element = mainWeaponElements.TryGetValue(entry.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
+            var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
+                factors: new DamageFactors(ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
             monster.Hp = Math.Max(0, monster.Hp - damage);
             logs.Add($"Slot {entry.Slot.SlotIndex} {entry.Character.Name} attacks {monster.Name} for {damage} damage.");
             if (monster.Hp <= 0) break;
         }
-        var guardPercent = monster.Hp > 0 ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, logs) : 0;
+        var guardPercent = monster.Hp > 0 ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, logs) : 0;
         if (monster.Hp <= 0)
         {
             var victoryError = await AwardVictoryAsync(room, slots, monster, now, logs);
@@ -309,8 +315,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             if (target is null) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
             else
             {
-                var baseDamage = Math.Max(1, monster.Attack - TalentRules.EffectiveDefense(target.Character));
-                var damage = Math.Max(1, baseDamage * (100 - guardPercent) / 100);
+                var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
+                var damage = DamageCalculator.Calculate(monster.Attack, TalentRules.EffectiveDefense(target.Character),
+                    factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
+                        ReductionPercent: guardPercent));
                 target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                 logs.Add($"{monster.Name} attacks Slot {target.Slot.SlotIndex} {target.Character.Name} for {damage} damage.");
                 if (!slots.Any(x => x.Character.Hp > 0)) { SetBattleOver(room, now); logs.Add("All characters are defeated."); }
@@ -349,7 +357,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
         return null;
     }
 
-    private async Task<int> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster, List<string> logs)
+    private async Task<int> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
+        IReadOnlyDictionary<int, ElementType> mainWeaponElements, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var equipment = await dbContext.CharacterSkillSlots
@@ -384,7 +393,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Pro
             {
                 case "Damage":
                     if (monster.Hp <= 0) return false;
-                    var damage = Math.Max(1, TalentRules.EffectiveAttack(participant.Character) + skill.Power - monster.Defense);
+                    var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
+                    var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
+                        skill.Power, new DamageFactors(ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element)));
                     monster.Hp = Math.Max(0, monster.Hp - damage);
                     logs.Add($"Slot {participant.Slot.SlotIndex} {participant.Character.Name} uses {skill.Name} on {monster.Name} for {damage} damage.");
                     break;

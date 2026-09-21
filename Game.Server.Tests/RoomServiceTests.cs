@@ -33,9 +33,13 @@ public class RoomServiceTests
         Assert.Null(firstError);
         Assert.Equal(3, dungeons.Count);
         Assert.Equal("slime-field", dungeons[0].Code);
+        Assert.Equal(ElementType.Wind, dungeons[0].MonsterElement);
+        Assert.Equal(ElementType.Earth, dungeons[1].MonsterElement);
+        Assert.Equal(ElementType.Water, dungeons[2].MonsterElement);
         Assert.Null(second);
         Assert.Equal("CharacterAlreadyInRoom", secondError);
         Assert.Equal(dungeons[0].Id, first!.DungeonId);
+        Assert.Equal(ElementType.Wind, first.MonsterElement);
     }
 
     [Fact]

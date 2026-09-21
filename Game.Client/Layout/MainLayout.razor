@@ -93,6 +93,7 @@
             var path = Navigation.ToBaseRelativePath(Navigation.Uri);
             if (path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase)) return "战斗房间";
             if (path.StartsWith("talents", StringComparison.OrdinalIgnoreCase)) return "职业天赋";
+            if (path.StartsWith("weapons", StringComparison.OrdinalIgnoreCase)) return "武器编成";
             if (path.StartsWith("supplies", StringComparison.OrdinalIgnoreCase)) return "战斗补给";
             if (path.StartsWith("login", StringComparison.OrdinalIgnoreCase)) return "登录";
             if (path.StartsWith("register", StringComparison.OrdinalIgnoreCase)) return "注册";

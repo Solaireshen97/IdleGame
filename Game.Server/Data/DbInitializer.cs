@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Game.Shared.Models;
+using Game.Shared.Enums;
 
 namespace Game.Server.Data;
 
@@ -23,9 +24,9 @@ public static class DbInitializer
         var existingCodes = await dbContext.Dungeons.Select(dungeon => dungeon.Code).ToListAsync();
         var defaults = new[]
         {
-            new Dungeon { Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = 8, MonsterDefense = 2, SlotCount = 5, SortOrder = 1 },
-            new Dungeon { Code = "goblin-camp", Name = "哥布林营地", MonsterName = "Goblin", MonsterMaxHp = 80, MonsterAttack = 12, MonsterDefense = 4, SlotCount = 5, SortOrder = 2 },
-            new Dungeon { Code = "wolf-forest", Name = "狼群森林", MonsterName = "Wolf", MonsterMaxHp = 65, MonsterAttack = 15, MonsterDefense = 3, SlotCount = 5, SortOrder = 3 }
+            new Dungeon { Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterElement = ElementType.Wind, MonsterMaxHp = 50, MonsterAttack = 8, MonsterDefense = 2, SlotCount = 5, SortOrder = 1 },
+            new Dungeon { Code = "goblin-camp", Name = "哥布林营地", MonsterName = "Goblin", MonsterElement = ElementType.Earth, MonsterMaxHp = 80, MonsterAttack = 12, MonsterDefense = 4, SlotCount = 5, SortOrder = 2 },
+            new Dungeon { Code = "wolf-forest", Name = "狼群森林", MonsterName = "Wolf", MonsterElement = ElementType.Water, MonsterMaxHp = 65, MonsterAttack = 15, MonsterDefense = 3, SlotCount = 5, SortOrder = 3 }
         };
 
         var missing = defaults.Where(dungeon => !existingCodes.Contains(dungeon.Code)).ToList();

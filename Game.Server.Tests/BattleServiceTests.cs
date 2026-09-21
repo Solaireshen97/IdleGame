@@ -10,6 +10,82 @@ namespace Game.Server.Tests;
 
 public class BattleServiceTests
 {
+    [Theory]
+    [InlineData(ElementType.Fire, ElementType.Wind, 32, 95)]
+    [InlineData(ElementType.Fire, ElementType.Water, 39, 92)]
+    [InlineData(ElementType.Light, ElementType.Dark, 32, 95)]
+    [InlineData(ElementType.Dark, ElementType.Light, 32, 95)]
+    [InlineData(ElementType.Fire, ElementType.Fire, 35, 93)]
+    public async Task MainWeaponAndMonsterElementsAffectBothSidesOfRound(
+        ElementType playerElement, ElementType monsterElement, int monsterHp, int characterHp)
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Monster.Element = monsterElement;
+        test.Db.CharacterWeapons.Add(new CharacterWeapon
+        {
+            CharacterId = test.Character.Id, WeaponCode = "test-main", Name = "Test Main",
+            Element = playerElement, Attack = 20, MaxHp = 100, EquippedSlotIndex = WeaponRules.MainSlotIndex
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(monsterHp, round!.MonsterHp);
+        Assert.Equal(characterHp, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task OffhandElementDoesNotChangeDamageAndRoomShowsMainElement()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        test.Monster.Element = ElementType.Wind;
+        test.Db.CharacterWeapons.Add(new CharacterWeapon
+        {
+            CharacterId = test.Character.Id, WeaponCode = "test-offhand", Name = "Test Offhand",
+            Element = ElementType.Fire, Attack = 20, MaxHp = 100, EquippedSlotIndex = 2
+        });
+        await test.Db.SaveChangesAsync();
+
+        var detail = await test.GetRoomDetailAsync();
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Null(detail!.Slots.Single(slot => slot.CharacterId == test.Character.Id).CharacterElement);
+        Assert.Equal(0, detail.Slots.Single(slot => slot.CharacterId == test.Character.Id).OutgoingElementModifierPercent);
+        Assert.Equal(ElementType.Wind, detail.MonsterElement);
+        Assert.Equal(35, round!.MonsterHp);
+        Assert.Equal(93, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task ElementAppliesToDamageSkillAndStacksWithGuardInSeparateZone()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 10);
+        test.Monster.Element = ElementType.Wind;
+        test.Db.CharacterWeapons.Add(new CharacterWeapon
+        {
+            CharacterId = test.Character.Id, WeaponCode = "test-main", Name = "Test Main",
+            Element = ElementType.Fire, Attack = 10, MaxHp = 100, EquippedSlotIndex = 1
+        });
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "knight-strike", autoUse: true);
+        await test.AddSkillAsync(test.Character, 2, "knight-guard", autoUse: true, threshold: 100);
+        var detail = await test.GetRoomDetailAsync();
+        var fighter = Assert.Single(detail!.Slots, slot => slot.CharacterId == test.Character.Id);
+
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(ElementType.Fire, fighter.CharacterElement);
+        Assert.Equal(25, fighter.OutgoingElementModifierPercent);
+        Assert.Equal(-25, fighter.IncomingElementModifierPercent);
+        Assert.Equal(28, round!.MonsterHp); // floor((10-5)*1.25) + floor((10+8-5)*1.25) = 6 + 16
+        Assert.Equal(98, test.Character.Hp); // floor((12-5)*0.75*0.5) = 2
+        Assert.Contains(round.Logs, log => log.Contains("uses 盾击") && log.Contains("16 damage"));
+        Assert.Contains(round.Logs, log => log.Contains("uses 守护"));
+    }
+
     [Fact]
     public async Task TalentsAffectBothAttackAndDefenseDuringBattle()
     {
