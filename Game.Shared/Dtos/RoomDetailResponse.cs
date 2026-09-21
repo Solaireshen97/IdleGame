@@ -40,4 +40,12 @@ public class RoomDetailResponse
     public List<BattleStatusEffectResponse> MonsterEffects { get; set; } = [];
     public List<RoomSlotResponse> Slots { get; set; } = new();
     public RoomRewardSummaryResponse? Rewards { get; set; }
+    public List<BattleLogResponse> BattleLogs { get; set; } = [];
+}
+
+public class BattleLogResponse
+{
+    public long Id { get; set; }
+    public string Text { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
 }

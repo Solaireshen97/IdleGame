@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null)
 {
     private const int SlotCount = 5;
 
@@ -220,6 +220,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (monsters.Count > 0) dbContext.Monsters.RemoveRange(monsters);
         else if (monster is not null) dbContext.Monsters.Remove(monster);
         await dbContext.SaveChangesAsync();
+        battleLogStore?.Clear(roomId);
         return (true, null);
     }
 
@@ -316,6 +317,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 slots.Any(x => x.UserId == currentUserId),
             MonsterIntent = monsterIntent,
             MonsterEffects = monsterEffects,
+            BattleLogs = battleLogStore?.Get(room.Id) ?? [],
             Rewards = rewardRun is null || rewardRun.Sequence < room.RunSequence && rewardEntries.Count == 0
                 ? null : new RoomRewardSummaryResponse
             {

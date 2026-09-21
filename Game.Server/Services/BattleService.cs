@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -88,6 +88,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
             room.BattleEndedAtUtc = null;
             if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
+            battleLogStore?.Clear(room.Id);
             restartedBattle = true;
         }
 
@@ -181,6 +182,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             .All(slot => IsSlotAuto(room!, slot, clearedUserIds));
         entry.Slot.IsAutoEnabled = request.IsAutoEnabled;
         var now = DateTime.UtcNow;
+        if (request.IsAutoEnabled && room!.Status == RoomStatus.NotStarted)
+        {
+            var enabledClearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
+            if (slots.Where(slot => slot.Character.Hp > 0).All(slot => IsSlotAuto(room, slot, enabledClearedUserIds)))
+                return await SyncCoreAsync(room, slots, monster!);
+        }
         if (!request.IsAutoEnabled && room!.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime deadline &&
             (room.RoundCooldownDurationSeconds == BattleRules.AutoRoundCooldownSeconds ||
                 room.RoundCooldownDurationSeconds is null && wasAllAliveMembersAuto))
@@ -305,7 +312,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         room.BattleEndedAtUtc = null;
         if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
         room.Version++;
-        return await SaveAsync();
+        var save = await SaveAsync();
+        if (save.Success) battleLogStore?.Clear(room.Id);
+        return save;
     }
 
     private async Task<(BattleResult? Result, string? Error)> ExecutePreparedRoundAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)
@@ -724,6 +733,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         room.Version++;
         var save = await SaveAsync();
+        if (save.Success) battleLogStore?.Append(room.Id, logs, now);
         return (save.Success ? BuildResult(room, slots, monster, now, logs) : null, save.Error);
     }
     private async Task<(bool Success, string? Error)> SaveAsync()

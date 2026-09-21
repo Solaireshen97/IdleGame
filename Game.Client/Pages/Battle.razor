@@ -202,7 +202,7 @@ else
         <div class="battle-log-overlay" @onclick="CloseBattleLog">
             <section class="battle-log-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-log-title" @onclick:stopPropagation>
                 <header class="battle-log-dialog__header">
-                    <div><span class="section-kicker">BATTLE REPORT</span><h2 id="battle-log-title">战斗记录</h2><p>本次页面内的最近 @_logs.Count 条记录</p></div>
+                    <div><span class="section-kicker">BATTLE REPORT</span><h2 id="battle-log-title">战斗记录</h2><p>当前房间最近 @_logs.Count 条记录</p></div>
                     <button type="button" class="battle-log-dialog__close" @onclick="CloseBattleLog" @ref="_logCloseButton" aria-label="关闭战报">×</button>
                 </header>
                 <div class="battle-log-dialog__content">
@@ -465,7 +465,8 @@ else
     private CurrentUserResponse? _currentUser;
     private List<CharacterSummaryResponse> _characters = new();
     private readonly List<BattleLogEntry> _logs = new();
-    private long _nextLogId;
+    private long _nextLocalLogId;
+    private readonly HashSet<long> _seenServerLogIds = [];
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool _isBusy;
     private string? _message;
@@ -570,7 +571,7 @@ else
         _isBusy = true; _message = null;
         var (result, error) = await ApiService.StartPreparationAsync(RoomId);
         if (result is null) _message = error ?? "开始回合失败。";
-        else { AppendBattleLogs(result.Logs); _message = error; }
+        else if (error is not null) { AppendBattleLogs(result.Logs); _message = error; }
         await RefreshRoomDetailAsync();
         _isBusy = false;
     }
@@ -601,7 +602,7 @@ else
             _roomDetail = response.Room;
             _serverTimeUtc = response.Room.ServerTimeUtc;
             _serverTimeReceivedAtUtc = DateTime.UtcNow;
-            if (response.RoundResult is not null) AppendBattleLogs(response.RoundResult.Logs);
+            MergeRoomBattleLogs(response.Room.BattleLogs);
         }
         _isBusy = false;
     }
@@ -926,7 +927,7 @@ else
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
-        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Clear(); AppendBattleLogs(["战斗已重置。"]); }
+        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Clear(); _seenServerLogIds.Clear(); AppendBattleLogs(["战斗已重置。"]); }
         _isBusy = false;
     }
 
@@ -942,6 +943,7 @@ else
         if (_roomDetail is not null)
         {
             foreach (var slot in _roomDetail.Slots) _selectedCharacterIds.TryAdd(slot.SlotIndex, 0);
+            MergeRoomBattleLogs(_roomDetail.BattleLogs);
         }
         if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
     }
@@ -1002,7 +1004,15 @@ else
     }
     private void AppendBattleLogs(IEnumerable<string> logs)
     {
-        foreach (var log in logs) _logs.Add(new BattleLogEntry(++_nextLogId, log));
+        foreach (var log in logs) _logs.Add(new BattleLogEntry(--_nextLocalLogId, log));
+        if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
+    }
+    private void MergeRoomBattleLogs(IEnumerable<BattleLogResponse> logs)
+    {
+        foreach (var log in logs.OrderBy(entry => entry.Id))
+        {
+            if (_seenServerLogIds.Add(log.Id)) _logs.Add(new BattleLogEntry(log.Id, log.Text));
+        }
         if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
     }
     private string GetStatusText() => _roomDetail?.RoomStatus switch
@@ -1031,8 +1041,7 @@ else
                     _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null)
                 )
                 {
-                    var (result, _) = await ApiService.SyncBattleAsync(RoomId);
-                    if (result is not null) AppendBattleLogs(result.Logs);
+                    await ApiService.SyncBattleAsync(RoomId);
                     await RefreshRoomDetailAsync();
                 }
                 await InvokeAsync(StateHasChanged);

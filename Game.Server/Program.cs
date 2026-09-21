@@ -39,6 +39,7 @@ builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
+builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
 
 builder.Services.AddCors(options =>
