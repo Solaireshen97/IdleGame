@@ -39,6 +39,7 @@ public sealed class CharacterWeaponResponse
     public WeaponOrigin Origin { get; set; }
     public int DismantleFragments { get; set; }
     public int DismantleReturnQuantity { get; set; }
+    public bool CanDismantle { get; set; }
     public int QualityBonusLevel { get; set; }
     public string QualityName { get; set; } = string.Empty;
     public string QualityCode { get; set; } = string.Empty;

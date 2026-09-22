@@ -120,9 +120,9 @@
                 <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选可处理</button>
                 <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">清空</button>
                 <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanSell))">批量出售</button>
-                <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">批量分解</button>
+                <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanDismantle))">批量分解</button>
             </div>
-            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把；初始赠品不可出售。</small>
+            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把；没有碎片收益的武器不能分解。</small>
         </div>
         <div class="weapon-board__inventory">
             @foreach (var weapon in _data.Weapons)
@@ -144,7 +144,7 @@
                         <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
                         @if (weapon.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop)
-                        { <small>@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；分解仅返还强化投入的50%。" : "商店武器不产基础碎片；分解返还强化投入的50%。")</small> }
+                        { <small>@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；强化后分解仅返还投入的50%。" : "商店武器不产基础碎片；强化后分解仅返还投入的50%。")</small> }
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
                         {
@@ -174,7 +174,7 @@
                         @if (weapon.EquippedSlotIndex is null)
                         {
                             <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked || !weapon.CanSell)">@(weapon.CanSell ? $"出售 · {weapon.SellGold} 金币" : "初始赠品不可出售")</button>
-                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">分解 · T@(weapon.FragmentTier) ×@weapon.DismantleReturnQuantity</button>
+                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked || !weapon.CanDismantle)">@(weapon.CanDismantle ? $"分解 · T{weapon.FragmentTier} ×{weapon.DismantleReturnQuantity}" : "无材料可回收")</button>
                         }
                     </div>
                 </article>
@@ -269,7 +269,9 @@
                 .OrderBy(group => group.Key)
                 .Select(group => $"T{group.Key} ×{group.Sum(weapon => weapon.DismantleReturnQuantity)}")
                 .ToList();
-            return returns.Count == 0 ? "—" : string.Join("、", returns);
+            if (returns.Count == 0) return "—";
+            var summary = string.Join("、", returns);
+            return SelectedWeapons.Any(weapon => !weapon.CanDismantle) ? $"{summary}（含不可分解武器）" : summary;
         }
     }
 
@@ -329,6 +331,7 @@
 
     private async Task DismantleAsync(CharacterWeaponResponse weapon)
     {
+        if (!weapon.CanDismantle) return;
         if (!await Js.InvokeAsync<bool>("confirm", $"分解 {weapon.Name}？将获得 T{weapon.FragmentTier} 武器碎片 ×{weapon.DismantleReturnQuantity}。")) return;
         await RunWeaponActionAsync(() => ApiService.DismantleWeaponsAsync(CharacterId, weapon.Id),
             $"已分解 {weapon.Name}，获得 T{weapon.FragmentTier} 武器碎片 ×{weapon.DismantleReturnQuantity}。");
@@ -337,7 +340,7 @@
     private async Task SellSelectedAsync()
     {
         var selected = SelectedWeapons;
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 || selected.Any(weapon => !weapon.CanDismantle)) return;
         var gold = selected.Sum(weapon => weapon.SellGold);
         if (!await Js.InvokeAsync<bool>("confirm",
                 $"出售选中的 {selected.Count} 把武器？将获得 {gold} 金币，强化投入不会返还。")) return;
@@ -397,6 +400,7 @@
         "WeaponSkillNotFound" => "没有找到需要强化的武器技能。",
         "WeaponSkillAtMaximum" => "这项武器技能已经强化至当前上限。",
         "StarterWeaponCannotBeSold" => "初始赠送武器不能出售。",
+        "WeaponCannotBeDismantled" => "这把武器没有可回收的材料；商店武器需强化后才能分解。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",
         "InvalidWeaponSelection" => "请选择有效的武器。",
         "MainWeaponRequired" => "主武器不能留空，请选择武器替换或与已装备的副武器交换。",

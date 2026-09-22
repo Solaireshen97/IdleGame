@@ -135,6 +135,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
+        if (weapons.Any(weapon => !weaponCatalog.CanDismantle(weapon)))
+            return (null, "WeaponCannotBeDismantled");
         var returns = weapons.GroupBy(weapon => WeaponRules.FragmentTier(weapon.ItemLevel))
             .ToDictionary(group => group.Key, group => group.Sum(weaponCatalog.DismantleReturn));
         var codes = returns.Keys.Select(WeaponRules.FragmentCode).ToList();
@@ -310,6 +312,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 Origin = item.Origin,
                 DismantleFragments = WeaponCatalog.BaseDismantleReturn(item),
                 DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),
+                CanDismantle = weaponCatalog.CanDismantle(item),
                 QualityBonusLevel = Math.Clamp(item.Skills.Sum(skill => skill.QualityBonusLevel),
                     0, WeaponRules.MaxQualityBonusLevels),
                 QualityName = WeaponRules.QualityName(item.Skills.Sum(skill => skill.QualityBonusLevel)),

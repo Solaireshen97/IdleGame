@@ -39,8 +39,9 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(120, test.User.Gold);
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
             new WeaponBatchRequest { WeaponIds = [starter.Id] });
-        Assert.Null(recycled.Error);
+        Assert.Equal("WeaponCannotBeDismantled", recycled.Error);
         Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
+        Assert.NotNull(await test.Db.CharacterWeapons.SingleOrDefaultAsync(item => item.Id == starter.Id));
     }
 
     [Fact]
@@ -53,7 +54,12 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(80, test.User.Gold);
         var weapon = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Shop);
         Assert.Equal(0, test.Weapons.DismantleReturn(weapon));
+        Assert.False(test.Weapons.CanDismantle(weapon));
         Assert.Equal(0, weapon.Skills.Sum(skill => skill.QualityBonusLevel));
+        var directRecycle = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
+            new WeaponBatchRequest { WeaponIds = [weapon.Id] });
+        Assert.Equal("WeaponCannotBeDismantled", directRecycle.Error);
+        Assert.NotNull(await test.Db.CharacterWeapons.SingleOrDefaultAsync(item => item.Id == weapon.Id));
         test.Db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = test.Character.Id, ItemCode = WeaponRules.FragmentCode(1), Quantity = 10 });
         await test.Db.SaveChangesAsync();
 
@@ -61,6 +67,7 @@ public sealed class T1WeaponEconomyTests
         Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1)).Error);
         Assert.Equal(10, weapon.Skills.Single().SpentFragments);
         Assert.Equal(5, test.Weapons.DismantleReturn(weapon));
+        Assert.True(test.Weapons.CanDismantle(weapon));
         var rejected = await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1);
         Assert.Equal("InsufficientWeaponFragments", rejected.Error);
         Assert.Equal(2, weapon.Skills.Single().EnhancementLevel);

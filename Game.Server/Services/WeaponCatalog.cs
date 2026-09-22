@@ -200,6 +200,8 @@ public sealed class WeaponCatalog
     public int DismantleReturn(CharacterWeapon weapon) => checked(BaseDismantleReturn(weapon) +
         weapon.Skills.Sum(InvestedFragments) / 2);
 
+    public bool CanDismantle(CharacterWeapon weapon) => DismantleReturn(weapon) > 0;
+
     private static bool IsProbability(WeaponSkillEffectType effect) => effect is
         WeaponSkillEffectType.CriticalChancePercent or WeaponSkillEffectType.DoubleAttackChancePercent;
 
