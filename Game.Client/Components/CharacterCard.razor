@@ -2,12 +2,17 @@
 
 <article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
     <div class="character-card__header">
-        <h3 class="character-card__name">@Character.Name</h3>
-        <small>@Character.ProfessionName</small>
+        <div class="character-card__identity">
+            <span class="character-card__glyph" aria-hidden="true">◆</span>
+            <div>
+                <h3 class="character-card__name">@Character.Name</h3>
+                <small>@Character.ProfessionName</small>
+            </div>
+        </div>
         <div class="character-card__header-actions">
             @if (IsCurrent)
             {
-                <span class="character-card__badge">当前角色</span>
+                <span class="character-card__badge"><span aria-hidden="true">✓</span> 当前</span>
             }
             else
             {
@@ -15,26 +20,28 @@
                         class="character-card__select"
                         @onclick="OnSelect"
                         disabled="@IsInteractionDisabled"
+                        aria-label="切换到角色 @Character.Name"
                         title="@SelectDisabledReason">
                     @SelectButtonText
                 </button>
             }
-            <button type="button"
-                    class="character-card__delete"
-                    @onclick="OnDelete"
-                    disabled="@(!CanDelete || IsInteractionDisabled)"
-                    title="@DeleteDisabledReason">
-                @DeleteButtonText
-            </button>
+            @if (CanDelete)
+            {
+                <button type="button"
+                        class="character-card__delete"
+                        @onclick="OnDelete"
+                        disabled="@IsInteractionDisabled"
+                        aria-label="删除角色 @Character.Name"
+                        title="@(DeleteDisabledReason ?? $"删除角色 {Character.Name}")">
+                    @DeleteButtonText
+                </button>
+            }
         </div>
     </div>
 
     <div class="character-card__progress">
-        <div><strong>Lv @Character.Level</strong><span>@(Character.ExperienceToNextLevel is int required ? $"EXP {Character.Experience} / {required}" : "MAX")</span></div>
+        <div><strong>Lv @Character.Level</strong><span>@(Character.ExperienceToNextLevel is int required ? $"EXP {Character.Experience} / {required}" : "等级已满")</span></div>
         <progress value="@(Character.ExperienceToNextLevel is null ? 1 : Character.Experience)" max="@(Character.ExperienceToNextLevel ?? 1)" aria-label="@Character.Name 经验值"></progress>
-        <div class="character-card__talents">
-            <small>未分配天赋点 <strong>@Character.TalentPoints</strong></small>
-        </div>
     </div>
 
     <dl class="character-card__stats">
@@ -43,12 +50,12 @@
             <dd>@Character.Hp / @Character.MaxHp</dd>
         </div>
         <div>
-            <dt>Attack</dt>
+            <dt>攻击</dt>
             <dd>@Character.Attack</dd>
         </div>
-        <div>
-            <dt>Defense</dt>
-            <dd>@Character.Defense</dd>
+        <div class="character-card__talents">
+            <dt>天赋点</dt>
+            <dd>@Character.TalentPoints</dd>
         </div>
     </dl>
 </article>
@@ -84,11 +91,7 @@
     [Parameter]
     public EventCallback OnDelete { get; set; }
 
-    private string SelectButtonText => IsSelecting ? "切换中..." : "设为当前";
+    private string SelectButtonText => IsSelecting ? "切换中…" : "切换";
 
-    private string DeleteButtonText => IsDeleting
-        ? "删除中..."
-        : CanDelete
-            ? "删除"
-            : "不可删除";
+    private string DeleteButtonText => IsDeleting ? "…" : "×";
 }

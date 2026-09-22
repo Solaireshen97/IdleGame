@@ -84,9 +84,9 @@ public sealed class WorldContentTests
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
         await DbInitializer.EnsureDefaultDungeonsAsync(db, content.World);
-        var character = new Character { Id = 1, UserId = 1, Name = "主控", Level = 7, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
-        var alternate = new Character { Id = 2, UserId = 1, Name = "替补", Level = 7, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
-        var guest = new Character { Id = 3, UserId = 2, Name = "访客", Level = 7, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+        var character = new Character { Id = 1, UserId = 1, Name = "主控", Level = 7, Hp = 100, MaxHp = 100, Attack = 20};
+        var alternate = new Character { Id = 2, UserId = 1, Name = "替补", Level = 7, Hp = 100, MaxHp = 100, Attack = 20};
+        var guest = new Character { Id = 3, UserId = 2, Name = "访客", Level = 7, Hp = 100, MaxHp = 100, Attack = 20};
         db.AddRange(character, alternate, guest,
             new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },
             new User { Id = 2, UserName = "guest", PasswordHash = "x", ActiveCharacterId = 3 },

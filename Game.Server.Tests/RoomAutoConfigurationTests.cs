@@ -22,7 +22,7 @@ public sealed class RoomAutoConfigurationTests
             db.AddRange(
                 new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 35, MonsterAttack = 8, MonsterDefense = 2, SlotCount = 5, SortOrder = 1 },
                 new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },
-                new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 45, MaxHp = 45, Attack = 20, Defense = 5 },
+                new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 45, MaxHp = 45, Attack = 20},
                 new Monster { Id = 1, Name = "Slime", Hp = 35, MaxHp = 35, Attack = 8, Defense = 2 },
                 new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted, RoundNumber = 3 },
                 new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true },

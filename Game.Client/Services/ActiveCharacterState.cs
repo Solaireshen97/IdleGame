@@ -36,7 +36,7 @@ public sealed class ActiveCharacterState(ApiService apiService)
         left is null ? right is null : right is not null &&
         left.CharacterId == right.CharacterId && left.Name == right.Name &&
         left.Hp == right.Hp && left.MaxHp == right.MaxHp &&
-        left.Attack == right.Attack && left.Defense == right.Defense &&
+        left.Attack == right.Attack &&
         left.Level == right.Level && left.Experience == right.Experience &&
         left.TalentPoints == right.TalentPoints;
 }

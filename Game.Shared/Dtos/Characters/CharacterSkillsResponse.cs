@@ -1,5 +1,3 @@
-using Game.Shared.Enums;
-
 namespace Game.Shared.Dtos.Characters;
 
 public class CharacterSkillsResponse
@@ -7,7 +5,12 @@ public class CharacterSkillsResponse
     public int CharacterId { get; set; }
     public string ProfessionCode { get; set; } = string.Empty;
     public string ProfessionName { get; set; } = string.Empty;
+    public string? AdvancedProfessionCode { get; set; }
+    public string? AdvancedProfessionName { get; set; }
+    public int Level { get; set; }
     public int TalentPoints { get; set; }
+    public bool CanPromote { get; set; }
+    public List<ProfessionResponse> PromotionOptions { get; set; } = [];
     public List<LearnedSkillResponse> LearnedSkills { get; set; } = [];
     public List<EquippedSkillResponse> Slots { get; set; } = [];
     public List<SkillTalentNodeResponse> TalentNodes { get; set; } = [];
@@ -18,16 +21,22 @@ public class SkillTalentNodeResponse
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string SkillCode { get; set; } = string.Empty;
+    public string? SkillCode { get; set; }
     public string SkillName { get; set; } = string.Empty;
     public string SkillDescription { get; set; } = string.Empty;
     public int Cost { get; set; }
+    public int Rank { get; set; }
+    public int MaxRank { get; set; }
     public int Tier { get; set; }
     public int Column { get; set; }
-    public TalentType RequiredTalentType { get; set; }
-    public int RequiredTalentRank { get; set; }
+    public int RequiredLevel { get; set; }
+    public string BranchCode { get; set; } = string.Empty;
+    public string? ExclusiveGroup { get; set; }
+    public string? EffectCode { get; set; }
+    public decimal ValuePerRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
     public bool IsUnlocked { get; set; }
+    public bool IsMaxRank { get; set; }
     public bool ArePrerequisitesMet { get; set; }
     public bool CanUnlock { get; set; }
 }
@@ -85,4 +94,10 @@ public class ProfessionResponse
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string? GrantedSkillName { get; set; }
+}
+
+public class PromoteCharacterRequest
+{
+    public string ProfessionCode { get; set; } = string.Empty;
 }

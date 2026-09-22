@@ -10,140 +10,206 @@
 
 <PageTitle>副本大厅</PageTitle>
 
-<div class="rooms-page">
+<div class="rooms-page @(_activeLobbyTab == LobbyTab.Create ? "rooms-page--creating" : null)">
 @if (_isCheckingLoginState)
 {
-    <p>检查登录状态中...</p>
+    <GameStateCard Compact="true" Title="正在确认冒险者身份" Detail="马上为你载入可用副本。" />
 }
 else
 {
-    <section class="region-picker" aria-label="选择冒险地区">
-        <div class="region-picker__heading"><span class="section-kicker">EXPLORE THE WORLD</span><h2>选择冒险地区</h2><p>六片初始区域 · 自由选择成长路线</p></div>
-        <div class="region-picker__grid">
-        @foreach (var region in _regions)
-        {
-            <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
-                    aria-pressed="@(region.Code == _selectedRegionCode)" @onclick="() => SelectRegion(region.Code)">
-                <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
-                <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
-                <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
-            </button>
-        }
-        </div>
-    </section>
-    <section class="dungeon-launcher">
-        <div class="dungeon-launcher__heading">
-            <span class="section-kicker">SELECT MISSION</span>
-            <h2>@(_selectedRegion?.Name ?? "冒险地区")</h2>
-            <p>@_selectedRegion?.Description</p>
-        </div>
-        <div class="dungeon-catalog">
-        @if (_selectedRegion is not null)
-        {
-            <section class="dungeon-region">
-                <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
-                <div class="dungeon-grid">
-                @foreach (var dungeon in RegionDungeons)
-                {
-                    <button type="button"
-                            class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
-                            @onclick="() => SelectDungeon(dungeon.DungeonId)">
-                        <span class="dungeon-card__topline">
-                            <span>@DungeonKindName(dungeon.DungeonKind)</span>
-                            <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
-                        </span>
-                        <strong>@dungeon.Name</strong>
-                        <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
-                        <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
-                        @if (!dungeon.CanEnter)
+    <div class="lobby-tabs" role="tablist" aria-label="副本大厅模式">
+        <button type="button" id="current-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Current ? "true" : "false")" aria-controls="current-battle-panel"
+                class="lobby-tab @(_activeLobbyTab == LobbyTab.Current ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Current)">
+            <span class="lobby-tab__icon" aria-hidden="true">◆</span>
+            <span><strong>当前战斗</strong><small>@(CurrentRoomCount > 0 ? $"{CurrentRoomCount} 个进行中" : "尚未加入")</small></span>
+        </button>
+        <button type="button" id="create-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Create ? "true" : "false")" aria-controls="create-battle-panel"
+                class="lobby-tab @(_activeLobbyTab == LobbyTab.Create ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">
+            <span class="lobby-tab__icon" aria-hidden="true">＋</span>
+            <span><strong>创建战斗</strong><small>选择副本开房</small></span>
+        </button>
+        <button type="button" id="join-room-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Join ? "true" : "false")" aria-controls="join-room-panel"
+                class="lobby-tab @(_activeLobbyTab == LobbyTab.Join ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">
+            <span class="lobby-tab__icon" aria-hidden="true">⇥</span>
+            <span><strong>加入房间</strong><small>@JoinableRoomCount 个可加入</small></span>
+        </button>
+    </div>
+
+    @if (_activeLobbyTab != LobbyTab.Create)
+    {
+        var visibleRooms = GetRoomsForActiveTab().ToList();
+        var isCurrentBattleTab = _activeLobbyTab == LobbyTab.Current;
+        <div id="@(isCurrentBattleTab ? "current-battle-panel" : "join-room-panel")" class="lobby-panel" role="tabpanel" aria-labelledby="@(isCurrentBattleTab ? "current-battle-tab" : "join-room-tab")">
+            @if (_isLoading)
+            {
+                <GameStateCard Compact="true" Title="正在搜索房间" Detail="同步当前战斗和可加入队伍…" />
+            }
+            else if (visibleRooms.Count > 0)
+            {
+                <section class="room-list room-list--priority" aria-label="@(isCurrentBattleTab ? "当前战斗" : "可加入的房间")">
+                    <div class="room-list__heading">
+                        <div><span class="section-kicker">@(isCurrentBattleTab ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrentBattleTab ? "当前战斗" : "活跃房间")</h2></div>
+                        <span class="room-list__count">@visibleRooms.Count @(isCurrentBattleTab ? "个进行中" : "个可加入")</span>
+                    </div>
+                    <div class="room-grid">
+                        @foreach (var room in visibleRooms)
                         {
-                            <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
+                            <article class="room-card">
+                                <div class="room-card__identity">
+                                    <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge status-badge--@RoomStatusTone(room.RoomStatus)">@RoomStatusName(room.RoomStatus)</span></div>
+                                    <h3>@room.MonsterName</h3>
+                                    <p>@room.RegionName · @room.DungeonName</p>
+                                    <div class="room-card__rules"><span>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</span><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span></div>
+                                </div>
+                                <div class="room-card__progress">
+                                    <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
+                                    <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>
+                                    <small>敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</small>
+                                </div>
+                                <button class="button button--primary room-card__enter"
+                                        aria-label="@(isCurrentBattleTab ? "返回战斗" : "加入战斗")：@room.MonsterName"
+                                        @onclick="() => EnterRoom(room.RoomId)">@(isCurrentBattleTab ? "返回战斗" : "加入战斗") <span>→</span></button>
+                            </article>
                         }
+                    </div>
+                </section>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <strong>@(isCurrentBattleTab ? "当前没有参与中的战斗" : "目前没有可加入的房间")</strong>
+                    <span>@(isCurrentBattleTab ? "你可以创建自己的战斗，或加入其他玩家的房间。" : "切换到“创建战斗”，选择副本开启自己的远征。")</span>
+                    <div class="empty-state__actions">
+                        <button type="button" class="button button--primary" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">创建战斗</button>
+                        @if (isCurrentBattleTab)
+                        {
+                            <button type="button" class="button empty-state__secondary" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">浏览房间</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div id="create-battle-panel" class="lobby-panel" role="tabpanel" aria-labelledby="create-battle-tab">
+            <section class="region-picker" aria-label="选择冒险地区">
+                <div class="region-picker__heading"><span class="section-kicker">EXPLORE THE WORLD</span><h2>选择冒险地区</h2><p>六片初始区域 · 自由选择成长路线</p></div>
+                <div class="region-picker__grid">
+                @foreach (var region in _regions)
+                {
+                    <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
+                            aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
+                        <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
+                        <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
+                        <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
                     </button>
                 }
                 </div>
             </section>
-        }
-        </div>
-        @if (_selectedDungeon is not null)
-        {
-            <section class="mission-detail">
-                <div class="mission-detail__copy">
-                    <div class="mission-detail__title">
-                        <span class="status-badge">@DungeonKindName(_selectedDungeon.DungeonKind)</span>
-                        <span>最低 Lv.@_selectedDungeon.MinimumLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</span>
-                    </div>
-                    <h3>@_selectedDungeon.Name</h3>
-                    <p>@_selectedDungeon.Description</p>
-                    <div class="mission-detail__facts">
-                        <span>首领 @_selectedDungeon.MonsterName</span>
-                        <span>@_selectedDungeon.WaveCount 波</span>
-                        <span>@_selectedDungeon.MonsterCount 名敌人</span>
-                        <span>@Game.Shared.WeaponRules.ElementName(_selectedDungeon.MonsterElement)属性</span>
-                    </div>
+            <section class="dungeon-launcher">
+                <div class="dungeon-launcher__heading">
+                    <span class="section-kicker">SELECT MISSION</span>
+                    <h2>@(_selectedRegion?.Name ?? "冒险地区")</h2>
+                    <p>@_selectedRegion?.Description</p>
                 </div>
-                <div class="mission-rewards">
-                    <strong>可能获得</strong>
-                    @if (_selectedDungeon.RewardPreview.Count == 0)
-                    {
-                        <small>金币、经验</small>
-                    }
-                    else
-                    {
-                        @foreach (var reward in _selectedDungeon.RewardPreview)
+                <div class="dungeon-catalog">
+                @if (_selectedRegion is not null)
+                {
+                    <section class="dungeon-region">
+                        <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
+                        <div class="dungeon-grid">
+                        @foreach (var dungeon in RegionDungeons)
                         {
-                            <span><b>@reward.Name × @reward.Quantity</b><small>@reward.Source · @reward.ChancePercent.ToString("0.##")%</small></span>
+                            <button type="button"
+                                    class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
+                                    @onclick="() => SelectDungeon(dungeon.DungeonId)">
+                                <span class="dungeon-card__topline">
+                                    <span>@DungeonKindName(dungeon.DungeonKind)</span>
+                                    <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
+                                </span>
+                                <strong>@dungeon.Name</strong>
+                                <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
+                                <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
+                                @if (!dungeon.CanEnter)
+                                {
+                                    <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
+                                }
+                            </button>
                         }
-                    }
+                        </div>
+                    </section>
+                }
+                </div>
+                @if (_selectedDungeon is not null)
+                {
+                    <section class="mission-detail">
+                        <div class="mission-detail__copy">
+                            <div class="mission-detail__title">
+                                <span class="status-badge">@DungeonKindName(_selectedDungeon.DungeonKind)</span>
+                                <span>最低 Lv.@_selectedDungeon.MinimumLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</span>
+                            </div>
+                            <h3>@_selectedDungeon.Name</h3>
+                            <p>@_selectedDungeon.Description</p>
+                            <div class="mission-detail__facts">
+                                <span>首领 @_selectedDungeon.MonsterName</span>
+                                <span>@_selectedDungeon.WaveCount 波</span>
+                                <span>@_selectedDungeon.MonsterCount 名敌人</span>
+                                <span>@Game.Shared.WeaponRules.ElementName(_selectedDungeon.MonsterElement)属性</span>
+                            </div>
+                        </div>
+                        <div class="mission-rewards">
+                            <strong>可能获得</strong>
+                            @if (_selectedDungeon.RewardPreview.Count == 0)
+                            {
+                                <small>金币、经验</small>
+                            }
+                            else
+                            {
+                                @foreach (var reward in _selectedDungeon.RewardPreview)
+                                {
+                                    <span><b>@reward.Name × @reward.Quantity</b><small>@reward.Source · @reward.ChancePercent.ToString("0.##")%</small></span>
+                                }
+                            }
+                        </div>
+                    </section>
+                }
+                <div class="dungeon-launcher__command" aria-label="房间设置与创建战斗">
+                    <div class="dungeon-launcher__selection" aria-live="polite">
+                        @if (_message is not null)
+                        {
+                            <strong class="dungeon-launcher__selection-error">@_message</strong>
+                            <small>请调整副本选择后重试</small>
+                        }
+                        else if (_selectedDungeon is not null)
+                        {
+                            <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "AUTO 已解锁" : "首次挑战")</span>
+                            <strong>@_selectedDungeon.Name</strong>
+                            <small>角色 Lv.@_selectedDungeon.CurrentCharacterLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</small>
+                        }
+                        else
+                        {
+                            <strong>请选择副本</strong>
+                        }
+                    </div>
+                    <div class="dungeon-launcher__quick-settings" aria-label="战斗设置">
+                        <label title="胜利后 @BattleRules.RepeatBattleDelaySeconds 秒自动重开">
+                            <input type="checkbox" @bind="_isRepeatBattle" />
+                            <span><strong>循环</strong><small>胜利重开</small></span>
+                        </label>
+                        <label title="@BattleRules.PreparationTimeoutSeconds 秒未操作时仅本回合临时 Auto">
+                            <input type="checkbox" @bind="_isPreparationTimeoutEnabled" />
+                            <span><strong>接管</strong><small>@BattleRules.PreparationTimeoutSeconds 秒超时</small></span>
+                        </label>
+                    </div>
+                    <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@(_isLoading || _selectedDungeon is null || !_selectedDungeon.CanEnter)">@(_isLoading ? "创建中…" : "创建战斗")</button>
                 </div>
             </section>
-        }
-        <div class="dungeon-launcher__options">
-            <label class="dungeon-launcher__mode"><span><input type="checkbox" @bind="_isRepeatBattle" /> 重复战斗</span><small>胜利后 @BattleRules.RepeatBattleDelaySeconds 秒重开副本</small></label>
-            <label class="dungeon-launcher__mode"><span><input type="checkbox" @bind="_isPreparationTimeoutEnabled" /> 准备超时</span><small>@BattleRules.PreparationTimeoutSeconds 秒内未准备的角色仅本回合临时 Auto，不会永久开启 Auto</small></label>
         </div>
-        <div class="dungeon-launcher__action">
-            @if (_selectedDungeon is not null)
-            {
-                <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "已通关 · Auto 已解锁" : "首次挑战 · 手动战斗")</span>
-                <span class="dungeon-launcher__level">当前角色 Lv.@_selectedDungeon.CurrentCharacterLevel</span>
-            }
-            <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@(_isLoading || _selectedDungeon is null || !_selectedDungeon.CanEnter)">开启房间</button>
-        </div>
-    </section>
-
-    @if (_isLoading)
-    {
-        <div class="empty-state">正在搜索可用房间...</div>
-    }
-    else if (_rooms is null || _rooms.Count == 0)
-    {
-        <div class="empty-state"><strong>大厅暂时无人驻守</strong><span>选择副本并开启房间，成为第一个出发的冒险者。</span></div>
-    }
-    else
-    {
-        <section class="room-list">
-            <div class="room-list__heading"><span class="section-kicker">ACTIVE EXPEDITIONS</span><h2>进行中的远征</h2></div>
-            <div class="room-grid">
-                @foreach (var room in _rooms)
-                {
-                    <article class="room-card">
-                        <div class="room-card__topline"><span>ROOM · @room.RoomId · @(room.IsRepeatBattle ? "重复战斗" : "单次战斗")</span><span class="status-badge">@room.RoomStatus</span></div>
-                        <h3>@room.MonsterName</h3>
-                        <p>@room.RegionName · @room.DungeonName</p>
-                        <p>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波 · 敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</p>
-                        <div class="room-card__rules"><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "30 秒准备超时" : "无准备超时")</span></div>
-                        <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
-                        <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>
-                        <button class="button button--secondary room-card__enter" @onclick="() => EnterRoom(room.RoomId)">进入战场 <span>→</span></button>
-                    </article>
-                }
-            </div>
-        </section>
     }
 }
 
-@if (_message is not null)
+@if (_message is not null && _activeLobbyTab != LobbyTab.Create)
 {
     <p class="notice-message">@_message</p>
 }
@@ -165,7 +231,26 @@ else
     private int _selectedDungeonId;
     private bool _isRepeatBattle;
     private bool _isPreparationTimeoutEnabled = true;
+    private LobbyTab _activeLobbyTab = LobbyTab.Create;
+    private int CurrentRoomCount => _rooms?.Count(room => room.IsCurrentUserParticipant) ?? 0;
+    private int JoinableRoomCount => _rooms?.Count(room => !room.IsCurrentUserParticipant) ?? 0;
     private DungeonSummaryResponse? _selectedDungeon => _dungeons.SingleOrDefault(dungeon => dungeon.DungeonId == _selectedDungeonId);
+
+    private enum LobbyTab
+    {
+        Current,
+        Create,
+        Join
+    }
+
+    private IEnumerable<RoomSummaryResponse> GetRoomsForActiveTab() => (_rooms ?? [])
+        .Where(room => _activeLobbyTab == LobbyTab.Current ? room.IsCurrentUserParticipant : !room.IsCurrentUserParticipant);
+
+    private void SwitchLobbyTab(LobbyTab tab)
+    {
+        _activeLobbyTab = tab;
+        _message = null;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,6 +303,10 @@ else
     {
         _isLoading = true;
         _rooms = await ApiService.GetRoomsAsync();
+        if (_rooms?.Any(room => room.IsCurrentUserParticipant) == true)
+        {
+            _activeLobbyTab = LobbyTab.Current;
+        }
         _isLoading = false;
     }
 
@@ -258,6 +347,23 @@ else
     private static string DungeonKindName(string kind) => kind switch
     {
         "Dungeon" => "正式副本", "Elite" => "精英讨伐", _ => "单体讨伐"
+    };
+
+    private static string RoomStatusName(Game.Shared.Enums.RoomStatus status) => status switch
+    {
+        Game.Shared.Enums.RoomStatus.NotStarted => "等待操作",
+        Game.Shared.Enums.RoomStatus.Preparing => "准备中",
+        Game.Shared.Enums.RoomStatus.Cooldown => "自动战斗中",
+        Game.Shared.Enums.RoomStatus.WaveTransition => "前往下一波",
+        Game.Shared.Enums.RoomStatus.BattleOver => "战斗结束",
+        _ => "进行中"
+    };
+
+    private static string RoomStatusTone(Game.Shared.Enums.RoomStatus status) => status switch
+    {
+        Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.WaveTransition => "success",
+        Game.Shared.Enums.RoomStatus.BattleOver => "warning",
+        _ => "active"
     };
 
     public void Dispose()

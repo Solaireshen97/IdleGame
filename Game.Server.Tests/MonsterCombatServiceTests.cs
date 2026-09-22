@@ -37,7 +37,7 @@ public class MonsterCombatServiceTests
         await test.Db.SaveChangesAsync();
         var replacement = new Character
         {
-            UserId = 1, Name = "Cleric", Hp = 100, MaxHp = 100, Attack = 15, Defense = 3
+            UserId = 1, Name = "Cleric", Hp = 100, MaxHp = 100, Attack = 15
         };
         test.Db.Characters.Add(replacement);
         await test.Db.SaveChangesAsync();
@@ -62,7 +62,7 @@ public class MonsterCombatServiceTests
             [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
         await test.Db.SaveChangesAsync();
 
-        Assert.Equal(90, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
         var effect = await test.Db.BattleStatusEffects.SingleAsync();
         Assert.Equal("armor-break", effect.EffectCode);
         Assert.Equal(2, effect.ExpiresAfterRound);
@@ -77,19 +77,19 @@ public class MonsterCombatServiceTests
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
             [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
         await test.Db.SaveChangesAsync();
-        Assert.Equal(94, test.Character.Hp);
+        Assert.Equal(92, test.Character.Hp);
 
         test.Room.RoundNumber = 1;
         await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
             [new(test.Slot, test.Character)], []);
-        Assert.Equal(90, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
         Assert.Single(await test.Service.GetStatusResponsesAsync(test.Room, "Character", test.Character.Id));
 
         test.Room.RoundNumber = 2;
         await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
             [new(test.Slot, test.Character)], []);
         await test.Db.SaveChangesAsync();
-        Assert.Equal(86, test.Character.Hp);
+        Assert.Equal(84, test.Character.Hp);
         Assert.Empty(await test.Service.GetStatusResponsesAsync(test.Room, "Character", test.Character.Id));
     }
 
@@ -126,6 +126,20 @@ public class MonsterCombatServiceTests
         Assert.Equal(2, effect.ExpiresAfterRound);
     }
 
+    [Fact]
+    public async Task SwordGuardStanceProvidesPassiveTenPercentReduction()
+    {
+        await using var test = await Context.CreateAsync("basic-attacks-only");
+        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
+            { CharacterId = test.Character.Id, NodeCode = "sword-guard-stance", PointsSpent = 1 });
+        await test.Db.SaveChangesAsync();
+
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+
+        Assert.Equal(91, test.Character.Hp);
+    }
+
     private sealed class Context : IAsyncDisposable
     {
         private readonly string _path;
@@ -159,7 +173,7 @@ public class MonsterCombatServiceTests
                 Id = 1, RoomId = 1, Name = "Slime", Element = ElementType.Wind, Hp = 50, MaxHp = 50,
                 Attack = 10, Defense = 2, CombatProfileCode = profileCode
             };
-            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 2 };
+            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
             var slot = new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, CharacterId = 1, UserId = 1, IsMainControl = true };
             db.AddRange(room, monster, character, slot);
             await db.SaveChangesAsync();

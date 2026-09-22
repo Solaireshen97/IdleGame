@@ -15,7 +15,7 @@
 
     @if (_isLoading)
     {
-        <p class="talents-page__notice">正在读取当前角色...</p>
+        <GameStateCard Compact="true" Title="正在读取当前角色" Detail="准备载入职业成长路线。" />
     }
     else if (ActiveCharacters.Current is { } character)
     {
@@ -29,7 +29,6 @@
                     <dl>
                         <div><dt>HP</dt><dd>@character.Hp / @character.MaxHp</dd></div>
                         <div><dt>攻击</dt><dd>@character.Attack</dd></div>
-                        <div><dt>防御</dt><dd>@character.Defense</dd></div>
                         <div><dt>可用天赋点</dt><dd>@character.TalentPoints</dd></div>
                     </dl>
                     <p>可从顶栏切换当前操作角色。</p>
@@ -42,11 +41,19 @@
             </aside>
 
             <div class="talents-page__main">
-                <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
-                                      CharacterId="@character.CharacterId"
-                                      OnChanged="RefreshCurrentAsync" />
-                <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
-                                     CharacterId="@character.CharacterId" />
+                <nav class="talents-page__jump" role="tablist" aria-label="职业养成页面导航">
+                    <button type="button" id="talents-section-tab" role="tab" aria-controls="talent-tree" class="@(_mobileSection == "talents" ? "active" : null)" aria-selected="@(_mobileSection == "talents" ? "true" : "false")" @onclick='() => _mobileSection = "talents"'><span aria-hidden="true">✦</span><strong>天赋树</strong><small>分配点数</small></button>
+                    <button type="button" id="skills-section-tab" role="tab" aria-controls="skill-loadout" class="@(_mobileSection == "skills" ? "active" : null)" aria-selected="@(_mobileSection == "skills" ? "true" : "false")" @onclick='() => _mobileSection = "skills"'><span aria-hidden="true">◆</span><strong>技能栏</strong><small>配置 Auto</small></button>
+                </nav>
+                <div class="talents-page__panel @(_mobileSection == "talents" ? "talents-page__panel--selected" : null)" id="talent-tree" role="tabpanel" aria-labelledby="talents-section-tab">
+                    <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
+                                          CharacterId="@character.CharacterId"
+                                          OnChanged="RefreshCurrentAsync" />
+                </div>
+                <div class="talents-page__panel @(_mobileSection == "skills" ? "talents-page__panel--selected" : null)" id="skill-loadout" role="tabpanel" aria-labelledby="skills-section-tab">
+                    <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
+                                         CharacterId="@character.CharacterId" />
+                </div>
                 <section class="talents-page__next">
                     <span class="talents-page__next-icon" aria-hidden="true">✦</span>
                     <div>
@@ -60,7 +67,7 @@
     }
     else
     {
-        <p class="talents-page__notice" role="alert">暂时无法读取当前角色。</p>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="角色读取失败" Detail="请返回大厅后重新选择角色。" />
     }
 </div>
 
@@ -70,6 +77,7 @@
 
     private bool _isLoading = true;
     private int _talentRevision;
+    private string _mobileSection = "talents";
 
     protected override async Task OnInitializedAsync()
     {

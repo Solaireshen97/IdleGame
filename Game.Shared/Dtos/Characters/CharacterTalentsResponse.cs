@@ -11,7 +11,6 @@ public class CharacterTalentsResponse
     public int Hp { get; set; }
     public int MaxHp { get; set; }
     public int Attack { get; set; }
-    public int Defense { get; set; }
     public List<TalentNodeResponse> Talents { get; set; } = [];
 }
 

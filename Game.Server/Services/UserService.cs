@@ -45,7 +45,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var character = CreateCharacterEntity(user.Id, "Knight", SkillRules.DefaultProfessionCode);
+        var character = CreateCharacterEntity(user.Id, "剑士", SkillRules.DefaultProfessionCode);
         dbContext.Characters.Add(character);
 
         var session = CreateSession(user.Id);
@@ -225,7 +225,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         }
 
         var professionCode = request.ProfessionCode?.Trim() ?? string.Empty;
-        if (skillCatalog.FindProfession(professionCode) is null) return (null, "InvalidProfession");
+        if (skillCatalog.FindProfession(professionCode) is not { IsPromotion: false }) return (null, "InvalidProfession");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         var character = CreateCharacterEntity(user!.Id, name, professionCode);
@@ -370,8 +370,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             ProfessionCode = professionCode,
             Hp = 0,
             MaxHp = 0,
-            Attack = 0,
-            Defense = 5
+            Attack = 0
         };
     }
 
@@ -440,11 +439,10 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             CharacterId = character.Id,
             Name = character.Name,
             ProfessionCode = character.ProfessionCode,
-            ProfessionName = skillCatalog.FindProfession(character.ProfessionCode)?.Name ?? character.ProfessionCode,
+            ProfessionName = skillCatalog.EffectiveProfession(character)?.Name ?? character.ProfessionCode,
             Hp = character.Hp,
             MaxHp = TalentRules.EffectiveMaxHp(character),
             Attack = TalentRules.EffectiveAttack(character),
-            Defense = TalentRules.EffectiveDefense(character),
             Level = character.Level,
             Experience = character.Experience,
             ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),
@@ -459,11 +457,10 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             CharacterId = character.Id,
             Name = character.Name,
             ProfessionCode = character.ProfessionCode,
-            ProfessionName = skillCatalog.FindProfession(character.ProfessionCode)?.Name ?? character.ProfessionCode,
+            ProfessionName = skillCatalog.EffectiveProfession(character)?.Name ?? character.ProfessionCode,
             Hp = character.Hp,
             MaxHp = TalentRules.EffectiveMaxHp(character),
             Attack = TalentRules.EffectiveAttack(character),
-            Defense = TalentRules.EffectiveDefense(character),
             Level = character.Level,
             Experience = character.Experience,
             ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),

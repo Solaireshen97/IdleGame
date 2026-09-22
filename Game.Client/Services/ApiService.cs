@@ -72,7 +72,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<List<RoomSummaryResponse>?> GetRoomsAsync()
     {
-        return await httpClient.GetFromJsonAsync<List<RoomSummaryResponse>>("api/rooms");
+        using var request = await CreateRequestAsync(HttpMethod.Get, "api/rooms", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomSummaryResponse>>() : null;
     }
 
     public Task<List<RegionSummaryResponse>?> GetRegionsAsync() =>
@@ -314,19 +317,30 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<CurrentUserResponse?> GetCurrentUserAsync()
     {
-        var request = await CreateRequestAsync(HttpMethod.Get, "api/user/me", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            using var request = await CreateRequestAsync(HttpMethod.Get, "api/user/me", requiresAuth: true);
+            using var response = await httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
             {
-                await userSessionService.ClearToken();
+                if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    await userSessionService.ClearToken();
+                }
+
+                return null;
             }
 
+            return await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
+        }
+        catch (HttpRequestException)
+        {
             return null;
         }
-
-        return await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
+        catch (TaskCanceledException)
+        {
+            return null;
+        }
     }
 
     public async Task<CurrentCharacterResponse?> GetCurrentCharacterAsync()
@@ -392,6 +406,11 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> ResetSkillTalentsAsync(int characterId) =>
         SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/talents/reset");
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> PromoteCharacterAsync(
+        int characterId, string professionCode) =>
+        SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/profession/promote",
+            new PromoteCharacterRequest { ProfessionCode = professionCode });
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSkillAsync(
         int roomId, int characterId, int skillSlotIndex, bool isQueued)
@@ -501,12 +520,6 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         }
         return (await response.Content.ReadFromJsonAsync<CharacterConsumablesResponse>(), null);
     }
-
-    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> AllocateTalentAsync(int characterId, Game.Shared.Enums.TalentType type) =>
-        SendTalentRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/talents/{type.ToString().ToLowerInvariant()}/allocate");
-
-    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> ResetTalentsAsync(int characterId) =>
-        SendTalentRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/talents/reset");
 
     private async Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> SendTalentRequestAsync(HttpMethod method, string url)
     {

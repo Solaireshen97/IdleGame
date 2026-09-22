@@ -13,7 +13,6 @@ public sealed class CharacterWeaponsResponse
     public int TotalMaxHp { get; set; }
     public int EffectiveAttack { get; set; }
     public int EffectiveMaxHp { get; set; }
-    public int Defense { get; set; }
     public ElementType? MainElement { get; set; }
     public decimal AttackBonusPercent { get; set; }
     public decimal HealthBonusPercent { get; set; }

@@ -119,7 +119,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var effects = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
             effect.RunSequence == room.RunSequence && effect.TargetType == targetType && effect.TargetId == targetId &&
             effect.ExpiresAfterRound >= room.RoundNumber).OrderBy(effect => effect.Id).ToListAsync();
-        return effects.Select(effect =>
+        return effects.Where(effect => catalog.FindStatus(effect.EffectCode) is not null).Select(effect =>
         {
             var definition = catalog.FindStatus(effect.EffectCode);
             return new BattleStatusEffectResponse
@@ -339,12 +339,16 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         int powerPercent, IReadOnlyDictionary<int, ElementType> mainWeaponElements,
         PlayerRoundDefense defense, List<string> logs, string? skillName)
     {
+        var talents = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == target.Character.Id &&
+            (node.NodeCode == "sword-guard-stance" || node.NodeCode == "sword-counteroffense"))
+            .Select(node => node.NodeCode).ToListAsync();
         var attackPercent = await GetModifierAsync(room, "Monster", monster.Id, "AttackPercent");
         var targetReduction = await GetModifierAsync(room, "Character", target.Character.Id, "ReductionPercent");
+        if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase)) targetReduction += 10;
         var guard = defense.TargetCharacterId == target.Character.Id ? defense.ReductionPercent : 0;
         var element = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
         var scaledAttack = Math.Max(1, (int)decimal.Floor(monster.Attack * powerPercent / 100m));
-        var damage = DamageCalculator.Calculate(scaledAttack, TalentRules.EffectiveDefense(target.Character),
+        var damage = DamageCalculator.Calculate(scaledAttack, 0,
             factors: new DamageFactors(AttackPercent: attackPercent,
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
                 ReductionPercent: guard + targetReduction));
@@ -352,6 +356,32 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         logs.Add(skillName is null
             ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
             : $"{monster.Name} 使用 {skillName} 攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
+        if (monster.Hp > 0 && guard > 0 && defense.SourceCharacterId == target.Character.Id)
+        {
+            if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase))
+            {
+                const int counterPower = 50;
+                var counter = DamageCalculator.Calculate(TalentRules.EffectiveAttack(target.Character), monster.Defense,
+                    factors: new DamageFactors(AttackPercent: target.Character.WeaponAttackBonusPercent), attackPowerPercent: counterPower);
+                monster.Hp = Math.Max(0, monster.Hp - counter);
+                logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 招架后反击 {monster.Name}，造成 {counter} 点伤害。");
+            }
+            if (talents.Contains("sword-counteroffense", StringComparer.OrdinalIgnoreCase))
+            {
+                var state = dbContext.BattleStatusEffects.Local.FirstOrDefault(item => item.RoomId == room.Id && item.RunSequence == room.RunSequence &&
+                    item.TargetType == "Character" && item.TargetId == target.Character.Id && item.EffectCode == "talent-guard-echo")
+                    ?? await dbContext.BattleStatusEffects.SingleOrDefaultAsync(item => item.RoomId == room.Id && item.RunSequence == room.RunSequence &&
+                        item.TargetType == "Character" && item.TargetId == target.Character.Id && item.EffectCode == "talent-guard-echo");
+                if (state is null)
+                {
+                    state = new BattleStatusEffect { RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
+                        TargetId = target.Character.Id, EffectCode = "talent-guard-echo", Stacks = 1 };
+                    dbContext.BattleStatusEffects.Add(state);
+                }
+                state.AppliedRound = room.RoundNumber;
+                state.ExpiresAfterRound = room.RoundNumber + 3;
+            }
+        }
     }
 
     private async Task<int?> FindFrontCharacterIdAsync(int roomId) => await (
@@ -373,5 +403,5 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 }
 
 public sealed record MonsterCombatParticipant(RoomSlot Slot, Character Character);
-public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId);
+public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId, int? SourceCharacterId = null);
 public sealed record RemovedBattleStatus(int TargetId, string Code, string Name, bool IsPositive);

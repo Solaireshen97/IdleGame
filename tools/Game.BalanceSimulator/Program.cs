@@ -19,7 +19,7 @@ var worldConfig = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath("Game.
 var world = new WorldCatalog(Options.Create(worldConfig.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!));
 var runs = int.Parse(Option("--runs", "5"));
 var elements = Option("--elements", "Fire,Water,Earth,Wind,Light,Dark").Split(',').Select(Enum.Parse<ElementType>).ToList();
-var roles = Option("--roles", "knight,cleric").Split(',');
+var roles = Option("--roles", "swordsman-assault,swordsman-guard,acolyte-judgment,acolyte-mercy").Split(',');
 var stages = Option("--stages", "starter,shop,field,week,graduate").Split(',');
 var targets = Option("--targets", "normal,dungeon,elite,depths").Split(',');
 var partySize = int.Parse(Option("--party", "1"));
@@ -94,9 +94,12 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var actors = new List<Character>();
     for (var index = 1; index <= party; index++)
     {
-        var role = party == 1 ? profession : index is 2 or 5 ? "cleric" : "knight";
-        var character = new Character { Id = index, UserId = 1, Name = $"{role}-{index}", ProfessionCode = role,
-            Level = stage == "starter" ? 1 : stage == "shop" ? 5 : 10, Defense = 5 };
+        var role = party == 1 ? profession : index is 2 or 5 ? "acolyte-mercy" : "swordsman-assault";
+        var baseProfession = role.StartsWith("acolyte", StringComparison.OrdinalIgnoreCase) ? "acolyte" : "swordsman";
+        var character = new Character { Id = index, UserId = 1, Name = $"{role}-{index}", ProfessionCode = baseProfession,
+            AdvancedProfessionCode = stage is "starter" or "shop" ? null :
+                baseProfession == "acolyte" ? "priest" : role.EndsWith("guard") ? "knight" : "warrior",
+            Level = stage == "starter" ? 1 : stage == "shop" ? 5 : 10 };
         var loadout = Loadout(weapons, stage, element, index);
         character.Attack = loadout.Sum(item => item.Attack);
         character.MaxHp = loadout.Sum(item => item.MaxHp);
@@ -109,10 +112,11 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         db.RoomSlots.Add(new RoomSlot { RoomId = room.Id, SlotIndex = index, UserId = 1, CharacterId = index, IsMainControl = index == 1, IsAutoEnabled = true });
         db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = index, ItemCode = "minor-healing-potion", Quantity = 1000 });
         db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 70 });
-        foreach (var code in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = skills.FindTalentNode(code)!.Cost });
+        foreach (var (code, rank) in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = rank });
         var learned = skills.LearnedSkills(character, talentCodes).Select(skill => skill.Code).ToHashSet();
-        string[] preferred = role == "knight" ? ["knight-strike", "knight-guard", "knight-break", "knight-assault", "knight-verdict", "knight-wall"]
-            : ["cleric-purify", "cleric-dispel", "cleric-heal", "cleric-smite", "cleric-judgment"];
+        string[] preferred = baseProfession == "swordsman"
+            ? ["warrior-fury", "knight-guard", "sword-double-slash", "sword-slash", "sword-parry"]
+            : ["priest-group-heal", "acolyte-heal", "acolyte-holy-bolt"];
         var selected = preferred.Where(learned.Contains).Take(5).ToList();
         for (var slot = 0; slot < selected.Count; slot++) db.CharacterSkillSlots.Add(new CharacterSkillSlot
         { CharacterId = index, SlotIndex = slot + 1, SkillCode = selected[slot], AutoUseEnabled = true, AutoHpThresholdPercent = 75 });
@@ -147,9 +151,11 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     }
     var potionDrops = await db.RewardEntries.Where(entry => entry.Kind == "Consumable" && entry.Code == "minor-healing-potion").SumAsync(entry => entry.Quantity);
     var stock = await db.CharacterItemStacks.Where(stack => stack.ItemCode == "minor-healing-potion").SumAsync(stack => stack.Quantity);
+    var finalMonster = monsters.Single(monster => monster.Id == room.MonsterId);
     return new Sample(stage, element, profession, dungeon.Code, party, seed, victory, room.RoundNumber, seconds,
         party * 1000 + potionDrops - stock, potionDrops, user.Gold, actors.Sum(actor => actor.Hp), actors[0].Attack,
-        TalentRules.EffectiveMaxHp(actors[0]), roundCounts, victory ? [] : logs.TakeLast(8).ToList());
+        TalentRules.EffectiveMaxHp(actors[0]), finalMonster.Hp, finalMonster.MaxHp, roundCounts,
+        victory ? [] : logs.TakeLast(8).ToList());
 }
 
 List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType element, int characterId)
@@ -190,16 +196,39 @@ List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType e
     return result;
 }
 
-HashSet<string> Talents(Character character, string stage)
+Dictionary<string, int> Talents(Character character, string stage)
 {
-    if (stage == "starter") return [];
-    character.AttackTalentRank = stage == "shop" ? 1 : 2;
-    character.DefenseTalentRank = 1;
-    character.HealthTalentRank = stage != "shop" && character.ProfessionCode == "cleric" ? 2 : 1;
-    HashSet<string> nodes = character.ProfessionCode == "knight"
-        ? stage == "shop" ? ["knight-vanguard"] : ["knight-vanguard", "knight-fortitude", "knight-offense", "knight-oath"]
-        : stage == "shop" ? ["cleric-devotion"] : ["cleric-devotion", "cleric-exorcism"];
-    var spent = TalentRules.SpentPoints(character.AttackTalentRank) + TalentRules.SpentPoints(character.DefenseTalentRank) + TalentRules.SpentPoints(character.HealthTalentRank) + nodes.Count;
+    if (stage == "starter") return new(StringComparer.OrdinalIgnoreCase);
+    var isShop = stage == "shop";
+    var isGuard = character.Name.Contains("guard", StringComparison.OrdinalIgnoreCase);
+    var isMercy = character.Name.Contains("mercy", StringComparison.OrdinalIgnoreCase);
+    Dictionary<string, int> nodes = character.ProfessionCode == "swordsman"
+        ? isShop ? new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-assault-stance"] = 1 }
+        : isGuard ? new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-guard-stance"] = 1,
+            ["sword-recovery-training"] = 2, ["sword-counteroffense"] = 1, ["sword-protection"] = 2 }
+        : new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-assault-stance"] = 1,
+            ["sword-combat-training"] = 2, ["sword-pursuit"] = 1, ["sword-precision"] = 2 }
+        : isShop ? new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-judgment"] = 1 }
+        : isMercy ? new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-mercy"] = 1,
+            ["acolyte-heal-training"] = 2, ["acolyte-afterglow"] = 1, ["acolyte-devotion"] = 2 }
+        : new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-judgment"] = 1,
+            ["acolyte-light-training"] = 2, ["acolyte-light-return"] = 1, ["acolyte-focus"] = 2 };
+    var settings = config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!;
+    foreach (var (code, rank) in nodes)
+    {
+        var node = settings.TalentNodes.Single(item => item.Code == code);
+        var value = node.ValuePerRank * rank;
+        switch (node.EffectCode)
+        {
+            case "MaxHpPercent": character.TalentMaxHpPercent += value; break;
+            case "NormalAttackPercent": character.TalentNormalAttackPercent += value; break;
+            case "SkillDamagePercent": character.TalentSkillDamagePercent += value; break;
+            case "HealingDonePercent": character.TalentHealingDonePercent += value; break;
+            case "HealingReceivedPercent": character.TalentHealingReceivedPercent += value; break;
+            case "SkillCriticalChancePercent": character.TalentSkillCriticalChancePercent += value; break;
+        }
+    }
+    var spent = nodes.Sum(item => item.Value);
     if (spent > character.Level - 1) throw new InvalidOperationException("Illegal talent budget");
     character.TalentPoints = character.Level - 1 - spent;
     return nodes;
@@ -207,4 +236,4 @@ HashSet<string> Talents(Character character, string stage)
 
 record Sample(string Stage, ElementType Element, string Profession, string Dungeon, int PartySize, int Seed,
     bool Victory, int Rounds, double CycleSeconds, int PotionsUsed, int PotionDrops, int Gold, int RemainingHp,
-    int Attack, int MaxHp, Dictionary<string, int> EnemyRounds, List<string> FailureLog);
+    int Attack, int MaxHp, int MonsterHp, int MonsterMaxHp, Dictionary<string, int> EnemyRounds, List<string> FailureLog);

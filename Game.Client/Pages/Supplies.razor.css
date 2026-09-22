@@ -16,13 +16,15 @@
 .supplies-page__character .supplies-page__switch { border-top: 1px solid #3b5267; margin: .6rem 0 0; padding-top: .85rem; line-height: 1.5; }
 .supplies-page__notice { border: 1px solid #344a60; border-radius: .7rem; padding: 1.5rem; color: #b8c8d5; background: #172638; }
 
-@media (max-width: 800px) {
+@container game-shell (max-width: 800px) {
     .supplies-page__layout { grid-template-columns: minmax(0, 1fr); }
-    .supplies-page__character { grid-template-columns: repeat(4, auto); align-items: center; justify-content: start; }
+    .supplies-page__character { grid-template-columns: repeat(3, auto); align-items: center; justify-content: start; }
     .supplies-page__character > span, .supplies-page__character h2, .supplies-page__character p { grid-column: 1 / -1; }
     .supplies-page__character div { min-width: 90px; }
 }
 
-@media (max-width: 550px) {
-    .supplies-page__intro { flex-direction: column; gap: .5rem; }
+@container game-shell (max-width: 640.98px) {
+    .supplies-page { padding-top: .5rem; }
+    .supplies-page__intro, .supplies-page__character { display: none; }
+    .supplies-page__layout { display: block; }
 }

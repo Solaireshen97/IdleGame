@@ -1,10 +1,10 @@
 .character-card {
-    min-width: 220px;
-    padding: 1rem;
+    min-width: 0;
+    padding: .78rem;
     border: 1px solid #35465b;
-    border-radius: 0.75rem;
-    background: #172536;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+    border-radius: .78rem;
+    background: linear-gradient(145deg, #1a2b3d, #142334);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .16);
     color: #dfe8f1;
 }
 
@@ -14,56 +14,73 @@
 }
 
 .character-card__header {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+    margin-bottom: .65rem;
 }
+
+.character-card__identity { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.character-card__identity > div { display: grid; min-width: 0; }
+.character-card__identity small { overflow: hidden; color: #91a6b7; font-size: .66rem; white-space: nowrap; text-overflow: ellipsis; }
+.character-card__glyph { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid #6c6047; border-radius: .62rem; background: rgba(216, 169, 87, .1); color: #e7b966; font-size: .75rem; }
 
 .character-card__name {
     margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
+    overflow: hidden;
+    color: #f0e7d5;
+    font-size: .92rem;
+    font-weight: 750;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .character-card__header-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    justify-content: flex-end;
+    gap: .35rem;
 }
 
 .character-card__badge {
     display: inline-flex;
     align-items: center;
-    padding: 0.2rem 0.55rem;
+    gap: .25rem;
+    min-height: 32px;
+    padding: .2rem .5rem;
     border-radius: 999px;
     background-color: #574222;
     color: #f3d385;
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: .65rem;
+    font-weight: 800;
     white-space: nowrap;
 }
 
 .character-card__select,
 .character-card__delete {
-    min-width: 4.5rem;
-    padding: 0.25rem 0.65rem;
-    font-size: 0.85rem;
-    border-radius: 0.5rem;
+    min-height: 44px;
+    font-size: .68rem;
+    font-weight: 750;
+    border-radius: .55rem;
     background: transparent;
 }
 
 .character-card__select {
+    min-width: 58px;
+    padding: .35rem .6rem;
     border: 1px solid #537a9d;
     color: #bdd7ec;
 }
 
 .character-card__delete {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    padding: 0;
     border: 1px solid #914953;
     color: #efa2a9;
+    font-size: 1rem;
 }
 
 .character-card__select:disabled,
@@ -73,9 +90,9 @@
 }
 
 .character-card__progress {
-    margin: .2rem 0 .8rem;
+    margin: 0 0 .65rem;
     color: #aebecd;
-    font-size: .78rem;
+    font-size: .66rem;
 }
 
 .character-card__progress > div {
@@ -84,25 +101,41 @@
     gap: .5rem;
 }
 
-.character-card__progress strong { color: #f3d385; }
-.character-card__progress progress { display: block; width: 100%; height: .45rem; margin: .35rem 0; accent-color: #d9aa60; }
+.character-card__progress strong { color: #f3d385; font-size: .72rem; }
+.character-card__progress progress { display: block; width: 100%; height: .36rem; margin: .28rem 0 0; accent-color: #d9aa60; }
 .character-card__progress small { display: block; }
 
-.character-card__talents { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .5rem; }
-
 .character-card__stats {
-    margin: 0;
     display: grid;
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .32rem;
+    margin: 0;
 }
 
 .character-card__stats div {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
+    display: grid;
+    gap: .12rem;
+    min-width: 0;
+    padding: .4rem .42rem;
+    border: 1px solid rgba(80, 106, 128, .45);
+    border-radius: .48rem;
+    background: rgba(7, 19, 30, .38);
 }
 
 .character-card__stats dt,
 .character-card__stats dd {
     margin: 0;
+}
+
+.character-card__stats dt { color: #8399ab; font-size: .625rem; }
+.character-card__stats dd { overflow: hidden; color: #e6edf2; font-size: .68rem; font-weight: 750; white-space: nowrap; text-overflow: ellipsis; }
+.character-card__stats .character-card__talents { border-color: rgba(176, 137, 73, .45); }
+.character-card__stats .character-card__talents dd { color: #efc271; }
+
+@container game-shell (max-width: 390px) {
+    .character-card { padding: .7rem; }
+    .character-card__header { gap: .45rem; }
+    .character-card__identity { gap: .45rem; }
+    .character-card__glyph { width: 34px; height: 34px; flex-basis: 34px; }
+    .character-card__header-actions { gap: .25rem; }
 }

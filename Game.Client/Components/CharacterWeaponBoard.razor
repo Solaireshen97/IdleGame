@@ -9,12 +9,13 @@
 <section class="weapon-board" aria-label="角色武器盘">
     @if (_isLoading)
     {
-        <p class="weapon-board__notice">正在整理武器盘...</p>
+        <GameStateCard Compact="true" Title="正在整理武器盘" Detail="同步装备、属性与生效技能…" />
     }
     else if (_data is null)
     {
-        <p class="weapon-board__notice" role="alert">@(_error ?? "暂时无法读取武器。")</p>
-        <button type="button" class="weapon-board__refresh" @onclick="LoadAsync">重试</button>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="武器读取失败" Detail="@(_error ?? "暂时无法读取武器。")">
+            <Actions><button type="button" class="weapon-board__refresh" @onclick="LoadAsync">重试</button></Actions>
+        </GameStateCard>
     }
     else
     {
@@ -33,73 +34,111 @@
             <button type="button" class="weapon-board__refresh" @onclick="LoadAsync" disabled="@_isSaving">刷新</button>
         </div>
 
-        <div class="weapon-board__resources" aria-label="武器养成资源">
-            <div><span>账号金币</span><strong>◆ @_data.Gold</strong></div>
-            @foreach (var fragment in _data.Fragments)
-            {
-                <div><span>@fragment.Name</span><strong>@fragment.Quantity</strong></div>
-            }
-            <p>装等 1～9 使用 T1 碎片，10～19 使用 T2 碎片；碎片归当前角色所有。</p>
-        </div>
-
-        <div class="weapon-board__effects" aria-label="已生效的武器技能">
-            <div><span class="weapon-board__eyebrow">ACTIVE WEAPON SKILLS</span><h2>生效技能</h2><p>同属性武器按效果汇总，复合技能也计入对应效果；下方为整套配装的实际加成。</p></div>
-            @if (_data.ActiveEffects.Count == 0)
-            {
-                <span class="weapon-board__no-effects">暂无生效技能</span>
-            }
-            else
-            {
-                @foreach (var effect in _data.ActiveEffects)
-                {
-                    <div class="weapon-board__effect" title="@effect.Description">
-                        <strong>@effect.Name · Lv @effect.EffectiveLevel.ToString("0.##")</strong>
-                        <span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%</span>
-                        <small>@effect.Description</small>
-                    </div>
-                }
-            }
-        </div>
-
-        <div class="weapon-board__grid-head">
-            <div><span class="weapon-board__eyebrow">TEN WEAPON GRID</span><h2>武器盘</h2></div>
-            <p>点击栏位，再从下方背包选择武器。主武器决定角色属性。</p>
-        </div>
-        <div class="weapon-board__grid">
-            @{ var main = FindEquipped(1); }
-            <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
-                    @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1)" disabled="@_isSaving">
-                <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
-                <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
-                <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
-                <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
-                @if (main is not null)
-                {
-                    <span class="weapon-card__skills">@foreach (var skill in main.Skills) { <span>@skill.Name Lv @skill.Level</span> }</span>
-                }
-                <span class="weapon-card__stats"><span>⚔ @(main?.Attack ?? 0)</span><span>✚ @(main?.MaxHp ?? 0)</span></span>
+        <nav class="weapon-board__mobile-tabs" aria-label="武器编成工作区" role="tablist">
+            <button id="weapon-grid-tab" type="button" role="tab" class="@(_mobileView == "grid" ? "active" : null)"
+                    aria-selected="@(_mobileView == "grid" ? "true" : "false")" aria-controls="weapon-grid-panel"
+                    @onclick='() => _mobileView = "grid"'>
+                <span aria-hidden="true">⚔</span>
+                <strong>武器盘</strong>
+                <small>@_data.Weapons.Count(item => item.EquippedSlotIndex.HasValue) / @WeaponRules.SlotCount</small>
             </button>
-            <div class="weapon-board__subgrid" aria-label="九个副武器栏位">
-                @for (var index = 2; index <= WeaponRules.SlotCount; index++)
-                {
-                    var slotIndex = index;
-                    var weapon = FindEquipped(slotIndex);
-                    <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
-                            @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex)" disabled="@_isSaving">
-                        <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
-                        <span class="weapon-card__crest" aria-hidden="true">@(weapon is null ? "+" : GetSymbol(weapon.Element))</span>
-                        <span class="weapon-card__name">@(weapon?.Name ?? "空栏位")</span>
-                        <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
-                        @if (weapon is not null)
+            <button id="weapon-inventory-tab" type="button" role="tab" class="@(_mobileView == "inventory" ? "active" : null)"
+                    aria-selected="@(_mobileView == "inventory" ? "true" : "false")" aria-controls="weapon-inventory-panel"
+                    @onclick='() => _mobileView = "inventory"'>
+                <span aria-hidden="true">▦</span>
+                <strong>武器仓库</strong>
+                <small>@_data.Weapons.Count 把</small>
+            </button>
+        </nav>
+
+        <section class="weapon-board__overview" aria-label="配装详情">
+            <button type="button" class="weapon-board__overview-toggle" aria-expanded="@(_isOverviewExpanded ? "true" : "false")"
+                    aria-controls="weapon-overview-details" @onclick="() => _isOverviewExpanded = !_isOverviewExpanded">
+                <span class="weapon-board__overview-title"><strong>配装详情</strong><small>金币、碎片与生效技能</small></span>
+                <span class="weapon-board__overview-summary">
+                    <b>◆ @_data.Gold</b>
+                    <b>@_data.ActiveEffects.Count 个技能</b>
+                </span>
+                <span class="weapon-board__overview-icon" aria-hidden="true">@(_isOverviewExpanded ? "−" : "+")</span>
+            </button>
+            @if (_isOverviewExpanded)
+            {
+                <div id="weapon-overview-details" class="weapon-board__overview-details">
+                    <div class="weapon-board__resources" aria-label="武器养成资源">
+                        <div><span>账号金币</span><strong>◆ @_data.Gold</strong></div>
+                        @foreach (var fragment in _data.Fragments)
                         {
-                            <span class="weapon-card__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level</span> }</span>
-                            <span class="weapon-card__stats"><span>⚔ @weapon.Attack</span><span>✚ @weapon.MaxHp</span></span>
+                            <div><span>@fragment.Name</span><strong>@fragment.Quantity</strong></div>
                         }
-                    </button>
-                }
+                        <p>装等 1～9 使用 T1 碎片，10～19 使用 T2 碎片；碎片归当前角色所有。</p>
+                    </div>
+
+                    <div class="weapon-board__effects" aria-label="已生效的武器技能">
+                        <div><span class="weapon-board__eyebrow">ACTIVE WEAPON SKILLS</span><h2>生效技能</h2><p>同属性武器按效果汇总，复合技能也计入对应效果；下方为整套配装的实际加成。</p></div>
+                        @if (_data.ActiveEffects.Count == 0)
+                        {
+                            <span class="weapon-board__no-effects">暂无生效技能</span>
+                        }
+                        else
+                        {
+                            @foreach (var effect in _data.ActiveEffects)
+                            {
+                                <div class="weapon-board__effect" title="@effect.Description">
+                                    <strong>@effect.Name · Lv @effect.EffectiveLevel.ToString("0.##")</strong>
+                                    <span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%</span>
+                                    <small>@effect.Description</small>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+
+        <div id="weapon-grid-panel" role="tabpanel" aria-labelledby="weapon-grid-tab"
+             class="weapon-board__workspace @(_mobileView == "grid" ? "weapon-board__workspace--selected" : null)">
+            <div class="weapon-board__grid-head">
+                <div><span class="weapon-board__eyebrow">TEN WEAPON GRID</span><h2>武器盘</h2></div>
+                <p>点击栏位后，将直接进入仓库选择武器。主武器决定角色属性。</p>
+            </div>
+            <div class="weapon-board__grid">
+                @{ var main = FindEquipped(1); }
+                <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
+                        @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1 ? "true" : "false")" disabled="@_isSaving">
+                    <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
+                    <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
+                    <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
+                    <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
+                    @if (main is not null)
+                    {
+                        <span class="weapon-card__skills">@foreach (var skill in main.Skills) { <span>@skill.Name Lv @skill.Level</span> }</span>
+                    }
+                    <span class="weapon-card__stats"><span>⚔ @(main?.Attack ?? 0)</span><span>✚ @(main?.MaxHp ?? 0)</span></span>
+                </button>
+                <div class="weapon-board__subgrid" aria-label="九个副武器栏位">
+                    @for (var index = 2; index <= WeaponRules.SlotCount; index++)
+                    {
+                        var slotIndex = index;
+                        var weapon = FindEquipped(slotIndex);
+                        <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
+                                @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex ? "true" : "false")" disabled="@_isSaving">
+                            <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
+                            <span class="weapon-card__crest" aria-hidden="true">@(weapon is null ? "+" : GetSymbol(weapon.Element))</span>
+                            <span class="weapon-card__name">@(weapon?.Name ?? "空栏位")</span>
+                            <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
+                            @if (weapon is not null)
+                            {
+                                <span class="weapon-card__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level</span> }</span>
+                                <span class="weapon-card__stats"><span>⚔ @weapon.Attack</span><span>✚ @weapon.MaxHp</span></span>
+                            }
+                        </button>
+                    }
+                </div>
             </div>
         </div>
 
+        <div id="weapon-inventory-panel" role="tabpanel" aria-labelledby="weapon-inventory-tab"
+             class="weapon-board__workspace @(_mobileView == "inventory" ? "weapon-board__workspace--selected" : null)">
         <div class="weapon-board__inventory-head">
             <div>
                 <span class="weapon-board__eyebrow">CHARACTER ARMORY</span>
@@ -144,7 +183,7 @@
                         <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
                         @if (weapon.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop)
-                        { <small>@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；强化后分解仅返还投入的50%。" : "商店武器不产基础碎片；强化后分解仅返还投入的50%。")</small> }
+                        { <small class="weapon-option__origin">@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；强化后分解仅返还投入的50%。" : "商店武器不产基础碎片；强化后分解仅返还投入的50%。")</small> }
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
                         {
@@ -154,8 +193,8 @@
                                     var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
                                     <div class="weapon-option__skill-row">
                                         <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · @(skill.IsActive ? "生效" : "未生效")</span>
-                                        <small>@skill.Description</small>
-                                        <small>基础 Lv@(skill.BaseLevel) · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
+                                        <small class="weapon-option__skill-description">@skill.Description</small>
+                                        <small class="weapon-option__skill-detail">基础 Lv@(skill.BaseLevel) · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
                                         <button type="button" class="weapon-option__enhance"
                                                 @onclick="() => EnhanceAsync(weapon, skill)"
                                                 disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
@@ -165,8 +204,8 @@
                                 }
                             </div>
                         }
-                        @if (wouldEmptyMain) { <small>主武器只能与已有武器交换</small> }
-                        else if (!isHere) { <small>装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
+                        @if (wouldEmptyMain) { <small class="weapon-option__preview">主武器只能与已有武器交换</small> }
+                        else if (!isHere) { <small class="weapon-option__preview">装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
                     </div>
                     <div class="weapon-option__actions">
                         <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
@@ -179,6 +218,7 @@
                     </div>
                 </article>
             }
+        </div>
         </div>
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
@@ -193,7 +233,9 @@
     private CharacterWeaponsResponse? _data;
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _isOverviewExpanded;
     private int _selectedSlot = 1;
+    private string _mobileView = "grid";
     private readonly HashSet<int> _selectedWeaponIds = [];
     private string? _error;
     private string? _notice;
@@ -226,6 +268,7 @@
     private void SelectSlot(int index)
     {
         _selectedSlot = index;
+        _mobileView = "inventory";
         _error = null;
         _notice = null;
     }
@@ -242,6 +285,7 @@
             if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
             var previousHp = _data?.Hp;
             _data = response;
+            _mobileView = "grid";
             _notice = previousHp is int oldHp && oldHp > response.Hp
                 ? $"武器盘已更新，当前 HP 随生命上限降至 {response.Hp}。"
                 : weaponId is null ? "武器已卸下。" : "武器盘已更新。";

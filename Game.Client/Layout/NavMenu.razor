@@ -1,37 +1,51 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href=""><span>⚔</span> IdleGame</a>
-    </div>
-</div>
+@inject NavigationManager Navigation
+@implements IDisposable
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<nav class="mobile-dock" aria-label="主要导航">
+    @foreach (var item in NavigationItems)
+    {
+        var isActive = IsActive(item);
+        <a class="mobile-dock__link @(isActive ? "active" : null)"
+           href="@item.Href"
+           aria-current="@(isActive ? "page" : null)">
+            <span class="mobile-dock__icon" aria-hidden="true">@item.Icon</span>
+            <span>@item.MobileLabel</span>
+        </a>
+    }
+</nav>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="rooms" Match="NavLinkMatch.All">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> 房间列表
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="talents" Match="NavLinkMatch.Prefix">
-                <span class="nav-icon" aria-hidden="true">✦</span> 职业天赋
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weapons" Match="NavLinkMatch.Prefix">
-                <span class="nav-icon" aria-hidden="true">⚔</span> 武器编成
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="supplies" Match="NavLinkMatch.Prefix">
-                <span class="nav-icon" aria-hidden="true">✚</span> 战斗补给
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="shop" Match="NavLinkMatch.Prefix">
-                <span class="nav-icon" aria-hidden="true">◆</span> 商店
-            </NavLink>
-        </div>
-    </nav>
-</div>
+@code {
+    private static readonly NavItem[] NavigationItems =
+    [
+        new("rooms", "大厅", "☷"),
+        new("talents", "天赋", "✦"),
+        new("weapons", "武器", "⚔"),
+        new("supplies", "补给", "✚"),
+        new("shop", "商店", "◆")
+    ];
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private bool IsActive(NavItem item)
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri)
+            .Split('?', '#')[0]
+            .Trim('/');
+
+        if (item.Href == "rooms")
+        {
+            return string.IsNullOrEmpty(path)
+                || path.Equals("rooms", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return path.Equals(item.Href, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith($"{item.Href}/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private sealed record NavItem(string Href, string MobileLabel, string Icon);
+}

@@ -35,7 +35,7 @@ public class SkillMigrationTests
 
             var character = await db.Characters.SingleAsync();
             var slot = await db.CharacterSkillSlots.SingleAsync();
-            Assert.Equal((1, 1), (character.TalentPoints, character.AttackTalentRank));
+            Assert.Equal((2, 0), (character.TalentPoints, character.AttackTalentRank));
             Assert.Null(slot.SkillCode);
             Assert.False(slot.AutoUseEnabled);
             Assert.Empty(await db.CharacterSkillTalents.ToListAsync());
@@ -48,7 +48,7 @@ public class SkillMigrationTests
     }
 
     [Fact]
-    public async Task ExistingCharactersBecomeKnightsWithStarterSkills()
+    public async Task ExistingCharactersBecomeSwordfightersWithNewStarterSkills()
     {
         var path = Path.Combine(Path.GetTempPath(), $"idlegame-skill-migration-{Guid.NewGuid():N}.db");
         try
@@ -61,8 +61,8 @@ public class SkillMigrationTests
             await db.Database.MigrateAsync();
 
             var character = await db.Characters.SingleAsync();
-            Assert.Equal("knight", character.ProfessionCode);
-            Assert.Equal(new[] { "knight-strike", "knight-guard" },
+            Assert.Equal("swordsman", character.ProfessionCode);
+            Assert.Equal(new[] { "sword-slash", "sword-parry" },
                 (await db.CharacterSkillSlots.OrderBy(slot => slot.SlotIndex).ToListAsync()).Select(slot => slot.SkillCode));
             Assert.Empty(await db.CharacterSkillTalents.ToListAsync());
             Assert.Equal((80, 3, 2), (character.Hp, character.Level, character.TalentPoints));

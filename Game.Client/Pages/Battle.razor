@@ -18,7 +18,7 @@
 
 @if (_roomDetail is null)
 {
-    <div class="battle-loading">正在进入战场...</div>
+    <GameStateCard Compact="true" Title="正在进入战场" Detail="同步房间成员与敌方状态…" />
 }
 else
 {
@@ -280,9 +280,21 @@ else
         </div>
     }
 
+    @if (ownSlots.Count > 0 || IsOwner || _roomDetail.CanLeaveRoom)
+    {
     <section id="battle-loadout" class="battle-controls battle-controls--loadout" aria-label="技能与战斗补给">
         @if (ownSlots.Count > 0)
         {
+            <nav class="battle-loadout__tabs" aria-label="战斗操作分类">
+                <button type="button" class="@(_mobileLoadoutView == "skills" ? "active" : null)" aria-pressed="@(_mobileLoadoutView == "skills" ? "true" : "false")" @onclick='() => _mobileLoadoutView = "skills"'>
+                    <span aria-hidden="true">✦</span><strong>职业技能</strong><small>@ownSlots.Sum(slot => slot.Skills.Count(skill => skill.SkillCode is not null))</small>
+                </button>
+                <button type="button" class="@(_mobileLoadoutView == "supplies" ? "active" : null)" aria-pressed="@(_mobileLoadoutView == "supplies" ? "true" : "false")" @onclick='() => _mobileLoadoutView = "supplies"'>
+                    <span aria-hidden="true">✚</span><strong>战斗补给</strong><small>@ownSlots.Sum(slot => slot.Consumables.Count(supply => supply.ItemCode is not null))</small>
+                </button>
+            </nav>
+
+            <div class="battle-loadout__panel @(_mobileLoadoutView == "skills" ? "battle-loadout__panel--selected" : null)">
             <div class="battle-skills" aria-label="职业技能">
                 <div class="battle-supplies__header">
                     <div><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
@@ -307,7 +319,7 @@ else
                                         class="battle-skill-card battle-skill-card--@GetSkillTone(skill) @(selected ? "battle-skill-card--selected" : "") @(!available ? "battle-skill-card--unavailable" : "")"
                                         disabled="@_isBusy"
                                         title="@GetSkillHint(characterSlot, skill)"
-                                        aria-pressed="@selected"
+                                        aria-pressed="@(selected ? "true" : "false")"
                                         aria-haspopup="dialog"
                                         @onclick="() => HandleSkillClickAsync(characterSlot, skill)">
                                     <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
@@ -328,9 +340,11 @@ else
                 <p>可手动安排多个技能；关闭“快速施放”时，点击图标可查看效果、确认使用并设置该技能的自动策略。</p>
                 @if (_skillMessage is not null) { <p class="battle-supplies__message" role="alert">@_skillMessage</p> }
             </div>
+            </div>
         }
         @if (ownSlots.Count > 0)
         {
+            <div class="battle-loadout__panel @(_mobileLoadoutView == "supplies" ? "battle-loadout__panel--selected" : null)">
             <div class="battle-supplies" aria-label="战斗补给">
                 <div class="battle-supplies__header">
                     <div><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
@@ -349,7 +363,7 @@ else
                                             class="battle-supply @(selected ? "battle-supply--selected" : "")"
                                             disabled="@(_isBusy || !CanQueueConsumable(characterSlot, supply))"
                                             title="@GetConsumableHint(characterSlot, supply)"
-                                            aria-pressed="@selected"
+                                            aria-pressed="@(selected ? "true" : "false")"
                                             @onclick="() => ToggleConsumableAsync(characterSlot, supply)">
                                         <span class="battle-supply__icon" aria-hidden="true">✚</span>
                                         <span class="battle-supply__body"><strong>@(supply.ItemName ?? $"空槽位 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
@@ -362,6 +376,7 @@ else
                 </div>
                 <p>手动使用将在下一次结算时触发，不占用攻击；自动用药与 Auto 自动准备分别设置。</p>
                 @if (_consumableMessage is not null) { <p class="battle-supplies__message" role="alert">@_consumableMessage</p> }
+            </div>
             </div>
         }
         <div class="battle-controls__tools">
@@ -379,6 +394,7 @@ else
             }
         </div>
     </section>
+    }
 
     @if (_roomDetail.Rewards is { } rewards)
     {
@@ -482,6 +498,7 @@ else
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
     private bool _isQuickSkillCastEnabled;
+    private string _mobileLoadoutView = "skills";
     private bool _isSkillDialogOpen;
     private bool _focusSkillDialogCloseButton;
     private bool _isSkillAutoSaving;

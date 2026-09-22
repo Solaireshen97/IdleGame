@@ -6,4 +6,7 @@
 .weapons-page__intro h1 { margin: .15rem 0 .3rem; color: #f3e9d7; font: 700 clamp(1.8rem, 3vw, 2.5rem) Georgia, serif; }
 .weapons-page__intro p { margin: 0; color: #aebfce; font-size: .86rem; }
 .weapons-page__notice { border: 1px solid #344a60; border-radius: .7rem; padding: 1.5rem; color: #b8c8d5; background: #172638; }
-@media (max-width: 550px) { .weapons-page__intro { flex-direction: column; gap: .5rem; } }
+@container game-shell (max-width: 640.98px) {
+    .weapons-page { padding-top: .5rem; }
+    .weapons-page__intro { display: none; }
+}

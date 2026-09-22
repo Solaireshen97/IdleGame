@@ -18,7 +18,7 @@
 
     @if (_isLoading)
     {
-        <p class="weapons-page__notice">正在读取当前角色...</p>
+        <GameStateCard Compact="true" Title="正在读取当前角色" Detail="准备载入角色的武器编成。" />
     }
     else if (ActiveCharacters.Current is { } character)
     {
@@ -27,7 +27,7 @@
     }
     else
     {
-        <p class="weapons-page__notice" role="alert">暂时无法读取当前角色。</p>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="角色读取失败" Detail="请返回大厅后重新选择角色。" />
     }
 </div>
 

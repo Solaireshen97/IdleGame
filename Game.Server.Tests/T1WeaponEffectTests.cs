@@ -109,7 +109,7 @@ public sealed class T1WeaponEffectTests
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
         var character = new Character { Id = 1, UserId = 1, Name = "测试骑士", ProfessionCode = "knight",
-            Attack = 20, Hp = 100, MaxHp = 100, Defense = 5, WeaponStaminaPercent = 20,
+            Attack = 20, Hp = 100, MaxHp = 100, WeaponStaminaPercent = 20,
             WeaponDoubleAttackChancePercent = 100, WeaponNormalEchoPercent = 10,
             WeaponCriticalChancePercent = 100, WeaponSkillDamagePercent = 50 };
         db.AddRange(new User { Id = 1, UserName = "effect-test", PasswordHash = "x", ActiveCharacterId = 1 }, character,

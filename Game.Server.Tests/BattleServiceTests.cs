@@ -11,11 +11,11 @@ namespace Game.Server.Tests;
 public class BattleServiceTests
 {
     [Theory]
-    [InlineData(ElementType.Fire, ElementType.Wind, 32, 95)]
-    [InlineData(ElementType.Fire, ElementType.Water, 39, 92)]
-    [InlineData(ElementType.Light, ElementType.Dark, 32, 95)]
-    [InlineData(ElementType.Dark, ElementType.Light, 32, 95)]
-    [InlineData(ElementType.Fire, ElementType.Fire, 35, 93)]
+    [InlineData(ElementType.Fire, ElementType.Wind, 32, 91)]
+    [InlineData(ElementType.Fire, ElementType.Water, 39, 85)]
+    [InlineData(ElementType.Light, ElementType.Dark, 32, 91)]
+    [InlineData(ElementType.Dark, ElementType.Light, 32, 91)]
+    [InlineData(ElementType.Fire, ElementType.Fire, 35, 88)]
     public async Task MainWeaponAndMonsterElementsAffectBothSidesOfRound(
         ElementType playerElement, ElementType monsterElement, int monsterHp, int characterHp)
     {
@@ -55,7 +55,7 @@ public class BattleServiceTests
         Assert.Equal(0, detail.Slots.Single(slot => slot.CharacterId == test.Character.Id).OutgoingElementModifierPercent);
         Assert.Equal(ElementType.Wind, detail.MonsterElement);
         Assert.Equal(35, round!.MonsterHp);
-        Assert.Equal(93, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
     }
 
     [Fact]
@@ -81,32 +81,31 @@ public class BattleServiceTests
         Assert.Equal(25, fighter.OutgoingElementModifierPercent);
         Assert.Equal(-25, fighter.IncomingElementModifierPercent);
         Assert.Equal(28, round!.MonsterHp); // floor((10-5)*1.25) + floor((10+8-5)*1.25) = 6 + 16
-        Assert.Equal(98, test.Character.Hp); // floor((12-5)*0.75*0.5) = 2
+        Assert.Equal(96, test.Character.Hp); // floor(12*0.75*0.5) = 4
         Assert.Contains(round.Logs, log => log.Contains("使用 盾击") && log.Contains("造成 16 点伤害"));
         Assert.Contains(round.Logs, log => log.Contains("使用 守护"));
     }
 
     [Fact]
-    public async Task TalentsAffectBothAttackAndDefenseDuringBattle()
+    public async Task RetiredAttackTalentRankNoLongerModifiesCombat()
     {
         await using var test = await BattleTestContext.CreateAsync();
         test.Character.AttackTalentRank = 2;
-        test.Character.DefenseTalentRank = 1;
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(33, result!.MonsterHp); // (20 + 2) - 5
-        Assert.Equal(94, result.CharacterHp); // 12 - (5 + 1)
-        Assert.Equal((20, 5), (test.Character.Attack, test.Character.Defense));
+        Assert.Equal(35, result!.MonsterHp); // 旧属性加点字段不再参与战斗
+        Assert.Equal(88, result.CharacterHp); // 基础减伤为 0%，承受完整的 12 点伤害
+        Assert.Equal(20, test.Character.Attack);
     }
 
     [Fact]
     public async Task RepeatBattleRestoresHealthToTalentAdjustedMaximum()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
-        test.Character.HealthTalentRank = 2;
+        test.Character.TalentMaxHpPercent = 10;
         test.Room.IsRepeatBattle = true;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
@@ -447,7 +446,7 @@ public class BattleServiceTests
         var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Null(firstError);
         Assert.Contains(first!.Logs, log => log.Contains("使用 小型治疗药水"));
-        Assert.Equal(77, test.Character.Hp);
+        Assert.Equal(72, test.Character.Hp);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(1, test.Room.RoundNumber);
 
@@ -484,7 +483,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(round!.Logs, log => log.Contains("使用 小型治疗药水"));
         Assert.False((await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id)).IsAutoEnabled);
-        Assert.Equal(77, test.Character.Hp);
+        Assert.Equal(72, test.Character.Hp);
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
@@ -534,7 +533,7 @@ public class BattleServiceTests
         Assert.Null(guestError);
         Assert.Equal(RoomStatus.Cooldown, round!.RoomStatus);
         Assert.Equal(2, round.Logs.Count(log => log.Contains("使用 小型治疗药水")));
-        Assert.Equal(77, test.Character.Hp);
+        Assert.Equal(72, test.Character.Hp);
         Assert.Equal(60, guest.Hp);
         Assert.All(await test.Db.CharacterItemStacks.ToListAsync(), stack => Assert.Equal(0, stack.Quantity));
         Assert.Equal(2, await test.Db.BattleConsumableCooldowns.CountAsync());
@@ -560,7 +559,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, round!.RoomStatus);
         Assert.Equal(45, round.MonsterHp);
-        Assert.Equal(57, test.Character.Hp);
+        Assert.Equal(54, test.Character.Hp);
         var strike = round.Logs.FindIndex(log => log.Contains("使用 盾击"));
         var guard = round.Logs.FindIndex(log => log.Contains("使用 守护"));
         var counterattack = round.Logs.FindIndex(log => log.Contains("Slime 普通攻击"));
@@ -586,7 +585,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task GuardSkillsStopUsingCooldownOncePartyProtectionReachesItsCap()
+    public async Task AutoGuardSkillsAvoidSpendingMultipleCooldownsOnTheSameTarget()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
         var second = await test.AddSlotAsync(2, "Second", hp: 60, attack: 1);
@@ -600,8 +599,9 @@ public class BattleServiceTests
         var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(2, round!.Logs.Count(log => log.Contains("使用 守护")));
-        Assert.Equal(2, await test.Db.BattleSkillCooldowns.CountAsync());
+        Assert.Single(round!.Logs, log => log.Contains("使用 守护"));
+        Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
+        Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown => cooldown.CharacterId == second.Id);
         Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown => cooldown.CharacterId == third.Id);
     }
 
@@ -668,7 +668,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(round!.Logs, log => log.Contains("使用 治疗术，为 1号位"));
         Assert.Contains(round.Logs, log => log.Contains("使用 圣光击"));
-        Assert.Equal(73, test.Character.Hp);
+        Assert.Equal(68, test.Character.Hp);
         Assert.Equal(2, await test.Db.BattleSkillCooldowns.CountAsync());
     }
 
@@ -730,7 +730,7 @@ public class BattleServiceTests
         await test.AddPotionAsync(test.Character, quantity: 1, autoUse: true, threshold: 50);
 
         await test.Service.StartPreparationAsync(1, test.Token);
-        Assert.Equal(59, test.Character.Hp);
+        Assert.Equal(55, test.Character.Hp);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
 
         var (queued, queueError) = await test.Service.QueueConsumableAsync(
@@ -739,7 +739,7 @@ public class BattleServiceTests
         Assert.Null(queueError);
         await test.CompleteCooldownAndPrepareAsync();
 
-        Assert.Equal(78, test.Character.Hp);
+        Assert.Equal(70, test.Character.Hp);
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
@@ -921,7 +921,7 @@ public class BattleServiceTests
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(93, result!.CharacterHp);
+        Assert.Equal(88, result!.CharacterHp);
         Assert.Equal(35, result.MonsterHp);
         Assert.Equal(RoomStatus.Cooldown, result.RoomStatus);
     }
@@ -1060,7 +1060,7 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.NotStarted, result!.RoomStatus);
         Assert.Equal(RoomStatus.NotStarted, synced!.RoomStatus);
         Assert.Equal(35, test.Monster.Hp);
-        Assert.Equal(93, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
         Assert.False(slot.IsAutoEnabled);
         Assert.InRange((test.Room.PreparationStartedAtUtc!.Value - DateTime.UtcNow).TotalSeconds, -5, 0);
     }
@@ -1098,7 +1098,7 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
         Assert.Equal(RoomStatus.Cooldown, again!.RoomStatus);
         Assert.Equal(35, test.Monster.Hp);
-        Assert.Equal(93, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
         Assert.False((await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1)).IsAutoEnabled);
     }
 
@@ -1288,7 +1288,7 @@ public class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync();
         test.Db.Users.Add(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 });
-        test.Db.Characters.Add(new Character { Id = 2, UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 });
+        test.Db.Characters.Add(new Character { Id = 2, UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20});
         test.Db.UserLoginSessions.Add(new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
         await test.Db.SaveChangesAsync();
 
@@ -1315,7 +1315,7 @@ public class BattleServiceTests
         Assert.Single(results, result => result.Error is null);
         await using var verificationDb = test.CreateDbContext();
         Assert.Equal(0, (await verificationDb.CharacterItemStacks.SingleAsync()).Quantity);
-        Assert.Equal(73, (await verificationDb.Characters.SingleAsync()).Hp);
+        Assert.Equal(68, (await verificationDb.Characters.SingleAsync()).Hp);
     }
 
     [Fact]
@@ -1408,7 +1408,7 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
-        Assert.Equal(90, test.Character.Hp);
+        Assert.Equal(88, test.Character.Hp);
         Assert.Contains(result.Logs, log => log.Contains("使用 腐蚀喷射"));
         Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
         var nextIntent = await test.Db.MonsterIntents.SingleAsync();
@@ -1475,7 +1475,7 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("移除了") && log.Contains("中毒"));
         Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
-        Assert.Equal(92, test.Character.Hp);
+        Assert.Equal(90, test.Character.Hp);
     }
 
     [Fact]
@@ -1534,7 +1534,7 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(0, test.Character.Hp);
-        Assert.Equal(5, second.Hp);
+        Assert.Equal(0, second.Hp);
         Assert.Contains(result!.Logs, x => x.Contains("普通攻击 2号位 Mage"));
     }
 
@@ -1542,7 +1542,7 @@ public class BattleServiceTests
     public async Task SetSlotAutoAsync_DuringPreparation_WhenItConfirmsLastMember_ExecutesRound()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
-        var other = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 };
+        var other = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10};
         test.Db.AddRange(
             new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 },
             other,
@@ -1637,7 +1637,7 @@ public class BattleServiceTests
 
         public async Task<Character> AddSlotAsync(int slotIndex, string name, int hp = 100, int attack = 20, int defense = 5)
         {
-            var character = new Character { UserId = 1, Name = name, Hp = hp, MaxHp = 100, Attack = attack, Defense = defense };
+            var character = new Character { UserId = 1, Name = name, Hp = hp, MaxHp = 100, Attack = attack};
             Db.Characters.Add(character);
             await Db.SaveChangesAsync();
             Db.RoomSlots.Add(new RoomSlot { RoomId = Room.Id, SlotIndex = slotIndex, CharacterId = character.Id, UserId = 1 });
@@ -1647,7 +1647,7 @@ public class BattleServiceTests
 
         public async Task<RoomSlot> AddOtherMemberAsync()
         {
-            var character = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 };
+            var character = new Character { Id = 2, UserId = 2, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 10};
             var slot = new RoomSlot { RoomId = Room.Id, SlotIndex = 2, CharacterId = 2, UserId = 2 };
             Db.AddRange(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 }, character, slot, new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             Db.UserDungeonClears.Add(new UserDungeonClear { UserId = 2, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow });
@@ -1662,7 +1662,7 @@ public class BattleServiceTests
             var db = new GameDbContext(options);
             await db.Database.EnsureCreatedAsync();
             var user = new User { Id = 1, UserName = "user", PasswordHash = "x", ActiveCharacterId = 1 };
-            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack, Defense = characterDefense };
+            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack};
             var monster = new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = monsterAttack, Defense = monsterDefense };
             var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted };
             db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });

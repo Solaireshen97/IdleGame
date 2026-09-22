@@ -78,7 +78,7 @@ public sealed class AutoBattleFlowTests
             db.AddRange(
                 new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = 1, MonsterDefense = 5, SlotCount = 5, SortOrder = 1 },
                 new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },
-                new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 10, Defense = 99 },
+                new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 10},
                 new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = 1, Defense = 5 },
                 room,
                 new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true, IsAutoEnabled = isAutoEnabled },

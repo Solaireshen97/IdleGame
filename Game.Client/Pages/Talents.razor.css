@@ -6,6 +6,8 @@
 .talents-page__eyebrow { color: #e3b367; font-size: .72rem; font-weight: 800; letter-spacing: .16em; }
 .talents-page__layout { display: grid; grid-template-columns: minmax(200px, 245px) minmax(0, 1fr); align-items: start; gap: 1rem; }
 .talents-page__aside, .talents-page__main { display: grid; gap: 1rem; min-width: 0; }
+.talents-page__panel { min-width: 0; scroll-margin-top: .75rem; }
+.talents-page__jump { display: none; }
 .talents-page__identity, .talents-page__roadmap, .talents-page__next { border: 1px solid #344a60; border-radius: .85rem; background: #172638; }
 .talents-page__identity, .talents-page__roadmap { padding: 1.15rem; }
 .talents-page__identity h2, .talents-page__roadmap h2, .talents-page__next h2 { margin: .3rem 0 .9rem; color: #eef2f6; font-family: Georgia, serif; font-size: 1.3rem; }
@@ -28,13 +30,36 @@
 .talents-page__next p { margin: .45rem 0 0; color: #a6b7c5; font-size: .85rem; }
 .talents-page__notice { border: 1px solid #344a60; border-radius: .7rem; padding: 1.5rem; color: #b8c8d5; background: #172638; }
 
-@media (max-width: 900px) {
+@container game-shell (max-width: 900px) {
     .talents-page__layout { grid-template-columns: minmax(0, 1fr); }
     .talents-page__identity dl { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1rem; }
     .talents-page__roadmap { display: none; }
 }
 
-@media (max-width: 640px) {
-    .talents-page__intro { align-items: flex-start; flex-direction: column; padding: 1rem 0; gap: .25rem; }
+@container game-shell (max-width: 640px) {
+    .talents-page { padding-bottom: 1.5rem; }
+    .talents-page__intro, .talents-page__aside, .talents-page__next { display: none; }
+    .talents-page__layout, .talents-page__main { gap: .7rem; }
+    .talents-page__jump {
+        position: sticky;
+        z-index: 20;
+        top: .35rem;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+        padding: .35rem;
+        border: 1px solid #40566b;
+        border-radius: .75rem;
+        background: rgba(14, 28, 43, .94);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+        backdrop-filter: blur(14px);
+    }
+    .talents-page__jump button { display: grid; grid-template-columns: auto 1fr; gap: 0 .45rem; min-height: 48px; padding: .42rem .65rem; border: 0; border-radius: .55rem; background: transparent; color: #9fb1c0; text-align: left; }
+    .talents-page__jump button.active { background: rgba(216, 169, 87, .14); color: #f1e5ce; }
+    .talents-page__jump button > span { grid-row: 1 / 3; align-self: center; color: #e5b561; }
+    .talents-page__jump strong { align-self: end; font-size: .76rem; }
+    .talents-page__jump small { align-self: start; color: #8fa4b6; font-size: .625rem; }
+    .talents-page__panel { display: none; }
+    .talents-page__panel--selected { display: block; }
     .talents-page__next { align-items: flex-start; }
 }

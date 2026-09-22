@@ -47,7 +47,7 @@ public sealed class T1CombatScalingTests
         await connection.OpenAsync();
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        var character = new Character { Id = 1, UserId = 1, Name = "测试牧师", ProfessionCode = "cleric",
+        var character = new Character { Id = 1, UserId = 1, Name = "测试祭司", ProfessionCode = "acolyte",
             Attack = 100, Hp = 100, MaxHp = 500, WeaponHealthBonusPercent = 20,
             WeaponAttackBonusPercent = 20, WeaponSkillDamagePercent = 50 };
         db.AddRange(new User { Id = 1, UserName = "scaling-test", PasswordHash = "x", ActiveCharacterId = 1 }, character,
@@ -59,8 +59,8 @@ public sealed class T1CombatScalingTests
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
             new CharacterItemStack { CharacterId = 1, ItemCode = "minor-healing-potion", Quantity = 2 },
             new CharacterConsumableSlot { CharacterId = 1, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 80 },
-            new CharacterSkillSlot { CharacterId = 1, SlotIndex = 1, SkillCode = "cleric-heal", AutoUseEnabled = true, AutoHpThresholdPercent = 80 },
-            new CharacterSkillSlot { CharacterId = 1, SlotIndex = 2, SkillCode = "cleric-smite", AutoUseEnabled = true });
+            new CharacterSkillSlot { CharacterId = 1, SlotIndex = 1, SkillCode = "acolyte-heal", AutoUseEnabled = true, AutoHpThresholdPercent = 80 },
+            new CharacterSkillSlot { CharacterId = 1, SlotIndex = 2, SkillCode = "acolyte-holy-bolt", AutoUseEnabled = true });
         await db.SaveChangesAsync();
         var config = Production();
         var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
@@ -74,7 +74,7 @@ public sealed class T1CombatScalingTests
         var (result, error) = await battle.StartPreparationAsync(1, "test");
         Assert.Null(error);
         Assert.Equal(9693, result!.MonsterHp); // 120 normal + 187 skill
-        Assert.Equal(259, character.Hp); // 100 + 92 heal + 68 potion - 1 incoming
+        Assert.Equal(243, character.Hp); // 100 + 76 heal + 68 potion - 1 incoming
         Assert.Equal(1, (await db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(2, await db.BattleSkillCooldowns.CountAsync());
         Assert.Single(await db.BattleConsumableCooldowns.ToListAsync());

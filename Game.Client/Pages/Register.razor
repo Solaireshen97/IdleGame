@@ -6,39 +6,58 @@
 
 <PageTitle>注册</PageTitle>
 
-<h1>注册</h1>
+<AuthShell Kicker="BEGIN YOUR JOURNEY"
+           Title="创建冒险者"
+           Description="建立账号，从第一场战斗开始积累你的队伍。"
+           SubmitLabel="开始冒险"
+           SubmittingLabel="正在创建…"
+           AlternatePrompt="已经拥有账号？"
+           AlternateLabel="返回登录"
+           AlternateHref="/login"
+           IsChecking="@_isCheckingLoginState"
+           IsSubmitting="@_isSubmitting"
+           ErrorMessage="@_errorMessage"
+           OnSubmit="RegisterAsync">
+    <label class="auth-field" for="register-user-name">
+        <span>用户名</span>
+        <span class="auth-field__control">
+            <span class="auth-field__icon" aria-hidden="true">◆</span>
+            <input id="register-user-name"
+                   name="username"
+                   autocomplete="username"
+                   autocapitalize="none"
+                   spellcheck="false"
+                   placeholder="设置用户名"
+                   @bind="_request.UserName"
+                   @bind:event="oninput" />
+        </span>
+    </label>
 
-@if (_isCheckingLoginState)
-{
-    <p>检查登录状态中...</p>
-}
-else
-{
-    <div>
-        <label for="userName">用户名：</label>
-        <input id="userName" @bind="_request.UserName" />
-    </div>
-
-    <div>
-        <label for="password">密码：</label>
-        <input id="password" type="password" @bind="_request.Password" />
-    </div>
-
-    <div>
-        <button @onclick="RegisterAsync" disabled="@_isSubmitting">注册</button>
-        <button @onclick="GoToLogin" disabled="@_isSubmitting">去登录</button>
-    </div>
-
-    @if (_errorMessage is not null)
-    {
-        <p><em>@_errorMessage</em></p>
-    }
-}
+    <label class="auth-field" for="register-password">
+        <span>密码</span>
+        <span class="auth-field__control">
+            <span class="auth-field__icon" aria-hidden="true">✦</span>
+            <input id="register-password"
+                   name="password"
+                   type="@(_showPassword ? "text" : "password")"
+                   autocomplete="new-password"
+                   placeholder="设置密码"
+                   @bind="_request.Password"
+                   @bind:event="oninput" />
+            <button type="button" class="auth-field__reveal"
+                    aria-label="@(_showPassword ? "隐藏密码" : "显示密码")"
+                    aria-pressed="@(_showPassword ? "true" : "false")"
+                    @onclick:stopPropagation="true"
+                    @onclick="() => _showPassword = !_showPassword">@(_showPassword ? "隐藏" : "显示")</button>
+        </span>
+    </label>
+</AuthShell>
 
 @code {
     private readonly RegisterRequest _request = new();
     private bool _isCheckingLoginState = true;
     private bool _isSubmitting;
+    private bool _showPassword;
     private string? _errorMessage;
 
     protected override async Task OnInitializedAsync()
@@ -58,19 +77,28 @@ else
         _isSubmitting = true;
         _errorMessage = null;
 
-        var (_, errorMessage) = await ApiService.RegisterAsync(_request);
-        if (errorMessage is not null)
+        try
         {
-            _errorMessage = errorMessage;
-            _isSubmitting = false;
-            return;
+            var (_, errorMessage) = await ApiService.RegisterAsync(_request);
+            if (errorMessage is not null)
+            {
+                _errorMessage = errorMessage;
+                return;
+            }
+
+            Navigation.NavigateTo("/rooms", replace: true);
         }
-
-        Navigation.NavigateTo("/rooms", replace: true);
-    }
-
-    private void GoToLogin()
-    {
-        Navigation.NavigateTo("/login");
+        catch (HttpRequestException)
+        {
+            _errorMessage = "暂时无法连接到游戏服务，请稍后重试。";
+        }
+        catch (TaskCanceledException)
+        {
+            _errorMessage = "连接超时，请检查网络后重试。";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
     }
 }

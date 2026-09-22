@@ -201,7 +201,7 @@
     padding: .18rem .38rem;
     border: 1px solid;
     border-radius: 999px;
-    font-size: .62rem;
+    font-size: .625rem;
     line-height: 1.2;
     white-space: nowrap;
 }
@@ -221,8 +221,11 @@
 
 .battle-log-overlay {
     position: fixed;
-    z-index: 1000;
-    inset: 0;
+    z-index: 1300;
+    inset-block: 0;
+    left: 50%;
+    width: min(100vw, 640px);
+    transform: translateX(-50%);
     display: grid;
     place-items: center;
     padding: 1.25rem;
@@ -523,7 +526,7 @@
 
 .enemy-vitals > span {
     color: #e0b983;
-    font-size: .62rem;
+    font-size: .625rem;
     font-weight: 800;
     letter-spacing: .12em;
 }
@@ -668,7 +671,7 @@
 .battle-skills__slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .4rem; width: min(100%, 720px); }
 .battle-skills > p { margin: .6rem 0 0; color: #aebfca; font-size: .72rem; }
 .battle-skills .battle-supplies__message { color: #f0ce8b; }
-@media (max-width: 900px) { .battle-skills__character { flex-direction: column; align-items: stretch; } .battle-skills__slots { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); width: 100%; } }
+@container game-shell (max-width: 900px) { .battle-skills__character { flex-direction: column; align-items: stretch; } .battle-skills__slots { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); width: 100%; } }
 
 .battle-supplies__header,
 .battle-supplies__character,
@@ -903,12 +906,12 @@
     to { background-position: 36px 0, 0 0; }
 }
 
-@media (max-width: 1050px) {
+@container game-shell (max-width: 1050px) {
     .battle-controls { grid-template-columns: 1fr; }
     .battle-controls__tools { justify-content: flex-start; }
 }
 
-@media (max-width: 780px) {
+@container game-shell (max-width: 780px) {
     .battle-field { grid-template-columns: 1fr; gap: 1rem; padding-top: .5rem; }
     .battle-field__enemy { order: 0; }
     .battle-field__party { order: 1; }
@@ -924,7 +927,7 @@
     .battle-supplies__slots { width: 100%; }
 }
 
-@media (max-width: 550px) {
+@container game-shell (max-width: 550px) {
     .battle-stage__header { align-items: flex-start; flex-direction: column; padding: 1rem; }
     .battle-stage__meta { justify-content: flex-start; }
     .battle-feed { width: calc(100% - 2rem); margin: 0 1rem; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
@@ -941,7 +944,7 @@
     .fighter__portrait img { max-height: 80px; }
     .fighter--empty .fighter__portrait { height: 52px; }
     .fighter > strong { font-size: .65rem; }
-    .fighter > small { font-size: .59rem; }
+    .fighter > small { font-size: .625rem; }
     .battle-stage__footer { padding: .65rem 1rem; flex-wrap: wrap; }
     .battle-controls { padding: 1rem; }
     .battle-controls__main { align-items: flex-start; flex-direction: column; }
@@ -1032,7 +1035,7 @@
 .battle-command__heading .section-kicker {
     writing-mode: vertical-rl;
     transform: rotate(180deg);
-    font-size: .61rem;
+    font-size: .625rem;
 }
 
 .battle-command__heading h2 {
@@ -1160,7 +1163,7 @@
 
 .battle-field__label small {
     color: #8da9b8;
-    font-size: .58rem;
+    font-size: .625rem;
     letter-spacing: .14em;
 }
 
@@ -1196,6 +1199,9 @@
     padding: 1.15rem 1.25rem;
     background: linear-gradient(145deg, #192b3d, #122233);
 }
+
+.battle-loadout__tabs { display: none; }
+.battle-loadout__panel { min-width: 0; }
 
 .battle-controls--loadout .battle-skills,
 .battle-controls--loadout .battle-supplies {
@@ -1299,7 +1305,7 @@
 
 .quick-skill-toggle > span { display: grid; gap: .02rem; }
 .quick-skill-toggle strong { font-size: .74rem; }
-.quick-skill-toggle small { color: #9eb2c0; font-size: .61rem; }
+.quick-skill-toggle small { color: #9eb2c0; font-size: .625rem; }
 
 .battle-skill-grid {
     display: grid;
@@ -1387,7 +1393,7 @@
     display: grid;
     place-items: center;
     border-radius: 999px;
-    font-size: .62rem;
+    font-size: .625rem;
     font-weight: 800;
 }
 
@@ -1395,13 +1401,16 @@
 .battle-skill-card__cooldown { inset: 0; border-radius: .5rem; background: rgba(4, 10, 17, .74); color: white; font-size: 1.35rem; }
 .battle-skill-card__check { inset: auto 3px 3px auto; width: 21px; height: 21px; background: #e1b666; color: #16202a; }
 .battle-skill-card__name { width: 100%; margin-top: .42rem; overflow: hidden; font-size: .76rem; white-space: nowrap; text-overflow: ellipsis; }
-.battle-skill-card__status { width: 100%; margin-top: .12rem; overflow: hidden; color: #a8bdca; font-size: .61rem; white-space: nowrap; text-overflow: ellipsis; }
-.battle-skill-card__auto { position: absolute; inset: .35rem .35rem auto auto; border-radius: 999px; padding: .14rem .28rem; background: #2d796c; color: #d8fff3; font-size: .5rem; font-weight: 900; letter-spacing: .06em; }
+.battle-skill-card__status { width: 100%; margin-top: .12rem; overflow: hidden; color: #a8bdca; font-size: .625rem; white-space: nowrap; text-overflow: ellipsis; }
+.battle-skill-card__auto { position: absolute; inset: .35rem .35rem auto auto; border-radius: 999px; padding: .14rem .28rem; background: #2d796c; color: #d8fff3; font-size: .625rem; font-weight: 900; letter-spacing: .06em; }
 
 .skill-dialog-overlay {
     position: fixed;
-    inset: 0;
-    z-index: 1100;
+    inset-block: 0;
+    left: 50%;
+    width: min(100vw, 640px);
+    transform: translateX(-50%);
+    z-index: 1300;
     display: grid;
     place-items: center;
     padding: 1rem;
@@ -1466,7 +1475,7 @@
 .skill-dialog__footer .button { min-height: 46px; }
 .skill-dialog__footer .button--primary { min-width: 170px; }
 
-@media (max-width: 1050px) {
+@container game-shell (max-width: 1050px) {
     .battle-command {
         grid-template-columns: minmax(0, 1fr) minmax(230px, auto) auto;
     }
@@ -1474,7 +1483,7 @@
     .battle-command__state { display: none; }
 }
 
-@media (max-width: 780px) {
+@container game-shell (max-width: 780px) {
     .battle-command {
         grid-template-columns: minmax(0, 1fr);
     }
@@ -1496,7 +1505,7 @@
     .battle-skill-grid { width: 100%; grid-template-columns: repeat(5, minmax(86px, 1fr)); }
 }
 
-@media (max-width: 640px) {
+@container game-shell (max-width: 640px) {
     .battle-page {
         max-width: none;
         padding-bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -1511,7 +1520,7 @@
         position: sticky;
         inset: auto auto calc(.65rem + env(safe-area-inset-bottom));
         z-index: 900;
-        grid-template-columns: minmax(0, 1fr) minmax(138px, 43vw);
+        grid-template-columns: minmax(0, 1fr) clamp(138px, 44%, 220px);
         gap: .45rem .6rem;
         margin: .65rem 0 .85rem;
         padding: .65rem .7rem .6rem .85rem;
@@ -1565,7 +1574,7 @@
     }
 
     .battle-command .battle-auto {
-        min-height: 38px;
+        min-height: 44px;
         padding: .35rem .5rem;
     }
 
@@ -1622,7 +1631,7 @@
     }
 
     .monster-intent__icon { width: 30px; height: 30px; }
-    .monster-intent__body > span { font-size: .61rem; letter-spacing: .08em; }
+    .monster-intent__body > span { font-size: .625rem; letter-spacing: .08em; }
     .monster-intent__body > strong { font-size: .9rem; }
     .monster-intent__body > small { font-size: .7rem; }
 
@@ -1660,7 +1669,7 @@
     .battle-supplies__header a { font-size: .71rem; text-align: right; }
     .battle-skills__character, .battle-supplies__character { padding: .6rem; }
     .battle-skills__tools { align-items: flex-end; flex-direction: column; gap: .2rem; }
-    .quick-skill-toggle { min-height: 42px; padding: .35rem .5rem; }
+    .quick-skill-toggle { min-height: 44px; padding: .35rem .5rem; }
     .battle-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
     .battle-skill-card { min-height: 126px; padding-inline: .25rem; }
     .battle-skill-card__icon { width: 62px; height: 62px; flex-basis: 62px; }
@@ -1689,7 +1698,7 @@
     .skill-dialog__footer .button { flex: 1; }
 }
 
-@media (max-width: 390px) {
+@container game-shell (max-width: 390px) {
     .battle-command {
         grid-template-columns: minmax(0, 1fr) 138px;
     }
@@ -1698,6 +1707,184 @@
     .battle-shortcut span { display: none; }
     .battle-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .battle-supplies__header .section-kicker { display: none; }
+}
+
+@container game-shell (max-width: 640.98px) {
+    .battle-page { padding-top: .5rem; }
+    .battle-page__header { display: none; }
+
+    .battle-stage__header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .45rem;
+        padding: .65rem .75rem .5rem;
+    }
+    .battle-stage__header .section-kicker { display: none; }
+    .battle-stage__header h1 {
+        margin: 0;
+        overflow: hidden;
+        font-size: 1.08rem;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .battle-stage__meta { flex-wrap: nowrap; justify-content: flex-end; gap: .3rem; }
+    .battle-stage__meta .battle-mode:nth-child(2) { display: none; }
+    .battle-mode, .battle-status { padding: .25rem .48rem; font-size: .625rem; }
+
+    .battle-feed {
+        width: calc(100% - 1.4rem);
+        min-height: 44px;
+        margin-inline: .7rem;
+        padding: .48rem .6rem;
+    }
+    .battle-feed__latest { font-size: .7rem; }
+
+    .monster-intent {
+        width: calc(100% - 1.4rem);
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: .55rem;
+        min-height: 68px;
+        margin: .5rem .7rem 0;
+        padding: .55rem .6rem;
+    }
+    .monster-intent__icon { width: 28px; height: 28px; }
+    .monster-intent__body > span { display: none; }
+    .monster-intent__body > strong { font-size: .8rem; }
+    .monster-intent__body > small { font-size: .625rem; line-height: 1.3; }
+    .monster-intent__target { grid-column: auto; max-width: 82px; text-align: right; }
+    .monster-intent__target > span { display: none; }
+    .monster-intent__target strong { overflow: hidden; font-size: .68rem; white-space: nowrap; text-overflow: ellipsis; }
+    .monster-intent__target small { font-size: .625rem; }
+
+    .battle-field {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        align-items: end;
+        gap: .55rem;
+        min-height: 0;
+        padding: .48rem .7rem .58rem;
+    }
+    .battle-field__party {
+        order: 0;
+        min-width: 0;
+    }
+    .battle-field__enemy {
+        order: 1;
+        min-width: 0;
+    }
+    .battle-field__enemy-art { min-height: 82px; }
+    .battle-field__enemy-art img { max-height: 88px; }
+    .enemy-vitals { padding: .45rem .5rem; }
+    .enemy-vitals > span { display: none; }
+    .enemy-vitals__name {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: .08rem;
+    }
+    .enemy-vitals__name strong {
+        width: 100%;
+        overflow: hidden;
+        font-size: .88rem;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .enemy-vitals__name span { font-size: .66rem; }
+    .enemy-vitals__health { margin-top: .28rem; }
+    .battle-field__label {
+        align-items: center;
+        min-height: 22px;
+        padding: 0 .05rem .28rem;
+        font-size: .64rem;
+    }
+    .battle-field__label small { display: none; }
+    .battle-field__label > span { font-size: .68rem; }
+    .fighter-line {
+        display: flex;
+        gap: .38rem;
+        overflow-x: auto;
+        padding-bottom: .18rem;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+    }
+    .fighter-line::-webkit-scrollbar { display: none; }
+    .fighter { flex: 0 0 78px; scroll-snap-align: start; }
+    .fighter__portrait { height: 58px; }
+    .fighter__portrait img { max-height: 56px; }
+    .fighter > strong { margin-top: .25rem; }
+    .fighter .battle-element { display: none; }
+    .fighter__health { margin-top: .2rem; }
+    .battle-effects {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .battle-effects::-webkit-scrollbar { display: none; }
+    .battle-stage__footer { display: none; }
+
+    .battle-command {
+        position: sticky;
+        inset: auto;
+        top: calc(4.65rem + env(safe-area-inset-top));
+        z-index: 950;
+        margin: .55rem 0 .65rem;
+    }
+
+    .battle-controls--loadout { padding: .65rem; }
+    .battle-loadout__tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .32rem;
+        margin-bottom: .58rem;
+        padding: .28rem;
+        border: 1px solid #405a6f;
+        border-radius: .65rem;
+        background: #0e2030;
+    }
+    .battle-loadout__tabs button {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: .38rem;
+        min-height: 48px;
+        border: 0;
+        border-radius: .48rem;
+        padding: .4rem .55rem;
+        color: #9fb4c2;
+        background: transparent;
+        text-align: left;
+    }
+    .battle-loadout__tabs button.active { color: #f3e4c7; background: rgba(220, 174, 90, .16); }
+    .battle-loadout__tabs button > span { color: #e4b561; }
+    .battle-loadout__tabs strong { font-size: .72rem; }
+    .battle-loadout__tabs small { color: #8fa5b5; font-size: .625rem; }
+    .battle-loadout__panel { display: none; }
+    .battle-loadout__panel--selected { display: block; }
+    .battle-controls--loadout .battle-supplies { margin-top: 0; border-top: 0; padding-top: 0; }
+
+    .battle-skills .battle-supplies__header { align-items: stretch; flex-direction: column; }
+    .battle-skills__tools { align-items: center; flex-direction: row; justify-content: space-between; }
+    .quick-skill-toggle { flex: 1; }
+    .battle-skills__character { gap: .5rem; padding: .55rem; }
+    .battle-skill-grid {
+        display: flex;
+        gap: .42rem;
+        overflow-x: auto;
+        width: 100%;
+        padding: .12rem .1rem .28rem;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+    }
+    .battle-skill-grid::-webkit-scrollbar { display: none; }
+    .battle-skill-card { flex: 0 0 88px; min-height: 112px; padding: .45rem .3rem .38rem; scroll-snap-align: start; }
+    .battle-skill-card__icon { width: 56px; height: 56px; flex-basis: 56px; }
+    .battle-skills > p, .battle-supplies > p { display: none; }
+    .battle-supplies__slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .battle-supply { min-height: 64px; padding: .45rem .5rem; }
+    .battle-supply__action { font-size: .65rem; }
+
+    .battle-log-overlay { align-items: end; place-items: end center; padding: 0; }
+    .battle-log-dialog { width: 100%; max-height: calc(82vh - env(safe-area-inset-bottom)); border-width: 1px 0 0; border-radius: 1rem 1rem 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
 
 @media (prefers-contrast: more) {

@@ -225,31 +225,23 @@ public class UserController(UserService userService, TalentService talentService
         return SkillResult(response, error);
     }
 
+    [HttpPost("characters/{characterId:int}/profession/promote")]
+    public async Task<IActionResult> PromoteCharacter(int characterId, [FromBody] PromoteCharacterRequest? request)
+    {
+        if (request is null) return BadRequest("Request body is required.");
+        var (response, error) = await skillService.PromoteAsync(GetBearerToken(), characterId, request);
+        return SkillResult(response, error);
+    }
+
     private IActionResult SkillResult(CharacterSkillsResponse? response, string? error) => error switch
     {
         null => Ok(response),
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(403, "NotOwner"),
-        "LoadoutLocked" or "SkillAlreadyEquipped" or "SkillTalentAlreadyUnlocked" or "ConcurrencyConflict" => Conflict(error),
+        "LoadoutLocked" or "SkillAlreadyEquipped" or "AlreadyPromoted" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };
-
-    [HttpPost("characters/{characterId:int}/talents/{type}/allocate")]
-    public async Task<IActionResult> AllocateTalent(int characterId, string type)
-    {
-        if (!Enum.TryParse<TalentType>(type, true, out var talentType) || !Enum.IsDefined(talentType))
-            return BadRequest("Invalid talent type.");
-        var (response, error) = await talentService.AllocateAsync(GetBearerToken(), characterId, talentType);
-        return TalentResult(response, error);
-    }
-
-    [HttpPost("characters/{characterId:int}/talents/reset")]
-    public async Task<IActionResult> ResetTalents(int characterId)
-    {
-        var (response, error) = await talentService.ResetAsync(GetBearerToken(), characterId);
-        return TalentResult(response, error);
-    }
 
     private IActionResult TalentResult(CharacterTalentsResponse? response, string? error) => error switch
     {

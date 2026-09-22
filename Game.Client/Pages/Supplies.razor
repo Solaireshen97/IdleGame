@@ -18,7 +18,7 @@
 
     @if (_isLoading)
     {
-        <p class="supplies-page__notice">正在读取当前角色...</p>
+        <GameStateCard Compact="true" Title="正在读取当前角色" Detail="准备载入角色背包与补给槽。" />
     }
     else if (ActiveCharacters.Current is { } character)
     {
@@ -28,7 +28,6 @@
                 <h2>@character.Name</h2>
                 <p>Lv @character.Level · HP @character.Hp / @character.MaxHp</p>
                 <div><strong>@character.Attack</strong><small>攻击</small></div>
-                <div><strong>@character.Defense</strong><small>防御</small></div>
                 <p class="supplies-page__switch">可从顶栏切换当前操作角色；每名角色的背包独立保存。</p>
             </aside>
             <CharacterConsumablesBoard @key="character.CharacterId" CharacterId="@character.CharacterId" />
@@ -36,7 +35,7 @@
     }
     else
     {
-        <p class="supplies-page__notice" role="alert">暂时无法读取当前角色。</p>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="角色读取失败" Detail="请返回大厅后重新选择角色。" />
     }
 </div>
 

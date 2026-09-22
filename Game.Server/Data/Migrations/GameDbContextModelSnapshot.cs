@@ -26,13 +26,10 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Attack")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AdvancedProfessionCode")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("AttackTalentRank")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Defense")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("DefenseTalentRank")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Experience")
@@ -43,6 +40,24 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("HealthTalentRank")
                         .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TalentHealingDonePercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TalentHealingReceivedPercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TalentMaxHpPercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TalentNormalAttackPercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TalentSkillCriticalChancePercent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TalentSkillDamagePercent")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Level")
                         .HasColumnType("INTEGER");

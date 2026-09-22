@@ -1,0 +1,38 @@
+<section class="game-state game-state--@Tone @(Compact ? "game-state--compact" : null)"
+         role="@StateRole"
+         aria-live="@(StateRole == "alert" ? "assertive" : "polite")">
+    <span class="game-state__glyph" aria-hidden="true">@Icon</span>
+    <div class="game-state__copy">
+        <strong>@Title</strong>
+        @if (!string.IsNullOrWhiteSpace(Detail))
+        {
+            <small>@Detail</small>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="game-state__actions">@Actions</div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Detail { get; set; }
+
+    [Parameter]
+    public string Icon { get; set; } = "✦";
+
+    [Parameter]
+    public string Tone { get; set; } = "loading";
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    private string StateRole => Tone == "error" ? "alert" : "status";
+}

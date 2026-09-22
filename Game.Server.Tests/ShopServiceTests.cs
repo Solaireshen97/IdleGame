@@ -16,7 +16,7 @@ public class ShopServiceTests
     public async Task ConsumablePurchaseUsesServerPriceAndDeliversOnlyToActiveCharacter()
     {
         await using var test = await ShopTestContext.CreateAsync();
-        var other = new Character { UserId = 1, Name = "Cleric", Hp = 100, MaxHp = 100, Attack = 10, Defense = 3 };
+        var other = new Character { UserId = 1, Name = "Cleric", Hp = 100, MaxHp = 100, Attack = 10};
         test.Db.Characters.Add(other);
         await test.Db.SaveChangesAsync();
 
@@ -125,7 +125,7 @@ public class ShopServiceTests
     public async Task ShopViewFollowsSelectedCharacterAndKeepsSharedWallet()
     {
         await using var test = await ShopTestContext.CreateAsync();
-        var second = new Character { UserId = 1, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 8, Defense = 2 };
+        var second = new Character { UserId = 1, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 8};
         test.Db.Characters.Add(second);
         await test.Db.SaveChangesAsync();
         await test.Service.PurchaseAsync(test.Token, new PurchaseShopItemRequest
@@ -200,7 +200,7 @@ public class ShopServiceTests
             var db = new GameDbContext(options);
             await db.Database.EnsureCreatedAsync();
             var user = new User { Id = 1, UserName = "shopper", PasswordHash = "x", ActiveCharacterId = 1, Gold = 100 };
-            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
             db.AddRange(user, character, new UserLoginSession
             {
                 UserId = 1, Token = "shop-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1)

@@ -122,7 +122,7 @@ public sealed class T1WeaponContentTests
             Element = ElementType.Dark, Attack = 5, MaxHp = 12, ItemLevel = 2, EquippedSlotIndex = 2,
             Skills = [new() { SlotIndex = 1, SkillCode = "weapon-critical", BaseLevel = 1, Level = 1 }] };
         db.AddRange(new User { Id = 1, UserName = "rebase", PasswordHash = "x", ActiveCharacterId = 1 },
-            new Character { Id = 1, UserId = 1, Name = "测试", Attack = 19, MaxHp = 50, Hp = 25, Defense = 5 }, weapon, retired);
+            new Character { Id = 1, UserId = 1, Name = "测试", Attack = 19, MaxHp = 50, Hp = 25}, weapon, retired);
         await db.SaveChangesAsync();
 
         var catalog = T1WeaponEffectTests.ProductionCatalog();

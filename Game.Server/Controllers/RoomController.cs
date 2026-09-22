@@ -11,7 +11,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpGet]
     public async Task<IActionResult> GetRooms()
     {
-        var rooms = await roomService.GetRoomsAsync();
+        var rooms = await roomService.GetRoomsAsync(GetBearerToken());
         return Ok(rooms);
     }
 

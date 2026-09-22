@@ -263,8 +263,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 slot => slot.CharacterId == participant.Character.Id && slot.SlotIndex == request.SkillSlotIndex);
             var skill = skillCatalog.FindSkill(equipped?.SkillCode);
             var purchasedNodes = (await dbContext.CharacterSkillTalents
-                .Where(node => node.CharacterId == participant.Character.Id).Select(node => node.NodeCode).ToListAsync())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .Where(node => node.CharacterId == participant.Character.Id).ToListAsync())
+                .ToDictionary(node => node.NodeCode, node => node.PointsSpent, StringComparer.OrdinalIgnoreCase);
             if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, purchasedNodes))
                 return (false, "SkillNotEquipped");
             var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
@@ -331,6 +331,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
         foreach (var entry in aliveSlots)
         {
+            var talentEcho = 0m;
+            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-sword-rhythm", requireEarlierRound: true)) talentEcho += 25;
+            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-guard-echo", requireEarlierRound: false))
+                talentEcho += skillCatalog.FindTalentNode("sword-counteroffense")?.ValuePerRank ?? 75;
             var element = mainWeaponElements.TryGetValue(entry.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
             var statusAttack = monsterCombatService is null ? 0m :
                 await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "AttackPercent");
@@ -341,14 +345,14 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             {
                 var critical = RollCritical(entry.Character);
                 var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
-                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + statusAttack,
+                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + statusAttack + entry.Character.TalentNormalAttackPercent,
                         HealthPercent: healthPercent,
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                         ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
                         ReductionPercent: monsterReduction));
                 monster.Hp = Math.Max(0, monster.Hp - damage);
                 logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} {(hit == 0 ? "普通攻击" : "二连击")} {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
-                var echo = WeaponCombatRules.EchoDamage(damage, entry.Character.WeaponNormalEchoPercent);
+                var echo = WeaponCombatRules.EchoDamage(damage, entry.Character.WeaponNormalEchoPercent + talentEcho);
                 if (monster.Hp > 0 && echo > 0)
                 {
                     monster.Hp = Math.Max(0, monster.Hp - echo);
@@ -363,6 +367,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var monsterDefeated = monster.Hp <= 0;
         if (monsterDefeated)
         {
+            await ApplyVictoryCooldownTalentAsync(room, characterIds, logs);
             var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
                 .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
             var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs);
@@ -390,7 +395,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 {
                     var target = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).First();
                     var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
-                    var damage = DamageCalculator.Calculate(monster.Attack, TalentRules.EffectiveDefense(target.Character),
+                    var damage = DamageCalculator.Calculate(monster.Attack, 0,
                         factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
                             ReductionPercent: roundDefense.ReductionPercent));
                     target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
@@ -399,6 +404,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
                 if (monster.Hp <= 0)
                 {
+                    await ApplyVictoryCooldownTalentAsync(room, characterIds, logs);
                     var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
                         .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
                     var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs);
@@ -443,9 +449,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             .Where(node => characterIds.Contains(node.CharacterId)).ToListAsync())
             .GroupBy(node => node.CharacterId)
             .ToDictionary(group => group.Key,
-                group => group.Select(node => node.NodeCode).ToHashSet(StringComparer.OrdinalIgnoreCase));
+                group => group.ToDictionary(node => node.NodeCode, node => node.PointsSpent, StringComparer.OrdinalIgnoreCase));
         var guardPercent = 0;
         int? guardTargetCharacterId = null;
+        int? guardSourceCharacterId = null;
         var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
@@ -454,7 +461,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var skill = skillCatalog.FindSkill(slot.SkillCode);
             var used = usedByCharacter[participant.Character.Id];
             if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code,
-                    purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase)) ||
+                    purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)) ||
                 used.Contains(skill.Code)) return false;
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
@@ -463,6 +470,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots)) return false;
 
             var applied = false;
+            var totalDamage = 0;
+            var ranks = purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var holyDamageEcho = skill.Code == "acolyte-holy-bolt" && await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", false) ? 20m : 0m;
+            var holyHealEcho = SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Heal") &&
+                await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-heal", false) ? 10m : 0m;
             var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
                 TalentRules.EffectiveMaxHp(participant.Character), participant.Character.WeaponStaminaPercent,
                 participant.Character.WeaponEnmityPercent);
@@ -474,7 +486,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     {
                         var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement)
                             ? mainElement : (ElementType?)null;
-                        var critical = RollCritical(participant.Character);
+                        var critical = RollCritical(participant.Character, isSkill: true);
                         var attackModifier = monsterCombatService is null ? 0m :
                             await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
                         var monsterReduction = monsterCombatService is null ? 0m :
@@ -485,30 +497,48 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                                 CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                                 ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
                                 ReductionPercent: monsterReduction,
-                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent), effect.AttackPowerPercent);
+                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho +
+                                    (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0)), effect.AttackPowerPercent);
                         monster.Hp = Math.Max(0, monster.Hp - damage);
+                        totalDamage += damage;
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                         applied = true;
                         break;
                     }
                     case "Heal":
                     {
-                        var target = effect.Target == "Self" ? participant : FindLowestHpTarget(aliveSlots);
-                        if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character)) break;
-                        var maxHp = TalentRules.EffectiveMaxHp(target.Character);
-                        var healed = Math.Min(RecoveryCalculator.Calculate(maxHp, effect.Power, effect.HealMaxHpPercent), maxHp - target.Character.Hp);
-                        target.Character.Hp += healed;
-                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
-                        applied = true;
+                        var targets = effect.Target == "AllAlive" ? aliveSlots.Where(entry => entry.Character.Hp > 0).ToList() :
+                            new[] { effect.Target == "Self" ? participant : FindLowestHpTarget(aliveSlots) }.Where(entry => entry is not null).Select(entry => entry!).ToList();
+                        foreach (var target in targets)
+                        {
+                            var maxHp = TalentRules.EffectiveMaxHp(target.Character);
+                            if (target.Character.Hp >= maxHp) continue;
+                            var wasBelowHalf = (long)target.Character.Hp * 2 < maxHp;
+                            var missing = maxHp - target.Character.Hp;
+                            var bonus = participant.Character.TalentHealingDonePercent + target.Character.TalentHealingReceivedPercent + holyHealEcho +
+                                (skill.Code == "acolyte-heal" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-heal-training") * 4 ?? 0 : 0);
+                            var raw = (int)decimal.Floor(RecoveryCalculator.Calculate(maxHp, effect.Power, effect.HealMaxHpPercent) * (1 + bonus / 100m));
+                            var healed = Math.Min(raw, maxHp - target.Character.Hp);
+                            target.Character.Hp += healed;
+                            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
+                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-mercy") > 0 && wasBelowHalf)
+                                await monsterCombatService.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
+                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-afterglow") > 0 && raw > missing)
+                                await monsterCombatService.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
+                            applied = true;
+                        }
                         break;
                     }
                     case "Guard":
                     {
-                        var front = aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
-                        if (front is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
-                        guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + effect.Power);
-                        guardTargetCharacterId = front.Character.Id;
-                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {front.Slot.SlotIndex}号位 {front.Character.Name}。");
+                        var target = skill.Code == "sword-parry" ? participant : aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
+                        if (target is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
+                        if (automatic && guardPercent > 0 && guardTargetCharacterId == target.Character.Id) break;
+                        var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
+                        guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + power);
+                        guardTargetCharacterId = target.Character.Id;
+                        guardSourceCharacterId = participant.Character.Id;
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {target.Slot.SlotIndex}号位 {target.Character.Name}。");
                         applied = true;
                         break;
                     }
@@ -558,6 +588,37 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 }
             }
             if (!applied) return false;
+            if (totalDamage > 0)
+            {
+                if (ranks.GetValueOrDefault("sword-rhythm") > 0)
+                    await SetTalentStateAsync(room, participant.Character.Id, "talent-sword-rhythm", 3);
+                if (ranks.GetValueOrDefault("sword-assault-stance") > 0)
+                {
+                    var maxHp = TalentRules.EffectiveMaxHp(participant.Character);
+                    var healed = Math.Min((int)decimal.Floor(totalDamage * .10m), maxHp - participant.Character.Hp);
+                    if (healed > 0)
+                    {
+                        participant.Character.Hp += healed;
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 从猛攻中恢复 {healed} 点生命值。");
+                    }
+                }
+                if (ranks.GetValueOrDefault("acolyte-echo") > 0)
+                    await SetTalentStateAsync(room, participant.Character.Id, "talent-holy-heal", 3);
+                if (skill.Code == "acolyte-holy-bolt" && monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-judgment") > 0 && monster.Hp > 0)
+                    await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "holy-vulnerability", 1, logs, monster.Name);
+                if (skill.Code == "acolyte-holy-bolt" && ranks.GetValueOrDefault("acolyte-light-return") > 0)
+                {
+                    var target = FindLowestHpTarget(aliveSlots);
+                    if (target is not null)
+                    {
+                        var maxHp = TalentRules.EffectiveMaxHp(target.Character);
+                        var healed = Math.Min((int)decimal.Floor(totalDamage * .15m), maxHp - target.Character.Hp);
+                        if (healed > 0) { target.Character.Hp += healed; logs.Add($"圣光回流为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。"); }
+                    }
+                }
+            }
+            if (SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Heal") && ranks.GetValueOrDefault("acolyte-echo") > 0)
+                await SetTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", 3);
             if (cooldown is null)
             {
                 cooldown = new BattleSkillCooldown { RoomId = room.Id, CharacterId = participant.Character.Id, SkillCode = skill.Code };
@@ -590,7 +651,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             }
             if (monster.Hp <= 0) break;
         }
-        return new PlayerRoundDefense(guardPercent, guardTargetCharacterId);
+        return new PlayerRoundDefense(guardPercent, guardTargetCharacterId, guardSourceCharacterId);
     }
 
     private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CombatSkillOptions skill,
@@ -666,9 +727,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
         .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
 
-    private bool RollCritical(Character character)
+    private bool RollCritical(Character character, bool isSkill = false)
     {
-        var chance = character.WeaponCriticalChancePercent;
+        var chance = character.WeaponCriticalChancePercent + (isSkill ? character.TalentSkillCriticalChancePercent : 0);
         return WeaponCombatRules.RollPercent(chance, random);
     }
 
@@ -706,7 +767,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     string.Equals(entry.CooldownGroup, item.CooldownGroup, StringComparison.OrdinalIgnoreCase));
                 if (cooldown?.ReadyAtRound > room.RoundNumber) return false;
 
-                var healed = Math.Min(ConsumableCatalog.HealAmountFor(item, maxHp), maxHp - character.Hp);
+                var raw = (int)decimal.Floor(ConsumableCatalog.HealAmountFor(item, maxHp) * (1 + character.TalentHealingReceivedPercent / 100m));
+                var healed = Math.Min(raw, maxHp - character.Hp);
                 if (healed <= 0) return false;
                 character.Hp += healed;
                 stock.Quantity--;
@@ -746,6 +808,57 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         foreach (var cooldown in await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync())
             cooldown.ReadyAtRound = 0;
+    }
+
+    private async Task SetTalentStateAsync(Room room, int characterId, string code, int durationRounds)
+    {
+        var state = dbContext.BattleStatusEffects.Local.FirstOrDefault(item => item.RoomId == room.Id &&
+            item.RunSequence == room.RunSequence && item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code)
+            ?? await dbContext.BattleStatusEffects.SingleOrDefaultAsync(item => item.RoomId == room.Id &&
+                item.RunSequence == room.RunSequence && item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code);
+        if (state is null)
+        {
+            state = new BattleStatusEffect { RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
+                TargetId = characterId, EffectCode = code, Stacks = 1 };
+            dbContext.BattleStatusEffects.Add(state);
+        }
+        state.AppliedRound = room.RoundNumber;
+        state.ExpiresAfterRound = room.RoundNumber + durationRounds;
+    }
+
+    private async Task<bool> ConsumeTalentStateAsync(Room room, int characterId, string code, bool requireEarlierRound)
+    {
+        var state = dbContext.BattleStatusEffects.Local.FirstOrDefault(item => item.RoomId == room.Id && item.RunSequence == room.RunSequence &&
+            item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code &&
+            dbContext.Entry(item).State != EntityState.Deleted)
+            ?? await dbContext.BattleStatusEffects.SingleOrDefaultAsync(item => item.RoomId == room.Id && item.RunSequence == room.RunSequence &&
+                item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code);
+        if (state is null || state.ExpiresAfterRound < room.RoundNumber || requireEarlierRound && state.AppliedRound >= room.RoundNumber) return false;
+        dbContext.BattleStatusEffects.Remove(state);
+        return true;
+    }
+
+    private async Task ApplyVictoryCooldownTalentAsync(Room room, IReadOnlyCollection<int> characterIds, List<string> logs)
+    {
+        var eligible = await dbContext.CharacterSkillTalents.Where(node => characterIds.Contains(node.CharacterId) &&
+                node.NodeCode == "sword-pursuit" && node.PointsSpent > 0)
+            .Select(node => node.CharacterId).ToListAsync();
+        if (eligible.Count == 0) return;
+        var cooldowns = await dbContext.BattleSkillCooldowns.Where(item => item.RoomId == room.Id &&
+            eligible.Contains(item.CharacterId)).ToListAsync();
+        foreach (var cooldown in cooldowns.Where(item => skillCatalog.FindSkill(item.SkillCode) is { } skill &&
+                     SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Damage")))
+            cooldown.ReadyAtRound = Math.Max(room.RoundNumber + 1, cooldown.ReadyAtRound - 1);
+        var characters = await dbContext.Characters.Where(character => eligible.Contains(character.Id)).ToListAsync();
+        foreach (var character in characters.Where(character => character.Hp > 0))
+        {
+            var maxHp = TalentRules.EffectiveMaxHp(character);
+            var recovered = Math.Min((int)decimal.Floor(maxHp * .08m), maxHp - character.Hp);
+            if (recovered > 0) character.Hp += recovered;
+            logs.Add(recovered > 0
+                ? $"{character.Name} 的乘胜追击恢复了 {recovered} 点生命，并使伤害技能冷却缩短 1 回合。"
+                : $"{character.Name} 的乘胜追击使伤害技能冷却缩短 1 回合。");
+        }
     }
 
     private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)

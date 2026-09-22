@@ -13,7 +13,33 @@
 .talent-board__stats div { display: grid; gap: .2rem; }
 .talent-board__stats dt { color: #9fb5c7; font-size: .75rem; }
 .talent-board__stats dd { margin: 0; font-weight: 700; white-space: nowrap; }
-.talent-board__branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: .8rem; }
+.talent-board__identity { display: grid; gap: .15rem; text-align: right; }
+.talent-board__identity small, .talent-board__identity span { color: #9fb5c7; font-size: .72rem; }
+.talent-board__identity strong { color: #f1e5cd; }
+.talent-board__tree-tabs { display: flex; gap: .45rem; margin-bottom: 1rem; }
+.talent-board__tree-tabs button { border: 1px solid #3d566a; border-radius: .5rem; background: #112337; color: #aebfca; padding: .55rem .9rem; cursor: pointer; }
+.talent-board__tree-tabs button.active { border-color: #d7a85e; color: #f3e7cf; background: rgba(215,168,94,.13); }
+.talent-tree { display: grid; gap: .65rem; }
+.talent-tree__tier { position: relative; padding-left: 3.6rem; }
+.talent-tree__tier:not(:last-child)::after { content: ""; position: absolute; left: 1.35rem; top: 2.1rem; bottom: -.75rem; width: 2px; background: #40586c; }
+.talent-tree__level { position: absolute; left: 0; top: .8rem; z-index: 1; min-width: 2.7rem; padding: .28rem .38rem; border: 1px solid #52697c; border-radius: 999px; background: #132639; color: #e7b767; font-size: .68rem; text-align: center; }
+.talent-tree__row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .7rem; }
+.talent-tree .talent-node { min-height: 11rem; }
+.talent-node--locked { opacity: .58; }
+.talent-node--available { border-color: #d7a85e; box-shadow: 0 0 0 1px rgba(215,168,94,.25) inset; }
+.talent-node--active, .talent-node--complete { border-color: #68ab9e; background: #17343e; }
+.talent-board__future, .promotion-panel { border: 1px solid #435b70; border-radius: .75rem; background: rgba(8,20,31,.42); padding: 1rem; }
+.talent-board__future p, .promotion-panel p { color: #aebfcf; line-height: 1.5; }
+.promotion-panel { display: grid; grid-template-columns: minmax(220px,.75fr) minmax(0,1.5fr); gap: 1rem; margin-top: 1rem; }
+.promotion-panel h3 { margin: .25rem 0; color: #f1e5cd; }
+.promotion-panel > div > span { color: #e7b767; font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
+.promotion-panel__options { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .65rem; }
+.promotion-panel__options button { display: grid; gap: .35rem; border: 1px solid #d7a85e; border-radius: .65rem; background: rgba(215,168,94,.1); color: #e8f0f5; padding: .8rem; text-align: left; cursor: pointer; }
+.promotion-panel__options button:hover:not(:disabled) { background: rgba(215,168,94,.2); }
+.promotion-panel__options span, .promotion-panel__options small, .promotion-hint { color: #aebfcf; font-size: .75rem; }
+.promotion-hint { margin: .8rem 0 0; }
+.talent-board__branch-tabs { display: none; }
+.talent-board__branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: .8rem; }
 .talent-branch { display: flex; flex-direction: column; min-width: 0; padding: .8rem; border: 1px solid #344e63; border-radius: .8rem; background: rgba(8, 20, 31, .28); }
 .talent-branch__heading { display: flex; align-items: center; gap: .6rem; margin-bottom: .75rem; color: #e9d3a8; }
 .talent-node__icon { display: grid; place-items: center; width: 2.35rem; height: 2.35rem; border-radius: .65rem; background: rgba(219, 170, 96, .14); color: #efc478; font-size: 1.3rem; }
@@ -28,7 +54,7 @@
 .talent-node__pips .talent-node__pip--active { background: #e7b767; box-shadow: 0 0 8px rgba(231, 183, 103, .35); }
 .talent-node__bottom { margin-top: auto; gap: .3rem; }
 .talent-node__bottom span { color: #aebfcf; font-size: .73rem; }
-.talent-node__bottom button, .talent-skill button, .talent-board__retry { border: 1px solid #d7a85e; border-radius: .45rem; background: #d7a85e; color: #132133; padding: .4rem .65rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.talent-node__bottom button, .talent-skill button, .talent-board__retry { min-height: 44px; border: 1px solid #d7a85e; border-radius: .45rem; background: #d7a85e; color: #132133; padding: .4rem .65rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .talent-node__bottom button:hover:not(:disabled), .talent-skill button:hover:not(:disabled), .talent-board__retry:hover { background: #efc67f; }
 .talent-node__bottom button:disabled, .talent-skill button:disabled, .talent-board__footer button:disabled { opacity: .5; cursor: not-allowed; }
 .talent-branch__link { align-self: center; width: 2px; height: 1.4rem; background: repeating-linear-gradient(to bottom, #51687a 0 5px, transparent 5px 9px); }
@@ -49,5 +75,64 @@
 .talent-board__footer button:hover:not(:disabled) { background: #2b4257; }
 .talent-board__error { color: #ffb4b6; font-size: .9rem; }
 .talent-board__loading { color: #aebfcf; }
-@media (max-width: 820px) { .talent-board__branches { grid-template-columns: 1fr; } .talent-branch { display: grid; grid-template-columns: minmax(0, 1fr); } .talent-node, .talent-skill { min-height: 0; } }
-@media (max-width: 640px) { .talent-board { padding: 1rem; } .talent-board__summary { align-items: flex-start; } .talent-board__stats { gap: .75rem; flex-wrap: wrap; justify-content: flex-end; } .talent-board__footer { align-items: flex-start; flex-direction: column; } }
+@container game-shell (max-width: 820px) {
+    .talent-board__branch-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: .35rem; margin-bottom: .7rem; }
+    .talent-board__branch-tabs button { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; gap: 0 .4rem; min-height: 54px; padding: .4rem .5rem; border: 1px solid #3d566a; border-radius: .55rem; background: #112337; color: #aebfca; text-align: left; cursor: pointer; }
+    .talent-board__branch-tabs button.active { border-color: #d7a85e; background: rgba(215, 168, 94, .13); color: #f3e7cf; box-shadow: 0 0 0 1px rgba(215, 168, 94, .18) inset; }
+    .talent-board__branch-tabs .talent-node__icon { grid-row: 1 / 3; width: 2rem; height: 2rem; font-size: 1rem; }
+    .talent-board__branch-tabs strong { align-self: end; font-size: .75rem; }
+    .talent-board__branch-tabs small { align-self: start; color: #8fa7b8; font-size: .625rem; }
+    .talent-board__branches { display: block; }
+    .talent-branch { display: none; }
+    .talent-branch--selected { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .talent-node, .talent-skill { min-height: 0; }
+}
+@container game-shell (max-width: 640px) {
+    .talent-board { padding: .85rem; border-radius: .75rem; }
+    .talent-board__header { margin-bottom: .8rem; }
+    .talent-board__header p { font-size: .75rem; }
+    .talent-board__summary { align-items: stretch; gap: .55rem; padding: .65rem; margin-bottom: .8rem; }
+    .talent-board__points { flex: 0 0 92px; padding-right: .55rem; border-right: 1px solid #3d5267; }
+    .talent-board__points strong { font-size: 1.55rem; }
+    .talent-board__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1; gap: .35rem; }
+    .talent-board__stats div { padding: .3rem; border-radius: .4rem; background: rgba(11, 28, 42, .5); text-align: center; }
+    .talent-board__stats dt { font-size: .625rem; }
+    .talent-board__stats dd { font-size: .72rem; }
+    .talent-branch { padding: .65rem; }
+    .talent-node, .talent-skill { padding: .78rem; }
+    .talent-node__bottom button, .talent-skill button { min-height: 44px; padding-inline: .8rem; }
+    .talent-board__footer { align-items: stretch; flex-direction: column; }
+    .talent-board__footer button { min-height: 44px; }
+    .talent-tree__tier { padding-left: 0; padding-top: 2rem; }
+    .talent-tree__tier::after { display: none; }
+    .talent-tree__level { top: 0; }
+    .talent-tree__row { grid-template-columns: 1fr; }
+    .talent-tree__row .talent-node { grid-column: 1 !important; }
+    .promotion-panel { grid-template-columns: 1fr; }
+    .talent-board__identity span { display: none; }
+}
+@container game-shell (max-width: 430px) {
+    .talent-board { padding: .72rem; }
+    .talent-board__header { margin-bottom: .55rem; }
+    .talent-board__eyebrow, .talent-board__header p { display: none; }
+    .talent-board h2 { margin: 0; font-size: 1.15rem; }
+    .talent-board__summary { min-height: 58px; padding: .5rem; margin-bottom: .6rem; }
+    .talent-board__points { flex-basis: 76px; column-gap: .45rem; padding-right: .45rem; }
+    .talent-board__points span, .talent-board__points small { font-size: .63rem; }
+    .talent-board__points strong { font-size: 1.35rem; }
+    .talent-board__stats div { padding: .2rem; }
+    .talent-board__branch-tabs { margin-bottom: .55rem; }
+    .talent-board__branch-tabs button { grid-template-columns: 1fr; grid-template-rows: auto auto; place-items: center; gap: .1rem; min-height: 50px; padding: .3rem; text-align: center; }
+    .talent-board__branch-tabs .talent-node__icon { display: none; }
+    .talent-board__branch-tabs strong { font-size: .72rem; }
+    .talent-board__branch-tabs small { font-size: .625rem; }
+    .talent-branch { padding: .55rem; }
+    .talent-branch__heading { display: none; }
+    .talent-node, .talent-skill { padding: .65rem; }
+    .talent-node h3, .talent-skill h3 { margin-top: .45rem; }
+    .talent-node__pips { margin: .7rem 0; }
+    .talent-skill > p { display: none; }
+    .talent-skill__reward { margin: .5rem 0; padding: .48rem; }
+    .talent-skill__requirement { margin-top: .05rem; }
+    .talent-board__footer { margin-top: .75rem; padding-top: .75rem; }
+}

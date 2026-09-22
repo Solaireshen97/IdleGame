@@ -9,7 +9,7 @@ public class ProgressionServiceTests
     public void AwardExperience_CanGrantMultipleLevelsWithoutChangingCombatStats()
     {
         var progression = ProgressionTestFactory.Create();
-        var character = new Character { Level = 1, Hp = 76, MaxHp = 100, Attack = 20, Defense = 5 };
+        var character = new Character { Level = 1, Hp = 76, MaxHp = 100, Attack = 20};
 
         var gain = progression.AwardExperience(character, 55);
 
@@ -18,7 +18,7 @@ public class ProgressionServiceTests
         Assert.Equal(3, character.Level);
         Assert.Equal(5, character.Experience);
         Assert.Equal(2, character.TalentPoints);
-        Assert.Equal((76, 100, 20, 5), (character.Hp, character.MaxHp, character.Attack, character.Defense));
+        Assert.Equal((76, 100, 20), (character.Hp, character.MaxHp, character.Attack));
     }
 
     [Fact]

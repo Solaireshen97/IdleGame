@@ -22,7 +22,7 @@ public sealed class DungeonRewardMaterialTests
             await db.Database.EnsureCreatedAsync();
             var character = new Character
             {
-                Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5
+                Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20
             };
             var dungeon = new Dungeon
             {

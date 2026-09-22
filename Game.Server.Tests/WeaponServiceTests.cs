@@ -217,7 +217,7 @@ public sealed class WeaponServiceTests
         Assert.Null(error);
         Assert.Contains(round!.Logs, log => log.Contains("Knight 普通攻击 Slime，造成 32 点伤害"));
         Assert.Equal(18, round.MonsterHp);
-        Assert.Equal(98, test.Character.Hp);
+        Assert.Equal(94, test.Character.Hp);
     }
 
     [Fact]
@@ -567,7 +567,7 @@ public sealed class WeaponServiceTests
             var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
                 .UseSqlite($"Data Source={path};Pooling=False").Options);
             await db.Database.EnsureCreatedAsync();
-            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
             var catalog = configuredCatalog ?? CreateCatalog();
             var weapons = catalog.CreateStarterWeapons(1, "knight").ToList();
             // Inventory fixtures exercise ordinary loot recycling, not the protected starter grant.

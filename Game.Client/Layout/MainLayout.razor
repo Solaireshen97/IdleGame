@@ -7,13 +7,16 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 
-<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null)">
-    <div class="sidebar">
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsAuthPage ? "page--auth" : null)">
+    @if (!IsAuthPage)
+    {
         <NavMenu />
-    </div>
-
+    }
     <main>
-        <div class="top-row px-4">
+        @if (!IsAuthPage)
+        {
+        <div class="top-row">
+            <a class="top-row__brand" href="/rooms" aria-label="返回副本大厅">⚔</a>
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <button type="button"
@@ -21,7 +24,7 @@
                         @ref="_switchTrigger"
                         @onclick="OpenSwitcher"
                         aria-haspopup="dialog"
-                        aria-expanded="@_isSwitcherOpen"
+                        aria-expanded="@(_isSwitcherOpen ? "true" : "false")"
                         aria-label="切换当前操作角色">
                     <span class="top-row__character-label">当前操作角色</span>
                     @if (ActiveCharacters.Current is { } character)
@@ -40,9 +43,9 @@
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <div class="top-row__account">
-                    <span class="top-row__gold" title="账号金币">金币 @_currentUser.Gold</span>
+                    <span class="top-row__gold" title="账号金币"><span aria-hidden="true">◆</span> @_currentUser.Gold</span>
                     <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
-                    <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录">@(_isLoggingOut ? "退出中..." : "退出")</button>
+                    <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录" aria-label="@(_isLoggingOut ? "正在退出登录" : "退出登录")">@(_isLoggingOut ? "…" : "↪")</button>
                 </div>
             }
             @if (_logoutError is not null)
@@ -50,29 +53,30 @@
                 <span class="top-row__error" role="alert">@_logoutError</span>
             }
         </div>
+        }
 
-        <article class="content px-4">
+        <article class="content @(IsAuthPage ? "content--auth" : null)">
             @Body
         </article>
     </main>
-</div>
 
-@if (_isSwitcherOpen && _currentUser is not null)
-{
-    <div class="character-switcher__overlay" @onclick="CloseSwitcher">
-        <section class="character-switcher__dialog" role="dialog" aria-modal="true" aria-labelledby="character-switcher-title" @onclick:stopPropagation="true" @onkeydown="HandleSwitcherKeyDown">
-            <header class="character-switcher__header">
-                <div>
-                    <span>YOUR CHARACTERS</span>
-                    <h2 id="character-switcher-title">选择操作角色</h2>
-                    <p>切换当前角色，或创建、管理你的角色。</p>
-                </div>
-                <button type="button" class="character-switcher__close" @ref="_switchCloseButton" @onclick="CloseSwitcher" aria-label="关闭角色窗口">×</button>
-            </header>
-            <CurrentCharacterPanel OnSelected="CloseSwitcher" />
-        </section>
-    </div>
-}
+    @if (_isSwitcherOpen && _currentUser is not null)
+    {
+        <div class="character-switcher__overlay" @onclick="CloseSwitcher">
+            <section class="character-switcher__dialog" role="dialog" aria-modal="true" aria-labelledby="character-switcher-title" @onclick:stopPropagation="true" @onkeydown="HandleSwitcherKeyDown">
+                <header class="character-switcher__header">
+                    <div>
+                        <span>YOUR CHARACTERS</span>
+                        <h2 id="character-switcher-title">选择操作角色</h2>
+                        <p>切换当前角色，或创建、管理你的角色。</p>
+                    </div>
+                    <button type="button" class="character-switcher__close" @ref="_switchCloseButton" @onclick="CloseSwitcher" aria-label="关闭角色窗口">×</button>
+                </header>
+                <CurrentCharacterPanel OnSelected="CloseSwitcher" />
+            </section>
+        </div>
+    }
+</div>
 
 @code {
     private CurrentUserResponse? _currentUser;
@@ -88,6 +92,15 @@
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
     private bool IsSuppliesPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("supplies", StringComparison.OrdinalIgnoreCase);
+    private bool IsAuthPage
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+            return path.StartsWith("login", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("register", StringComparison.OrdinalIgnoreCase);
+        }
+    }
     private string CurrentPageTitle
     {
         get

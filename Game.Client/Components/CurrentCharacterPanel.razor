@@ -6,14 +6,13 @@
 
 @if (_isLoading)
 {
-    <p class="current-character-panel__empty">角色加载中...</p>
+    <GameStateCard Compact="true" Title="正在载入角色" Detail="同步等级、生命与职业信息…" />
 }
 else
 {
     <div class="current-character-panel__grid">
-    @for (var index = 0; index < _characters.Count; index++)
+    @foreach (var character in _characters.OrderByDescending(character => character.IsCurrent))
     {
-        var character = _characters[index];
         <CharacterCard Character="character"
                        IsCurrent="@character.IsCurrent"
                        CanDelete="@(_characters.Count > 1)"
@@ -28,7 +27,7 @@ else
 
     @if (_isCreating)
     {
-        <article class="character-create-card character-create-card--editing">
+        <form class="character-create-card character-create-card--editing" @onsubmit="CreateCharacterAsync" @onsubmit:preventDefault="true">
             <div class="character-create-card__header">
                 <h3 class="character-create-card__title">创建角色</h3>
                 <span class="character-create-card__plus">+</span>
@@ -38,19 +37,49 @@ else
                    class="character-create-card__input"
                    @bind="_newCharacterName"
                    @bind:event="oninput"
+                   placeholder="输入角色名"
+                   autocomplete="off"
+                   required
+                   aria-describedby="character-name-hint"
                    disabled="@_isSubmitting" />
-            <label class="character-create-card__label" for="character-profession-input">职业</label>
-            <select id="character-profession-input" class="character-create-card__input" @bind="_newProfessionCode" disabled="@_isSubmitting">
-                @foreach (var profession in _professions)
+            <span id="character-name-hint" class="character-create-card__hint">用于区分编队中的不同角色。</span>
+            <fieldset class="profession-picker" disabled="@_isSubmitting">
+                <legend class="character-create-card__label">选择初始职业</legend>
+                @if (_professions.Count == 0)
                 {
-                    <option value="@profession.Code">@profession.Name — @profession.Description</option>
+                    <p class="profession-picker__empty">职业列表暂不可用，请稍后重试。</p>
                 }
-            </select>
+                else
+                {
+                    <div class="profession-picker__grid">
+                        @foreach (var profession in _professions)
+                        {
+                            <label class="profession-option @(_newProfessionCode == profession.Code ? "profession-option--selected" : null)">
+                                <input type="radio"
+                                       name="character-profession"
+                                       value="@profession.Code"
+                                       checked="@(_newProfessionCode == profession.Code)"
+                                       @onchange="@(_ => SelectProfession(profession.Code))" />
+                                <span class="profession-option__glyph" aria-hidden="true">@GetProfessionGlyph(profession.Code)</span>
+                                <span class="profession-option__content">
+                                    <strong>@profession.Name</strong>
+                                    <span>@profession.Description</span>
+                                    @if (!string.IsNullOrWhiteSpace(profession.GrantedSkillName))
+                                    {
+                                        <small>初始技能 · @profession.GrantedSkillName</small>
+                                    }
+                                </span>
+                                <span class="profession-option__check" aria-hidden="true">✓</span>
+                            </label>
+                        }
+                    </div>
+                }
+            </fieldset>
             <div class="character-create-card__actions">
-                <button @onclick="CreateCharacterAsync" disabled="@_isSubmitting">@CreateSubmitText</button>
-                <button @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
+                <button type="submit" disabled="@(_isSubmitting || _professions.Count == 0)">@CreateSubmitText</button>
+                <button type="button" @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
             </div>
-        </article>
+        </form>
     }
     else
     {
@@ -90,7 +119,7 @@ else
     private int? _deletingCharacterId;
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
-    private string _newProfessionCode = "knight";
+    private string _newProfessionCode = "swordsman";
     private string? _message;
     private bool _isMessageError;
     private CharacterOperation? _activeOperation;
@@ -139,7 +168,7 @@ else
         _isCreating = true;
         ClearMessage();
         _newCharacterName = string.Empty;
-        _newProfessionCode = _professions.FirstOrDefault()?.Code ?? "knight";
+        _newProfessionCode = _professions.FirstOrDefault()?.Code ?? "swordsman";
     }
 
     private void CancelCreate()
@@ -152,6 +181,14 @@ else
         _isCreating = false;
         ClearMessage();
         _newCharacterName = string.Empty;
+    }
+
+    private void SelectProfession(string professionCode)
+    {
+        if (!_isSubmitting)
+        {
+            _newProfessionCode = professionCode;
+        }
     }
 
     private async Task CreateCharacterAsync()
@@ -337,6 +374,13 @@ else
         CharacterOperation.Delete => "删除中...",
         CharacterOperation.Select => "切换中...",
         _ => "处理中..."
+    };
+
+    private static string GetProfessionGlyph(string professionCode) => professionCode switch
+    {
+        "swordsman" => "⚔",
+        "acolyte" => "✦",
+        _ => "◆"
     };
 
     private static string? GetFriendlyErrorMessage(string? errorMessage)

@@ -1,5 +1,3 @@
-using Game.Shared.Enums;
-
 namespace Game.Server.Configuration;
 
 public sealed class SkillOptions
@@ -16,6 +14,9 @@ public sealed class ProfessionOptions
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public List<string> StartingSkills { get; set; } = [];
+    public bool IsPromotion { get; set; }
+    public string? BaseProfessionCode { get; set; }
+    public int RequiredLevel { get; set; } = 1;
 }
 
 public sealed class CombatSkillOptions
@@ -50,11 +51,17 @@ public sealed class SkillTalentNodeOptions
     public string ProfessionCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string SkillCode { get; set; } = string.Empty;
+    public string? SkillCode { get; set; }
     public int Cost { get; set; } = 1;
+    public int MaxRank { get; set; } = 1;
     public int Tier { get; set; }
     public int Column { get; set; }
-    public TalentType RequiredTalentType { get; set; }
-    public int RequiredTalentRank { get; set; }
+    public int RequiredLevel { get; set; } = 1;
+    public string BranchCode { get; set; } = "shared";
+    public string? ExclusiveGroup { get; set; }
+    public string? EffectCode { get; set; }
+    public decimal ValuePerRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
+    public Game.Shared.Enums.TalentType RequiredTalentType { get; set; }
+    public int RequiredTalentRank { get; set; }
 }

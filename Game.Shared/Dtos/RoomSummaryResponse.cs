@@ -18,4 +18,6 @@ public class RoomSummaryResponse
     public RoomStatus RoomStatus { get; set; }
     public bool IsRepeatBattle { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; }
+    public bool IsCurrentUserParticipant { get; set; }
+    public bool IsOwnedByCurrentUser { get; set; }
 }

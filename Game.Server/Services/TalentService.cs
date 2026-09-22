@@ -48,14 +48,12 @@ public class TalentService(GameDbContext dbContext, UserService userService, Ski
         if (await IsTreeLockedAsync(characterId)) return (null, "LoadoutLocked");
 
         var spent = TalentRules.SpentPoints(character!.AttackTalentRank) +
-                    TalentRules.SpentPoints(character.DefenseTalentRank) +
                     TalentRules.SpentPoints(character.HealthTalentRank);
         var purchased = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == characterId).ToListAsync();
         if (spent == 0 && purchased.Count == 0) return (BuildResponse(character), null);
 
         character.TalentPoints = checked(character.TalentPoints + spent + purchased.Sum(node => node.PointsSpent));
         character.AttackTalentRank = 0;
-        character.DefenseTalentRank = 0;
         character.HealthTalentRank = 0;
         character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
         var startingSkills = skillCatalog.FindProfession(character.ProfessionCode)?.StartingSkills
@@ -112,7 +110,6 @@ public class TalentService(GameDbContext dbContext, UserService userService, Ski
         switch (type)
         {
             case TalentType.Attack: character.AttackTalentRank = rank; break;
-            case TalentType.Defense: character.DefenseTalentRank = rank; break;
             case TalentType.Health: character.HealthTalentRank = rank; break;
             default: throw new ArgumentOutOfRangeException(nameof(type));
         }
@@ -127,11 +124,9 @@ public class TalentService(GameDbContext dbContext, UserService userService, Ski
         Hp = character.Hp,
         MaxHp = TalentRules.EffectiveMaxHp(character),
         Attack = TalentRules.EffectiveAttack(character),
-        Defense = TalentRules.EffectiveDefense(character),
         Talents =
         [
             BuildNode(TalentType.Attack, character.AttackTalentRank, TalentRules.AttackPerRank),
-            BuildNode(TalentType.Defense, character.DefenseTalentRank, TalentRules.DefensePerRank),
             BuildNode(TalentType.Health, character.HealthTalentRank, TalentRules.HealthPerRank)
         ]
     };

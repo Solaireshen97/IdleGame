@@ -102,7 +102,12 @@ public sealed class WeaponCatalog
 
     public IReadOnlyList<CharacterWeapon> CreateStarterWeapons(int characterId, string professionCode)
     {
-        if (!_starterPacks.TryGetValue(professionCode, out var codes))
+        var fallbackCode = professionCode switch
+        {
+            "swordsman" => "knight", "acolyte" => "cleric",
+            "knight" => "swordsman", "cleric" => "acolyte", _ => professionCode
+        };
+        if (!_starterPacks.TryGetValue(professionCode, out var codes) && !_starterPacks.TryGetValue(fallbackCode, out codes))
             throw new InvalidOperationException($"Missing starter weapons for: {professionCode}");
         return codes.Select((code, index) =>
         {

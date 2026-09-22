@@ -9,71 +9,128 @@
             <h2 id="consumables-title">背包与补给槽</h2>
             <p>每名角色有自己的道具库存，战斗中可从已装备的补给槽使用道具。</p>
         </div>
-        <button type="button" class="button button--quiet" @onclick="LoadAsync" disabled="@(_isLoading || _isSaving)">刷新</button>
+        <div class="consumables-board__header-tools">
+            @if (_data is not null)
+            {
+                <span class="consumables-board__summary"><strong>@_data.Slots.Count(slot => slot.ItemCode is not null) / @_data.Slots.Count</strong> 已配置 · <strong>@_data.Items.Sum(item => item.Quantity)</strong> 库存</span>
+            }
+            <button type="button" class="button button--quiet" @onclick="LoadAsync" disabled="@(_isLoading || _isSaving)" aria-label="刷新补给数据">刷新</button>
+        </div>
     </header>
 
     @if (_isLoading)
     {
-        <p class="consumables-board__notice">正在读取背包...</p>
+        <GameStateCard Compact="true" Title="正在读取背包" Detail="同步库存与战斗补给槽…" />
     }
     else if (_data is null)
     {
-        <p class="consumables-board__error" role="alert">@(_error ?? "暂时无法读取背包。")</p>
-        <button type="button" class="button button--secondary" @onclick="LoadAsync">重试</button>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="背包读取失败" Detail="@(_error ?? "暂时无法读取背包。")">
+            <Actions><button type="button" class="button button--secondary" @onclick="LoadAsync">重试</button></Actions>
+        </GameStateCard>
     }
     else
     {
+        var selectedSlot = _drafts.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex) ?? _drafts.OrderBy(slot => slot.SlotIndex).First();
+        var selectedItem = _data.Items.FirstOrDefault(item => item.Code == selectedSlot.ItemCode);
+
         <div class="consumables-board__section-heading">
-            <div><span class="consumables-board__eyebrow">INVENTORY</span><h3>角色背包</h3></div>
-            <small>道具随角色保存</small>
-        </div>
-        <div class="consumables-board__inventory">
-            @foreach (var item in _data.Items)
-            {
-                <article class="inventory-item">
-                    <span class="inventory-item__icon" aria-hidden="true">✚</span>
-                    <div><h4>@item.Name</h4><p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p></div>
-                    <strong aria-label="库存 @item.Quantity">×@item.Quantity</strong>
-                </article>
-            }
+            <div><span class="consumables-board__eyebrow">BATTLE LOADOUT</span><h3>补给编成</h3></div>
+            <small>点选槽位后设置道具与 Auto</small>
         </div>
 
-        <div class="consumables-board__section-heading consumables-board__section-heading--slots">
-            <div><span class="consumables-board__eyebrow">BATTLE LOADOUT</span><h3>战斗补给槽</h3></div>
-            <small>选择道具并设置自动使用条件</small>
-        </div>
-        <div class="consumables-board__slots">
+        <div class="consumables-board__slot-strip" role="group" aria-label="战斗补给槽位">
             @foreach (var slot in _drafts.OrderBy(slot => slot.SlotIndex))
             {
                 var equippedItem = _data.Items.FirstOrDefault(item => item.Code == slot.ItemCode);
-                <article class="consumable-slot" @key="slot.SlotIndex">
-                    <header><span>槽位 @slot.SlotIndex.ToString("00")</span><strong>@(equippedItem?.Name ?? "未装备")</strong></header>
+                <button type="button"
+                        class="consumables-board__slot-card @(equippedItem is null ? "consumables-board__slot-card--empty" : null) @(IsDirty(slot) ? "consumables-board__slot-card--dirty" : null) @(slot.SlotIndex == _selectedSlotIndex ? "active" : null)"
+                        aria-haspopup="dialog"
+                        aria-expanded="@(_isEditorOpen && slot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
+                        aria-label="@($"{slot.SlotIndex} 号补给槽：{equippedItem?.Name ?? "空槽位"}")"
+                        @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
+                    <span class="consumables-board__slot-index">@slot.SlotIndex.ToString("00")</span>
+                    <span class="inventory-item__icon" aria-hidden="true">@(equippedItem is null ? "+" : "✚")</span>
+                    <span><strong>@(equippedItem?.Name ?? "空槽位")</strong><small>@(equippedItem is null ? "点击配置" : slot.AutoUseEnabled ? $"AUTO · HP ≤ {slot.AutoHpThresholdPercent}%" : "手动使用")</small></span>
+                    @if (IsDirty(slot)) { <b>未保存</b> }
+                </button>
+            }
+        </div>
+
+        <section class="consumables-board__inventory-section" aria-labelledby="inventory-title">
+            <header class="consumables-board__section-heading">
+                <div><span class="consumables-board__eyebrow">INVENTORY</span><h3 id="inventory-title">角色背包</h3></div>
+                <small>点按后装备至槽位 @_selectedSlotIndex · 共 @_data.Items.Sum(item => item.Quantity) 件</small>
+            </header>
+            <div class="consumables-board__inventory">
+                @if (_data.Items.Count == 0)
+                {
+                    <p class="consumables-board__inventory-empty">背包里还没有可用道具，可前往商店补充。</p>
+                }
+                @foreach (var item in _data.Items)
+                {
+                    var equippedSlot = _drafts.FirstOrDefault(slot => slot.ItemCode == item.Code);
+                    <button type="button" class="inventory-item @(equippedSlot is not null ? "inventory-item--equipped" : null)"
+                            disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)">
+                        <span class="inventory-item__icon" aria-hidden="true">✚</span>
+                        <span><strong>@item.Name</strong><small>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</small></span>
+                        <span class="inventory-item__meta"><b>×@item.Quantity</b><small>@(equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</small></span>
+                    </button>
+                }
+            </div>
+        </section>
+
+        @if (_isEditorOpen)
+        {
+            <div class="consumables-board__editor-backdrop" @onclick="CloseEditor">
+                <section class="consumables-board__editor" role="dialog" aria-modal="true" aria-labelledby="consumables-editor-title"
+                         tabindex="-1" @ref="_editorDialog" @onclick:stopPropagation="true" @onkeydown="HandleEditorKeyDown">
+                    <header>
+                        <div><span>编辑槽位 @_selectedSlotIndex.ToString("00")</span><strong id="consumables-editor-title">@(selectedItem?.Name ?? "未装备道具")</strong></div>
+                        <div class="consumables-board__editor-status">
+                            <small class="@(IsDirty(selectedSlot) ? "dirty" : null)">@(IsDirty(selectedSlot) ? "有未保存修改" : "设置已保存")</small>
+                            <button type="button" class="consumables-board__editor-close" @onclick="CloseEditor" aria-label="关闭补给设置">×</button>
+                        </div>
+                    </header>
                     <label class="consumable-slot__field">
                         装备道具
-                        <select value="@(slot.ItemCode ?? string.Empty)" @onchange="e => UpdateItem(slot, e.Value?.ToString())" disabled="@_isSaving">
+                        <select value="@(selectedSlot.ItemCode ?? string.Empty)" @onchange="e => UpdateItem(selectedSlot, e.Value?.ToString())" disabled="@_isSaving">
                             <option value="">不装备</option>
                             @foreach (var item in _data.Items)
                             {
-                                <option value="@item.Code" disabled="@IsUsedInOtherSlot(item.Code, slot.SlotIndex)">@item.Name（库存 @item.Quantity）</option>
+                                <option value="@item.Code" disabled="@IsUsedInOtherSlot(item.Code, selectedSlot.SlotIndex)">@item.Name（库存 @item.Quantity）</option>
                             }
                         </select>
                     </label>
-                    <label class="consumable-slot__toggle">
-                        <input type="checkbox" checked="@slot.AutoUseEnabled" @onchange="e => slot.AutoUseEnabled = e.Value is true" disabled="@(_isSaving || slot.ItemCode is null)" />
-                        HP 达到阈值时自动使用
-                    </label>
-                    <label class="consumable-slot__field consumable-slot__threshold">
-                        HP 阈值 <span>低于或等于该百分比</span>
-                        <div><input type="number" min="1" max="100" value="@slot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(slot, e.Value?.ToString())" disabled="@(_isSaving || slot.ItemCode is null)" /><span>%</span></div>
-                    </label>
-                    @if (slot.AutoHpThresholdPercent is < 1 or > 100) { <small class="consumable-slot__invalid">请输入 1%～100% 的阈值。</small> }
+                    @if (selectedItem is null)
+                    {
+                        <p class="consumables-board__empty-hint">选择背包中的道具，装备到当前槽位。</p>
+                    }
+                    else
+                    {
+                        <p class="consumables-board__item-description">恢复 @selectedItem.HealAmount HP <span>冷却 @selectedItem.CooldownRounds 回合</span></p>
+                        <div class="consumables-board__automation">
+                            <label class="consumable-slot__toggle">
+                                <input type="checkbox" checked="@selectedSlot.AutoUseEnabled" @onchange="e => UpdateAuto(selectedSlot, e.Value is true)" disabled="@_isSaving" />
+                                <span><strong>自动使用</strong><small>生命低于设定阈值时</small></span>
+                            </label>
+                            <label class="consumable-slot__threshold">
+                                <span>HP ≤</span>
+                                <input type="number" min="1" max="100" value="@selectedSlot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(selectedSlot, e.Value?.ToString())" disabled="@_isSaving" />
+                                <span>%</span>
+                            </label>
+                        </div>
+                    }
+                    @if (selectedSlot.AutoHpThresholdPercent is < 1 or > 100) { <small class="consumable-slot__invalid">请输入 1%～100% 的阈值。</small> }
                     <footer>
-                        <small>@(IsDirty(slot) ? "设置尚未保存" : "设置已保存")</small>
-                        <button type="button" class="button button--primary" @onclick="() => SaveAsync(slot)" disabled="@(_isSaving || !IsDirty(slot) || slot.AutoHpThresholdPercent is < 1 or > 100)">保存设置</button>
+                        <small>战斗进行时无法修改编成</small>
+                        <div>
+                            <button type="button" class="button button--quiet" @onclick="CloseEditor">关闭</button>
+                            <button type="button" class="button button--primary" @onclick="() => SaveAsync(selectedSlot)" disabled="@(_isSaving || !IsDirty(selectedSlot) || selectedSlot.AutoHpThresholdPercent is < 1 or > 100)">@(_isSaving ? "保存中…" : "保存设置")</button>
+                        </div>
                     </footer>
-                </article>
-            }
-        </div>
+                </section>
+            </div>
+        }
 
         @if (_error is not null) { <p class="consumables-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="consumables-board__success" role="status">@_notice</p> }
@@ -89,10 +146,21 @@
     private readonly List<SlotDraft> _drafts = [];
     private bool _isLoading = true;
     private bool _isSaving;
+    private bool _isEditorOpen;
+    private bool _focusEditor;
+    private int _selectedSlotIndex = 1;
     private string? _error;
     private string? _notice;
+    private ElementReference _editorDialog;
 
     protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusEditor) return;
+        _focusEditor = false;
+        await _editorDialog.FocusAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -104,7 +172,11 @@
             var (response, error) = await ApiService.GetCharacterConsumablesAsync(CharacterId);
             _data = response;
             _error = GetError(error);
-            if (response is not null) SetDrafts(response);
+            if (response is not null)
+            {
+                SetDrafts(response);
+                _isEditorOpen = false;
+            }
         }
         catch
         {
@@ -127,6 +199,26 @@
             AutoUseEnabled = slot.AutoUseEnabled,
             AutoHpThresholdPercent = slot.AutoHpThresholdPercent
         }));
+        if (_drafts.All(slot => slot.SlotIndex != _selectedSlotIndex))
+        {
+            _selectedSlotIndex = _drafts.OrderBy(slot => slot.SlotIndex).FirstOrDefault()?.SlotIndex ?? 1;
+        }
+    }
+
+    private void OpenEditor(int slotIndex)
+    {
+        _selectedSlotIndex = slotIndex;
+        _isEditorOpen = true;
+        _focusEditor = true;
+        _error = null;
+        _notice = null;
+    }
+
+    private void CloseEditor() => _isEditorOpen = false;
+
+    private void HandleEditorKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CloseEditor();
     }
 
     private void UpdateItem(SlotDraft slot, string? code)
@@ -146,6 +238,30 @@
         slot.AutoHpThresholdPercent = int.TryParse(value, out var threshold) ? threshold : 0;
         _error = null;
         _notice = null;
+    }
+
+    private void UpdateAuto(SlotDraft slot, bool enabled)
+    {
+        slot.AutoUseEnabled = enabled;
+        _error = null;
+        _notice = null;
+    }
+
+    private void ChooseItem(string itemCode)
+    {
+        var equippedSlot = _drafts.FirstOrDefault(slot => slot.ItemCode == itemCode);
+        if (equippedSlot is not null)
+        {
+            OpenEditor(equippedSlot.SlotIndex);
+            return;
+        }
+        var target = _drafts.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex);
+        if (target is not null)
+        {
+            UpdateItem(target, itemCode);
+            _isEditorOpen = true;
+            _focusEditor = true;
+        }
     }
 
     private bool IsUsedInOtherSlot(string itemCode, int slotIndex) =>
@@ -185,6 +301,7 @@
             slot.AutoUseEnabled = saved.AutoUseEnabled;
             slot.AutoHpThresholdPercent = saved.AutoHpThresholdPercent;
             _notice = $"补给槽 {slot.SlotIndex} 已保存。";
+            _isEditorOpen = false;
         }
         catch
         {

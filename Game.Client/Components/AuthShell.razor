@@ -1,0 +1,71 @@
+<section class="auth-screen">
+    <div class="auth-screen__glow" aria-hidden="true"></div>
+
+    <header class="auth-brand">
+        <span class="auth-brand__mark" aria-hidden="true">⚔</span>
+        <span>
+            <strong>IdleGame</strong>
+            <small>IDLE ADVENTURE</small>
+        </span>
+    </header>
+
+    <main class="auth-card" aria-busy="@(IsChecking ? "true" : "false")">
+        <header class="auth-card__heading">
+            <span>@Kicker</span>
+            <h1>@Title</h1>
+            <p>@Description</p>
+        </header>
+
+        @if (IsChecking)
+        {
+            <div class="auth-loading" role="status">
+                <span aria-hidden="true"></span>
+                <strong>正在确认冒险记录</strong>
+                <small>请稍候，即将进入游戏。</small>
+            </div>
+        }
+        else
+        {
+            <form class="auth-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true">
+                <div class="auth-form__fields">
+                    @ChildContent
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+                {
+                    <p class="auth-form__error" role="alert"><span aria-hidden="true">!</span>@ErrorMessage</p>
+                }
+
+                <button type="submit" class="auth-form__submit" disabled="@IsSubmitting">
+                    <span>@(IsSubmitting ? SubmittingLabel : SubmitLabel)</span>
+                    <span aria-hidden="true">→</span>
+                </button>
+            </form>
+
+            <div class="auth-alternate">
+                <span>@AlternatePrompt</span>
+                <a href="@AlternateHref">@AlternateLabel</a>
+            </div>
+        }
+    </main>
+
+    <footer class="auth-footer"><span aria-hidden="true"></span>轻量冒险 · 离线成长 · 随时回来</footer>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Kicker { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Description { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string SubmitLabel { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string SubmittingLabel { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string AlternatePrompt { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string AlternateLabel { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string AlternateHref { get; set; } = string.Empty;
+    [Parameter] public bool IsChecking { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task SubmitAsync() => IsSubmitting ? Task.CompletedTask : OnSubmit.InvokeAsync();
+}

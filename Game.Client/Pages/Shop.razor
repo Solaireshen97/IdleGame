@@ -20,14 +20,13 @@
 
     @if (_loading)
     {
-        <p class="shop-page__notice">正在读取商品...</p>
+        <GameStateCard Compact="true" Title="正在整理商品" Detail="同步金币、库存与副本兑换内容…" />
     }
     else if (_shop is null)
     {
-        <div class="shop-page__notice" role="alert">
-            <p>@(_message ?? "暂时无法读取商店。")</p>
-            <button type="button" @onclick="LoadAsync">重试</button>
-        </div>
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="商店读取失败" Detail="@(_message ?? "暂时无法读取商店。")">
+            <Actions><button type="button" @onclick="LoadAsync">重试</button></Actions>
+        </GameStateCard>
     }
     else
     {
@@ -36,24 +35,27 @@
             <div><small>DELIVERY TO</small><strong>@_shop.CharacterName</strong><span>商品进入此角色的背包</span></div>
         </section>
 
-        @if (_shop.Materials.Count > 0)
-        {
-            <section class="material-wallet" aria-label="角色材料">
-                @foreach (var material in _shop.Materials)
-                {
-                    <div><span aria-hidden="true">◆</span><strong>@material.Name × @material.Quantity</strong><small>@material.Description</small></div>
-                }
-            </section>
-        }
-
-        <div class="shop-tabs" role="group" aria-label="商品分类">
-            <button type="button" class="@(_kind == "Consumable" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Consumable")" @onclick="ShowConsumables">战斗消耗品</button>
-            <button type="button" class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Weapon")" @onclick="ShowWeapons">武器</button>
-            <button type="button" class="@(_kind == "Exchange" ? "shop-tabs__active" : "")" aria-pressed="@(_kind == "Exchange")" @onclick="ShowExchange">副本兑换</button>
+        <div class="shop-tabs" role="tablist" aria-label="商品分类">
+            <button id="shop-consumables-tab" type="button" role="tab" aria-controls="shop-consumables-panel"
+                    class="@(_kind == "Consumable" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Consumable" ? "true" : "false")" @onclick="ShowConsumables"><span aria-hidden="true">✚</span><strong>战斗补给</strong><small>@_shop.Items.Count(item => item.Kind == "Consumable")</small></button>
+            <button id="shop-weapons-tab" type="button" role="tab" aria-controls="shop-weapons-panel"
+                    class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Weapon" ? "true" : "false")" @onclick="ShowWeapons"><span aria-hidden="true">⚔</span><strong>武器</strong><small>@_shop.Items.Count(item => item.Kind == "Weapon")</small></button>
+            <button id="shop-exchange-tab" type="button" role="tab" aria-controls="shop-exchange-panel"
+                    class="@(_kind == "Exchange" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Exchange" ? "true" : "false")" @onclick="ShowExchange"><span aria-hidden="true">◆</span><strong>副本兑换</strong><small>@_shop.DungeonExchangeOffers.Count</small></button>
         </div>
 
         @if (_kind == "Exchange")
         {
+            <div id="shop-exchange-panel" class="shop-panel" role="tabpanel" aria-labelledby="shop-exchange-tab">
+            @if (_shop.Materials.Count > 0)
+            {
+                <section class="material-wallet" aria-label="角色材料">
+                    @foreach (var material in _shop.Materials)
+                    {
+                        <div><span aria-hidden="true">◆</span><strong>@material.Name × @material.Quantity</strong><small>@material.Description</small></div>
+                    }
+                </section>
+            }
             <label class="exchange-filter">选择副本兑换所
                 <select @bind="_exchangeDungeonCode">
                     @foreach (var dungeon in _shop.DungeonExchangeOffers.GroupBy(offer => new { offer.DungeonCode, offer.DungeonName }))
@@ -78,16 +80,19 @@
                                 @foreach (var skill in offer.WeaponSkills)
                                 { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
                             </div>
-                            <div class="shop-item__foot"><span>当前角色已有 @offer.OwnedQuantity</span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost · 兑换</button></div></div>
+                            <div class="shop-item__foot"><span class="shop-item__owned">持有 <b>@offer.OwnedQuantity</b></span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost · 兑换</button></div></div>
                         </article>
                     }
                     </div>
                 </section>
             }
+            </div>
         }
         else
         {
-            <div class="shop-grid">
+            var panelId = _kind == "Weapon" ? "shop-weapons-panel" : "shop-consumables-panel";
+            var tabId = _kind == "Weapon" ? "shop-weapons-tab" : "shop-consumables-tab";
+            <div id="@panelId" class="shop-panel shop-grid" role="tabpanel" aria-labelledby="@tabId">
                 @foreach (var item in _shop.Items.Where(item => item.Kind == _kind))
                 {
                     var quantity = GetQuantity(item);
@@ -109,7 +114,7 @@
                             </div>
                         }
                         <div class="shop-item__foot">
-                            <span>当前角色已有 @item.OwnedQuantity</span>
+                            <span class="shop-item__owned">持有 <b>@item.OwnedQuantity</b></span>
                             <div class="shop-item__buy">
                                 @if (item.Kind == "Consumable")
                                 {
@@ -125,7 +130,7 @@
 
         @if (_message is not null)
         {
-            <p class="shop-page__message" role="status">@_message</p>
+            <div class="shop-page__message" role="status"><span>@_message</span><button type="button" aria-label="关闭提示" @onclick="() => _message = null">×</button></div>
         }
         <div class="shop-page__links"><a href="/supplies">管理战斗补给 →</a><a href="/weapons">前往武器编成 →</a></div>
     }

@@ -138,14 +138,37 @@ public class RoomServiceTests
     public async Task CreateRoomAsync_CreatesFiveSlotsAndMainControl()
     {
         await using var test = await RoomTestContext.CreateAsync();
+        test.ActiveCharacter.Hp = 23;
+        await test.Db.SaveChangesAsync();
         var (detail, error) = await test.Service.CreateRoomAsync("Slime", test.Token);
 
         Assert.Null(error);
         Assert.NotNull(detail);
+        Assert.Equal(100, test.ActiveCharacter.Hp);
         Assert.Equal(5, detail!.Slots.Count);
         var firstSlot = Assert.Single(detail.Slots, x => x.SlotIndex == 1);
         Assert.Equal(test.ActiveCharacter.Id, firstSlot.CharacterId);
         Assert.True(firstSlot.IsMainControl);
+    }
+
+    [Fact]
+    public async Task GetRoomsAsync_MarksOwnedAndJoinedRoomsForCurrentUser()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+
+        var ownerSummary = Assert.Single(await test.Service.GetRoomsAsync(test.Token));
+        var guestBeforeJoin = Assert.Single(await test.Service.GetRoomsAsync("other-token"));
+        await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        var guestAfterJoin = Assert.Single(await test.Service.GetRoomsAsync("other-token"));
+
+        Assert.True(ownerSummary.IsCurrentUserParticipant);
+        Assert.True(ownerSummary.IsOwnedByCurrentUser);
+        Assert.False(guestBeforeJoin.IsCurrentUserParticipant);
+        Assert.False(guestBeforeJoin.IsOwnedByCurrentUser);
+        Assert.True(guestAfterJoin.IsCurrentUserParticipant);
+        Assert.False(guestAfterJoin.IsOwnedByCurrentUser);
     }
 
     [Fact]
@@ -181,6 +204,9 @@ public class RoomServiceTests
         await using var test = await RoomTestContext.CreateAsync();
         var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
         await test.AddOtherActiveCharacterAsync();
+        var otherCharacter = await test.Db.Characters.FindAsync(2);
+        otherCharacter!.Hp = 17;
+        await test.Db.SaveChangesAsync();
 
         var (detail, error) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
 
@@ -188,6 +214,29 @@ public class RoomServiceTests
         var slot = detail!.Slots.Single(x => x.SlotIndex == 2);
         Assert.Equal(2, slot.CharacterId);
         Assert.Equal("other", slot.PlayerName);
+        Assert.Equal(100, otherCharacter.Hp);
+    }
+
+    [Fact]
+    public async Task LeavingOrDeletingRoom_RestoresParticipantHp()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+        await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        var otherCharacter = await test.Db.Characters.FindAsync(2);
+        test.ActiveCharacter.Hp = 11;
+        otherCharacter!.Hp = 0;
+        await test.Db.SaveChangesAsync();
+
+        var (_, leaveError) = await test.Service.LeaveRoomAsync(room.RoomId, "other-token");
+        var (deleted, deleteError) = await test.Service.DeleteRoomAsync(room.RoomId, test.Token);
+
+        Assert.Null(leaveError);
+        Assert.True(deleted);
+        Assert.Null(deleteError);
+        Assert.Equal(100, otherCharacter.Hp);
+        Assert.Equal(100, test.ActiveCharacter.Hp);
     }
 
     [Fact]
@@ -246,7 +295,7 @@ public class RoomServiceTests
             var path = Path.Combine(Path.GetTempPath(), $"idlegame-room-tests-{Guid.NewGuid():N}.db");
             var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options);
             await db.Database.EnsureCreatedAsync();
-            var activeCharacter = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+            var activeCharacter = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
             db.AddRange(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 }, activeCharacter, new UserLoginSession { UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await db.SaveChangesAsync();
             return new RoomTestContext(path, db, activeCharacter);
@@ -254,7 +303,7 @@ public class RoomServiceTests
 
         public async Task<Character> AddCharacterAsync(string name)
         {
-            var character = new Character { UserId = 1, Name = name, Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+            var character = new Character { UserId = 1, Name = name, Hp = 100, MaxHp = 100, Attack = 20};
             Db.Characters.Add(character);
             await Db.SaveChangesAsync();
             return character;
@@ -264,14 +313,14 @@ public class RoomServiceTests
         {
             Db.AddRange(
                 new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 },
-                new Character { Id = 2, UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 },
+                new Character { Id = 2, UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20},
                 new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await Db.SaveChangesAsync();
         }
 
         public async Task<Character> AddOtherCharacterAsync()
         {
-            var character = new Character { UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
+            var character = new Character { UserId = 2, Name = "Other", Hp = 100, MaxHp = 100, Attack = 20};
             Db.AddRange(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = null }, character);
             await Db.SaveChangesAsync();
             return character;
