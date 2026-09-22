@@ -95,16 +95,20 @@ else
         <div id="create-battle-panel" class="lobby-panel" role="tabpanel" aria-labelledby="create-battle-tab">
             <section class="region-picker" aria-label="选择冒险地区">
                 <div class="region-picker__heading"><span class="section-kicker">EXPLORE THE WORLD</span><h2>选择冒险地区</h2><p>六片初始区域 · 自由选择成长路线</p></div>
-                <div class="region-picker__grid">
-                @foreach (var region in _regions)
-                {
-                    <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
-                            aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
-                        <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
-                        <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
-                        <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
-                    </button>
-                }
+                <div class="horizontal-rail">
+                    <button type="button" class="horizontal-rail__control horizontal-rail__control--previous" data-scroll-step="-1" aria-label="查看前面的冒险区域">‹</button>
+                    <div class="region-picker__grid" data-drag-scroll tabindex="0" aria-label="冒险区域列表，可左右拖动浏览">
+                    @foreach (var region in _regions)
+                    {
+                        <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
+                                aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
+                            <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
+                            <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
+                            <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
+                        </button>
+                    }
+                    </div>
+                    <button type="button" class="horizontal-rail__control horizontal-rail__control--next" data-scroll-step="1" aria-label="查看更多冒险区域">›</button>
                 </div>
             </section>
             <section class="dungeon-launcher">
@@ -118,25 +122,29 @@ else
                 {
                     <section class="dungeon-region">
                         <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
-                        <div class="dungeon-grid">
-                        @foreach (var dungeon in RegionDungeons)
-                        {
-                            <button type="button"
-                                    class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
-                                    @onclick="() => SelectDungeon(dungeon.DungeonId)">
-                                <span class="dungeon-card__topline">
-                                    <span>@DungeonKindName(dungeon.DungeonKind)</span>
-                                    <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
-                                </span>
-                                <strong>@dungeon.Name</strong>
-                                <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
-                                <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
-                                @if (!dungeon.CanEnter)
-                                {
-                                    <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
-                                }
-                            </button>
-                        }
+                        <div class="horizontal-rail">
+                            <button type="button" class="horizontal-rail__control horizontal-rail__control--previous" data-scroll-step="-1" aria-label="查看前面的地区挑战">‹</button>
+                            <div class="dungeon-grid" data-drag-scroll tabindex="0" aria-label="地区挑战列表，可左右拖动浏览">
+                            @foreach (var dungeon in RegionDungeons)
+                            {
+                                <button type="button"
+                                        class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
+                                        @onclick="() => SelectDungeon(dungeon.DungeonId)">
+                                    <span class="dungeon-card__topline">
+                                        <span>@DungeonKindName(dungeon.DungeonKind)</span>
+                                        <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
+                                    </span>
+                                    <strong>@dungeon.Name</strong>
+                                    <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
+                                    <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
+                                    @if (!dungeon.CanEnter)
+                                    {
+                                        <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
+                                    }
+                                </button>
+                            }
+                            </div>
+                            <button type="button" class="horizontal-rail__control horizontal-rail__control--next" data-scroll-step="1" aria-label="查看更多地区挑战">›</button>
                         </div>
                     </section>
                 }
