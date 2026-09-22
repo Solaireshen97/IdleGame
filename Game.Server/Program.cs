@@ -4,14 +4,23 @@ using Game.Server.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService(options => options.ServiceName = "IdleGame");
 builder.Configuration.AddJsonFile("world.json", optional: false, reloadOnChange: false);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var gameDbConnectionString = builder.Configuration.GetConnectionString("GameDb")
+    ?? throw new InvalidOperationException("Connection string 'GameDb' is not configured.");
+var gameDbConnection = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(gameDbConnectionString);
+if (!Path.IsPathRooted(gameDbConnection.DataSource))
+{
+    gameDbConnection.DataSource = Path.Combine(builder.Environment.ContentRootPath, gameDbConnection.DataSource);
+}
+
 builder.Services.AddDbContext<GameDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("GameDb")));
+    options.UseSqlite(gameDbConnection.ToString()));
 
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
@@ -77,8 +86,16 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowClient");
+app.UseDefaultFiles();
+var staticFileContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+staticFileContentTypes.Mappings[".dat"] = "application/octet-stream";
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = staticFileContentTypes
+});
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();
