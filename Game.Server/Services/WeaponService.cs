@@ -103,6 +103,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
+        if (weapons.Any(weapon => !WeaponCatalog.CanSell(weapon))) return (null, "StarterWeaponCannotBeSold");
         var user = await dbContext.Users.SingleAsync(item => item.Id == character!.UserId);
         var gold = weapons.Sum(weapon => weapon.SellGold);
 
@@ -143,7 +144,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            foreach (var (tier, quantity) in returns)
+            foreach (var (tier, quantity) in returns.Where(pair => pair.Value > 0))
             {
                 var code = WeaponRules.FragmentCode(tier);
                 var stack = stacks.SingleOrDefault(item => item.ItemCode == code);
@@ -192,6 +193,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         {
             stack.Quantity -= cost;
             stack.Version++;
+            skill.SpentFragments = checked(weaponCatalog.InvestedFragments(skill) + cost);
             skill.EnhancementLevel++;
             skill.Level++;
             weapon.Version++;
@@ -278,7 +280,13 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             ActiveSkills = bonuses.ActiveSkills.Select(skill => new ActiveWeaponSkillResponse
             {
                 SkillCode = skill.Code, Name = skill.Name, Level = skill.Level,
-                TotalPercent = skill.TotalPercent
+                TotalPercent = skill.TotalPercent, Description = skill.Description
+            }).ToList(),
+            ActiveEffects = bonuses.Effects.Select(effect => new WeaponEffectResponse
+            {
+                EffectType = effect.EffectType, Name = WeaponEffectLabels.Name(effect.EffectType),
+                Description = WeaponEffectLabels.Description(effect.EffectType),
+                EffectiveLevel = effect.EffectiveLevel, TotalPercent = effect.TotalPercent
             }).ToList(),
             Fragments = Enumerable.Range(1, maximumTier).Select(tier => new WeaponFragmentResponse
             {
@@ -297,8 +305,10 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 MaxHp = item.MaxHp,
                 ItemLevel = item.ItemLevel,
                 FragmentTier = WeaponRules.FragmentTier(item.ItemLevel),
-                SellGold = item.SellGold,
-                DismantleFragments = item.DismantleFragments,
+                SellGold = WeaponCatalog.CanSell(item) ? item.SellGold : 0,
+                CanSell = WeaponCatalog.CanSell(item),
+                Origin = item.Origin,
+                DismantleFragments = WeaponCatalog.BaseDismantleReturn(item),
                 DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),
                 QualityBonusLevel = Math.Clamp(item.Skills.Sum(skill => skill.QualityBonusLevel),
                     0, WeaponRules.MaxQualityBonusLevels),
@@ -322,6 +332,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                         NextEnhancementCost = skill.EnhancementLevel < WeaponRules.MaxEnhancementPerSkill
                             ? weaponCatalog.EnhancementCost(skill.EnhancementLevel) : null,
                         TotalPercent = definition is null ? 0 : weaponCatalog.CalculateSkillPercent(definition, skill.Level),
+                        Description = definition is null ? "未知技能" : weaponCatalog.DescribeSkill(definition, skill.Level),
                         IsActive = definition is not null && item.EquippedSlotIndex.HasValue && item.Element == main?.Element
                     };
                 }).ToList()

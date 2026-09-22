@@ -19,7 +19,44 @@ public static class DbInitializer
         await AdoptLegacyEnsureCreatedDatabaseAsync(dbContext);
         await dbContext.Database.MigrateAsync();
         await EnsureDefaultDungeonsAsync(dbContext, world);
-        if (weaponCatalog is not null) await SynchronizeWeaponBonusesAsync(dbContext, weaponCatalog);
+        if (weaponCatalog is not null)
+        {
+            await SynchronizeWeaponTemplatesAsync(dbContext, weaponCatalog);
+            await SynchronizeWeaponBonusesAsync(dbContext, weaponCatalog);
+        }
+    }
+
+    private static async Task SynchronizeWeaponTemplatesAsync(GameDbContext dbContext, WeaponCatalog catalog)
+    {
+        var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills).ToListAsync();
+        var changed = weapons.Where(catalog.NeedsTemplateUpdate).ToList();
+        if (changed.Count == 0) return;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        // Delete old skill rows first, then insert the rebased rows within one transaction.
+        // Otherwise changing two skill codes can transiently violate the unique index.
+        var replacementSkills = new Dictionary<int, List<CharacterWeaponSkill>>();
+        foreach (var weapon in changed)
+        {
+            var oldSkills = weapon.Skills.ToList();
+            catalog.ApplyTemplate(weapon);
+            replacementSkills[weapon.Id] = weapon.Skills;
+            weapon.Skills = [];
+            dbContext.CharacterWeaponSkills.RemoveRange(oldSkills);
+        }
+        await dbContext.SaveChangesAsync();
+        foreach (var weapon in changed) weapon.Skills = replacementSkills[weapon.Id];
+        var characterIds = changed.Select(weapon => weapon.CharacterId).Distinct().ToList();
+        foreach (var character in await dbContext.Characters.Where(character => characterIds.Contains(character.Id)).ToListAsync())
+        {
+            var owned = weapons.Where(weapon => weapon.CharacterId == character.Id).ToList();
+            character.Attack = owned.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.Attack);
+            character.MaxHp = owned.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.MaxHp);
+            catalog.ApplyBonuses(character, owned);
+            character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
+            character.Version++;
+        }
+        await dbContext.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     private static async Task SynchronizeWeaponBonusesAsync(GameDbContext dbContext, WeaponCatalog catalog)
@@ -30,11 +67,13 @@ public static class DbInitializer
         foreach (var character in characters)
         {
             var previous = (character.WeaponAttackBonusPercent, character.WeaponHealthBonusPercent,
-                character.WeaponCriticalChancePercent, character.Hp);
+                character.WeaponCriticalChancePercent, character.WeaponStaminaPercent, character.WeaponEnmityPercent,
+                character.WeaponDoubleAttackChancePercent, character.WeaponNormalEchoPercent, character.WeaponSkillDamagePercent, character.Hp);
             catalog.ApplyBonuses(character, weaponsByCharacter.GetValueOrDefault(character.Id) ?? []);
             character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
             if (previous != (character.WeaponAttackBonusPercent, character.WeaponHealthBonusPercent,
-                    character.WeaponCriticalChancePercent, character.Hp)) character.Version++;
+                    character.WeaponCriticalChancePercent, character.WeaponStaminaPercent, character.WeaponEnmityPercent,
+                    character.WeaponDoubleAttackChancePercent, character.WeaponNormalEchoPercent, character.WeaponSkillDamagePercent, character.Hp)) character.Version++;
         }
         await dbContext.SaveChangesAsync();
     }

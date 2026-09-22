@@ -35,7 +35,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
         var user = new User
         {
-            UserName = userName
+            UserName = userName,
+            Gold = weaponCatalog?.StartingAccountGold ?? 0
         };
         user.PasswordHash = PasswordHasher.HashPassword(user, request.Password);
 

@@ -23,19 +23,20 @@ public sealed class WorldContentTests
         content.World.ValidateContent(content.Weapons, content.Encounters, content.Rewards, content.Exchanges);
         Assert.Equal(6, content.World.Regions.Count);
         Assert.Equal(6, content.World.Regions.Select(region => region.FeaturedElement).Distinct().Count());
-        Assert.Equal(6, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
-        Assert.Equal(36, content.Exchanges.Offers.Select(offer => offer.WeaponCode).Distinct().Count());
-        Assert.Equal(36, content.Exchanges.Offers.Select(offer => content.Weapons.FindItem(offer.WeaponCode)!.Name).Distinct().Count());
+        Assert.Equal(7, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
+        Assert.Equal(42, content.Exchanges.Offers.Select(offer => offer.WeaponCode).Distinct().Count());
+        Assert.Equal(42, content.Exchanges.Offers.Select(offer => content.Weapons.FindItem(offer.WeaponCode)!.Name).Distinct().Count());
 
         foreach (var region in content.World.Regions)
         {
             var dungeons = content.World.Dungeons.Where(dungeon => dungeon.RegionCode == region.Code).ToList();
             Assert.Equal((1, 10), (region.MinimumLevel, region.MaximumLevel));
-            Assert.Equal(Enumerable.Range(1, 10), dungeons.Select(dungeon => dungeon.MinimumLevel).Order());
+            Assert.Equal(Enumerable.Range(1, 10), dungeons.Select(dungeon => dungeon.MinimumLevel).Distinct().Order());
+            Assert.Equal(region.Code == "elwynn" ? 11 : 10, dungeons.Count);
             Assert.Equal(7, dungeons.Count(dungeon => dungeon.DungeonKind == "Hunt"));
             Assert.Equal(2, dungeons.Count(dungeon => dungeon.DungeonKind == "Elite"));
             Assert.All(dungeons, dungeon => Assert.True(dungeon.IsVisible));
-            var dungeon = Assert.Single(dungeons, dungeon => dungeon.DungeonKind == "Dungeon");
+            var dungeon = Assert.Single(dungeons, dungeon => dungeon.Code == region.FeaturedDungeonCode);
             Assert.Equal((8, 10), (dungeon.MinimumLevel, dungeon.RecommendedLevel));
             Assert.Equal(region.FeaturedDungeonCode, dungeon.Code);
             Assert.Equal(4, content.Encounters.GetWaveCount(dungeon));
@@ -57,7 +58,7 @@ public sealed class WorldContentTests
             var offers = content.Exchanges.Offers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
             Assert.Equal(6, offers.Count);
             Assert.Equal(6, offers.Select(offer => content.Weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
-            Assert.All(offers, offer => Assert.Equal(6, offer.Cost));
+            Assert.All(offers, offer => Assert.Equal(12, offer.Cost));
             Assert.DoesNotContain(offers, offer => offer.WeaponCode == region.FeaturedWeaponCode);
             var token = Assert.Single(offers.Select(offer => offer.CurrencyCode).Distinct());
             var repeatDrop = Assert.Single(content.RewardOptions.DungeonClears[dungeon.Code].Drops, drop => drop.Kind == "Material");
@@ -74,6 +75,7 @@ public sealed class WorldContentTests
     [InlineData("frostspring-cavern")]
     [InlineData("windfury-nest")]
     [InlineData("dawn-ruins")]
+    [InlineData("kobold-mine-depths")]
     public async Task RegionDungeonEnforcesLevelAndSettlesItsOwnTokensAcrossRuns(string dungeonCode)
     {
         var content = new Content();
@@ -101,7 +103,7 @@ public sealed class WorldContentTests
         var rejected = await rooms.CreateRoomAsync(dungeon.Id, null, "owner-token");
         Assert.Equal("CharacterLevelTooLow", rejected.Error);
         Assert.Empty(await db.Rooms.ToListAsync());
-        character.Level = 8;
+        character.Level = dungeon.MinimumLevel;
         await db.SaveChangesAsync();
         var created = await rooms.CreateRoomAsync(dungeon.Id, null, "owner-token", isPreparationTimeoutEnabled: false);
         Assert.Null(created.Error);
@@ -154,7 +156,7 @@ public sealed class WorldContentTests
         var insufficient = await shop.ExchangeAsync("owner-token", request);
         Assert.Equal("InsufficientDungeonCurrency", insufficient.Error);
         var correctToken = await db.CharacterItemStacks.SingleAsync(stack => stack.ItemCode == offer.CurrencyCode);
-        correctToken.Quantity += 2;
+        correctToken.Quantity = offer.Cost;
         await db.SaveChangesAsync();
         var exchanged = await shop.ExchangeAsync("owner-token", request);
         Assert.Null(exchanged.Error);
@@ -177,7 +179,7 @@ public sealed class WorldContentTests
         var world = WorldCatalog.LoadDefault();
         await DbInitializer.InitializeAsync(db, world: world);
         await DbInitializer.InitializeAsync(db, world: world);
-        Assert.Equal(63, await db.Dungeons.CountAsync());
+        Assert.Equal(64, await db.Dungeons.CountAsync());
         Assert.Equal(55, (await db.Dungeons.SingleAsync(dungeon => dungeon.Code == "kobold-mine")).Id);
         Assert.Equal("elwynn", (await db.Dungeons.FindAsync(55))!.RegionCode);
         Assert.Equal(55, (await db.Rooms.SingleAsync()).DungeonId);

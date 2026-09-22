@@ -66,9 +66,9 @@ public class RoomServiceTests
         var (second, secondError) = await test.Service.CreateRoomAsync(dungeons.Single(dungeon => dungeon.Code == "goblin-camp").Id, null, test.Token);
 
         Assert.Null(firstError);
-        Assert.Equal(63, dungeons.Count);
+        Assert.Equal(64, dungeons.Count);
         Assert.Equal("northshire-wolves", dungeons[0].Code);
-        Assert.Equal(60, dungeons.Count(dungeon => dungeon.IsVisible));
+        Assert.Equal(61, dungeons.Count(dungeon => dungeon.IsVisible));
         Assert.False(dungeons.Single(dungeon => dungeon.Code == "slime-field").IsVisible);
         Assert.Equal(8, dungeons.Single(dungeon => dungeon.Code == "kobold-mine").MinimumLevel);
         Assert.Null(second);
@@ -88,7 +88,7 @@ public class RoomServiceTests
         var firstHunt = Assert.Single(dungeons, dungeon => dungeon.Code == "northshire-wolves");
         var (room, error) = await test.Service.CreateRoomAsync(mine.DungeonId, null, test.Token);
 
-        Assert.Equal(60, dungeons.Count);
+        Assert.Equal(61, dungeons.Count);
         Assert.True(firstHunt.CanEnter);
         Assert.False(mine.CanEnter);
         Assert.Equal("需要角色达到 Lv.8", mine.LockReason);

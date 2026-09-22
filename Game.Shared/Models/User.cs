@@ -7,5 +7,6 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public int? ActiveCharacterId { get; set; }
     public int Gold { get; set; }
+    public bool StarterWeaponRewardClaimed { get; set; }
     public int Version { get; set; }
 }

@@ -32,6 +32,7 @@ public sealed class ShopWeaponSkillResponse
     public string Name { get; set; } = string.Empty;
     public int Level { get; set; }
     public decimal Percent { get; set; }
+    public string Description { get; set; } = string.Empty;
 }
 
 public sealed class ShopMaterialResponse

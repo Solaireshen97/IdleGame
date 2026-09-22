@@ -31,13 +31,11 @@ public sealed class WeaponServiceTests
         var starters = catalog.CreateStarterWeapons(1, "knight");
         var bonuses = catalog.CalculateBonuses(starters);
 
-        Assert.Equal(4, starters.Count);
-        Assert.Contains(starters, weapon => weapon.WeaponCode == "cinder-knife" && weapon.EquippedSlotIndex is null);
-        Assert.Equal(4, bonuses.AttackPercent);
+        Assert.Single(starters);
+        Assert.Equal(2, bonuses.AttackPercent);
         Assert.Equal(0, bonuses.HealthPercent);
-        Assert.Equal(2, Assert.Single(starters.Single(weapon => weapon.EquippedSlotIndex == 1).Skills).Level);
-        starters.Single(weapon => weapon.WeaponCode == "cinder-knife").EquippedSlotIndex = 2;
-        Assert.Equal(4, Assert.Single(catalog.CalculateBonuses(starters).ActiveSkills).Level);
+        Assert.Equal(1, Assert.Single(starters.Single(weapon => weapon.EquippedSlotIndex == 1).Skills).Level);
+        Assert.Equal((16, 40), (starters[0].Attack, starters[0].MaxHp));
     }
 
     [Fact]
@@ -572,6 +570,8 @@ public sealed class WeaponServiceTests
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Defense = 5 };
             var catalog = configuredCatalog ?? CreateCatalog();
             var weapons = catalog.CreateStarterWeapons(1, "knight").ToList();
+            // Inventory fixtures exercise ordinary loot recycling, not the protected starter grant.
+            foreach (var weapon in weapons) weapon.Origin = WeaponOrigin.Drop;
             catalog.ApplyBonuses(character, weapons);
             character.Hp = TalentRules.EffectiveMaxHp(character);
             db.AddRange(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },

@@ -102,6 +102,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .HasIndex(cooldown => new { cooldown.RoomId, cooldown.MonsterId, cooldown.SkillCode })
             .IsUnique();
         modelBuilder.Entity<CharacterWeapon>()
+            .Property(weapon => weapon.Origin).HasConversion<string>();
+        modelBuilder.Entity<CharacterWeapon>()
             .Property(weapon => weapon.Version)
             .IsConcurrencyToken();
         modelBuilder.Entity<CharacterWeapon>()

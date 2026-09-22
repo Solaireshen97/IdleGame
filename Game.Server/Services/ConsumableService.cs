@@ -98,7 +98,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
             {
                 Code = item.Code,
                 Name = item.Name,
-                HealAmount = item.HealAmount,
+                HealAmount = ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)),
                 CooldownRounds = item.CooldownRounds,
                 Quantity = inventory.GetValueOrDefault(item.Code)
             }).ToList(),

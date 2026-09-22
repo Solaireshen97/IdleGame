@@ -1,0 +1,67 @@
+{
+  "purchaseAndEquip": "verified via browser, 120 -> 40 gold and 52 attack / 130 HP",
+  "firstHunt": "actual one-round victory + account-once white weapon",
+  "advancedFixture": "10 configured Fire weapons supplied to isolated test DB, then equipped via API",
+  "activeEffects": [
+    {
+      "effectType": 0,
+      "name": "攻击",
+      "description": "提高普通攻击与伤害技能的攻击力",
+      "effectiveLevel": 13,
+      "totalPercent": 23
+    },
+    {
+      "effectType": 1,
+      "name": "生命",
+      "description": "提高武器提供的最大生命，不自动回复生命",
+      "effectiveLevel": 11,
+      "totalPercent": 31.5
+    },
+    {
+      "effectType": 2,
+      "name": "暴击率",
+      "description": "普通攻击与直接伤害技能可暴击，暴击伤害为150%",
+      "effectiveLevel": 6,
+      "totalPercent": 18
+    },
+    {
+      "effectType": 3,
+      "name": "强壮",
+      "description": "生命高于75%时增伤，满生命获得完整收益",
+      "effectiveLevel": 5,
+      "totalPercent": 10
+    },
+    {
+      "effectType": 4,
+      "name": "背水",
+      "description": "生命低于50%时增伤，生命越低收益越高",
+      "effectiveLevel": 3,
+      "totalPercent": 12
+    },
+    {
+      "effectType": 5,
+      "name": "二连击率",
+      "description": "普通攻击有概率多攻击一次，不重复使用技能或道具",
+      "effectiveLevel": 3,
+      "totalPercent": 6
+    },
+    {
+      "effectType": 6,
+      "name": "普攻追击",
+      "description": "每次普攻命中后追加部分伤害，追击不会再次触发其他攻击",
+      "effectiveLevel": 1,
+      "totalPercent": 1.5
+    },
+    {
+      "effectType": 7,
+      "name": "技能伤害",
+      "description": "提高职业技能的直接伤害，不影响治疗、道具或持续伤害",
+      "effectiveLevel": 4,
+      "totalPercent": 16
+    }
+  ],
+  "fragmentsBefore": 100,
+  "fragmentsAfter": 96,
+  "soldGold": 12,
+  "enhancement": "quality +2 retained, enhancement +2 cost 10, dismantle yielded 1+5=6"
+}

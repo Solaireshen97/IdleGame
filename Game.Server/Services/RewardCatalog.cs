@@ -15,13 +15,17 @@ public sealed class RewardCatalog
     private readonly ConsumableCatalog _consumables;
     private readonly WeaponCatalog _weapons;
     private readonly MaterialCatalog? _materials;
+    private readonly bool _grantFirstHuntWeapon;
+    private readonly Random _random;
 
     public RewardCatalog(IOptions<RewardOptions> options, ConsumableCatalog consumables, WeaponCatalog weapons,
-        MaterialCatalog? materials = null)
+        MaterialCatalog? materials = null, Random? random = null)
     {
         _consumables = consumables;
         _weapons = weapons;
         _materials = materials;
+        _grantFirstHuntWeapon = options.Value.GrantFirstHuntWeapon;
+        _random = random ?? Random.Shared;
         _kills = Validate(options.Value.MonsterKills);
         _clears = Validate(options.Value.DungeonClears);
     }
@@ -58,13 +62,13 @@ public sealed class RewardCatalog
         foreach (var drop in bundle.Drops)
         {
             if (drop.ChancePercent <= 0 || drop.ChancePercent < 100 &&
-                (decimal)Random.Shared.NextDouble() * 100 >= drop.ChancePercent) continue;
+                (decimal)_random.NextDouble() * 100 >= drop.ChancePercent) continue;
             if (drop.Kind == "Weapon")
             {
                 for (var index = 0; index < drop.Quantity; index++)
                 {
                     var entry = NewEntry(drop.Kind, drop.Code, 1);
-                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateDropSnapshot(drop.Code));
+                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateDropSnapshot(drop.Code, _random));
                     entries.Add(entry);
                 }
             }
@@ -112,10 +116,21 @@ public sealed class RewardCatalog
         string.IsNullOrWhiteSpace(entry.WeaponSnapshotJson)
             ? null
             : JsonSerializer.Deserialize<WeaponRewardSnapshot>(entry.WeaponSnapshotJson);
+
+    public CharacterWeapon MaterializeWeapon(WeaponRewardSnapshot snapshot, int characterId) =>
+        _weapons.MaterializeReward(snapshot, characterId);
+
+    public WeaponRewardSnapshot? FirstHuntWeapon(string dungeonCode)
+    {
+        if (!_grantFirstHuntWeapon || !_kills.TryGetValue(dungeonCode, out var bundle)) return null;
+        var drop = bundle.Drops.FirstOrDefault(drop => drop.Kind == "Weapon" && drop.ChancePercent > 0);
+        return drop is null ? null : _weapons.CreateRewardSnapshot(drop.Code) with { Origin = WeaponOrigin.Tutorial };
+    }
 }
 
 public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType Element, int Attack, int MaxHp,
-    int ItemLevel, int SellGold, int DismantleFragments, List<WeaponRewardSkillSnapshot> Skills)
+    int ItemLevel, int SellGold, int DismantleFragments, List<WeaponRewardSkillSnapshot> Skills, int TemplateRevision = 0,
+    WeaponOrigin Origin = WeaponOrigin.Drop)
 {
     [JsonIgnore]
     public int QualityBonusLevel => Math.Clamp(Skills.Sum(skill => skill.QualityBonusLevel),
@@ -127,14 +142,14 @@ public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType 
 
     public CharacterWeapon ToCharacterWeapon(int characterId) => new()
     {
-        CharacterId = characterId, WeaponCode = Code, Name = Name, Element = Element,
+        CharacterId = characterId, WeaponCode = Code, Name = Name, Element = Element, TemplateRevision = TemplateRevision, Origin = Origin,
         Attack = Attack, MaxHp = MaxHp, ItemLevel = Math.Max(1, ItemLevel), SellGold = Math.Max(0, SellGold),
         DismantleFragments = Math.Max(1, DismantleFragments),
         Skills = Skills.Select((skill, index) => new CharacterWeaponSkill
         {
             SlotIndex = index + 1, SkillCode = skill.Code,
             Level = skill.Level + skill.QualityBonusLevel, BaseLevel = skill.Level,
-            QualityBonusLevel = skill.QualityBonusLevel
+            QualityBonusLevel = skill.QualityBonusLevel, SpentFragments = 0
         }).ToList()
     };
 }

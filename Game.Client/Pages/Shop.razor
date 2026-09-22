@@ -76,7 +76,7 @@
                             <p>@WeaponRules.ElementName(offer.Element)属性 · 攻击 +@offer.Attack · HP +@offer.MaxHp</p>
                             <div class="shop-item__skills">
                                 @foreach (var skill in offer.WeaponSkills)
-                                { <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span> }
+                                { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
                             </div>
                             <div class="shop-item__foot"><span>当前角色已有 @offer.OwnedQuantity</span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost · 兑换</button></div></div>
                         </article>
@@ -105,7 +105,7 @@
                             <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>
                             <div class="shop-item__skills">
                                 @foreach (var skill in item.WeaponSkills)
-                                { <span>@skill.Name Lv @skill.Level（+@skill.Percent%）</span> }
+                                { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
                             </div>
                         }
                         <div class="shop-item__foot">

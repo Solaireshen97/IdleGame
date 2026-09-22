@@ -19,6 +19,7 @@ public sealed class CharacterWeaponsResponse
     public decimal HealthBonusPercent { get; set; }
     public decimal CriticalChancePercent { get; set; }
     public List<ActiveWeaponSkillResponse> ActiveSkills { get; set; } = [];
+    public List<WeaponEffectResponse> ActiveEffects { get; set; } = [];
     public List<WeaponFragmentResponse> Fragments { get; set; } = [];
     public List<CharacterWeaponResponse> Weapons { get; set; } = [];
 }
@@ -34,6 +35,8 @@ public sealed class CharacterWeaponResponse
     public int ItemLevel { get; set; }
     public int FragmentTier { get; set; }
     public int SellGold { get; set; }
+    public bool CanSell { get; set; } = true;
+    public WeaponOrigin Origin { get; set; }
     public int DismantleFragments { get; set; }
     public int DismantleReturnQuantity { get; set; }
     public int QualityBonusLevel { get; set; }
@@ -56,6 +59,7 @@ public sealed class WeaponSkillResponse
     public int MaximumEnhancementLevel { get; set; }
     public int? NextEnhancementCost { get; set; }
     public decimal TotalPercent { get; set; }
+    public string Description { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }
 
@@ -72,5 +76,15 @@ public sealed class ActiveWeaponSkillResponse
     public string SkillCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Level { get; set; }
+    public decimal TotalPercent { get; set; }
+    public string Description { get; set; } = string.Empty;
+}
+
+public sealed class WeaponEffectResponse
+{
+    public WeaponSkillEffectType EffectType { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal EffectiveLevel { get; set; }
     public decimal TotalPercent { get; set; }
 }

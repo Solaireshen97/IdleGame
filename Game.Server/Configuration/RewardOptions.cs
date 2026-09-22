@@ -3,6 +3,7 @@ namespace Game.Server.Configuration;
 public sealed class RewardOptions
 {
     public const string SectionName = "Rewards";
+    public bool GrantFirstHuntWeapon { get; set; }
     public Dictionary<string, RewardBundleOptions> MonsterKills { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, RewardBundleOptions> DungeonClears { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

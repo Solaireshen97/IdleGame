@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatCatalog catalog)
+public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatCatalog catalog, Random? random = null)
 {
     public async Task<MonsterIntent> EnsureIntentAsync(Room room, Monster monster)
     {
@@ -266,7 +266,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         var profile = catalog.FindProfile(monster.CombatProfileCode);
         if (profile is null || profile.Skills.Count == 0 || profile.SkillUseChancePercent <= 0 ||
-            Random.Shared.Next(1, 101) > profile.SkillUseChancePercent) return null;
+            (random ?? Random.Shared).Next(1, 101) > profile.SkillUseChancePercent) return null;
         var cooldowns = await dbContext.BattleMonsterSkillCooldowns.Where(entry =>
             entry.RoomId == room.Id && entry.MonsterId == monster.Id).ToListAsync();
         foreach (var local in dbContext.BattleMonsterSkillCooldowns.Local.Where(entry =>
@@ -279,7 +279,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 cooldowns.All(cooldown => !string.Equals(cooldown.SkillCode, candidate.Skill.Code, StringComparison.OrdinalIgnoreCase) ||
                     cooldown.ReadyAtRound <= room.RoundNumber)).ToList();
         if (eligible.Count == 0) return null;
-        var roll = Random.Shared.Next(eligible.Sum(candidate => candidate.Entry.Weight));
+        var roll = (random ?? Random.Shared).Next(eligible.Sum(candidate => candidate.Entry.Weight));
         foreach (var candidate in eligible)
         {
             if (roll < candidate.Entry.Weight) return candidate.Skill;

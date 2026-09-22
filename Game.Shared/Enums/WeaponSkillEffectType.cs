@@ -4,5 +4,10 @@ public enum WeaponSkillEffectType
 {
     AttackPercent,
     MaxHpPercent,
-    CriticalChancePercent
+    CriticalChancePercent,
+    StaminaPercent,
+    EnmityPercent,
+    DoubleAttackChancePercent,
+    NormalEchoPercent,
+    SkillDamagePercent
 }

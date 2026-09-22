@@ -13,6 +13,11 @@ public class Character
     public decimal WeaponAttackBonusPercent { get; set; }
     public decimal WeaponHealthBonusPercent { get; set; }
     public decimal WeaponCriticalChancePercent { get; set; }
+    public decimal WeaponStaminaPercent { get; set; }
+    public decimal WeaponEnmityPercent { get; set; }
+    public decimal WeaponDoubleAttackChancePercent { get; set; }
+    public decimal WeaponNormalEchoPercent { get; set; }
+    public decimal WeaponSkillDamagePercent { get; set; }
     public int Level { get; set; } = 1;
     public int Experience { get; set; }
     public int TalentPoints { get; set; }

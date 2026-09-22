@@ -30,9 +30,9 @@ public class ShopConfigurationTests
         Assert.Equal(7, catalog.Items.Count);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
-        Assert.Equal(36, exchanges.Offers.Count);
+        Assert.Equal(42, exchanges.Offers.Count);
         Assert.Equal(6, exchanges.Offers.Select(offer => weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
-        Assert.Equal(6, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
+        Assert.Equal(7, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
         Assert.All(exchanges.Offers.GroupBy(offer => offer.DungeonCode), group =>
         {
             Assert.Equal(6, group.Select(offer => weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());

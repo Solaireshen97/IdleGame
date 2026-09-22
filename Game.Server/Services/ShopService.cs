@@ -1,6 +1,8 @@
 using Game.Server.Data;
 using Game.Shared.Dtos.Shop;
 using Game.Shared.Models;
+using Game.Shared.Enums;
+using Game.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
@@ -56,7 +58,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         }
         else
         {
-            dbContext.CharacterWeapons.Add(weapons.CreateRewardSnapshot(product.Code).ToCharacterWeapon(character.Id));
+            dbContext.CharacterWeapons.Add((weapons.CreateRewardSnapshot(product.Code) with { Origin = WeaponOrigin.Shop }).ToCharacterWeapon(character.Id));
         }
 
         try
@@ -82,7 +84,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             stack.CharacterId == character.Id && stack.ItemCode == offer.CurrencyCode);
         if (currency is null || currency.Quantity < offer.Cost) return (null, "InsufficientDungeonCurrency");
 
-        var snapshot = weapons.CreateDropSnapshot(offer.WeaponCode);
+        var snapshot = weapons.CreateDropSnapshot(offer.WeaponCode) with { Origin = WeaponOrigin.Exchange };
         currency.Quantity -= offer.Cost;
         currency.Version++;
         character.Version++;
@@ -130,7 +132,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
                     OwnedQuantity = consumable is not null
                         ? stocks.FirstOrDefault(item => item.ItemCode == product.Code)?.Quantity ?? 0
                         : ownedWeapons.GetValueOrDefault(product.Code),
-                    HealAmount = consumable?.HealAmount, CooldownRounds = consumable?.CooldownRounds,
+                    HealAmount = consumable is null ? null : ConsumableCatalog.HealAmountFor(consumable, TalentRules.EffectiveMaxHp(character)), CooldownRounds = consumable?.CooldownRounds,
                     Element = weapon?.Element, Attack = weapon?.Attack, MaxHp = weapon?.MaxHp,
                     WeaponSkills = BuildWeaponSkills(weapon)
                 };
@@ -159,7 +161,8 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             return new ShopWeaponSkillResponse
             {
                 Name = definition.Name, Level = skill.Level,
-                Percent = weapons.CalculateSkillPercent(definition, skill.Level)
+                Percent = weapons.CalculateSkillPercent(definition, skill.Level),
+                Description = weapons.DescribeSkill(definition, skill.Level)
             };
         }).ToList() ?? [];
 }

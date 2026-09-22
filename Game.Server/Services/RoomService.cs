@@ -380,7 +380,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                             SlotIndex = index,
                             ItemCode = item?.Code,
                             ItemName = item?.Name,
-                            HealAmount = item?.HealAmount ?? 0,
+                            HealAmount = item is null || character is null ? 0 : ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)),
                             Quantity = item is null ? 0 : itemStacks.FirstOrDefault(stack => stack.CharacterId == id && stack.ItemCode == item.Code)?.Quantity ?? 0,
                             CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
                             AutoUseEnabled = equipped?.AutoUseEnabled ?? false,

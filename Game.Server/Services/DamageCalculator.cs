@@ -9,23 +9,50 @@ public readonly record struct DamageFactors(
     decimal HealthPercent = 0,
     decimal CriticalPercent = 0,
     decimal ElementPercent = 0,
-    decimal ReductionPercent = 0);
+    decimal ReductionPercent = 0,
+    decimal SkillDamagePercent = 0);
 
 public static class DamageCalculator
 {
-    public static int Calculate(int attack, int defense, int skillPower = 0, DamageFactors factors = default)
+    public static int Calculate(int attack, int defense, int skillPower = 0, DamageFactors factors = default,
+        decimal attackPowerPercent = 100)
     {
         var attackMultiplier = Math.Max(0m, 1m + factors.AttackPercent / 100m);
         var healthMultiplier = Math.Max(0m, 1m + factors.HealthPercent / 100m);
         var criticalMultiplier = Math.Max(0m, 1m + factors.CriticalPercent / 100m);
         var elementMultiplier = Math.Max(0m, 1m + factors.ElementPercent / 100m);
         var reductionMultiplier = Math.Max(0m, 1m - factors.ReductionPercent / 100m);
+        var skillMultiplier = Math.Max(0m, 1m + factors.SkillDamagePercent / 100m);
 
         // Skill power is flat attack. Defense is removed before the remaining zones.
-        var afterDefense = Math.Max(1m, (attack + (decimal)skillPower) * attackMultiplier - defense);
-        var final = afterDefense * healthMultiplier * criticalMultiplier * elementMultiplier * reductionMultiplier;
+        var afterDefense = Math.Max(1m, (attack * Math.Max(0, attackPowerPercent) / 100m + skillPower) * attackMultiplier - defense);
+        var final = afterDefense * healthMultiplier * criticalMultiplier * elementMultiplier * reductionMultiplier * skillMultiplier;
         return Math.Max(1, (int)Math.Min(int.MaxValue, decimal.Floor(final)));
     }
+}
+
+public static class WeaponCombatRules
+{
+    public static decimal HealthDamagePercent(int hp, int maxHp, decimal stamina, decimal enmity)
+    {
+        if (hp <= 0 || maxHp <= 0) return 0;
+        var ratio = Math.Clamp(hp / (decimal)maxHp, 0, 1);
+        return stamina * Math.Clamp((ratio - .75m) / .25m, 0, 1) +
+               enmity * Math.Clamp((.5m - ratio) / .5m, 0, 1);
+    }
+
+    public static bool RollPercent(decimal chance, Random? random = null) =>
+        chance >= 100 || chance > 0 && (decimal)(random ?? Random.Shared).NextDouble() * 100m < chance;
+
+    // Echo receives an already resolved normal hit: never apply damage zones twice.
+    public static int EchoDamage(int normalDamage, decimal echoPercent) =>
+        (int)Math.Min(int.MaxValue, decimal.Floor(Math.Max(0, normalDamage) * Math.Max(0, echoPercent) / 100m));
+}
+
+public static class RecoveryCalculator
+{
+    public static int Calculate(int maxHp, int flatAmount, decimal maxHpPercent) =>
+        (int)Math.Min(int.MaxValue, decimal.Floor(Math.Max(0, flatAmount) + Math.Max(0, maxHp) * Math.Max(0, maxHpPercent) / 100m));
 }
 
 public static class ElementMatchup

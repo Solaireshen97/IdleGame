@@ -43,19 +43,22 @@
         </div>
 
         <div class="weapon-board__effects" aria-label="已生效的武器技能">
-            <div><span class="weapon-board__eyebrow">ACTIVE WEAPON SKILLS</span><h2>生效技能</h2><p>只有与主武器同属性的已装备武器提供技能效果。</p></div>
-            @if (_data.ActiveSkills.Count == 0)
+            <div><span class="weapon-board__eyebrow">ACTIVE WEAPON SKILLS</span><h2>生效技能</h2><p>同属性武器按效果汇总，复合技能也计入对应效果；下方为整套配装的实际加成。</p></div>
+            @if (_data.ActiveEffects.Count == 0)
             {
                 <span class="weapon-board__no-effects">暂无生效技能</span>
             }
             else
             {
-                @foreach (var skill in _data.ActiveSkills)
+                @foreach (var effect in _data.ActiveEffects)
                 {
-                    <div class="weapon-board__effect"><strong>@skill.Name Lv @skill.Level</strong><span>+@skill.TotalPercent.ToString("0.##")%</span></div>
+                    <div class="weapon-board__effect" title="@effect.Description">
+                        <strong>@effect.Name · Lv @effect.EffectiveLevel.ToString("0.##")</strong>
+                        <span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%</span>
+                        <small>@effect.Description</small>
+                    </div>
                 }
             }
-            <div class="weapon-board__effect"><strong>暴击率</strong><span>@_data.CriticalChancePercent.ToString("0.##")% <small>暴击伤害 150%</small></span></div>
         </div>
 
         <div class="weapon-board__grid-head">
@@ -116,10 +119,10 @@
             <div class="weapon-board__batch-actions">
                 <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选可处理</button>
                 <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">清空</button>
-                <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">批量出售</button>
+                <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanSell))">批量出售</button>
                 <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">批量分解</button>
             </div>
-            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把。</small>
+            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把；初始赠品不可出售。</small>
         </div>
         <div class="weapon-board__inventory">
             @foreach (var weapon in _data.Weapons)
@@ -140,6 +143,8 @@
                     <div class="weapon-option__body">
                         <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
                         <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
+                        @if (weapon.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop)
+                        { <small>@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；分解仅返还强化投入的50%。" : "商店武器不产基础碎片；分解返还强化投入的50%。")</small> }
                         <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
                         @if (weapon.Skills.Count > 0)
                         {
@@ -148,7 +153,8 @@
                                 {
                                     var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
                                     <div class="weapon-option__skill-row">
-                                        <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · +@skill.TotalPercent.ToString("0.##")% @(skill.IsActive ? "生效" : "未生效")</span>
+                                        <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · @(skill.IsActive ? "生效" : "未生效")</span>
+                                        <small>@skill.Description</small>
                                         <small>基础 Lv@(skill.BaseLevel) · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
                                         <button type="button" class="weapon-option__enhance"
                                                 @onclick="() => EnhanceAsync(weapon, skill)"
@@ -167,7 +173,7 @@
                         <button type="button" class="weapon-option__secondary" @onclick="() => ToggleLockAsync(weapon)" disabled="@_isSaving">@(weapon.IsLocked ? "解锁" : "锁定")</button>
                         @if (weapon.EquippedSlotIndex is null)
                         {
-                            <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">出售 · @weapon.SellGold 金币</button>
+                            <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked || !weapon.CanSell)">@(weapon.CanSell ? $"出售 · {weapon.SellGold} 金币" : "初始赠品不可出售")</button>
                             <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked)">分解 · T@(weapon.FragmentTier) ×@weapon.DismantleReturnQuantity</button>
                         }
                     </div>
@@ -176,7 +182,7 @@
         </div>
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
-        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器，同名技能等级相加并采用递减收益。强化、出售与分解结果均由服务端结算。</p>
+        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。强化、出售与分解结果均由服务端结算。</p>
     }
 </section>
 
@@ -390,6 +396,7 @@
         "WeaponLocked" => "锁定的武器不能出售或分解。",
         "WeaponSkillNotFound" => "没有找到需要强化的武器技能。",
         "WeaponSkillAtMaximum" => "这项武器技能已经强化至当前上限。",
+        "StarterWeaponCannotBeSold" => "初始赠送武器不能出售。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",
         "InvalidWeaponSelection" => "请选择有效的武器。",
         "MainWeaponRequired" => "主武器不能留空，请选择武器替换或与已装备的副武器交换。",

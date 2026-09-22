@@ -7,6 +7,8 @@ public sealed class CharacterWeapon
     public int Id { get; set; }
     public int CharacterId { get; set; }
     public string WeaponCode { get; set; } = string.Empty;
+    public int TemplateRevision { get; set; }
+    public WeaponOrigin Origin { get; set; } = WeaponOrigin.Legacy;
     public string Name { get; set; } = string.Empty;
     public ElementType Element { get; set; }
     public int Attack { get; set; }

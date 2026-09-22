@@ -10,4 +10,5 @@ public sealed class CharacterWeaponSkill
     public int BaseLevel { get; set; } = 1;
     public int QualityBonusLevel { get; set; }
     public int EnhancementLevel { get; set; }
+    public int? SpentFragments { get; set; }
 }

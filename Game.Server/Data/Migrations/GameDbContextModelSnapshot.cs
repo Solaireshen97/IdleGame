@@ -77,6 +77,12 @@ namespace Game.Server.Data.Migrations
                     b.Property<decimal>("WeaponHealthBonusPercent")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal>("WeaponStaminaPercent").HasColumnType("TEXT");
+                    b.Property<decimal>("WeaponEnmityPercent").HasColumnType("TEXT");
+                    b.Property<decimal>("WeaponDoubleAttackChancePercent").HasColumnType("TEXT");
+                    b.Property<decimal>("WeaponNormalEchoPercent").HasColumnType("TEXT");
+                    b.Property<decimal>("WeaponSkillDamagePercent").HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.ToTable("Characters");
@@ -99,6 +105,8 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<string>("WeaponCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("TemplateRevision").HasColumnType("INTEGER");
+                    b.Property<string>("Origin").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Element").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("Attack").HasColumnType("INTEGER");
@@ -130,6 +138,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("BaseLevel").HasColumnType("INTEGER");
                     b.Property<int>("QualityBonusLevel").HasColumnType("INTEGER");
                     b.Property<int>("EnhancementLevel").HasColumnType("INTEGER");
+                    b.Property<int?>("SpentFragments").HasColumnType("INTEGER");
                     b.HasKey("Id");
                     b.HasIndex("WeaponId", "SlotIndex").IsUnique();
                     b.HasIndex("WeaponId", "SkillCode").IsUnique();
@@ -496,6 +505,8 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("Gold")
                         .HasColumnType("INTEGER");
+
+                    b.Property<bool>("StarterWeaponRewardClaimed").HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

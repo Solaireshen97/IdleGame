@@ -104,7 +104,9 @@ public sealed class SkillCatalog
                         "Guard" => "FrontAlly",
                         _ => string.Empty
                     },
-                    Power = skill.Power
+                    Power = skill.Power,
+                    AttackPowerPercent = skill.AttackPowerPercent,
+                    HealMaxHpPercent = skill.HealMaxHpPercent
                 }];
     public static string AutoConditionFor(CombatSkillOptions skill) =>
         !string.IsNullOrWhiteSpace(skill.AutoCondition) ? skill.AutoCondition :
@@ -157,7 +159,10 @@ public sealed class SkillCatalog
             _ => false
         };
         if (!validTarget) return false;
-        if (effect.Type is "Damage" or "Heal" or "Guard" && effect.Power <= 0) return false;
+        if (effect.Power < 0 || effect.AttackPowerPercent is < 0 or > 1000 || effect.HealMaxHpPercent is < 0 or > 100) return false;
+        if (effect.Type == "Damage" && effect.Power == 0 && effect.AttackPowerPercent == 0) return false;
+        if (effect.Type == "Heal" && effect.Power == 0 && effect.HealMaxHpPercent == 0) return false;
+        if (effect.Type == "Guard" && effect.Power <= 0) return false;
         if (effect.Type == "Guard" && effect.Power > 100) return false;
         return effect.Type != "ApplyStatus" ||
                !string.IsNullOrWhiteSpace(effect.StatusCode) && effect.DurationRounds > 0;

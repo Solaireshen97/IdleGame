@@ -20,7 +20,7 @@
 .weapon-board__effects > div:first-child { flex: 1 1 220px; }
 .weapon-board__effects h2 { margin: .1rem 0; font: 700 1rem Georgia, serif; }
 .weapon-board__effects p { margin: 0; color: var(--muted); font-size: .7rem; }
-.weapon-board__effect { display: grid; gap: .15rem; min-width: 95px; padding: .5rem .7rem; border: 1px solid #48647a; border-radius: .5rem; background: #0e2131; }
+.weapon-board__effect { display: grid; gap: .15rem; min-width: 95px; flex: 0 1 210px; padding: .5rem .7rem; border: 1px solid #48647a; border-radius: .5rem; background: #0e2131; }
 .weapon-board__effect strong { font-size: .76rem; }
 .weapon-board__effect span { color: #e9c788; font-size: .74rem; font-weight: 800; }
 .weapon-board__effect small { display: block; color: var(--muted); font-size: .63rem; font-weight: 500; }
@@ -90,7 +90,7 @@
 .weapon-option__skill-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .15rem .45rem; padding: .35rem; border: 1px solid #456071; border-radius: .42rem; background: #0d1e2bbd; }
 .weapon-option__skill-row > span { align-self: end; }
 .weapon-option__skill-row > small { grid-column: 1; color: #9db6c0; }
-.weapon-option__skill-row .weapon-option__enhance { grid-column: 2; grid-row: 1 / 3; padding: .34rem .48rem; font-size: .62rem; }
+.weapon-option__skill-row .weapon-option__enhance { grid-column: 2; grid-row: 1 / 4; padding: .34rem .48rem; font-size: .62rem; }
 .weapon-option small { color: #9db7c0; font-size: .6rem; }
 .weapon-option button { flex: 0 0 auto; border: 1px solid #c6a467; border-radius: .4rem; padding: .42rem .55rem; color: #152533; background: #e6bd72; font-size: .72rem; font-weight: 850; }
 .weapon-option button:hover:not(:disabled) { background: #f4d492; }
@@ -134,6 +134,8 @@
     .weapon-board__batch > small { grid-column: 1; }
 }
 @media (max-width: 510px) {
+    .weapon-board__effect { flex: 1 1 100%; }
+    .weapon-board__effect small { font-size: .7rem; }
     .weapon-board__inventory { grid-template-columns: 1fr; }
     .weapon-board__subgrid { gap: .35rem; }
     .weapon-card--sub { padding: .45rem; }

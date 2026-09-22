@@ -1,6 +1,7 @@
 using Game.Server.Data;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Game.Server.Services;
 
@@ -41,11 +42,35 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 entry.Entity.Sequence == room.RunSequence).Select(entry => entry.Entity);
         var entries = saved.Concat(pending).ToList();
         var characterIds = entries.Select(entry => entry.CharacterId).Distinct().ToList();
-        var userIds = entries.Where(entry => entry.Kind == "Gold").Select(entry => entry.UserId).Distinct().ToList();
+        var userIds = entries.Select(entry => entry.UserId).Distinct().ToList();
         var characters = await dbContext.Characters.Where(character => characterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id);
         var users = await dbContext.Users.Where(user => userIds.Contains(user.Id)).ToDictionaryAsync(user => user.Id);
         var stacks = await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync();
+
+        var dungeon = victory ? await dbContext.Dungeons.FindAsync(room.DungeonId) : null;
+        var tutorial = dungeon?.DungeonKind == "Hunt" ? catalog.FirstHuntWeapon(dungeon.Code) : null;
+        if (tutorial is not null)
+        {
+            const string eventKey = "starter-hunt-weapon";
+            var recipients = entries.GroupBy(entry => entry.UserId)
+                .Where(group => !users[group.Key].StarterWeaponRewardClaimed)
+                .Select(group => (UserId: group.Key, CharacterId: group.Min(entry => entry.CharacterId))).ToList();
+            if (recipients.Count > 0)
+                dbContext.RewardEvents.Add(new RewardEvent { RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey });
+            foreach (var recipient in recipients)
+            {
+                var user = users[recipient.UserId];
+                user.StarterWeaponRewardClaimed = true;
+                user.Version++;
+                var entry = new RewardEntry { RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
+                    UserId = recipient.UserId, CharacterId = recipient.CharacterId, Kind = "Weapon", Code = tutorial.Code,
+                    Quantity = 1, WeaponSnapshotJson = JsonSerializer.Serialize(tutorial) };
+                entries.Add(entry);
+                dbContext.RewardEntries.Add(entry);
+                logs.Add($"{characters[recipient.CharacterId].Name} 完成首次普通讨伐，获得新手武器奖励。");
+            }
+        }
 
         foreach (var group in entries.GroupBy(entry => entry.UserId))
         {
@@ -85,9 +110,14 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             {
                 var snapshot = RewardCatalog.DeserializeWeapon(weapon)
                     ?? throw new InvalidOperationException("Missing weapon reward snapshot.");
+                var displayName = snapshot.DisplayName;
                 for (var i = 0; i < weapon.Quantity; i++)
-                    dbContext.CharacterWeapons.Add(snapshot.ToCharacterWeapon(character.Id));
-                logs.Add($"{character.Name} 获得 {snapshot.DisplayName} × {weapon.Quantity}。");
+                {
+                    var awarded = catalog.MaterializeWeapon(snapshot, character.Id);
+                    dbContext.CharacterWeapons.Add(awarded);
+                    displayName = (snapshot with { Name = awarded.Name }).DisplayName;
+                }
+                logs.Add($"{character.Name} 获得 {displayName} × {weapon.Quantity}。");
             }
         }
         run.Status = victory ? "Victory" : "Defeat";

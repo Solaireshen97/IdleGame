@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -332,16 +332,29 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         foreach (var entry in aliveSlots)
         {
             var element = mainWeaponElements.TryGetValue(entry.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
-            var critical = RollCritical(entry.Character);
             var statusAttack = monsterCombatService is null ? 0m :
                 await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "AttackPercent");
-            var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
-                factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + statusAttack,
-                    CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                    ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
-                    ReductionPercent: monsterReduction));
-            monster.Hp = Math.Max(0, monster.Hp - damage);
-            logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 普通攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
+            var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character),
+                entry.Character.WeaponStaminaPercent, entry.Character.WeaponEnmityPercent);
+            var hits = WeaponCombatRules.RollPercent(entry.Character.WeaponDoubleAttackChancePercent, random) ? 2 : 1;
+            for (var hit = 0; hit < hits && monster.Hp > 0; hit++)
+            {
+                var critical = RollCritical(entry.Character);
+                var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
+                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + statusAttack,
+                        HealthPercent: healthPercent,
+                        CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                        ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
+                        ReductionPercent: monsterReduction));
+                monster.Hp = Math.Max(0, monster.Hp - damage);
+                logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} {(hit == 0 ? "普通攻击" : "二连击")} {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
+                var echo = WeaponCombatRules.EchoDamage(damage, entry.Character.WeaponNormalEchoPercent);
+                if (monster.Hp > 0 && echo > 0)
+                {
+                    monster.Hp = Math.Max(0, monster.Hp - echo);
+                    logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 对 {monster.Name} 造成 {echo} 点普攻追击伤害。");
+                }
+            }
             if (monster.Hp <= 0) break;
         }
         var roundDefense = monster.Hp > 0
@@ -450,6 +463,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots)) return false;
 
             var applied = false;
+            var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
+                TalentRules.EffectiveMaxHp(participant.Character), participant.Character.WeaponStaminaPercent,
+                participant.Character.WeaponEnmityPercent);
             foreach (var effect in SkillCatalog.EffectsFor(skill))
             {
                 switch (effect.Type)
@@ -465,9 +481,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
                         var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
                             effect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + attackModifier,
+                                HealthPercent: healthPercent,
                                 CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                                 ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
-                                ReductionPercent: monsterReduction));
+                                ReductionPercent: monsterReduction,
+                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent), effect.AttackPowerPercent);
                         monster.Hp = Math.Max(0, monster.Hp - damage);
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                         applied = true;
@@ -477,7 +495,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     {
                         var target = effect.Target == "Self" ? participant : FindLowestHpTarget(aliveSlots);
                         if (target is null || target.Character.Hp >= TalentRules.EffectiveMaxHp(target.Character)) break;
-                        var healed = Math.Min(effect.Power, TalentRules.EffectiveMaxHp(target.Character) - target.Character.Hp);
+                        var maxHp = TalentRules.EffectiveMaxHp(target.Character);
+                        var healed = Math.Min(RecoveryCalculator.Calculate(maxHp, effect.Power, effect.HealMaxHpPercent), maxHp - target.Character.Hp);
                         target.Character.Hp += healed;
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
                         applied = true;
@@ -647,10 +666,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
         .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
 
-    private static bool RollCritical(Character character)
+    private bool RollCritical(Character character)
     {
         var chance = character.WeaponCriticalChancePercent;
-        return chance >= 100m || chance > 0m && (decimal)Random.Shared.NextDouble() * 100m < chance;
+        return WeaponCombatRules.RollPercent(chance, random);
     }
 
     private async Task ApplyCombatConsumablesAsync(Room room, List<SlotCharacter> aliveSlots, List<string> logs)
@@ -687,7 +706,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     string.Equals(entry.CooldownGroup, item.CooldownGroup, StringComparison.OrdinalIgnoreCase));
                 if (cooldown?.ReadyAtRound > room.RoundNumber) return false;
 
-                var healed = Math.Min(item.HealAmount, maxHp - character.Hp);
+                var healed = Math.Min(ConsumableCatalog.HealAmountFor(item, maxHp), maxHp - character.Hp);
                 if (healed <= 0) return false;
                 character.Hp += healed;
                 stock.Quantity--;
