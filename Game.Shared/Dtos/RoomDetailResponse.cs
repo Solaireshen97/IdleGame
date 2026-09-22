@@ -19,6 +19,7 @@ public class RoomDetailResponse
     public int CurrentEnemyNumber { get; set; }
     public int EnemiesInCurrentWave { get; set; }
     public RoomStatus RoomStatus { get; set; }
+    public int RunSequence { get; set; }
     public int RoundNumber { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }
     public int? RoundCooldownDurationSeconds { get; set; }

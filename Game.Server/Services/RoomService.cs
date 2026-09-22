@@ -55,6 +55,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 RegionCode = dungeon.RegionCode, RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
+                ExperiencePercent = progressionService.ApplyDungeonExperienceModifier(100, currentLevel, dungeon.MinimumLevel),
                 CanEnter = canEnter,
                 LockReason = canEnter ? null : $"需要角色达到 Lv.{dungeon.MinimumLevel}",
                 MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
@@ -343,15 +344,14 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
-            RoomStatus = room.Status, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
+            RoomStatus = room.Status, RunSequence = room.RunSequence, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
             IsRepeatBattle = room.IsRepeatBattle, NextBattleStartAtUtc = room.IsRepeatBattle && room.Status == RoomStatus.BattleOver && monster.Hp <= 0 ? room.BattleEndedAtUtc?.AddSeconds(BattleRules.RepeatBattleDelaySeconds) : null,
             NextWaveStartAtUtc = room.Status == RoomStatus.WaveTransition ? room.NextRoundAvailableAtUtc : null,
             ServerTimeUtc = now,
             CanExecuteRound = room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
             IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationTimeoutSeconds = BattleRules.PreparationTimeoutSeconds, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
             CanPrepare = currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 &&
-                room.Status is RoomStatus.NotStarted or RoomStatus.Preparing &&
-                (room.Status == RoomStatus.Preparing || !room.NextRoundAvailableAtUtc.HasValue || room.NextRoundAvailableAtUtc <= now),
+                room.Status is RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown,
             CanLeaveRoom = currentUserId.HasValue && currentUserId != room.OwnerUserId &&
                 (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0) &&
                 slots.Any(x => x.UserId == currentUserId),

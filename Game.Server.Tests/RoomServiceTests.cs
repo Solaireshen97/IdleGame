@@ -90,10 +90,26 @@ public class RoomServiceTests
 
         Assert.Equal(61, dungeons.Count);
         Assert.True(firstHunt.CanEnter);
+        Assert.Equal(100, firstHunt.ExperiencePercent);
         Assert.False(mine.CanEnter);
         Assert.Equal("需要角色达到 Lv.8", mine.LockReason);
         Assert.Null(room);
         Assert.Equal("CharacterLevelTooLow", error);
+    }
+
+    [Fact]
+    public async Task DungeonList_ExposesExperienceReductionForLowerLevelContent()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        await DbInitializer.EnsureDefaultDungeonsAsync(test.Db);
+        test.ActiveCharacter.Level = 3;
+        await test.Db.SaveChangesAsync();
+
+        var dungeons = await test.Service.GetDungeonsAsync(test.Token);
+
+        Assert.Equal(40, dungeons.Single(dungeon => dungeon.Code == "northshire-wolves").ExperiencePercent);
+        Assert.Equal(75, dungeons.Single(dungeon => dungeon.Code == "forest-spiders").ExperiencePercent);
+        Assert.Equal(100, dungeons.Single(dungeon => dungeon.Code == "stone-tusk-boars").ExperiencePercent);
     }
 
     [Fact]

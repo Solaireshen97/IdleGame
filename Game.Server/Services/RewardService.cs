@@ -48,8 +48,9 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         var users = await dbContext.Users.Where(user => userIds.Contains(user.Id)).ToDictionaryAsync(user => user.Id);
         var stacks = await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync();
 
-        var dungeon = victory ? await dbContext.Dungeons.FindAsync(room.DungeonId) : null;
-        var tutorial = dungeon?.DungeonKind == "Hunt" ? catalog.FirstHuntWeapon(dungeon.Code) : null;
+        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId)
+            ?? throw new InvalidOperationException($"Dungeon {room.DungeonId} was not found while settling rewards.");
+        var tutorial = victory && dungeon.DungeonKind == "Hunt" ? catalog.FirstHuntWeapon(dungeon.Code) : null;
         if (tutorial is not null)
         {
             const string eventKey = "starter-hunt-weapon";
@@ -69,6 +70,28 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 entries.Add(entry);
                 dbContext.RewardEntries.Add(entry);
                 logs.Add($"{characters[recipient.CharacterId].Name} 完成首次普通讨伐，获得新手武器奖励。");
+            }
+        }
+
+        foreach (var group in entries.GroupBy(entry => entry.CharacterId).ToList())
+        {
+            var experienceEntries = group.Where(entry => entry.Kind == "Experience").ToList();
+            if (experienceEntries.Count == 0) continue;
+            var baseExperience = experienceEntries.Sum(entry => entry.Quantity);
+            var adjustedExperience = progression.ApplyDungeonExperienceModifier(
+                baseExperience, characters[group.Key].Level, dungeon.MinimumLevel);
+            if (adjustedExperience == baseExperience) continue;
+
+            for (var index = 0; index < experienceEntries.Count; index++)
+            {
+                var entry = experienceEntries[index];
+                if (index == 0 && adjustedExperience > 0)
+                {
+                    entry.Quantity = adjustedExperience;
+                    continue;
+                }
+                entries.Remove(entry);
+                dbContext.RewardEntries.Remove(entry);
             }
         }
 

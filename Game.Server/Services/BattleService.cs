@@ -14,14 +14,16 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
     private static readonly TimeSpan PreparationTimeout = TimeSpan.FromSeconds(BattleRules.PreparationTimeoutSeconds);
 
-    public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token)
+    public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token, int? expectedRoundNumber = null)
     {
         var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
+        if (expectedRoundNumber.HasValue && room!.RoundNumber != expectedRoundNumber.Value)
+            return (BuildResult(room, slots!, monster!, now, ["当前回合已经推进，本次准备请求已忽略。"]), "StaleRound");
         if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["战斗已经结束，请重置房间。"]), "BattleOver");
         if (room.Status == RoomStatus.WaveTransition) return (BuildResult(room, slots!, monster!, now, ["下一名敌人正在接近。"]), "WaveTransition");
-        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc > now) return (BuildResult(room, slots!, monster!, now, ["当前回合仍在冷却中。"]), "RoundCooldown");
+        var isRoundCoolingDown = room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc > now;
 
         var aliveSlots = slots!.Where(x => x.Character.Hp > 0).ToList();
         if (monster!.Hp <= 0 || aliveSlots.Count == 0)
@@ -35,6 +37,17 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
 
         if (!aliveSlots.Any(x => x.Slot.UserId == user!.Id)) return (null, "NoOwnedAliveCharacters");
+        var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
+        if (isRoundCoolingDown)
+        {
+            if (aliveSlots.Where(x => x.Slot.UserId == user.Id).All(x => x.Slot.IsConfirmed))
+                return (BuildResult(room, slots, monster, now, ["你的角色已经为下一回合做好准备。"]), "AlreadyPrepared");
+
+            foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedUserIds)))
+                entry.Slot.IsConfirmed = true;
+            return await SaveResultAsync(room, slots, monster, now, []);
+        }
+
         if (room.Status != RoomStatus.Preparing)
         {
             room.Status = RoomStatus.Preparing;
@@ -48,7 +61,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             return (BuildResult(room, slots, monster, now, ["你的角色已经准备完毕。"]), "AlreadyPrepared");
         }
 
-        var clearedUserIds = await GetClearedUserIdsAsync(room.DungeonId);
         foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedUserIds))) entry.Slot.IsConfirmed = true;
         if (aliveSlots.All(x => x.Slot.IsConfirmed)) return await ExecutePreparedRoundAsync(room, slots, monster, now, []);
         return await SaveResultAsync(room, slots, monster, now, []);
@@ -99,15 +111,27 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var transitionCompleted = false;
         if (room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now)
         {
-            room.Status = RoomStatus.NotStarted;
-            room.NextRoundAvailableAtUtc = null;
-            room.RoundCooldownDurationSeconds = null;
-            room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
+            var transitionDeadline = room.NextRoundAvailableAtUtc.Value;
+            room.Status = allAliveMembersAuto ? RoomStatus.Cooldown : RoomStatus.NotStarted;
+            room.NextRoundAvailableAtUtc = allAliveMembersAuto
+                ? transitionDeadline.AddSeconds(BattleRules.AutoRoundCooldownSeconds - BattleRules.WaveTransitionSeconds)
+                : null;
+            room.RoundCooldownDurationSeconds = allAliveMembersAuto ? BattleRules.AutoRoundCooldownSeconds : null;
+            room.PreparationStartedAtUtc = !allAliveMembersAuto && room.IsPreparationTimeoutEnabled ? now : null;
             stateChanged = true;
             transitionCompleted = true;
         }
         if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now && !allAliveMembersAuto)
         {
+            if (aliveSlots.Count > 0 && monster.Hp > 0 && aliveSlots.All(x => x.Slot.IsConfirmed))
+            {
+                room.Status = RoomStatus.Preparing;
+                room.NextRoundAvailableAtUtc = null;
+                room.RoundCooldownDurationSeconds = null;
+                room.PreparationStartedAtUtc = now;
+                return await ExecutePreparedRoundAsync(room, slots, monster, now, ["回合冷却结束，已准备的操作开始结算。"]);
+            }
+
             room.Status = RoomStatus.NotStarted;
             room.NextRoundAvailableAtUtc = null;
             room.RoundCooldownDurationSeconds = null;
@@ -164,9 +188,16 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     : new List<string> { "全队均已开启自动战斗，本回合自动开始。" };
             return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
         }
-        return restartedBattle
-            ? await SaveResultAsync(room, slots, monster, now, ["下一场副本战斗已经就绪，全队生命值已恢复。"])
-            : (BuildResult(room, slots, monster, now, []), null);
+        if (stateChanged)
+        {
+            var logs = restartedBattle
+                ? new List<string> { "下一场副本战斗已经就绪，全队生命值已恢复。" }
+                : transitionCompleted && allAliveMembersAuto
+                    ? new List<string> { $"第 {room.CurrentWaveNumber} 波敌人已经就绪，自动战斗将在回合冷却结束后继续。" }
+                    : [];
+            return await SaveResultAsync(room, slots, monster, now, logs);
+        }
+        return (BuildResult(room, slots, monster, now, []), null);
     }
 
     public async Task<(BattleResult? Result, string? Error)> SetSlotAutoAsync(int roomId, SetSlotAutoRequest request, string? token)

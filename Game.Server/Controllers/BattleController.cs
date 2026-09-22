@@ -32,8 +32,9 @@ public class BattleController(BattleService battleService, RoomService roomServi
     [HttpPost("prepare")]
     public async Task<IActionResult> Prepare([FromBody] BattleRequest request)
     {
-        var (result, error) = await battleService.StartPreparationAsync(request.RoomId, GetBearerToken());
-        if (error is "RoundCooldown" or "BattleOver") return Conflict(result);
+        if (!request.ExpectedRoundNumber.HasValue) return BadRequest("ExpectedRoundNumberRequired");
+        var (result, error) = await battleService.StartPreparationAsync(request.RoomId, GetBearerToken(), request.ExpectedRoundNumber);
+        if (error is "RoundCooldown" or "BattleOver" or "StaleRound") return Conflict(result);
         if (result is not null) return Ok(result);
         return error switch
         {

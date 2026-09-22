@@ -134,6 +134,8 @@
 .level-badge--locked { background: #493b2a; color: #e6c781; }
 .mission-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 280px); gap: .9rem; margin-top: .8rem; padding: .95rem; border: 1px solid #456078; border-radius: .72rem; background: linear-gradient(120deg, rgba(29, 48, 68, .9), rgba(15, 29, 44, .9)); }
 .mission-detail__title { display: flex; align-items: center; gap: .55rem; color: #9eb0c0; font-size: .7rem; }
+.experience-rate { margin-left: auto; padding: .18rem .42rem; border: 1px solid rgba(100, 201, 165, .45); border-radius: 999px; color: #9ce0c5; white-space: nowrap; }
+.experience-rate--reduced { border-color: rgba(224, 173, 96, .48); color: #e7bd7a; }
 .mission-detail h3 { margin: .55rem 0 .25rem; color: #f2e5ca; font-family: Georgia, serif; font-size: 1.2rem; }
 .mission-detail p { margin: 0; color: #a9b8c6; font-size: .78rem; line-height: 1.55; }
 .mission-detail__facts { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .65rem; }
@@ -209,13 +211,15 @@
         scrollbar-width: thin;
         scrollbar-color: #6b8193 rgba(7, 17, 27, .65);
         touch-action: pan-x pan-y;
+        user-select: none;
+        -webkit-user-drag: none;
         -webkit-overflow-scrolling: touch;
     }
     .region-picker__grid::-webkit-scrollbar, .dungeon-grid::-webkit-scrollbar { height: 6px; }
     .region-picker__grid::-webkit-scrollbar-track, .dungeon-grid::-webkit-scrollbar-track { border-radius: 999px; background: rgba(7, 17, 27, .65); }
     .region-picker__grid::-webkit-scrollbar-thumb, .dungeon-grid::-webkit-scrollbar-thumb { border-radius: 999px; background: #6b8193; }
     .region-picker__grid.is-dragging, .dungeon-grid.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
-    .region-card, .dungeon-card { touch-action: pan-x pan-y; }
+    .region-card, .dungeon-card { touch-action: pan-x pan-y; user-select: none; -webkit-user-drag: none; }
     .region-card { flex: 0 0 164px; min-height: 110px; scroll-snap-align: start; }
     .dungeon-card { flex: 0 0 176px; min-height: 112px; scroll-snap-align: start; }
     .dungeon-launcher { padding: .9rem; }

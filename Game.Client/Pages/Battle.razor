@@ -24,6 +24,7 @@ else
 {
     var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
     var ownSlots = _roomDetail.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied).ToList();
+    var isCurrentUserPrepared = ownSlots.Any(slot => slot.IsAlive) && ownSlots.Where(slot => slot.IsAlive).All(slot => slot.IsConfirmed);
     var countdown = GetActiveCountdown();
 
     <section class="battle-stage" aria-label="战斗场景">
@@ -66,13 +67,19 @@ else
             </section>
         }
 
-        <div class="battle-field">
+        <div class="battle-field @(_isCombatFeedbackVisible ? "battle-field--player-attack" : "")">
             <div class="battle-field__party">
                 <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人</strong></div>
                 <div class="fighter-line">
                     @foreach (var slot in _roomDetail.Slots.OrderBy(slot => slot.SlotIndex))
                     {
-                        <div class="fighter @(slot.IsOccupied ? "fighter--occupied" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")" title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")" aria-label="@(slot.IsOccupied ? $"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}" : $"{slot.SlotIndex} 号空槽位")">
+                        <button type="button"
+                                class="fighter @(slot.IsOccupied ? "fighter--occupied fighter--interactive" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")"
+                                disabled="@(!slot.IsOccupied)"
+                                title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp} · 点击查看状态" : $"{slot.SlotIndex} 号空槽位")"
+                                aria-label="@(slot.IsOccupied ? $"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}，点击查看详细状态" : $"{slot.SlotIndex} 号空槽位")"
+                                aria-haspopup="@(slot.IsOccupied ? "dialog" : null)"
+                                @onclick="() => OpenStatusDialog(slot)">
                             <div class="fighter__portrait">
                                 @if (slot.IsOccupied)
                                 {
@@ -83,6 +90,21 @@ else
                                     <span aria-hidden="true">＋</span>
                                 }
                                 <span class="fighter__number">@slot.SlotIndex</span>
+                                @if (slot.StatusEffects.Count > 0)
+                                {
+                                    <span class="fighter__effect-icons" aria-label="@($"{slot.CharacterName} 有 {slot.StatusEffects.Count} 个状态效果")">
+                                        @foreach (var effect in slot.StatusEffects.Take(3))
+                                        {
+                                            <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
+                                                  title="@($"{effect.Name} · {effect.RemainingRounds} 回合")"
+                                                  aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                        }
+                                        @if (slot.StatusEffects.Count > 3)
+                                        {
+                                            <span class="fighter__effect-icon fighter__effect-icon--more" aria-hidden="true">+@(slot.StatusEffects.Count - 3)</span>
+                                        }
+                                    </span>
+                                }
                             </div>
                             <strong>@(slot.IsOccupied ? slot.CharacterName : "空位")</strong>
                             @if (slot.IsOccupied) { <small class="fighter__level">Lv @slot.CharacterLevel</small> }
@@ -94,31 +116,27 @@ else
                             {
                                 <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
                                 <small class="fighter__hp-text">HP @slot.CharacterHp / @slot.CharacterMaxHp</small>
-                                @if (slot.StatusEffects.Count > 0)
-                                {
-                                    <div class="battle-effects" aria-label="@slot.CharacterName 状态">
-                                        @foreach (var effect in slot.StatusEffects)
-                                        {
-                                            <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@($"{effect.Description}{(effect.CanDispel ? " · 可移除" : " · 不可移除")}")">
-                                                @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds
-                                            </span>
-                                        }
-                                    </div>
-                                }
                             }
                             else
                             {
                                 <small>待命</small>
                             }
-                        </div>
+                        </button>
                     }
                 </div>
             </div>
 
             <span class="battle-field__versus" aria-hidden="true">VS</span>
 
-            <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "")">
-                <div class="battle-field__enemy-art"><img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" /></div>
+            <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "") @(_isCombatFeedbackVisible ? "battle-field__enemy--hit" : "")">
+                <div class="battle-field__enemy-art">
+                    <img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" />
+                    @if (_isCombatFeedbackVisible)
+                    {
+                        <span class="battle-hit-slash" aria-hidden="true"></span>
+                        <strong class="battle-damage-popup" aria-live="polite">@_combatFeedbackText</strong>
+                    }
+                </div>
                 <div class="enemy-vitals">
                     <span>当前敌人 · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
                     <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
@@ -160,12 +178,16 @@ else
             else if (_roomDetail.CanPrepare)
             {
                 <button class="button button--primary battle-controls__primary" @onclick="StartPreparationAsync" disabled="@_isBusy">
-                    <span class="battle-controls__primary-label">准备并结算</span><span aria-hidden="true">→</span>
+                    <span class="battle-controls__primary-label">@(_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown ? "提前准备" : "准备并结算")</span><span aria-hidden="true">→</span>
                 </button>
+            }
+            else if (isCurrentUserPrepared && _roomDetail.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing or Game.Shared.Enums.RoomStatus.NotStarted)
+            {
+                <span class="battle-controls__waiting"><span class="status-dot" aria-hidden="true"></span>@(_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown ? "已准备 · 等待冷却" : "已准备 · 等待队友")</span>
             }
             else if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing)
             {
-                <span class="battle-controls__waiting"><span class="status-dot" aria-hidden="true"></span>已准备 · 等待队友</span>
+                <span class="battle-controls__waiting"><span class="status-dot" aria-hidden="true"></span>等待队友准备</span>
             }
             else
             {
@@ -218,6 +240,75 @@ else
                                 <li @key="log.Id">@log.Text</li>
                             }
                         </ol>
+                    }
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (GetStatusDialogCharacter() is { } statusCharacter)
+    {
+        var positiveEffects = statusCharacter.StatusEffects.Where(effect => effect.IsPositive).ToList();
+        var negativeEffects = statusCharacter.StatusEffects.Where(effect => !effect.IsPositive).ToList();
+        <div class="status-dialog-overlay" @onclick="CloseStatusDialog">
+            <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" @onclick:stopPropagation>
+                <header class="status-dialog__header">
+                    <div class="status-dialog__identity">
+                        <span class="status-dialog__portrait" aria-hidden="true"><img src="/art/knight.svg" alt="" /></span>
+                        <div>
+                            <span class="section-kicker">CHARACTER STATUS · @statusCharacter.SlotIndex 号位</span>
+                            <h2 id="status-dialog-title">@statusCharacter.CharacterName</h2>
+                            <p>@statusCharacter.ProfessionName · Lv @statusCharacter.CharacterLevel</p>
+                        </div>
+                    </div>
+                    <button type="button" class="status-dialog__close" @onclick="CloseStatusDialog" @ref="_statusDialogCloseButton" aria-label="关闭角色状态详情">×</button>
+                </header>
+                <div class="status-dialog__content">
+                    <div class="status-dialog__vitals">
+                        <div><span>生命值</span><strong>@statusCharacter.CharacterHp / @statusCharacter.CharacterMaxHp</strong></div>
+                        <progress value="@statusCharacter.CharacterHp" max="@statusCharacter.CharacterMaxHp" aria-label="@statusCharacter.CharacterName 生命值"></progress>
+                        @if (statusCharacter.CharacterElement is { } statusElement)
+                        {
+                            <small>@WeaponRules.ElementName(statusElement)属性 · @GetElementRelation(statusCharacter)</small>
+                        }
+                    </div>
+
+                    @if (statusCharacter.StatusEffects.Count == 0)
+                    {
+                        <div class="status-dialog__empty"><span aria-hidden="true">◇</span><strong>当前没有状态效果</strong><small>获得强化或负面状态后会显示在这里。</small></div>
+                    }
+                    else
+                    {
+                        @if (positiveEffects.Count > 0)
+                        {
+                            <section class="status-dialog__group" aria-labelledby="positive-status-title">
+                                <h3 id="positive-status-title">强化效果 <span>@positiveEffects.Count</span></h3>
+                                <ul>
+                                    @foreach (var effect in positiveEffects)
+                                    {
+                                        <li class="status-detail status-detail--positive">
+                                            <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                        @if (negativeEffects.Count > 0)
+                        {
+                            <section class="status-dialog__group" aria-labelledby="negative-status-title">
+                                <h3 id="negative-status-title">负面状态 <span>@negativeEffects.Count</span></h3>
+                                <ul>
+                                    @foreach (var effect in negativeEffects)
+                                    {
+                                        <li class="status-detail status-detail--negative">
+                                            <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
                     }
                 </div>
             </section>
@@ -494,6 +585,7 @@ else
     private ElementReference _logTrigger;
     private ElementReference _logCloseButton;
     private ElementReference _skillDialogCloseButton;
+    private ElementReference _statusDialogCloseButton;
     private bool _isLogOpen;
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
@@ -505,6 +597,11 @@ else
     private int? _selectedSkillCharacterId;
     private int? _selectedSkillSlotIndex;
     private string? _skillDialogMessage;
+    private int? _selectedStatusCharacterId;
+    private bool _focusStatusDialogCloseButton;
+    private CancellationTokenSource? _combatFeedbackCancellation;
+    private bool _isCombatFeedbackVisible;
+    private string _combatFeedbackText = string.Empty;
     private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
     private sealed record BattleLogEntry(long Id, string Text);
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
@@ -527,6 +624,11 @@ else
         {
             _focusSkillDialogCloseButton = false;
             await _skillDialogCloseButton.FocusAsync();
+        }
+        else if (_focusStatusDialogCloseButton)
+        {
+            _focusStatusDialogCloseButton = false;
+            await _statusDialogCloseButton.FocusAsync();
         }
         else if (_focusLogCloseButton)
         {
@@ -556,7 +658,35 @@ else
     {
         if (args.Key != "Escape") return;
         if (_isSkillDialogOpen) CloseSkillDialog();
+        else if (_selectedStatusCharacterId.HasValue) CloseStatusDialog();
         else if (_isLogOpen) CloseBattleLog();
+    }
+
+    private void OpenStatusDialog(RoomSlotResponse slot)
+    {
+        if (!slot.IsOccupied || slot.CharacterId is null) return;
+        _selectedStatusCharacterId = slot.CharacterId;
+        _focusStatusDialogCloseButton = true;
+    }
+
+    private void CloseStatusDialog()
+    {
+        _selectedStatusCharacterId = null;
+    }
+
+    private RoomSlotResponse? GetStatusDialogCharacter() => _selectedStatusCharacterId is int characterId
+        ? _roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == characterId)
+        : null;
+
+    private static string GetStatusEffectGlyph(BattleStatusEffectResponse effect)
+    {
+        var label = $"{effect.Code} {effect.Name}";
+        if (label.Contains("poison", StringComparison.OrdinalIgnoreCase) || label.Contains("毒", StringComparison.Ordinal)) return "☠";
+        if (label.Contains("berserk", StringComparison.OrdinalIgnoreCase) || label.Contains("fury", StringComparison.OrdinalIgnoreCase) ||
+            label.Contains("狂暴", StringComparison.Ordinal) || label.Contains("狂怒", StringComparison.Ordinal)) return "⚔";
+        if (label.Contains("burn", StringComparison.OrdinalIgnoreCase) || label.Contains("灼烧", StringComparison.Ordinal)) return "♨";
+        if (label.Contains("guard", StringComparison.OrdinalIgnoreCase) || label.Contains("shield", StringComparison.OrdinalIgnoreCase) || label.Contains("护盾", StringComparison.Ordinal)) return "◆";
+        return effect.IsPositive ? "↑" : "↓";
     }
 
     private async Task AssignSlotAsync(int slotIndex)
@@ -586,7 +716,7 @@ else
     private async Task StartPreparationAsync()
     {
         _isBusy = true; _message = null;
-        var (result, error) = await ApiService.StartPreparationAsync(RoomId);
+        var (result, error) = await ApiService.StartPreparationAsync(RoomId, _roomDetail?.RoundNumber ?? 0);
         if (result is null) _message = error ?? "开始回合失败。";
         else if (error is not null) { AppendBattleLogs(result.Logs); _message = error; }
         await RefreshRoomDetailAsync();
@@ -616,7 +746,7 @@ else
         if (response is null) _message = error ?? "配置 Auto 失败。";
         else
         {
-            _roomDetail = response.Room;
+            ApplyRoomDetail(response.Room);
             _serverTimeUtc = response.Room.ServerTimeUtc;
             _serverTimeReceivedAtUtc = DateTime.UtcNow;
             MergeRoomBattleLogs(response.Room.BattleLogs);
@@ -953,7 +1083,7 @@ else
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
-        if (detail is null) _message = error ?? "重置战斗失败。"; else { _roomDetail = detail; _logs.Clear(); _seenServerLogIds.Clear(); AppendBattleLogs(["战斗已重置。"]); }
+        if (detail is null) _message = error ?? "重置战斗失败。"; else { ApplyRoomDetail(detail, false); _logs.Clear(); _seenServerLogIds.Clear(); AppendBattleLogs(["战斗已重置。"]); }
         _isBusy = false;
     }
 
@@ -965,13 +1095,62 @@ else
 
     private async Task RefreshRoomDetailAsync()
     {
-        _roomDetail = await ApiService.GetRoomDetailAsync(RoomId);
+        ApplyRoomDetail(await ApiService.GetRoomDetailAsync(RoomId));
         if (_roomDetail is not null)
         {
             foreach (var slot in _roomDetail.Slots) _selectedCharacterIds.TryAdd(slot.SlotIndex, 0);
             MergeRoomBattleLogs(_roomDetail.BattleLogs);
         }
         if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
+    }
+
+    private void ApplyRoomDetail(RoomDetailResponse? detail, bool allowCombatFeedback = true)
+    {
+        var previous = _roomDetail;
+        _roomDetail = detail;
+        if (!allowCombatFeedback || previous is null || detail is null || detail.RoundNumber <= 0) return;
+
+        var resolvedAnotherRound = detail.RunSequence > previous.RunSequence ||
+            detail.RunSequence == previous.RunSequence && detail.RoundNumber > previous.RoundNumber;
+        if (!resolvedAnotherRound) return;
+
+        var sameEnemy = detail.RunSequence == previous.RunSequence &&
+            detail.CurrentWaveNumber == previous.CurrentWaveNumber &&
+            detail.CurrentEnemyNumber == previous.CurrentEnemyNumber &&
+            string.Equals(detail.MonsterName, previous.MonsterName, StringComparison.Ordinal);
+        var damage = sameEnemy
+            ? Math.Max(0, previous.MonsterHp - detail.MonsterHp)
+            : detail.RunSequence > previous.RunSequence
+                ? Math.Max(0, detail.MonsterMaxHp - detail.MonsterHp)
+                : Math.Max(0, previous.MonsterHp);
+        var defeated = sameEnemy ? detail.MonsterHp <= 0 : detail.RunSequence == previous.RunSequence;
+        ShowCombatFeedback(damage, defeated);
+    }
+
+    private void ShowCombatFeedback(int damage, bool defeated)
+    {
+        _combatFeedbackCancellation?.Cancel();
+        _combatFeedbackCancellation?.Dispose();
+        _combatFeedbackCancellation = new CancellationTokenSource();
+        _combatFeedbackText = defeated
+            ? damage > 0 ? $"击破 · -{damage}" : "击破"
+            : damage > 0 ? $"-{damage}" : "命中";
+        _isCombatFeedbackVisible = true;
+        _ = HideCombatFeedbackAsync(_combatFeedbackCancellation.Token);
+    }
+
+    private async Task HideCombatFeedbackAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(900, cancellationToken);
+            await InvokeAsync(() =>
+            {
+                _isCombatFeedbackVisible = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void GoToRooms() => Navigation.NavigateTo("/rooms");
@@ -1021,7 +1200,8 @@ else
         if (_roomDetail?.NextBattleStartAtUtc is not null) return "胜利！即将重开副本，全队恢复至满 HP。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition) return "敌人已击败，下一名敌人即将进入战场。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return _roomDetail.MonsterHp <= 0 ? "副本挑战完成。" : IsOwner ? "队伍战败，可重置后再次挑战。" : "队伍战败，等待房主重置战斗。";
-        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown) return "冷却中，结束后进入下一回合。";
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown)
+            return IsCurrentUserPrepared() ? "操作已锁定，冷却结束后自动结算。" : "冷却中，可提前准备下一回合操作。";
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.Preparing) return _roomDetail.IsPreparationTimeoutEnabled ? "等待全员准备，超时后自动开始。" : "等待全员准备，当前未启用超时。";
         if (_roomDetail?.IsAllAliveMembersAuto == true) return "队伍已开启 Auto，回合将自动推进。";
         return _roomDetail?.CanPrepare == true
@@ -1032,6 +1212,11 @@ else
     {
         foreach (var log in logs) _logs.Add(new BattleLogEntry(--_nextLocalLogId, log));
         if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
+    }
+    private bool IsCurrentUserPrepared()
+    {
+        var aliveOwnSlots = _roomDetail?.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive).ToList();
+        return aliveOwnSlots is { Count: > 0 } && aliveOwnSlots.All(slot => slot.IsConfirmed);
     }
     private void MergeRoomBattleLogs(IEnumerable<BattleLogResponse> logs)
     {
@@ -1076,5 +1261,11 @@ else
         catch (OperationCanceledException) { }
     }
 
-    public void Dispose() { _refreshCancellation.Cancel(); _refreshCancellation.Dispose(); }
+    public void Dispose()
+    {
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
+        _combatFeedbackCancellation?.Cancel();
+        _combatFeedbackCancellation?.Dispose();
+    }
 }

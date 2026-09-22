@@ -156,6 +156,7 @@ else
                             <div class="mission-detail__title">
                                 <span class="status-badge">@DungeonKindName(_selectedDungeon.DungeonKind)</span>
                                 <span>最低 Lv.@_selectedDungeon.MinimumLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</span>
+                                <span class="experience-rate @(_selectedDungeon.ExperiencePercent < 100 ? "experience-rate--reduced" : "")" title="当前角色在该副本的经验倍率；金币与掉落不受影响">经验 @_selectedDungeon.ExperiencePercent%</span>
                             </div>
                             <h3>@_selectedDungeon.Name</h3>
                             <p>@_selectedDungeon.Description</p>
@@ -193,7 +194,7 @@ else
                         {
                             <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "AUTO 已解锁" : "首次挑战")</span>
                             <strong>@_selectedDungeon.Name</strong>
-                            <small>角色 Lv.@_selectedDungeon.CurrentCharacterLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</small>
+                            <small>角色 Lv.@_selectedDungeon.CurrentCharacterLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel · 经验 @_selectedDungeon.ExperiencePercent%</small>
                         }
                         else
                         {

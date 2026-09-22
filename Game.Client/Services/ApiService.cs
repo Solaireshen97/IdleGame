@@ -260,10 +260,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId) => ExecuteRoundAsync(roomId);
 
-    public async Task<(BattleResult? Result, string? ErrorMessage)> StartPreparationAsync(int roomId)
+    public async Task<(BattleResult? Result, string? ErrorMessage)> StartPreparationAsync(int roomId, int expectedRoundNumber)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/prepare", requiresAuth: true);
-        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
+        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId, ExpectedRoundNumber = expectedRoundNumber });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {

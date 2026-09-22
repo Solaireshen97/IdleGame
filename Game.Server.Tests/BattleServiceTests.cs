@@ -266,6 +266,42 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task VictoryExperienceUsesDungeonLevelDifferenceAndPersistsAdjustedReward()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Character.Level = 3;
+        await test.Db.SaveChangesAsync();
+
+        var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Equal(4, test.Character.Experience);
+        Assert.Contains(victory.Logs, log => log.Contains("获得 4 点经验值"));
+        Assert.Equal(4, await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").SumAsync(entry => entry.Quantity));
+        var detail = await test.GetRoomDetailAsync();
+        Assert.Equal(4, detail!.Rewards!.Experience);
+    }
+
+    [Fact]
+    public async Task VictoryExperienceIsRemovedWhenDungeonIsFourLevelsBelowCharacter()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Character.Level = 5;
+        await test.Db.SaveChangesAsync();
+
+        var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Equal(0, test.Character.Experience);
+        Assert.DoesNotContain(victory.Logs, log => log.Contains("点经验值"));
+        Assert.Empty(await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").ToListAsync());
+        var detail = await test.GetRoomDetailAsync();
+        Assert.Equal(0, detail!.Rewards!.Experience);
+    }
+
+    [Fact]
     public async Task VictoryDropsGoToEachParticipatingCharacterOnlyOnce()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
@@ -1154,15 +1190,64 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task ExecuteRoundAsync_DuringCooldown_DoesNotChangeHp()
+    public async Task StartPreparationAsync_DuringCooldown_QueuesWithoutResolvingRound()
     {
         await using var test = await BattleTestContext.CreateAsync();
         var (firstResult, _) = await test.Service.StartPreparationAsync(1, test.Token);
+        var beforeQueue = await test.GetRoomDetailAsync();
         var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
+        var afterQueue = await test.GetRoomDetailAsync();
 
-        Assert.Equal("RoundCooldown", error);
+        Assert.Null(error);
+        Assert.True(beforeQueue!.CanPrepare);
         Assert.Equal(firstResult!.CharacterHp, result!.CharacterHp);
         Assert.Equal(firstResult.MonsterHp, result.MonsterHp);
+        Assert.Equal(firstResult.RoomStatus, result.RoomStatus);
+        Assert.True(slot.IsConfirmed);
+        Assert.False(afterQueue!.CanPrepare);
+    }
+
+    [Fact]
+    public async Task SyncAsync_QueuedPreparation_ResolvesAsSoonAsCooldownExpires()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        var (queued, queueError) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(queueError);
+        Assert.Equal(RoomStatus.Cooldown, queued!.RoomStatus);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal(35, test.Monster.Hp);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (result, error) = await test.Service.SyncAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(2, test.Room.RoundNumber);
+        Assert.Equal(20, result.MonsterHp);
+        Assert.Contains(result.Logs, log => log.Contains("已准备的操作开始结算"));
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsConfirmed));
+    }
+
+    [Fact]
+    public async Task StartPreparationAsync_StaleRoundRequest_DoesNotQueueNextRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token, 0);
+        var (stale, staleError) = await test.Service.StartPreparationAsync(1, test.Token, 0);
+        var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
+
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.Cooldown, first!.RoomStatus);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal("StaleRound", staleError);
+        Assert.Equal(RoomStatus.Cooldown, stale!.RoomStatus);
+        Assert.False(slot.IsConfirmed);
+        Assert.Equal(35, test.Monster.Hp);
     }
 
     [Fact]
@@ -1311,7 +1396,7 @@ public class BattleServiceTests
         var firstService = new BattleService(firstDb, new UserService(firstDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(firstDb, progression));
         var secondService = new BattleService(secondDb, new UserService(secondDb, progression, SkillTestFactory.Create()), catalog, SkillTestFactory.Create(), RewardTestFactory.CreateService(secondDb, progression));
 
-        var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token), secondService.StartPreparationAsync(1, test.Token));
+        var results = await Task.WhenAll(firstService.StartPreparationAsync(1, test.Token, 0), secondService.StartPreparationAsync(1, test.Token, 0));
         Assert.Single(results, result => result.Error is null);
         await using var verificationDb = test.CreateDbContext();
         Assert.Equal(0, (await verificationDb.CharacterItemStacks.SingleAsync()).Quantity);
@@ -1386,6 +1471,62 @@ public class BattleServiceTests
         Assert.True(victory.IsVictory);
         Assert.Equal("Victory", (await test.Db.RewardRuns.SingleAsync()).Status);
         Assert.Equal(3, await test.Db.RewardEvents.CountAsync());
+    }
+
+    [Fact]
+    public async Task MultiWaveAutoWaitsForFullRoundIntervalAfterEnemyRefresh()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 75, characterAttack: 100, monsterAttack: 1);
+        test.Monster.RoomId = test.Room.Id;
+        test.Monster.WaveNumber = 1;
+        test.Monster.Position = 1;
+        test.Room.CurrentWaveNumber = 1;
+        test.Room.TotalWaveCount = 2;
+        test.Db.Monsters.Add(new Monster
+        {
+            RoomId = test.Room.Id, WaveNumber = 2, Position = 1, Name = "King Slime",
+            Element = ElementType.Wind, Hp = 60, MaxHp = 60, Attack = 1, Defense = 2
+        });
+        var slot = await test.Db.RoomSlots.SingleAsync();
+        slot.IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+
+        var (firstKill, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.WaveTransition, firstKill!.RoomStatus);
+        var nextMonster = await test.Db.Monsters.SingleAsync(monster => monster.Id == test.Room.MonsterId);
+        Assert.Equal(60, nextMonster.Hp);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (waiting, waitingError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(waitingError);
+        Assert.Equal(RoomStatus.Cooldown, waiting!.RoomStatus);
+        Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.True(test.Room.NextRoundAvailableAtUtc > DateTime.UtcNow.AddSeconds(20));
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal(60, nextMonster.Hp);
+
+        var (stillWaiting, stillWaitingError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(stillWaitingError);
+        Assert.Equal(RoomStatus.Cooldown, stillWaiting!.RoomStatus);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal(60, nextMonster.Hp);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (victory, victoryError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(victoryError);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.True(victory.IsVictory);
+        Assert.Equal(2, test.Room.RoundNumber);
+        Assert.Equal(0, nextMonster.Hp);
     }
 
     [Fact]
