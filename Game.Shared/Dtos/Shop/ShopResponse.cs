@@ -7,6 +7,10 @@ public sealed class ShopResponse
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
     public int Gold { get; set; }
+    public int CharacterCount { get; set; }
+    public int CharacterSlotLimit { get; set; }
+    public int MaximumCharacterSlots { get; set; }
+    public int? NextCharacterSlotCost { get; set; }
     public List<ShopItemResponse> Items { get; set; } = [];
     public List<ShopMaterialResponse> Materials { get; set; } = [];
     public List<DungeonExchangeOfferResponse> DungeonExchangeOffers { get; set; } = [];

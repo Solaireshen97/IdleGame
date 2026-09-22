@@ -14,6 +14,8 @@ public class ShopConfigurationTests
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "..", "Game.Server", "appsettings.json"));
         var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
+        var characterSlots = new CharacterSlotCatalog(Options.Create(
+            configuration.GetSection(CharacterSlotOptions.SectionName).Get<CharacterSlotOptions>()!));
         var consumables = new ConsumableCatalog(Options.Create(
             configuration.GetSection(ConsumableOptions.SectionName).Get<ConsumableOptions>()!));
         var weapons = new WeaponCatalog(Options.Create(
@@ -28,6 +30,9 @@ public class ShopConfigurationTests
             materials, weapons);
 
         Assert.Equal(7, catalog.Items.Count);
+        Assert.Equal(2, characterSlots.InitialSlots);
+        Assert.Equal(5, characterSlots.MaximumSlots);
+        Assert.Equal(new[] { 500, 1500, 4000 }, characterSlots.UnlockCosts);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
         Assert.Equal(42, exchanges.Offers.Count);

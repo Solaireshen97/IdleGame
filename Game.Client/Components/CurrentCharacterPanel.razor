@@ -10,6 +10,10 @@
 }
 else
 {
+    <div class="current-character-panel__slots">
+        <span>角色栏位 <strong>@_characters.Count / @_characterSlotLimit</strong></span>
+        <small>最高 @_maximumCharacterSlots 个</small>
+    </div>
     <div class="current-character-panel__grid">
     @foreach (var character in _characters.OrderByDescending(character => character.IsCurrent))
     {
@@ -81,7 +85,7 @@ else
             </div>
         </form>
     }
-    else
+    else if (HasAvailableCharacterSlot)
     {
         <button type="button"
                 class="character-create-card"
@@ -91,6 +95,17 @@ else
             <span class="character-create-card__plus">+</span>
             <span class="character-create-card__text">@CreateEntryText</span>
         </button>
+    }
+    else
+    {
+        <a class="character-create-card character-create-card--locked" href="/shop">
+            <span class="character-create-card__plus">◇</span>
+            <span class="character-create-card__text">@(_characterSlotLimit >= _maximumCharacterSlots ? "角色栏位已达上限" : "角色栏位已满")</span>
+            @if (_characterSlotLimit < _maximumCharacterSlots)
+            {
+                <small>前往商店解锁下一个栏位</small>
+            }
+        </a>
     }
     </div>
 
@@ -123,7 +138,10 @@ else
     private string? _message;
     private bool _isMessageError;
     private CharacterOperation? _activeOperation;
+    private int _characterSlotLimit = 2;
+    private int _maximumCharacterSlots = 5;
 
+    private bool HasAvailableCharacterSlot => _characters.Count < _characterSlotLimit;
     private bool IsCreatingSubmission => _isSubmitting && _activeOperation == CharacterOperation.Create;
     private string CreateSubmitText => IsCreatingSubmission ? "创建中..." : "创建";
     private string CreateEntryText => _isSubmitting ? GetSubmittingText() : "创建角色";
@@ -151,16 +169,25 @@ else
 
     private async Task LoadCharactersAsync()
     {
-        var characters = await ApiService.GetCurrentCharactersAsync();
+        var charactersTask = ApiService.GetCurrentCharactersAsync();
+        var userTask = ApiService.GetCurrentUserAsync();
+        await Task.WhenAll(charactersTask, userTask);
+        var characters = await charactersTask;
+        var user = await userTask;
         if (characters is not null)
         {
             _characters = characters;
+        }
+        if (user is not null)
+        {
+            _characterSlotLimit = user.CharacterSlotLimit;
+            _maximumCharacterSlots = user.MaximumCharacterSlots;
         }
     }
 
     private void ShowCreateForm()
     {
-        if (_isSubmitting)
+        if (_isSubmitting || !HasAvailableCharacterSlot)
         {
             return;
         }
@@ -330,6 +357,13 @@ else
 
     private string? GetCreateDisabledReason()
     {
+        if (!HasAvailableCharacterSlot)
+        {
+            return _characterSlotLimit >= _maximumCharacterSlots
+                ? "角色栏位已达到上限。"
+                : "角色栏位已满，请前往商店解锁。";
+        }
+
         if (!_isSubmitting)
         {
             return null;
@@ -397,6 +431,8 @@ else
             "Character does not belong to current user." => "该角色不属于当前用户。",
             "Cannot delete the last character." => "至少保留一个角色。",
             "Character is still in a room." => "角色仍在房间中。",
+            "CharacterSlotLimitReached" => "角色栏位已满，请前往商店解锁。",
+            "ConcurrencyConflict" => "角色信息刚刚发生变化，请刷新后重试。",
             "User not found." => "用户不存在。",
             "Request body is required." => "请求无效。",
             _ => EnsureSentence(errorMessage.Trim())

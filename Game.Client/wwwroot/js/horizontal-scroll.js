@@ -5,6 +5,7 @@
 
     const getRail = viewport => viewport?.closest(".horizontal-rail");
     const closest = (target, selector) => target instanceof Element ? target.closest(selector) : null;
+    const canScrollHorizontally = viewport => getComputedStyle(viewport).overflowX !== "hidden";
     const resolveViewport = target => {
         const viewport = closest(target, viewportSelector);
         if (viewport) return viewport;
@@ -15,7 +16,7 @@
         const rail = getRail(viewport);
         if (!rail) return;
 
-        const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 2;
+        const hasOverflow = canScrollHorizontally(viewport) && viewport.scrollWidth > viewport.clientWidth + 2;
         const previous = rail.querySelector('[data-scroll-step="-1"]');
         const next = rail.querySelector('[data-scroll-step="1"]');
         rail.classList.toggle("horizontal-rail--overflowing", hasOverflow);
@@ -23,7 +24,45 @@
         if (next) next.disabled = !hasOverflow || viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
     };
 
-    const updateAll = () => document.querySelectorAll(viewportSelector).forEach(updateRail);
+    const updateDungeonRows = viewport => {
+        const layout = getComputedStyle(viewport);
+        if (layout.display !== "grid" || layout.overflowX !== "hidden") {
+            viewport.style.removeProperty("--dungeon-grid-max-height");
+            delete viewport.dataset.visibleRows;
+            return;
+        }
+
+        const command = viewport.closest(".dungeon-launcher")?.querySelector(".dungeon-launcher__command");
+        if (!command) return;
+
+        const rowHeight = parseFloat(layout.gridAutoRows) || 104;
+        const gap = parseFloat(layout.rowGap) || 0;
+        const padding = (parseFloat(layout.paddingTop) || 0) + (parseFloat(layout.paddingBottom) || 0);
+        const available = command.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 10;
+        const fittingRows = Math.floor((available - padding + gap) / (rowHeight + gap));
+        const contentRows = Math.max(1, Math.ceil(viewport.children.length / 3));
+        const rows = Math.max(1, Math.min(3, contentRows, fittingRows));
+        const height = Math.ceil(rows * rowHeight + (rows - 1) * gap + padding);
+        const nextHeight = `${height}px`;
+        if (viewport.style.getPropertyValue("--dungeon-grid-max-height") !== nextHeight) {
+            viewport.style.setProperty("--dungeon-grid-max-height", nextHeight);
+        }
+        viewport.dataset.visibleRows = String(rows);
+    };
+
+    const updateAll = () => {
+        document.querySelectorAll("[data-adaptive-dungeon-grid]").forEach(updateDungeonRows);
+        document.querySelectorAll(viewportSelector).forEach(updateRail);
+    };
+    let updateScheduled = false;
+    const scheduleUpdate = () => {
+        if (updateScheduled) return;
+        updateScheduled = true;
+        window.requestAnimationFrame(() => {
+            updateScheduled = false;
+            updateAll();
+        });
+    };
 
     document.addEventListener("click", event => {
         if (performance.now() <= suppressClickUntil) {
@@ -45,7 +84,7 @@
     document.addEventListener("mousedown", event => {
         if (event.button !== 0) return;
         const viewport = resolveViewport(event.target);
-        if (!viewport || viewport.scrollWidth <= viewport.clientWidth + 2) return;
+        if (!viewport || !canScrollHorizontally(viewport) || viewport.scrollWidth <= viewport.clientWidth + 2) return;
 
         const bounds = viewport.getBoundingClientRect();
         if (event.clientY >= bounds.bottom - 10) return;
@@ -93,7 +132,7 @@
 
     document.addEventListener("wheel", event => {
         const viewport = closest(event.target, viewportSelector);
-        if (!viewport || viewport.scrollWidth <= viewport.clientWidth + 2) return;
+        if (!viewport || !canScrollHorizontally(viewport) || viewport.scrollWidth <= viewport.clientWidth + 2) return;
         const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
         if (!delta) return;
         const atStart = viewport.scrollLeft <= 1;
@@ -105,7 +144,7 @@
 
     document.addEventListener("keydown", event => {
         const viewport = event.target.matches?.(viewportSelector) ? event.target : null;
-        if (!viewport || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+        if (!viewport || !canScrollHorizontally(viewport) || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
         viewport.scrollBy({ left: event.key === "ArrowLeft" ? -180 : 180, behavior: "smooth" });
         event.preventDefault();
     });
@@ -118,8 +157,11 @@
         const containsNewRail = records.some(record => [...record.addedNodes].some(node =>
             node.nodeType === Node.ELEMENT_NODE
             && (node.matches?.(viewportSelector) || node.querySelector?.(viewportSelector))));
-        if (containsNewRail) window.requestAnimationFrame(updateAll);
+        const changedDungeon = records.some(record =>
+            record.target instanceof Element && record.target.closest(".dungeon-launcher"));
+        if (containsNewRail || changedDungeon) scheduleUpdate();
     }).observe(document.body, { childList: true, subtree: true });
-    window.addEventListener("resize", updateAll);
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
     updateAll();
 })();

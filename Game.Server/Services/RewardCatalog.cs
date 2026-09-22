@@ -88,6 +88,8 @@ public sealed class RewardCatalog
         var bundles = isClear ? _clears : _kills;
         if (!bundles.TryGetValue(rewardCode, out var bundle)) return [];
         return bundle.Drops.Select(drop => new RewardDropPreview(
+            drop.Kind,
+            drop.Code,
             drop.Kind switch
             {
                 "Consumable" => _consumables.FindItem(drop.Code)?.Name ?? drop.Code,
@@ -96,7 +98,22 @@ public sealed class RewardCatalog
                 _ => drop.Code
             },
             drop.Quantity,
-            drop.ChancePercent)).ToList();
+            drop.ChancePercent,
+            drop.Kind == "Weapon" ? BuildWeaponPreview(drop.Code) : null)).ToList();
+    }
+
+    private WeaponDropPreview? BuildWeaponPreview(string code)
+    {
+        var item = _weapons.FindItem(code);
+        if (item is null) return null;
+        return new WeaponDropPreview(item.Element, item.ItemLevel, item.Attack, item.MaxHp,
+            item.Skills.Select(grant =>
+            {
+                var skill = _weapons.FindSkill(grant.Code)!;
+                var effects = WeaponCatalog.EffectsFor(skill).Select(effect =>
+                    $"{WeaponEffectLabels.Name(effect.EffectType)} +{_weapons.CalculateEffectPercent(effect.EffectType, grant.Level * effect.LevelWeight):0.##}%");
+                return new WeaponDropSkillPreview(skill.Name, grant.Level, string.Join(" · ", effects));
+            }).ToList());
     }
 
     public bool HasRewardProfile(string rewardCode, bool isClear) =>
@@ -155,4 +172,8 @@ public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType 
 }
 
 public sealed record WeaponRewardSkillSnapshot(string Code, int Level, int QualityBonusLevel = 0);
-public sealed record RewardDropPreview(string Name, int Quantity, decimal ChancePercent);
+public sealed record RewardDropPreview(string Kind, string Code, string Name, int Quantity, decimal ChancePercent,
+    WeaponDropPreview? Weapon);
+public sealed record WeaponDropPreview(ElementType Element, int ItemLevel, int Attack, int MaxHp,
+    IReadOnlyList<WeaponDropSkillPreview> Skills);
+public sealed record WeaponDropSkillPreview(string Name, int Level, string Description);

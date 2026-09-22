@@ -113,6 +113,46 @@ public class RoomServiceTests
     }
 
     [Fact]
+    public async Task DungeonList_SeparatesMonsterDropsAndExposesWeaponBaseStats()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        await DbInitializer.EnsureDefaultDungeonsAsync(test.Db);
+        var dungeon = await test.Db.Dungeons.SingleAsync(item => item.Code == "slime-field");
+        dungeon.IsVisible = true;
+        await test.Db.SaveChangesAsync();
+
+        var progression = ProgressionTestFactory.Create();
+        var encounters = new DungeonEncounterCatalog(Options.Create(new DungeonEncounterOptions
+        {
+            Dungeons = new Dictionary<string, List<DungeonWaveOptions>>
+            {
+                ["slime-field"] = [new() { Monsters =
+                [
+                    new() { Name = "Wind Slime", Element = ElementType.Wind, MaxHp = 30, Attack = 5, Defense = 1, RewardProfileCode = "slime-field" },
+                    new() { Name = "Fire Slime", Element = ElementType.Fire, MaxHp = 40, Attack = 6, Defense = 2, RewardProfileCode = "no-extra-drops" }
+                ] }]
+            }
+        }));
+        var service = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(),
+            RewardTestFactory.CreateService(test.Db, progression, guaranteedWeapon: true), encounters);
+
+        var preview = await service.GetDungeonAsync(dungeon.Id, test.Token);
+
+        Assert.NotNull(preview);
+        Assert.Equal(2, preview.Monsters.Count);
+        var first = preview.Monsters[0];
+        Assert.Equal(("Wind Slime", ElementType.Wind, 30), (first.Name, first.Element, first.MaxHp));
+        var weapon = Assert.Single(first.Drops).Weapon;
+        Assert.NotNull(weapon);
+        Assert.Equal((ElementType.Wind, 7, 28), (weapon.Element, weapon.Attack, weapon.MaxHp));
+        Assert.Contains("10%", Assert.Single(weapon.Skills).Description);
+        Assert.Equal("Fire Slime", preview.Monsters[1].Name);
+        Assert.Empty(preview.Monsters[1].Drops);
+    }
+
+    [Fact]
     public async Task CreateRoomAsync_StoresPreparationTimeoutChoice()
     {
         await using var test = await RoomTestContext.CreateAsync();

@@ -9,8 +9,10 @@ namespace Game.Server.Services;
 
 public sealed class ShopService(GameDbContext dbContext, UserService userService, ShopCatalog shopCatalog,
     ConsumableCatalog consumables, WeaponCatalog weapons, MaterialCatalog materials,
-    DungeonExchangeCatalog dungeonExchanges)
+    DungeonExchangeCatalog dungeonExchanges, CharacterSlotCatalog? characterSlotCatalog = null)
 {
+    private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
+
     public async Task<(ShopResponse? Response, string? Error)> GetAsync(string? token)
     {
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
@@ -105,6 +107,30 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         }, null);
     }
 
+    public async Task<(ShopResponse? Response, string? Error)> PurchaseCharacterSlotAsync(string? token)
+    {
+        var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null) return (null, error);
+
+        var cost = CharacterSlots.GetNextUnlockCost(user!.CharacterSlotLimit);
+        if (cost is null) return (null, "MaximumCharacterSlotsReached");
+        if (user.Gold < cost.Value) return (null, "InsufficientGold");
+
+        user.Gold -= cost.Value;
+        user.CharacterSlotLimit++;
+        user.Version++;
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+
+        return (await BuildResponseAsync(user, character!), null);
+    }
+
     private async Task<ShopResponse> BuildResponseAsync(User user, Character character)
     {
         var stocks = await dbContext.CharacterItemStacks.Where(item => item.CharacterId == character.Id).ToListAsync();
@@ -112,10 +138,15 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             .GroupBy(item => item.WeaponCode)
             .Select(group => new { Code = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Code, item => item.Count);
+        var characterCount = await dbContext.Characters.CountAsync(item => item.UserId == user.Id);
 
         return new ShopResponse
         {
             CharacterId = character.Id, CharacterName = character.Name, Gold = user.Gold,
+            CharacterCount = characterCount,
+            CharacterSlotLimit = user.CharacterSlotLimit,
+            MaximumCharacterSlots = CharacterSlots.MaximumSlots,
+            NextCharacterSlotCost = CharacterSlots.GetNextUnlockCost(user.CharacterSlotLimit),
             Materials = materials.Items.Select(material => new ShopMaterialResponse
             {
                 Code = material.Code, Name = material.Name, Description = material.Description,

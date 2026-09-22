@@ -42,9 +42,43 @@
                     class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Weapon" ? "true" : "false")" @onclick="ShowWeapons"><span aria-hidden="true">⚔</span><strong>武器</strong><small>@_shop.Items.Count(item => item.Kind == "Weapon")</small></button>
             <button id="shop-exchange-tab" type="button" role="tab" aria-controls="shop-exchange-panel"
                     class="@(_kind == "Exchange" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Exchange" ? "true" : "false")" @onclick="ShowExchange"><span aria-hidden="true">◆</span><strong>副本兑换</strong><small>@_shop.DungeonExchangeOffers.Count</small></button>
+            <button id="shop-character-slots-tab" type="button" role="tab" aria-controls="shop-character-slots-panel"
+                    class="@(_kind == "CharacterSlot" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "CharacterSlot" ? "true" : "false")" @onclick="ShowCharacterSlots"><span aria-hidden="true">♟</span><strong>角色栏位</strong><small>@_shop.CharacterSlotLimit/@_shop.MaximumCharacterSlots</small></button>
         </div>
 
-        @if (_kind == "Exchange")
+        @if (_kind == "CharacterSlot")
+        {
+            <section id="shop-character-slots-panel" class="character-slot-shop" role="tabpanel" aria-labelledby="shop-character-slots-tab">
+                <div class="character-slot-shop__header">
+                    <div>
+                        <span class="section-kicker">CAMP ROSTER</span>
+                        <h2>扩充角色栏位</h2>
+                        <p>更多角色可以分别参加战斗、采集和生产。一个账号最多拥有 @_shop.MaximumCharacterSlots 个角色。</p>
+                    </div>
+                    <strong>@_shop.CharacterCount / @_shop.CharacterSlotLimit</strong>
+                </div>
+                <div class="character-slot-shop__track" aria-label="角色栏位解锁进度">
+                    @for (var slot = 1; slot <= _shop.MaximumCharacterSlots; slot++)
+                    {
+                        <span class="@(slot <= _shop.CharacterSlotLimit ? "character-slot-shop__slot--unlocked" : null)">
+                            <b>@slot</b><small>@(slot <= _shop.CharacterSlotLimit ? "已解锁" : "未解锁")</small>
+                        </span>
+                    }
+                </div>
+                @if (_shop.NextCharacterSlotCost is int nextSlotCost)
+                {
+                    <div class="character-slot-shop__purchase">
+                        <div><small>下一个栏位</small><strong>第 @(_shop.CharacterSlotLimit + 1) 个角色</strong><span>解锁永久保留，删除角色不会退还或减少栏位。</span></div>
+                        <button type="button" @onclick="PurchaseCharacterSlotAsync" disabled="@(_busy || _shop.Gold < nextSlotCost)">◆ @nextSlotCost · 解锁</button>
+                    </div>
+                }
+                else
+                {
+                    <p class="character-slot-shop__complete">已解锁全部角色栏位。</p>
+                }
+            </section>
+        }
+        else if (_kind == "Exchange")
         {
             <div id="shop-exchange-panel" class="shop-panel" role="tabpanel" aria-labelledby="shop-exchange-tab">
             @if (_shop.Materials.Count > 0)
@@ -148,6 +182,7 @@
     private void ShowConsumables() => _kind = "Consumable";
     private void ShowWeapons() => _kind = "Weapon";
     private void ShowExchange() => _kind = "Exchange";
+    private void ShowCharacterSlots() => _kind = "CharacterSlot";
 
     protected override async Task OnInitializedAsync()
     {
@@ -252,6 +287,33 @@
             _message = $"已为 {_shop.CharacterName} 兑换 {response.WeaponDisplayName}。";
         }
         catch { _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
+        finally { _busy = false; }
+    }
+
+    private async Task PurchaseCharacterSlotAsync()
+    {
+        if (_busy || _shop?.NextCharacterSlotCost is not int cost) return;
+        _busy = true;
+        _message = null;
+        try
+        {
+            var (response, error) = await ApiService.PurchaseCharacterSlotAsync();
+            if (response is null)
+            {
+                _message = error ?? "角色栏位解锁失败。";
+                if (error is "金币或角色栏位刚刚发生变化，请重试。" or "角色栏位已达到上限。")
+                {
+                    await LoadAsync();
+                    _message = error;
+                }
+                return;
+            }
+
+            _shop = response;
+            _message = $"已花费 {cost} 金币，解锁第 {response.CharacterSlotLimit} 个角色栏位。";
+            AccountBalance.NotifyChanged();
+        }
+        catch { _message = "解锁请求未能完成，请刷新商店核对金币和角色栏位。"; }
         finally { _busy = false; }
     }
 

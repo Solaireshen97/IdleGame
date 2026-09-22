@@ -123,6 +123,8 @@ public class UserController(UserService userService, TalentService talentService
             "UserNotFound" => NotFound("User not found."),
             "InvalidName" => BadRequest("Character name cannot be empty."),
             "InvalidProfession" => BadRequest("InvalidProfession"),
+            "CharacterSlotLimitReached" => Conflict("CharacterSlotLimitReached"),
+            "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
             _ => BadRequest()
         };
     }

@@ -32,6 +32,13 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
         return error is null ? Ok(response) : ToError(error);
     }
 
+    [HttpPost("character-slot")]
+    public async Task<ActionResult<ShopResponse>> PurchaseCharacterSlot()
+    {
+        var (response, error) = await shopService.PurchaseCharacterSlotAsync(GetToken());
+        return error is null ? Ok(response) : ToError(error);
+    }
+
     private string? GetToken()
     {
         const string prefix = "Bearer ";
@@ -44,7 +51,7 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
     {
         "Unauthorized" => Unauthorized(error),
         "UserNotFound" or "CharacterNotFound" or "ProductNotFound" or "ExchangeOfferNotFound" => NotFound(error),
-        "ActiveCharacterChanged" or "ConcurrencyConflict" => Conflict(error),
+        "ActiveCharacterChanged" or "ConcurrencyConflict" or "MaximumCharacterSlotsReached" => Conflict(error),
         _ => BadRequest(error)
     };
 }

@@ -18,6 +18,53 @@ namespace Game.Server.Tests;
 public sealed class T1WeaponEconomyTests
 {
     [Fact]
+    public async Task CharacterSlotsStartAtTwoAndCanBePurchasedUpToFive()
+    {
+        await using var test = await EconomyContext.CreateAsync();
+        var initialAccount = await test.Users.GetCurrentUserAsync(test.Token);
+        Assert.Null(initialAccount.Error);
+        Assert.Equal(1, initialAccount.Response!.CharacterCount);
+        Assert.Equal(2, initialAccount.Response.CharacterSlotLimit);
+        Assert.Equal(5, initialAccount.Response.MaximumCharacterSlots);
+        Assert.Equal(500, initialAccount.Response.NextCharacterSlotCost);
+
+        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第二角色", ProfessionCode = "acolyte" })).Error);
+        var blockedThird = await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第三角色", ProfessionCode = "swordsman" });
+        Assert.Equal("CharacterSlotLimitReached", blockedThird.Error);
+        Assert.Equal(2, await test.Db.Characters.CountAsync());
+
+        test.User.Gold = 6000;
+        await test.Db.SaveChangesAsync();
+        var thirdSlot = await test.Shop.PurchaseCharacterSlotAsync(test.Token);
+        Assert.Null(thirdSlot.Error);
+        Assert.Equal(3, thirdSlot.Response!.CharacterSlotLimit);
+        Assert.Equal(5500, thirdSlot.Response.Gold);
+        Assert.Equal(1500, thirdSlot.Response.NextCharacterSlotCost);
+        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第三角色", ProfessionCode = "swordsman" })).Error);
+
+        Assert.Null((await test.Shop.PurchaseCharacterSlotAsync(test.Token)).Error);
+        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第四角色", ProfessionCode = "acolyte" })).Error);
+        var fifthSlot = await test.Shop.PurchaseCharacterSlotAsync(test.Token);
+        Assert.Null(fifthSlot.Error);
+        Assert.Equal(5, fifthSlot.Response!.CharacterSlotLimit);
+        Assert.Null(fifthSlot.Response.NextCharacterSlotCost);
+        Assert.Equal(0, fifthSlot.Response.Gold);
+        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第五角色", ProfessionCode = "swordsman" })).Error);
+
+        Assert.Equal("MaximumCharacterSlotsReached",
+            (await test.Shop.PurchaseCharacterSlotAsync(test.Token)).Error);
+        Assert.Equal("CharacterSlotLimitReached",
+            (await test.Users.CreateCurrentCharacterAsync(test.Token,
+                new CreateCharacterRequest { Name = "第六角色", ProfessionCode = "swordsman" })).Error);
+        Assert.Equal(5, await test.Db.Characters.CountAsync());
+    }
+
+    [Fact]
     public async Task StartingGoldIsAccountOnlyAndStarterCannotBeSoldAfterUnlocking()
     {
         await using var test = await EconomyContext.CreateAsync();

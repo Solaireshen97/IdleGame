@@ -9,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog, WeaponCatalog? weaponCatalog = null)
+public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog,
+    WeaponCatalog? weaponCatalog = null, CharacterSlotCatalog? characterSlotCatalog = null)
 {
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
+    private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
 
     public async Task<(AuthResponse? Response, string? Error)> RegisterAsync(RegisterRequest request)
     {
@@ -36,7 +38,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         var user = new User
         {
             UserName = userName,
-            Gold = weaponCatalog?.StartingAccountGold ?? 0
+            Gold = weaponCatalog?.StartingAccountGold ?? 0,
+            CharacterSlotLimit = CharacterSlots.InitialSlots
         };
         user.PasswordHash = PasswordHasher.HashPassword(user, request.Password);
 
@@ -101,11 +104,16 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, "Unauthorized");
         }
 
+        var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user.Id);
         return (new CurrentUserResponse
         {
             UserId = user.Id,
             UserName = user.UserName,
-            Gold = user.Gold
+            Gold = user.Gold,
+            CharacterCount = characterCount,
+            CharacterSlotLimit = user.CharacterSlotLimit,
+            MaximumCharacterSlots = CharacterSlots.MaximumSlots,
+            NextCharacterSlotCost = CharacterSlots.GetNextUnlockCost(user.CharacterSlotLimit)
         }, null);
     }
 
@@ -228,13 +236,24 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         if (skillCatalog.FindProfession(professionCode) is not { IsPromotion: false }) return (null, "InvalidProfession");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user!.Id);
+        if (characterCount >= user!.CharacterSlotLimit) return (null, "CharacterSlotLimitReached");
+
         var character = CreateCharacterEntity(user!.Id, name, professionCode);
         dbContext.Characters.Add(character);
-        await dbContext.SaveChangesAsync();
-        AddStartingSkills(character);
-        AddStartingWeapons(character);
-        await dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
+        user.Version++;
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            AddStartingSkills(character);
+            AddStartingWeapons(character);
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
 
         return (BuildCharacterSummary(character), null);
     }

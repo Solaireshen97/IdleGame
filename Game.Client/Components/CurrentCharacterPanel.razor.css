@@ -5,6 +5,8 @@
 }
 
 .current-character-panel__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: .55rem; margin-bottom: .75rem; }
+.current-character-panel__slots { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .55rem; color: #aebfce; font-size: .7rem; }
+.current-character-panel__slots strong { color: #f0c475; font-variant-numeric: tabular-nums; }.current-character-panel__slots small { color: #75899c; }
 
 .current-character-panel__message {
     margin: 0;
@@ -39,6 +41,10 @@ button.character-create-card {
     flex-direction: row;
     cursor: pointer;
 }
+
+a.character-create-card { text-decoration: none; }
+.character-create-card--locked { min-height: 78px; color: #9fb0bf; text-align: center; }
+.character-create-card--locked small { color: #e1b465; font-size: .64rem; }
 
 button.character-create-card:disabled,
 .character-create-card__actions button:disabled {

@@ -45,6 +45,26 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
     }
 
+    public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseCharacterSlotAsync()
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/character-slot", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "InsufficientGold" => "金币不足。",
+                "MaximumCharacterSlotsReached" => "角色栏位已达到上限。",
+                "ConcurrencyConflict" => "金币或角色栏位刚刚发生变化，请重试。",
+                _ => "角色栏位解锁失败，请稍后重试。"
+            });
+        }
+
+        return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
+    }
+
     public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonWeaponAsync(
         int characterId, string offerCode)
     {

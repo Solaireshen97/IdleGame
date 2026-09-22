@@ -124,7 +124,7 @@ else
                         <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
                         <div class="horizontal-rail">
                             <button type="button" class="horizontal-rail__control horizontal-rail__control--previous" data-scroll-step="-1" aria-label="查看前面的地区挑战">‹</button>
-                            <div class="dungeon-grid" data-drag-scroll tabindex="0" aria-label="地区挑战列表，可左右拖动浏览">
+                            <div class="dungeon-grid" data-drag-scroll data-adaptive-dungeon-grid tabindex="0" aria-label="地区挑战列表，窄屏可左右滑动，高屏可上下滚动">
                             @foreach (var dungeon in RegionDungeons)
                             {
                                 <button type="button"
@@ -136,7 +136,7 @@ else
                                     </span>
                                     <strong>@dungeon.Name</strong>
                                     <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
-                                    <span class="dungeon-card__monster">@Game.Shared.WeaponRules.ElementName(dungeon.MonsterElement) · @dungeon.MonsterName</span>
+                                    <span class="dungeon-card__monster"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><span class="dungeon-card__monster-name">@dungeon.MonsterName</span></span>
                                     @if (!dungeon.CanEnter)
                                     {
                                         <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
@@ -149,40 +149,6 @@ else
                     </section>
                 }
                 </div>
-                @if (_selectedDungeon is not null)
-                {
-                    <section class="mission-detail">
-                        <div class="mission-detail__copy">
-                            <div class="mission-detail__title">
-                                <span class="status-badge">@DungeonKindName(_selectedDungeon.DungeonKind)</span>
-                                <span>最低 Lv.@_selectedDungeon.MinimumLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel</span>
-                                <span class="experience-rate @(_selectedDungeon.ExperiencePercent < 100 ? "experience-rate--reduced" : "")" title="当前角色在该副本的经验倍率；金币与掉落不受影响">经验 @_selectedDungeon.ExperiencePercent%</span>
-                            </div>
-                            <h3>@_selectedDungeon.Name</h3>
-                            <p>@_selectedDungeon.Description</p>
-                            <div class="mission-detail__facts">
-                                <span>首领 @_selectedDungeon.MonsterName</span>
-                                <span>@_selectedDungeon.WaveCount 波</span>
-                                <span>@_selectedDungeon.MonsterCount 名敌人</span>
-                                <span>@Game.Shared.WeaponRules.ElementName(_selectedDungeon.MonsterElement)属性</span>
-                            </div>
-                        </div>
-                        <div class="mission-rewards">
-                            <strong>可能获得</strong>
-                            @if (_selectedDungeon.RewardPreview.Count == 0)
-                            {
-                                <small>金币、经验</small>
-                            }
-                            else
-                            {
-                                @foreach (var reward in _selectedDungeon.RewardPreview)
-                                {
-                                    <span><b>@reward.Name × @reward.Quantity</b><small>@reward.Source · @reward.ChancePercent.ToString("0.##")%</small></span>
-                                }
-                            }
-                        </div>
-                    </section>
-                }
                 <div class="dungeon-launcher__command" aria-label="房间设置与创建战斗">
                     <div class="dungeon-launcher__selection" aria-live="polite">
                         @if (_message is not null)
@@ -201,14 +167,14 @@ else
                             <strong>请选择副本</strong>
                         }
                     </div>
+                    <div class="dungeon-launcher__info" aria-label="副本资料">
+                        <button type="button" @onclick="() => OpenInspector(InspectorPanel.Monsters)" disabled="@(_selectedDungeon is null)" aria-haspopup="dialog">怪物信息</button>
+                        <button type="button" @onclick="() => OpenInspector(InspectorPanel.Drops)" disabled="@(_selectedDungeon is null)" aria-haspopup="dialog">掉落预览</button>
+                    </div>
                     <div class="dungeon-launcher__quick-settings" aria-label="战斗设置">
                         <label title="胜利后 @BattleRules.RepeatBattleDelaySeconds 秒自动重开">
                             <input type="checkbox" @bind="_isRepeatBattle" />
                             <span><strong>循环</strong><small>胜利重开</small></span>
-                        </label>
-                        <label title="@BattleRules.PreparationTimeoutSeconds 秒未操作时仅本回合临时 Auto">
-                            <input type="checkbox" @bind="_isPreparationTimeoutEnabled" />
-                            <span><strong>接管</strong><small>@BattleRules.PreparationTimeoutSeconds 秒超时</small></span>
                         </label>
                     </div>
                     <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@(_isLoading || _selectedDungeon is null || !_selectedDungeon.CanEnter)">@(_isLoading ? "创建中…" : "创建战斗")</button>
@@ -216,6 +182,11 @@ else
             </section>
         </div>
     }
+}
+
+@if (_inspectorPanel is { } inspectorPanel && _selectedDungeon is { } inspectedDungeon)
+{
+    <MonsterDetailDialog @key="(inspectedDungeon.DungeonId, inspectorPanel)" Dungeon="inspectedDungeon" ShowDrops="@(inspectorPanel == InspectorPanel.Drops)" OnClose="CloseInspector" />
 }
 
 @if (_message is not null && _activeLobbyTab != LobbyTab.Create)
@@ -238,8 +209,8 @@ else
     private int _catalogRequest;
     private bool _disposed;
     private int _selectedDungeonId;
-    private bool _isRepeatBattle;
-    private bool _isPreparationTimeoutEnabled = true;
+    private bool _isRepeatBattle = true;
+    private InspectorPanel? _inspectorPanel;
     private LobbyTab _activeLobbyTab = LobbyTab.Create;
     private int CurrentRoomCount => _rooms?.Count(room => room.IsCurrentUserParticipant) ?? 0;
     private int JoinableRoomCount => _rooms?.Count(room => !room.IsCurrentUserParticipant) ?? 0;
@@ -252,12 +223,18 @@ else
         Join
     }
 
+    private enum InspectorPanel { Monsters, Drops }
+
+    private void OpenInspector(InspectorPanel panel) => _inspectorPanel = panel;
+    private void CloseInspector() => _inspectorPanel = null;
+
     private IEnumerable<RoomSummaryResponse> GetRoomsForActiveTab() => (_rooms ?? [])
         .Where(room => _activeLobbyTab == LobbyTab.Current ? room.IsCurrentUserParticipant : !room.IsCurrentUserParticipant);
 
     private void SwitchLobbyTab(LobbyTab tab)
     {
         _activeLobbyTab = tab;
+        _inspectorPanel = null;
         _message = null;
     }
 
@@ -304,6 +281,7 @@ else
     private void SelectRegion(string code)
     {
         _selectedRegionCode = code;
+        _inspectorPanel = null;
         _selectedDungeonId = (RegionDungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? RegionDungeons.FirstOrDefault())?.DungeonId ?? 0;
         _message = null;
     }
@@ -325,7 +303,7 @@ else
         _message = null;
         if (_selectedDungeonId == 0) { _message = "暂无可用副本。"; _isLoading = false; return; }
         if (_selectedDungeon is null || !_selectedDungeon.CanEnter) { _message = _selectedDungeon?.LockReason ?? "当前角色无法进入该副本。"; _isLoading = false; return; }
-        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId, _isRepeatBattle, _isPreparationTimeoutEnabled);
+        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId, _isRepeatBattle, isPreparationTimeoutEnabled: true);
         if (roomDetail is null)
         {
             _message = errorMessage switch
@@ -350,6 +328,7 @@ else
     private void SelectDungeon(int dungeonId)
     {
         _selectedDungeonId = dungeonId;
+        _inspectorPanel = null;
         _message = _selectedDungeon?.CanEnter == false ? _selectedDungeon.LockReason : null;
     }
 

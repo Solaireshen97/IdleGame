@@ -128,29 +128,24 @@
 .dungeon-card__topline { display: flex; justify-content: space-between; color: #9cb1c4; font-size: .64rem; letter-spacing: .06em; }
 .dungeon-card strong { color: #f0e4cb; font-size: .88rem; }
 .dungeon-card small { color: #8fa3b6; font-size: .68rem; }
-.dungeon-card__monster { margin-top: auto; color: #b9c9d7; font-size: .68rem; }
+.dungeon-card__monster { display: flex; align-items: center; gap: .3rem; min-width: 0; margin-top: auto; color: #b9c9d7; font-size: .68rem; }
+.dungeon-card__monster-name { overflow: hidden; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
+.monster-attribute { flex: 0 0 auto; display: inline-flex; align-items: center; padding: .1rem .3rem; border: 1px solid currentColor; border-radius: .34rem; color: #d8bd86; font-size: .625rem; font-weight: 800; white-space: nowrap; }
+.monster-attribute--fire { color: #ed9c7e; }
+.monster-attribute--water { color: #86cde7; }
+.monster-attribute--wind { color: #86d3ad; }
+.monster-attribute--light { color: #f4df9b; }
+.monster-attribute--dark { color: #bc9eea; }
 .dungeon-card__lock { color: #e6c781; font-size: .64rem; }
 .level-badge { padding: .12rem .38rem; border-radius: 999px; background: #244a41; color: #9fe0c1; }
 .level-badge--locked { background: #493b2a; color: #e6c781; }
-.mission-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 280px); gap: .9rem; margin-top: .8rem; padding: .95rem; border: 1px solid #456078; border-radius: .72rem; background: linear-gradient(120deg, rgba(29, 48, 68, .9), rgba(15, 29, 44, .9)); }
-.mission-detail__title { display: flex; align-items: center; gap: .55rem; color: #9eb0c0; font-size: .7rem; }
-.experience-rate { margin-left: auto; padding: .18rem .42rem; border: 1px solid rgba(100, 201, 165, .45); border-radius: 999px; color: #9ce0c5; white-space: nowrap; }
-.experience-rate--reduced { border-color: rgba(224, 173, 96, .48); color: #e7bd7a; }
-.mission-detail h3 { margin: .55rem 0 .25rem; color: #f2e5ca; font-family: Georgia, serif; font-size: 1.2rem; }
-.mission-detail p { margin: 0; color: #a9b8c6; font-size: .78rem; line-height: 1.55; }
-.mission-detail__facts { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .65rem; }
-.mission-detail__facts span { padding: .2rem .42rem; border: 1px solid #3a5268; border-radius: 999px; color: #bed0de; font-size: .64rem; }
-.mission-rewards { display: flex; flex-direction: column; gap: .4rem; padding-left: .9rem; border-left: 1px solid #3b5268; }
-.mission-rewards > strong { color: #d8a957; font-size: .7rem; letter-spacing: .08em; }
-.mission-rewards > span { display: flex; justify-content: space-between; gap: .5rem; color: #e2eaf0; font-size: .7rem; }
-.mission-rewards small { color: #8399ac; font-size: .625rem; }
 .dungeon-launcher__command {
     position: fixed;
     z-index: 1080;
     bottom: calc(4.95rem + env(safe-area-inset-bottom));
     left: 50%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto 132px;
+    grid-template-columns: minmax(0, 1fr) auto auto 132px;
     align-items: center;
     gap: .55rem;
     width: min(calc(100vw - 1.3rem), 614px);
@@ -170,6 +165,10 @@
 .dungeon-launcher__selection strong { color: #f2e5cb; font-size: .76rem; }
 .dungeon-launcher__selection .dungeon-launcher__selection-error { grid-column: 1 / -1; color: #f3b1a8; }
 .dungeon-launcher__selection small { color: #8fa4b6; font-size: .625rem; }
+.dungeon-launcher__info { display: flex; gap: .32rem; }
+.dungeon-launcher__info button { min-height: 44px; padding: .4rem .62rem; border: 1px solid #56738a; border-radius: .55rem; background: #173044; color: #e8d2a3; font-size: .68rem; font-weight: 750; white-space: nowrap; cursor: pointer; }
+.dungeon-launcher__info button:hover, .dungeon-launcher__info button:focus-visible { border-color: #e2b65f; background: #25445a; }
+.dungeon-launcher__info button:disabled { opacity: .5; cursor: default; }
 .dungeon-launcher__quick-settings { display: flex; align-items: stretch; gap: .32rem; }
 .dungeon-launcher__quick-settings label { display: flex; align-items: center; gap: .28rem; min-height: 44px; padding: .32rem .44rem; border: 1px solid #3d5266; border-radius: .55rem; background: #142639; color: #dfe8ed; cursor: pointer; }
 .dungeon-launcher__quick-settings input { width: 1rem; height: 1rem; margin: 0; accent-color: #d8a957; }
@@ -187,6 +186,13 @@
 
 @container game-shell (max-width: 760px) {
     .rooms-page { padding: .75rem 0 1.25rem; }
+    .rooms-page--creating { padding-bottom: calc(11.75rem + env(safe-area-inset-bottom)); }
+    .dungeon-launcher__command { grid-template-columns: minmax(0, 1fr) 116px; grid-template-rows: auto auto auto; }
+    .dungeon-launcher__selection { grid-column: 1; grid-row: 1; }
+    .dungeon-launcher__quick-settings { grid-column: 1; grid-row: 2; }
+    .dungeon-launcher__info { grid-column: 1 / -1; grid-row: 3; }
+    .dungeon-launcher__info button { flex: 1 1 0; }
+    .dungeon-launcher__command > .button { grid-column: 2; grid-row: 1 / 3; }
     .room-list--priority { margin-bottom: .95rem; padding: .75rem; }
     .room-list__heading { margin-bottom: .6rem; }
     .room-card { grid-template-columns: minmax(0, 1fr) 96px; gap: .55rem; padding: .7rem; }
@@ -226,8 +232,6 @@
     .dungeon-region { padding: .7rem; }
     .dungeon-region__heading { align-items: flex-start; }
     .dungeon-region__heading small { max-width: 145px; text-align: right; }
-    .mission-detail { grid-template-columns: 1fr; }
-    .mission-rewards { padding: .75rem 0 0; border-top: 1px solid #3b5268; border-left: 0; }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -291,17 +295,9 @@
     .dungeon-region { padding: .6rem; }
     .dungeon-region__heading { margin-bottom: .45rem; }
     .dungeon-region__heading small { display: none; }
-    .mission-detail { margin-top: .6rem; padding: .7rem; }
-    .mission-detail__title > span:last-child { font-size: .625rem; }
-    .mission-detail h3 { margin: .38rem 0 0; font-size: 1rem; }
-    .mission-detail__copy > p, .mission-detail__facts { display: none; }
-    .mission-rewards { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .32rem .55rem; margin-top: .55rem; padding-top: .55rem; }
-    .mission-rewards > strong { grid-row: 1 / span 2; align-self: center; }
-    .mission-rewards > span { min-width: 0; font-size: .64rem; }
-    .mission-rewards > span b, .mission-rewards > span small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .dungeon-launcher__command {
         grid-template-columns: minmax(0, 1fr) 108px;
-        grid-template-rows: auto auto;
+        grid-template-rows: auto auto auto;
         gap: .3rem .45rem;
         min-height: 5.3rem;
         padding: .42rem .48rem;
@@ -311,6 +307,7 @@
     .dungeon-launcher__selection strong,
     .dungeon-launcher__selection small { grid-column: 1 / -1; }
     .dungeon-launcher__quick-settings { grid-column: 1; grid-row: 2; }
+    .dungeon-launcher__info { grid-column: 1 / -1; grid-row: 3; }
     .dungeon-launcher__quick-settings label { flex: 1 1 0; justify-content: center; min-width: 0; min-height: 44px; padding: .35rem .3rem; }
     .dungeon-launcher__quick-settings small { display: none; }
     .dungeon-launcher__command > .button { grid-column: 2; grid-row: 1 / span 2; min-height: 62px; }
@@ -432,33 +429,6 @@
         text-overflow: ellipsis;
     }
 
-    .mission-detail {
-        gap: .45rem;
-        margin-top: .52rem;
-        padding: .58rem .62rem;
-    }
-    .mission-detail h3 { margin: .32rem 0 0; }
-    .mission-detail__copy > p,
-    .mission-detail__facts { display: none; }
-    .mission-rewards {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: .25rem .48rem;
-        margin-top: .38rem;
-        padding-top: .42rem;
-    }
-    .mission-rewards > strong {
-        grid-row: 1 / span 2;
-        align-self: center;
-    }
-    .mission-rewards > span { min-width: 0; }
-    .mission-rewards > span b,
-    .mission-rewards > span small {
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
-
 }
 
 @container game-shell (max-width: 360px) {
@@ -473,4 +443,27 @@
     .lobby-tab__icon,
     .lobby-tab small { display: none; }
     .lobby-tab strong { font-size: .67rem; }
+}
+
+/* Desktop rows are capped by the measured space above the fixed create bar.
+   Touch layouts keep the single-row carousel. */
+@media (hover: hover) and (pointer: fine) {
+    @container game-shell (min-width: 560px) {
+        .dungeon-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-auto-rows: 104px;
+            max-height: var(--dungeon-grid-max-height, 108px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 2px .25rem 2px 2px;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: thin;
+            scrollbar-color: #6b8193 rgba(7, 17, 27, .65);
+            touch-action: pan-y;
+            user-select: auto;
+            cursor: auto;
+        }
+        .dungeon-card { min-width: 0; min-height: 0; height: 104px; scroll-snap-align: start; touch-action: pan-y; }
+    }
 }

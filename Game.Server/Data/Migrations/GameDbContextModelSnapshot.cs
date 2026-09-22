@@ -518,6 +518,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int?>("ActiveCharacterId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("CharacterSlotLimit")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Gold")
                         .HasColumnType("INTEGER");
 

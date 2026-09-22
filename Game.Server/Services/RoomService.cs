@@ -65,6 +65,12 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 MonsterCount = encounterCatalog?.GetMonsterCount(dungeon) ?? 1,
                 IsClearedByCurrentUser = clearedDungeonIds.Contains(dungeon.Id),
                 AutoUnlocked = clearedDungeonIds.Contains(dungeon.Id),
+                Monsters = (encounterCatalog?.CreateMonsters(dungeon) ?? [new Monster
+                {
+                    Name = dungeon.MonsterName, Element = dungeon.MonsterElement, MaxHp = dungeon.MonsterMaxHp,
+                    Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense, WaveNumber = 1, Position = 1,
+                    RewardProfileCode = dungeon.Code
+                }]).Select(monster => BuildMonsterPreview(dungeon, monster)).ToList(),
                 RewardPreview = BuildRewardPreview(dungeon)
             };
         }).ToList();
@@ -472,20 +478,40 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         foreach (var source in sources)
         {
             var sourceName = source.IsBoss ? "首领掉落" : "怪物掉落";
-            result.AddRange(rewardService.GetDropPreview(source.Code, false).Select(drop => new DungeonRewardPreviewResponse
-            {
-                Source = sourceName, Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
-            }));
+            result.AddRange(rewardService.GetDropPreview(source.Code, false).Select(drop => BuildDropPreview(sourceName, drop)));
         }
-        result.AddRange(rewardService.GetDropPreview(dungeon.Code, true).Select(drop => new DungeonRewardPreviewResponse
-        {
-            Source = "通关奖励", Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
-        }));
-        result.AddRange(rewardService.GetDropPreview($"{dungeon.Code}-first-clear", true).Select(drop => new DungeonRewardPreviewResponse
-        {
-            Source = "首次通关", Name = drop.Name, Quantity = drop.Quantity, ChancePercent = drop.ChancePercent
-        }));
-        return result.DistinctBy(item => (item.Source, item.Name, item.Quantity, item.ChancePercent)).ToList();
+        result.AddRange(rewardService.GetDropPreview(dungeon.Code, true).Select(drop => BuildDropPreview("通关奖励", drop)));
+        result.AddRange(rewardService.GetDropPreview($"{dungeon.Code}-first-clear", true).Select(drop => BuildDropPreview("首次通关", drop)));
+        return result.DistinctBy(item => (item.Source, item.Kind, item.Code, item.Quantity, item.ChancePercent)).ToList();
     }
+
+    private MonsterPreviewResponse BuildMonsterPreview(Dungeon dungeon, Monster monster)
+    {
+        var rewardCode = string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? dungeon.Code : monster.RewardProfileCode;
+        var source = monster.IsBoss ? "首领掉落" : "怪物掉落";
+        return new MonsterPreviewResponse
+        {
+            Name = monster.Name, Element = monster.Element, MaxHp = monster.MaxHp,
+            Attack = monster.Attack, Defense = monster.Defense, WaveNumber = monster.WaveNumber,
+            Position = monster.Position, IsBoss = monster.IsBoss,
+            Drops = rewardService.GetDropPreview(rewardCode, false)
+                .Select(drop => BuildDropPreview(source, drop)).ToList()
+        };
+    }
+
+    private static DungeonRewardPreviewResponse BuildDropPreview(string source, RewardDropPreview drop) => new()
+    {
+        Source = source, Kind = drop.Kind, Code = drop.Code, Name = drop.Name,
+        Quantity = drop.Quantity, ChancePercent = drop.ChancePercent,
+        Weapon = drop.Weapon is null ? null : new WeaponDropPreviewResponse
+        {
+            Element = drop.Weapon.Element, ItemLevel = drop.Weapon.ItemLevel,
+            Attack = drop.Weapon.Attack, MaxHp = drop.Weapon.MaxHp,
+            Skills = drop.Weapon.Skills.Select(skill => new WeaponDropSkillPreviewResponse
+            {
+                Name = skill.Name, Level = skill.Level, Description = skill.Description
+            }).ToList()
+        }
+    };
 
 }

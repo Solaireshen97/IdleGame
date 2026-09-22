@@ -27,6 +27,7 @@ public class DungeonSummaryResponse
     public int MonsterCount { get; set; }
     public bool IsClearedByCurrentUser { get; set; }
     public bool AutoUnlocked { get; set; }
+    public List<MonsterPreviewResponse> Monsters { get; set; } = [];
     public List<DungeonRewardPreviewResponse> RewardPreview { get; set; } = [];
 }
 
@@ -34,6 +35,9 @@ public sealed class DungeonRewardPreviewResponse
 {
     public string Source { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public int Quantity { get; set; }
     public decimal ChancePercent { get; set; }
+    public WeaponDropPreviewResponse? Weapon { get; set; }
 }
