@@ -13,7 +13,7 @@ namespace Game.Server.Tests;
 public sealed class GatheringServiceTests
 {
     [Fact]
-    public async Task UnlocksBelongToEachCharacterAndGatheringGoesToSharedWarehouse()
+    public async Task UnlocksAndGatheredItemsBelongToEachCharacter()
     {
         await using var test = await GatheringTestContext.CreateAsync();
         var (firstView, firstError) = await test.Service.GetAsync(test.Token);
@@ -54,9 +54,10 @@ public sealed class GatheringServiceTests
         Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.StartedAtUtc.AddSeconds(65)));
         Assert.Equal((3, 3), (await test.Db.GatheringTasks.FindAsync(task.Id)) is { } advanced
             ? (advanced.CompletedCycles, advanced.TotalQuantity) : (0, 0));
-        Assert.Equal(3, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
+        Assert.Equal(3, (await test.Db.CharacterItemStacks.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.ItemCode == "peacebloom")).Quantity);
         var (secondView, _) = await test.Service.GetAsync(test.Token);
-        Assert.Equal(3, secondView!.Points.Single(point => point.Code == "elwynn-peacebloom").WarehouseQuantity);
+        Assert.Equal(0, secondView!.Points.Single(point => point.Code == "elwynn-peacebloom").CharacterQuantity);
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public sealed class GatheringServiceTests
         Assert.Equal("Completed", finished.Status);
         Assert.Equal(2160, finished.CompletedCycles);
         Assert.Equal(2160, finished.TotalQuantity);
-        Assert.Equal(2160, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
+        Assert.Equal(2160, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
     }
 
@@ -111,7 +112,7 @@ public sealed class GatheringServiceTests
         Assert.Equal(2, stopped.RecentTasks.Single().TotalQuantity);
         Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
         Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.EndsAtUtc.AddHours(1)));
-        Assert.Equal(2, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
+        Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
     [Fact]
@@ -146,7 +147,7 @@ public sealed class GatheringServiceTests
         Assert.Null(stopError);
         Assert.Equal("Stopped", stopped!.RecentTasks[0].Status);
         Assert.Equal(1, stopped.Points.Single(item => item.Code == point.Code).AvailableOpportunities);
-        Assert.Empty(await test.Db.UserWarehouseStacks.ToListAsync());
+        Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
 
         var (restarted, retryError) = await test.Service.StartAsync(test.Token,
             new StartGatheringRequest { CharacterId = test.First.Id, PointCode = point.Code });
@@ -158,7 +159,7 @@ public sealed class GatheringServiceTests
         var completed = await test.Db.GatheringTasks.FindAsync(task.Id);
         Assert.Equal("Completed", completed!.Status);
         Assert.Equal((1, 1), (completed.CompletedCycles, completed.TotalQuantity));
-        Assert.Equal(1, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         var opportunity = await test.Db.CharacterGatheringOpportunities.SingleAsync();
         Assert.Equal((0, 1, 1), (opportunity.AvailableCount, opportunity.EarnedCount, opportunity.SpentCount));
         Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
@@ -291,9 +292,9 @@ public sealed class GatheringServiceTests
             {
                 Items =
                 [
-                    new MaterialItemOptions { Code = "peacebloom", Name = "宁神花", Description = "测试", CanStoreInWarehouse = true },
-                    new MaterialItemOptions { Code = "silverleaf", Name = "银叶草", Description = "测试", CanStoreInWarehouse = true },
-                    new MaterialItemOptions { Code = "earthroot", Name = "地根草", Description = "测试", CanStoreInWarehouse = true }
+                    new MaterialItemOptions { Code = "peacebloom", Name = "宁神花", Description = "测试" },
+                    new MaterialItemOptions { Code = "silverleaf", Name = "银叶草", Description = "测试" },
+                    new MaterialItemOptions { Code = "earthroot", Name = "地根草", Description = "测试" }
                 ]
             }));
             var catalog = new GatheringCatalog(Options.Create(new GatheringOptions

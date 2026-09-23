@@ -12,7 +12,7 @@
     <header class="gathering-intro">
         <span>FIELD WORK · ELWYNN FOREST</span>
         <h1>草药采集</h1>
-        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。精英讨伐提供限次采集机会，产物直接进入营地仓库。</p>
+        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。精英讨伐提供限次采集机会，产物进入该角色背包。</p>
     </header>
 
     @if (_isLoading)
@@ -71,7 +71,7 @@
                         {
                             <div class="gathering-point__opportunity"><span>当前角色可采集</span><strong>@point.AvailableOpportunities 次</strong></div>
                         }
-                        <div class="gathering-point__stock"><span>营地仓库现有</span><strong>@point.WarehouseQuantity</strong></div>
+                        <div class="gathering-point__stock"><span>当前角色背包</span><strong>@point.CharacterQuantity</strong></div>
                         <div class="gathering-point__unlock">
                             <span>@point.UnlockDescription</span>
                             <strong>@point.UnlockProgress / @point.UnlockRequired</strong>
@@ -100,7 +100,6 @@
                 }
             </section>
         }
-        <a class="gathering-warehouse" href="/warehouse">查看营地仓库 →</a>
     }
 </div>
 
@@ -203,8 +202,8 @@
                 _overview = response;
                 _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
                 _notice = response.RecentTasks.FirstOrDefault(task => task.Id == taskId) is { IsRare: true } rare
-                    ? rare.Status == "Completed" ? "稀有采集已完成，产物已存入营地仓库，消耗 1 次机会。" : "稀有采集已停止，未消耗机会。"
-                    : "采集已停止，已完成的小轮产物保留在营地仓库。";
+                    ? rare.Status == "Completed" ? "稀有采集已完成，产物已存入当前角色背包，消耗 1 次机会。" : "稀有采集已停止，未消耗机会。"
+                    : "采集已停止，已完成的小轮产物保留在当前角色背包。";
             }
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
@@ -229,7 +228,7 @@
     {
         "Completed" => task.IsRare ? "采集完成" : "到期完成",
         "Stopped" => "手动停止",
-        "InventoryFull" => "仓库已满",
+        "InventoryFull" => "背包已满",
         "NoOpportunity" => "采集机会不足",
         _ => task.Status
     };

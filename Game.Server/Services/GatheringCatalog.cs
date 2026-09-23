@@ -16,7 +16,7 @@ public sealed class GatheringCatalog
             if (string.IsNullOrWhiteSpace(point.Code) || string.IsNullOrWhiteSpace(point.Name) ||
                 !_points.TryAdd(point.Code, point) ||
                 !world.Regions.Any(region => region.Code == point.RegionCode) ||
-                materials.FindItem(point.MaterialCode) is not { CanStoreInWarehouse: true } ||
+                materials.FindItem(point.MaterialCode) is null ||
                 point.CycleSeconds is < 1 or > 3600 || point.OutputQuantity <= 0 || point.RequiredCount <= 0 ||
                 point.MinimumCharacterLevel <= 0 || point.MinimumGatheringLevel <= 0 || dungeon is null ||
                 point.UnlockKind is not ("MonsterKill" or "DungeonClear") ||

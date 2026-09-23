@@ -19,7 +19,6 @@ public sealed class ProductionRecipeResponse
     public string OutputName { get; set; } = string.Empty;
     public int OutputQuantity { get; set; }
     public int CharacterQuantity { get; set; }
-    public int WarehouseQuantity { get; set; }
     public int CycleSeconds { get; set; }
     public int MinimumCharacterLevel { get; set; }
     public int MinimumAlchemyLevel { get; set; }
@@ -36,7 +35,6 @@ public sealed class ProductionIngredientResponse
     public string Name { get; set; } = string.Empty;
     public int Quantity { get; set; }
     public int CharacterQuantity { get; set; }
-    public int WarehouseQuantity { get; set; }
 }
 
 public sealed class ProductionTaskResponse

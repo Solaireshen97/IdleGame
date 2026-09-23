@@ -184,9 +184,6 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
     {
         var milestones = await db.CharacterBattleMilestones.AsNoTracking()
             .Where(item => item.CharacterId == character.Id).ToListAsync();
-        var stocks = await db.UserWarehouseStacks.AsNoTracking()
-            .Where(item => item.UserId == user.Id)
-            .ToDictionaryAsync(item => item.ItemCode, item => item.Quantity);
         var bag = await db.CharacterItemStacks.AsNoTracking()
             .Where(item => item.CharacterId == character.Id)
             .ToDictionaryAsync(item => item.ItemCode, item => item.Quantity);
@@ -205,7 +202,6 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 OutputName = consumables.FindItem(recipe.OutputCode)!.Name,
                 OutputQuantity = recipe.OutputQuantity,
                 CharacterQuantity = bag.GetValueOrDefault(recipe.OutputCode),
-                WarehouseQuantity = stocks.GetValueOrDefault(recipe.OutputCode),
                 CycleSeconds = recipe.CycleSeconds,
                 MinimumCharacterLevel = recipe.MinimumCharacterLevel,
                 MinimumAlchemyLevel = recipe.MinimumAlchemyLevel,
@@ -219,8 +215,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 {
                     Code = item.Code, Name = materials.FindItem(item.Code)!.Name,
                     Quantity = item.Quantity,
-                    CharacterQuantity = bag.GetValueOrDefault(item.Code),
-                    WarehouseQuantity = stocks.GetValueOrDefault(item.Code)
+                    CharacterQuantity = bag.GetValueOrDefault(item.Code)
                 }).ToList()
             };
         }).ToList();

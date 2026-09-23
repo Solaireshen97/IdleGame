@@ -15,7 +15,7 @@ public sealed class ProductionCatalog
             var source = world.Dungeons.FirstOrDefault(dungeon => dungeon.Code == recipe.UnlockTargetCode && dungeon.IsVisible);
             if (string.IsNullOrWhiteSpace(recipe.Code) || string.IsNullOrWhiteSpace(recipe.Name) ||
                 !_recipes.TryAdd(recipe.Code, recipe) ||
-                consumables.FindItem(recipe.OutputCode) is not { CanStoreInWarehouse: true } ||
+                consumables.FindItem(recipe.OutputCode) is null ||
                 recipe.OutputQuantity is < 1 or > 1000 || recipe.CycleSeconds is < 1 or > 3600 ||
                 recipe.MinimumCharacterLevel < 1 || recipe.MinimumAlchemyLevel < 1 ||
                 recipe.RequiredCount < 1 || source is null ||
@@ -24,7 +24,7 @@ public sealed class ProductionCatalog
                 recipe.Ingredients.Count == 0 ||
                 recipe.Ingredients.Select(item => item.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() != recipe.Ingredients.Count ||
                 recipe.Ingredients.Any(item => item.Quantity is < 1 or > 1000 ||
-                    materials.FindItem(item.Code) is not { CanStoreInWarehouse: true }))
+                    materials.FindItem(item.Code) is null))
                 throw new InvalidOperationException($"Invalid production recipe: {recipe.Code}");
         }
     }

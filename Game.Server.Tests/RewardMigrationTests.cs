@@ -28,7 +28,7 @@ public class RewardMigrationTests
                 var user = await db.Users.SingleAsync(item => item.Id == 42);
                 var room = await db.Rooms.SingleAsync(item => item.Id == 42);
                 Assert.Equal("older", user.UserName);
-                Assert.Equal(0, user.Gold);
+                Assert.Empty(await db.Characters.ToListAsync());
                 Assert.Equal(0, user.Version);
                 Assert.Equal(1, room.RunSequence);
                 Assert.False(db.Database.HasPendingModelChanges());

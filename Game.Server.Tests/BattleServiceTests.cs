@@ -239,13 +239,32 @@ public class BattleServiceTests
     public async Task SetSlotAutoAsync_WithoutDungeonClear_IsRejected()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        test.Db.UserDungeonClears.RemoveRange(await test.Db.UserDungeonClears.ToListAsync());
+        test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones.ToListAsync());
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.SetSlotAutoAsync(1, new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = true }, test.Token);
 
         Assert.Null(result);
         Assert.Equal("AutoNotUnlocked", error);
+    }
+
+    [Fact]
+    public async Task SetSlotAutoAsync_OtherCharacterOnClearedAccount_IsRejected()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var newcomer = new Character { UserId = 1, Name = "Newcomer", Hp = 100, MaxHp = 100, Attack = 20 };
+        test.Db.Characters.Add(newcomer);
+        await test.Db.SaveChangesAsync();
+        (await test.Db.Users.SingleAsync()).ActiveCharacterId = newcomer.Id;
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl)).CharacterId = newcomer.Id;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SetSlotAutoAsync(1,
+            new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = true }, test.Token);
+
+        Assert.Null(result);
+        Assert.Equal("AutoNotUnlocked", error);
+        Assert.True(await test.Db.UserDungeonClears.AnyAsync(clear => clear.UserId == 1 && clear.DungeonId == 1));
     }
 
     [Fact]
@@ -353,8 +372,8 @@ public class BattleServiceTests
         await test.Service.StartPreparationAsync(1, "other-token");
         await test.Service.SyncRoomAsync(1);
 
-        Assert.Equal(13, (await test.Db.Users.FindAsync(1))!.Gold);
-        Assert.Equal(13, (await test.Db.Users.FindAsync(2))!.Gold);
+        Assert.Equal(13, test.Character.Gold);
+        Assert.Equal(13, (await test.Db.Characters.SingleAsync(item => item.UserId == 2)).Gold);
         Assert.Equal(10, test.Character.Experience);
         Assert.Equal("Victory", (await test.Db.RewardRuns.SingleAsync()).Status);
         Assert.Equal(2, await test.Db.RewardEvents.CountAsync());
@@ -414,14 +433,14 @@ public class BattleServiceTests
         await rewards.RecordAsync(test.Room, "slime-field",
             [new RewardParticipant(1, test.Character)], "monster:earlier", isClear: false);
         await test.Db.SaveChangesAsync();
-        Assert.Equal(0, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(0, test.Character.Gold);
 
         var (defeat, error) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.BattleOver, defeat!.RoomStatus);
         Assert.True(defeat.IsCharacterDead);
-        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(3, test.Character.Gold);
         Assert.Equal(2, test.Character.Experience);
         Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
         Assert.Equal("Defeat", (await test.Db.RewardRuns.SingleAsync()).Status);
@@ -446,7 +465,7 @@ public class BattleServiceTests
         Assert.True(success);
         Assert.Null(error);
         Assert.Null(await test.Db.Rooms.FindAsync(1));
-        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(3, test.Character.Gold);
         Assert.Equal(2, test.Character.Experience);
         Assert.Equal("Defeat", (await test.Db.RewardRuns.SingleAsync()).Status);
     }
@@ -468,7 +487,7 @@ public class BattleServiceTests
 
         Assert.Single(await test.Db.RewardEvents.ToListAsync());
         Assert.Equal(2, await test.Db.RewardEntries.CountAsync());
-        Assert.Equal(3, (await test.Db.Users.FindAsync(1))!.Gold);
+        Assert.Equal(3, test.Character.Gold);
         Assert.Equal(2, test.Character.Experience);
     }
 
@@ -855,7 +874,7 @@ public class BattleServiceTests
         Assert.All(results, result => Assert.True(result.Error is null or "ConcurrencyConflict"));
         await using var verificationDb = test.CreateDbContext();
         Assert.Equal(2, (await verificationDb.CharacterItemStacks.SingleAsync()).Quantity);
-        Assert.Equal(26, (await verificationDb.Users.SingleAsync()).Gold);
+        Assert.Equal(26, (await verificationDb.Characters.SingleAsync()).Gold);
         Assert.Equal(new[] { 1, 2 }, (await verificationDb.RewardRuns.OrderBy(run => run.Sequence).ToListAsync()).Select(run => run.Sequence));
         Assert.Equal(1, (await verificationDb.Rooms.SingleAsync()).RoundNumber);
         Assert.Equal(RoomStatus.BattleOver, (await verificationDb.Rooms.SingleAsync()).Status);
@@ -1757,6 +1776,7 @@ public class BattleServiceTests
             other,
             new RoomSlot { RoomId = 1, SlotIndex = 2, UserId = 2, CharacterId = 2 },
             new UserDungeonClear { UserId = 2, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
+            new CharacterBattleMilestone { CharacterId = 2, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
             new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
         await test.Db.SaveChangesAsync();
 
@@ -1860,6 +1880,7 @@ public class BattleServiceTests
             var slot = new RoomSlot { RoomId = Room.Id, SlotIndex = 2, CharacterId = 2, UserId = 2 };
             Db.AddRange(new User { Id = 2, UserName = "other", PasswordHash = "x", ActiveCharacterId = 2 }, character, slot, new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             Db.UserDungeonClears.Add(new UserDungeonClear { UserId = 2, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow });
+            Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone { CharacterId = 2, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow });
             await Db.SaveChangesAsync();
             return slot;
         }
@@ -1874,7 +1895,7 @@ public class BattleServiceTests
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack};
             var monster = new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = monsterAttack, Defense = monsterDefense };
             var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted };
-            db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await db.SaveChangesAsync();
             return new BattleTestContext(path, options, db, room, character, monster);
         }

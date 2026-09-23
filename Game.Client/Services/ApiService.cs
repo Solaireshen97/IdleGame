@@ -5,7 +5,6 @@ using Game.Shared.Dtos;
 using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
 using Game.Shared.Dtos.Shop;
-using Game.Shared.Dtos.Warehouse;
 using Game.Shared.Dtos.Gathering;
 using Game.Shared.Dtos.Production;
 
@@ -51,7 +50,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 "RecipeLocked" => "该角色尚未完成配方的战斗解锁条件。",
                 "LevelTooLow" => "角色等级不足。",
                 "AlchemyLevelTooLow" => "炼金专业等级不足。",
-                "InsufficientMaterials" => "当前角色背包中的材料不足，请先到营地仓库取材。",
+                "InsufficientMaterials" => "当前角色背包中的材料不足，请先用该角色采集。",
                 "ConcurrencyConflict" => "任务刚刚发生变化，请刷新后重试。",
                 "RecipeNotFound" or "TaskNotFound" => "配方或任务不存在，请刷新页面。",
                 _ => "生产操作失败，请稍后重试。"
@@ -103,45 +102,6 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 _ => "采集操作失败，请稍后重试。"
             });
         }
-    }
-
-    public async Task<WarehouseResponse?> GetWarehouseAsync()
-    {
-        using var request = await CreateRequestAsync(HttpMethod.Get, "api/warehouse", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<WarehouseResponse>() : null;
-    }
-
-    public async Task<(WarehouseResponse? Response, string? ErrorMessage)> TransferWarehouseAsync(
-        int characterId, string itemCode, string direction, int quantity, Guid requestId)
-    {
-        using var request = await CreateRequestAsync(HttpMethod.Post, "api/warehouse/transfer", requiresAuth: true);
-        request.Content = JsonContent.Create(new WarehouseTransferRequest
-        {
-            CharacterId = characterId, ItemCode = itemCode, Direction = direction,
-            Quantity = quantity, RequestId = requestId
-        });
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
-            return (null, error switch
-            {
-                "ActiveCharacterChanged" => "当前操作角色已切换，请刷新仓库。",
-                "ItemBound" => "这件物品属于角色，不能放入仓库。",
-                "ItemNotFound" => "物品配置已变化，请刷新仓库。",
-                "InsufficientCharacterItems" => "角色背包数量不足。",
-                "InsufficientWarehouseItems" => "仓库库存不足。",
-                "InventoryLimitReached" => "目标库存已达到上限。",
-                "InvalidQuantity" => "请输入大于零的数量。",
-                "ConcurrencyConflict" => "库存刚刚发生变化，请刷新后重试。",
-                "RequestIdReused" => "这次操作的内容已改变，请重新发起转移。",
-                _ => "转移失败，请稍后重试。"
-            });
-        }
-        return (await response.Content.ReadFromJsonAsync<WarehouseResponse>(), null);
     }
 
     public async Task<ShopResponse?> GetShopAsync()

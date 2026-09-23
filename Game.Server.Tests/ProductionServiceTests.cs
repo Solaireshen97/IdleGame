@@ -2,7 +2,6 @@ using Game.Server.Configuration;
 using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared.Dtos.Production;
-using Game.Shared.Dtos.Warehouse;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -16,9 +15,42 @@ public sealed class ProductionServiceTests
     private const string HerbCode = "peacebloom";
 
     [Fact]
+    public async Task GatheredHerbsCanBeUsedForAlchemyWithoutAnyTransfer()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(0);
+        var gathering = test.NewGatheringService();
+        var (harvest, harvestError) = await gathering.StartAsync(test.Token,
+            new Game.Shared.Dtos.Gathering.StartGatheringRequest
+            {
+                CharacterId = test.First.Id, PointCode = "elwynn-peacebloom"
+            });
+        Assert.Null(harvestError);
+        var gatheringTask = harvest!.ActiveTask!;
+        Assert.Null(await gathering.AdvanceDueAsync(gatheringTask.Id,
+            gatheringTask.StartedAtUtc.AddSeconds(40)));
+        Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.ItemCode == HerbCode)).Quantity);
+        Assert.Equal("CharacterBusy", (await test.Service.StartAsync(test.Token,
+            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode })).Error);
+        Assert.Null((await gathering.StopAsync(test.Token, gatheringTask.Id)).Error);
+
+        var (started, startError) = await test.Service.StartAsync(test.Token,
+            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        Assert.Null(startError);
+        Assert.Null(await test.Service.AdvanceDueAsync(started!.ActiveTask!.Id,
+            started.ActiveTask.NextCycleAtUtc));
+        Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.ItemCode == HerbCode)).Quantity);
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.ItemCode == RecipeCode)).Quantity);
+        Assert.False(await test.Db.CharacterItemStacks.AnyAsync(item =>
+            item.CharacterId == test.Second.Id && item.Quantity > 0));
+    }
+
+    [Fact]
     public async Task RecipeUnlockBelongsToCharacterAndMaterialsAreSpentAtSettlement()
     {
-        await using var test = await ProductionTestContext.CreateAsync(5, 5, 2);
+        await using var test = await ProductionTestContext.CreateAsync(5, 2);
         var (firstView, firstError) = await test.Service.GetAsync(test.Token);
         Assert.Null(firstError);
         Assert.True(Assert.Single(firstView!.Recipes).IsUnlocked);
@@ -70,7 +102,6 @@ public sealed class ProductionServiceTests
             secondStarted.ActiveTask.NextCycleAtUtc.AddSeconds(10)));
         Assert.Equal("MaterialShortage", (await test.Db.ProductionTasks.FindAsync(secondStarted.ActiveTask.Id))!.Status);
         Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
-        Assert.Equal(5, (await test.Db.UserWarehouseStacks.SingleAsync(item => item.ItemCode == HerbCode)).Quantity);
         Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync(item =>
             item.CharacterId == test.First.Id && item.ItemCode == RecipeCode)).Quantity);
     }
@@ -114,7 +145,7 @@ public sealed class ProductionServiceTests
     [Fact]
     public async Task CharactersWithSeparateBagsCanProduceAtTheSameTime()
     {
-        await using var test = await ProductionTestContext.CreateAsync(2, 2, 2);
+        await using var test = await ProductionTestContext.CreateAsync(2, 2);
         test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
         {
             CharacterId = test.Second.Id, Kind = BattleMilestoneService.MonsterKillKind,
@@ -140,7 +171,6 @@ public sealed class ProductionServiceTests
             second!.ActiveTask!.Id, second.ActiveTask.NextCycleAtUtc));
 
         await using var verificationDb = test.NewDbContext();
-        Assert.Equal(2, (await verificationDb.UserWarehouseStacks.SingleAsync(item => item.ItemCode == HerbCode)).Quantity);
         Assert.Equal(2, await verificationDb.CharacterItemStacks.CountAsync(item =>
             item.ItemCode == RecipeCode && item.Quantity == 1));
         Assert.Equal(0, (await verificationDb.CharacterItemStacks.SingleAsync(item =>
@@ -150,27 +180,26 @@ public sealed class ProductionServiceTests
     }
 
     [Fact]
-    public async Task WarehouseMaterialsMustBeWithdrawnBeforeProduction()
+    public async Task AnotherCharactersMaterialsCannotStartProduction()
     {
         await using var test = await ProductionTestContext.CreateAsync(0, 4);
         var (_, shortage) = await test.Service.StartAsync(test.Token,
             new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
         Assert.Equal("InsufficientMaterials", shortage);
-        var warehouse = new WarehouseService(test.Db,
-            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
-            test.Consumables, test.Materials);
-        var (_, transferError) = await warehouse.TransferAsync(test.Token, new WarehouseTransferRequest
+        test.Owner.ActiveCharacterId = test.Second.Id;
+        test.Owner.Version++;
+        test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
         {
-            CharacterId = test.First.Id, ItemCode = HerbCode, Direction = "Withdraw",
-            Quantity = 4, RequestId = Guid.NewGuid()
+            CharacterId = test.Second.Id, Kind = BattleMilestoneService.MonsterKillKind,
+            TargetCode = "northshire-wolves", Count = 1,
+            FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow
         });
-        Assert.Null(transferError);
+        await test.Db.SaveChangesAsync();
         var (started, startError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { CharacterId = test.Second.Id, RecipeCode = RecipeCode });
         Assert.Null(startError);
         Assert.NotNull(started!.ActiveTask);
         Assert.Equal(4, started.Recipes.Single().Ingredients.Single().CharacterQuantity);
-        Assert.Equal(0, started.Recipes.Single().Ingredients.Single().WarehouseQuantity);
     }
 
     private sealed class ProductionTestContext : IAsyncDisposable
@@ -201,8 +230,6 @@ public sealed class ProductionServiceTests
         public Character First { get; }
         public Character Second { get; }
         public ProductionService Service { get; }
-        public MaterialCatalog Materials => _materials;
-        public ConsumableCatalog Consumables => _consumables;
         public string Token => "production-owner-token";
 
         public GameDbContext NewDbContext() => new(new DbContextOptionsBuilder<GameDbContext>()
@@ -213,8 +240,26 @@ public sealed class ProductionServiceTests
             _catalog, _world, _materials, _consumables,
             Options.Create(new ActivityOptions { MaximumHours = 12 }));
 
+        public GatheringService NewGatheringService()
+        {
+            var gathering = new GatheringCatalog(Options.Create(new GatheringOptions
+            {
+                Points = [new GatheringPointOptions
+                {
+                    Code = "elwynn-peacebloom", Name = "北郡宁神花", RegionCode = "elwynn",
+                    MaterialCode = HerbCode, CycleSeconds = 20, OutputQuantity = 1,
+                    UnlockKind = BattleMilestoneService.MonsterKillKind,
+                    UnlockTargetCode = "northshire-wolves"
+                }]
+            }), _world, _materials);
+            return new GatheringService(Db,
+                new UserService(Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
+                gathering, _world, _materials,
+                Options.Create(new ActivityOptions { MaximumHours = 12 }));
+        }
+
         public static async Task<ProductionTestContext> CreateAsync(int herbQuantity,
-            int warehouseQuantity = 0, int secondHerbQuantity = 0)
+            int secondHerbQuantity = 0)
         {
             var path = Path.Combine(Path.GetTempPath(), $"idlegame-production-{Guid.NewGuid():N}.db");
             var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
@@ -232,7 +277,6 @@ public sealed class ProductionServiceTests
                 },
                 new CharacterItemStack { CharacterId = first.Id, ItemCode = HerbCode, Quantity = herbQuantity },
                 new CharacterItemStack { CharacterId = second.Id, ItemCode = HerbCode, Quantity = secondHerbQuantity },
-                new UserWarehouseStack { UserId = owner.Id, ItemCode = HerbCode, Quantity = warehouseQuantity },
                 new UserLoginSession
                 {
                     UserId = owner.Id, Token = "production-owner-token",
@@ -244,14 +288,14 @@ public sealed class ProductionServiceTests
             {
                 Items = [new MaterialItemOptions
                 {
-                    Code = HerbCode, Name = "宁神花", Description = "测试材料", CanStoreInWarehouse = true
+                    Code = HerbCode, Name = "宁神花", Description = "测试材料"
                 }]
             }));
             var consumables = new ConsumableCatalog(Options.Create(new ConsumableOptions
             {
                 Items = [new ConsumableItemOptions
                 {
-                    Code = RecipeCode, Name = "小型治疗药水", CanStoreInWarehouse = true,
+                    Code = RecipeCode, Name = "小型治疗药水",
                     HealAmount = 20, CooldownRounds = 3, CooldownGroup = "healing"
                 }]
             }));

@@ -15,5 +15,4 @@ public sealed class ConsumableItemOptions
     public decimal HealMaxHpPercent { get; set; }
     public int CooldownRounds { get; set; }
     public string CooldownGroup { get; set; } = string.Empty;
-    public bool CanStoreInWarehouse { get; set; }
 }

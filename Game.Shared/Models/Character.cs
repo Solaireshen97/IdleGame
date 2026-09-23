@@ -22,6 +22,7 @@ public class Character
     public int GatheringLevel { get; set; } = 1;
     public int AlchemyLevel { get; set; } = 1;
     public int Experience { get; set; }
+    public int Gold { get; set; }
     public int TalentPoints { get; set; }
     public int AttackTalentRank { get; set; }
     public int HealthTalentRank { get; set; }

@@ -12,7 +12,7 @@
     <header class="production-intro">
         <span>CAMP ALCHEMY</span>
         <h1>炼金生产</h1>
-        <p>采集的草药先存入营地仓库，取到当前角色背包后即可炼金。原料与成品都属于当前角色。</p>
+        <p>当前角色采集草药并存入自己的背包，再用这些材料炼金。原料与成品都属于该角色。</p>
     </header>
 
     @if (_isLoading)
@@ -72,7 +72,7 @@
                             <small>每轮消耗 · 当前角色背包</small>
                             @foreach (var ingredient in recipe.Ingredients)
                             {
-                                <div><span>@ingredient.Name × @ingredient.Quantity</span><strong class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "production-recipe__short" : "")">背包 @ingredient.CharacterQuantity · 仓库 @ingredient.WarehouseQuantity</strong></div>
+                                <div><span>@ingredient.Name × @ingredient.Quantity</span><strong class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "production-recipe__short" : "")">背包 @ingredient.CharacterQuantity</strong></div>
                             }
                         </div>
                         <div class="production-recipe__stock"><span>当前材料可做 @availableCycles 轮</span><strong>成品 @((long)availableCycles * recipe.OutputQuantity) 件</strong></div>
@@ -102,7 +102,6 @@
                 }
             </section>
         }
-        <a class="production-warehouse" href="/warehouse">前往营地仓库取材 →</a>
     }
 </div>
 

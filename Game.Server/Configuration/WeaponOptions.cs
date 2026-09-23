@@ -5,7 +5,7 @@ namespace Game.Server.Configuration;
 public sealed class WeaponOptions
 {
     public const string SectionName = "Weapons";
-    public int StartingAccountGold { get; set; }
+    public int StartingCharacterGold { get; set; }
     public List<WeaponTemplateOptions> Items { get; set; } = [];
     public List<WeaponSkillDefinitionOptions> Skills { get; set; } = [];
     public List<WeaponEffectRuleOptions> EffectRules { get; set; } = [];

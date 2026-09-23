@@ -19,8 +19,6 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Dungeon> Dungeons => Set<Dungeon>();
     public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
-    public DbSet<UserWarehouseStack> UserWarehouseStacks => Set<UserWarehouseStack>();
-    public DbSet<WarehouseTransferRecord> WarehouseTransferRecords => Set<WarehouseTransferRecord>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
@@ -72,11 +70,6 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .IsUnique();
         modelBuilder.Entity<CharacterItemStack>()
             .ToTable(table => table.HasCheckConstraint("CK_CharacterItemStacks_Quantity", "Quantity >= 0"));
-        modelBuilder.Entity<UserWarehouseStack>().HasKey(stack => new { stack.UserId, stack.ItemCode });
-        modelBuilder.Entity<UserWarehouseStack>().Property(stack => stack.Version).IsConcurrencyToken();
-        modelBuilder.Entity<UserWarehouseStack>()
-            .ToTable(table => table.HasCheckConstraint("CK_UserWarehouseStacks_Quantity", "Quantity >= 0"));
-        modelBuilder.Entity<WarehouseTransferRecord>().HasKey(record => new { record.UserId, record.RequestId });
         modelBuilder.Entity<CharacterConsumableSlot>()
             .Property(slot => slot.Version)
             .IsConcurrencyToken();

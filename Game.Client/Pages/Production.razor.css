@@ -49,6 +49,5 @@
 .production-history__row { display: flex; justify-content: space-between; gap: .7rem; padding: .75rem .9rem; border-bottom: 1px solid #34485a; color: #dbe7ec; font-size: .8rem; }
 .production-history__row small { margin-left: .4rem; color: #9fb4c2; }
 .production-history__row strong { color: #efc981; white-space: nowrap; }
-.production-warehouse { display: inline-block; margin-top: 1.4rem; color: #f0c57c; font-weight: 800; text-decoration: none; }
 .production-refresh { margin-top: .8rem; padding: .6rem .9rem; border: 1px solid #60798d; border-radius: .5rem; color: #e5eef4; background: #1d3548; cursor: pointer; }
 @container game-shell (max-width: 560px) { .production-summary > div { padding: .8rem; } .production-summary strong, .production-active__metrics strong { font-size: 1rem; } }

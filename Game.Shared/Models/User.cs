@@ -6,7 +6,6 @@ public class User
     public string UserName { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public int? ActiveCharacterId { get; set; }
-    public int Gold { get; set; }
     public int CharacterSlotLimit { get; set; } = 2;
     public bool StarterWeaponRewardClaimed { get; set; }
     public int Version { get; set; }

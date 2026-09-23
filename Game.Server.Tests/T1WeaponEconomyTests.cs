@@ -35,7 +35,7 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal("CharacterSlotLimitReached", blockedThird.Error);
         Assert.Equal(2, await test.Db.Characters.CountAsync());
 
-        test.User.Gold = 6000;
+        test.Character.Gold = 6000;
         await test.Db.SaveChangesAsync();
         var thirdSlot = await test.Shop.PurchaseCharacterSlotAsync(test.Token);
         Assert.Null(thirdSlot.Error);
@@ -65,15 +65,16 @@ public sealed class T1WeaponEconomyTests
     }
 
     [Fact]
-    public async Task StartingGoldIsAccountOnlyAndStarterCannotBeSoldAfterUnlocking()
+    public async Task StartingGoldBelongsOnlyToFirstCharacterAndStarterCannotBeSoldAfterUnlocking()
     {
         await using var test = await EconomyContext.CreateAsync();
-        Assert.Equal(120, test.User.Gold);
+        Assert.Equal(120, test.Character.Gold);
         Assert.Equal(WeaponOrigin.Starter, (await test.Db.CharacterWeapons.SingleAsync()).Origin);
         var created = await test.Users.CreateCurrentCharacterAsync(test.Token,
             new CreateCharacterRequest { Name = "第二角色", ProfessionCode = "cleric" });
         Assert.Null(created.Error);
-        Assert.Equal(120, test.User.Gold);
+        Assert.Equal(120, test.Character.Gold);
+        Assert.Equal(0, (await test.Db.Characters.SingleAsync(item => item.Id == created.Response!.CharacterId)).Gold);
 
         // The backend still rejects the starter gift after it is unequipped and unlocked.
         var starter = await test.Db.CharacterWeapons.SingleAsync(weapon => weapon.CharacterId == test.Character.Id);
@@ -83,7 +84,7 @@ public sealed class T1WeaponEconomyTests
         var sold = await test.Armory.SellAsync(test.Token, test.Character.Id,
             new WeaponBatchRequest { WeaponIds = [starter.Id] });
         Assert.Equal("StarterWeaponCannotBeSold", sold.Error);
-        Assert.Equal(120, test.User.Gold);
+        Assert.Equal(120, test.Character.Gold);
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
             new WeaponBatchRequest { WeaponIds = [starter.Id] });
         Assert.Equal("WeaponCannotBeDismantled", recycled.Error);
@@ -98,7 +99,7 @@ public sealed class T1WeaponEconomyTests
         var bought = await test.Shop.PurchaseAsync(test.Token,
             new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1 });
         Assert.Null(bought.Error);
-        Assert.Equal(80, test.User.Gold);
+        Assert.Equal(80, test.Character.Gold);
         var weapon = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Shop);
         Assert.Equal(0, test.Weapons.DismantleReturn(weapon));
         Assert.False(test.Weapons.CanDismantle(weapon));
@@ -122,7 +123,7 @@ public sealed class T1WeaponEconomyTests
             new WeaponBatchRequest { WeaponIds = [weapon.Id] });
         Assert.Null(recycled.Error);
         Assert.Equal(5, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
-        Assert.Equal(80, test.User.Gold);
+        Assert.Equal(80, test.Character.Gold);
     }
 
     [Fact]

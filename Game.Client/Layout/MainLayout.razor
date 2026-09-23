@@ -53,7 +53,7 @@
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <div class="top-row__account">
-                    <span class="top-row__gold" title="账号金币"><span aria-hidden="true">◆</span> @_currentUser.Gold</span>
+                    <span class="top-row__gold" title="当前角色金币"><span aria-hidden="true">◆</span> @_currentUser.Gold</span>
                     <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
                     <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录" aria-label="@(_isLoggingOut ? "正在退出登录" : "退出登录")">@(_isLoggingOut ? "…" : "↪")</button>
                 </div>
@@ -121,7 +121,6 @@
             if (path.StartsWith("weapons", StringComparison.OrdinalIgnoreCase)) return "武器编成";
             if (path.StartsWith("shop", StringComparison.OrdinalIgnoreCase)) return "商店";
             if (path.StartsWith("supplies", StringComparison.OrdinalIgnoreCase)) return "战斗补给";
-            if (path.StartsWith("warehouse", StringComparison.OrdinalIgnoreCase)) return "营地仓库";
             if (path.StartsWith("gathering", StringComparison.OrdinalIgnoreCase)) return "采集";
             if (path.StartsWith("production", StringComparison.OrdinalIgnoreCase)) return "炼金生产";
             if (path.StartsWith("login", StringComparison.OrdinalIgnoreCase)) return "登录";
@@ -189,7 +188,19 @@
         if (args.Key == "Escape") CloseSwitcher();
     }
 
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        try
+        {
+            if (_currentUser is not null)
+            {
+                var refreshed = await ApiService.GetCurrentUserAsync();
+                if (refreshed is not null) _currentUser = refreshed;
+            }
+        }
+        catch { /* The regular header refresh will retry after a transient connection failure. */ }
+        StateHasChanged();
+    });
 
     private void OnAccountBalanceChanged() => _ = InvokeAsync(async () =>
     {

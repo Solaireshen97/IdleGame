@@ -20,7 +20,7 @@ public sealed class GatheringPointResponse
     public bool IsRare { get; set; }
     public int AvailableOpportunities { get; set; }
     public string MaterialName { get; set; } = string.Empty;
-    public int WarehouseQuantity { get; set; }
+    public int CharacterQuantity { get; set; }
     public int OutputQuantity { get; set; }
     public int CycleSeconds { get; set; }
     public int MinimumCharacterLevel { get; set; }

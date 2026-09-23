@@ -35,6 +35,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Experience")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Gold")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Hp")
                         .HasColumnType("INTEGER");
 
@@ -626,9 +629,6 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("CharacterSlotLimit")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Gold")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("StarterWeaponRewardClaimed").HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
@@ -672,28 +672,6 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("UserLoginSessions");
                 });
 
-            modelBuilder.Entity("Game.Shared.Models.UserWarehouseStack", b =>
-                {
-                    b.Property<int>("UserId").HasColumnType("INTEGER");
-                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
-                    b.Property<int>("Quantity").HasColumnType("INTEGER");
-                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
-                    b.HasKey("UserId", "ItemCode");
-                    b.ToTable("UserWarehouseStacks", t => t.HasCheckConstraint("CK_UserWarehouseStacks_Quantity", "Quantity >= 0"));
-                });
-
-            modelBuilder.Entity("Game.Shared.Models.WarehouseTransferRecord", b =>
-                {
-                    b.Property<int>("UserId").HasColumnType("INTEGER");
-                    b.Property<string>("RequestId").IsRequired().HasColumnType("TEXT");
-                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
-                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
-                    b.Property<string>("Direction").IsRequired().HasColumnType("TEXT");
-                    b.Property<int>("Quantity").HasColumnType("INTEGER");
-                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
-                    b.HasKey("UserId", "RequestId");
-                    b.ToTable("WarehouseTransferRecords");
-                });
             modelBuilder.Entity("Game.Shared.Models.CharacterWeaponSkill", b =>
                 {
                     b.HasOne("Game.Shared.Models.CharacterWeapon", null)

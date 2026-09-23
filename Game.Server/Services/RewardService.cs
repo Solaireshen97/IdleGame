@@ -96,17 +96,16 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             }
         }
 
-        foreach (var group in entries.GroupBy(entry => entry.UserId))
-        {
-            var gold = group.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity);
-            if (gold <= 0) continue;
-            var user = users[group.Key];
-            user.Gold = checked(user.Gold + gold);
-            user.Version++;
-        }
         foreach (var group in entries.GroupBy(entry => entry.CharacterId))
         {
             var character = characters[group.Key];
+            var gold = group.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity);
+            if (gold > 0)
+            {
+                character.Gold = checked(character.Gold + gold);
+                character.Version++;
+                logs.Add($"{character.Name} 获得 {gold} 金币。");
+            }
             var experience = group.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity);
             if (experience > 0)
             {
@@ -114,8 +113,6 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 if (gain.ExperienceGained > 0) logs.Add($"{character.Name} 获得 {gain.ExperienceGained} 点经验值。");
                 if (gain.LevelsGained > 0) logs.Add($"{character.Name} 升至 Lv.{character.Level}，获得 {gain.LevelsGained} 点天赋点。");
             }
-            var gold = group.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity);
-            if (gold > 0) logs.Add($"{character.Name} 获得 {gold} 金币。");
             foreach (var items in group.Where(entry => entry.Kind is "Consumable" or "Material").GroupBy(entry => entry.Code))
             {
                 var stack = stacks.SingleOrDefault(item => item.CharacterId == character.Id && item.ItemCode == items.Key);

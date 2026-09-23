@@ -17,7 +17,7 @@ namespace Game.Server.Tests;
 public sealed class WorldContentTests
 {
     [Fact]
-    public void ProductionRecipeUsesGatheredHerbsAndWarehouseConsumable()
+    public void ProductionRecipeUsesGatheredHerbsAndCharacterConsumable()
     {
         var content = new Content();
         var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
@@ -30,7 +30,7 @@ public sealed class WorldContentTests
     }
 
     [Fact]
-    public void ProductionRareGatheringPointsRequireEliteVictoriesAndHaveWarehouseMaterials()
+    public void ProductionRareGatheringPointsRequireEliteVictoriesAndConfiguredMaterials()
     {
         var content = new Content();
         var gathering = new GatheringCatalog(content.Bind<GatheringOptions>(GatheringOptions.SectionName),
@@ -41,7 +41,7 @@ public sealed class WorldContentTests
         {
             Assert.Equal("Elite", content.World.Dungeons.Single(dungeon =>
                 dungeon.Code == point.UnlockTargetCode).DungeonKind);
-            Assert.True(content.Materials.FindItem(point.MaterialCode)!.CanStoreInWarehouse);
+            Assert.NotNull(content.Materials.FindItem(point.MaterialCode));
             Assert.Equal(20, point.CycleSeconds);
         });
     }
@@ -173,7 +173,7 @@ public sealed class WorldContentTests
             Assert.Equal(run == 1 ? 3 : 4, token.Quantity);
         }
         Assert.Single(await db.UserDungeonClears.ToListAsync());
-        Assert.True((await db.Users.FindAsync(1))!.Gold > 0);
+        Assert.True(character.Gold > 0);
         Assert.All(await db.CharacterItemStacks.ToListAsync(), stack => Assert.Equal(character.Id, stack.CharacterId));
 
         var otherToken = content.Exchanges.Offers.First(candidate => candidate.CurrencyCode != offer.CurrencyCode).CurrencyCode;

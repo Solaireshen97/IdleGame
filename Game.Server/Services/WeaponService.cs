@@ -104,14 +104,12 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
         if (weapons.Any(weapon => !WeaponCatalog.CanSell(weapon))) return (null, "StarterWeaponCannotBeSold");
-        var user = await dbContext.Users.SingleAsync(item => item.Id == character!.UserId);
         var gold = weapons.Sum(weapon => weapon.SellGold);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
-            user.Gold = checked(user.Gold + gold);
-            user.Version++;
+            character!.Gold = checked(character.Gold + gold);
             character!.Version++;
             dbContext.CharacterWeapons.RemoveRange(weapons);
             await dbContext.SaveChangesAsync();
@@ -260,7 +258,6 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             stack.CharacterId == character.Id && stack.ItemCode.StartsWith("weapon-fragment-t")).ToListAsync();
         var main = weapons.SingleOrDefault(item => item.EquippedSlotIndex == WeaponRules.MainSlotIndex);
         var bonuses = weaponCatalog.CalculateBonuses(weapons);
-        var userGold = await dbContext.Users.Where(user => user.Id == character.UserId).Select(user => user.Gold).SingleAsync();
         var highestStackTier = fragmentStacks.Select(stack => ParseFragmentTier(stack.ItemCode)).DefaultIfEmpty(1).Max();
         var maximumTier = Math.Max(weaponCatalog.MaxFragmentTier, highestStackTier);
         return new CharacterWeaponsResponse
@@ -268,7 +265,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             CharacterId = character.Id,
             CharacterName = character.Name,
             ProfessionName = skillCatalog.EffectiveProfession(character)?.Name ?? character.ProfessionCode,
-            Gold = userGold,
+            Gold = character.Gold,
             Hp = character.Hp,
             TotalAttack = character.Attack,
             TotalMaxHp = character.MaxHp,

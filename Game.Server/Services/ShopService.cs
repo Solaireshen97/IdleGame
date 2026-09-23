@@ -30,7 +30,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             return (null, "InvalidQuantity");
 
         var cost = checked(product.Price * request.Quantity);
-        if (user!.Gold < cost) return (null, "InsufficientGold");
+        if (character.Gold < cost) return (null, "InsufficientGold");
         CharacterItemStack? stack = null;
         if (product.Kind == "Consumable")
         {
@@ -39,8 +39,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             if (stack is not null && stack.Quantity > int.MaxValue - request.Quantity)
                 return (null, "InventoryLimitReached");
         }
-        user.Gold -= cost;
-        user.Version++;
+        character.Gold -= cost;
         character.Version++;
 
         if (product.Kind == "Consumable")
@@ -114,9 +113,10 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
 
         var cost = CharacterSlots.GetNextUnlockCost(user!.CharacterSlotLimit);
         if (cost is null) return (null, "MaximumCharacterSlotsReached");
-        if (user.Gold < cost.Value) return (null, "InsufficientGold");
+        if (character!.Gold < cost.Value) return (null, "InsufficientGold");
 
-        user.Gold -= cost.Value;
+        character.Gold -= cost.Value;
+        character.Version++;
         user.CharacterSlotLimit++;
         user.Version++;
         try
@@ -142,7 +142,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
 
         return new ShopResponse
         {
-            CharacterId = character.Id, CharacterName = character.Name, Gold = user.Gold,
+            CharacterId = character.Id, CharacterName = character.Name, Gold = character.Gold,
             CharacterCount = characterCount,
             CharacterSlotLimit = user.CharacterSlotLimit,
             MaximumCharacterSlots = CharacterSlots.MaximumSlots,

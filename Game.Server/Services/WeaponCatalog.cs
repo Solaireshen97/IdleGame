@@ -16,12 +16,12 @@ public sealed class WeaponCatalog
     private readonly IReadOnlyList<int> _enhancementFragmentCosts;
     private readonly IReadOnlyList<WeaponSkillGrowthSegmentOptions> _skillGrowth;
     private readonly IReadOnlyList<int> _dropQualityWeights;
-    public int StartingAccountGold { get; }
+    public int StartingCharacterGold { get; }
 
     public WeaponCatalog(IOptions<WeaponOptions> options)
     {
-        StartingAccountGold = options.Value.StartingAccountGold;
-        if (StartingAccountGold < 0) throw new InvalidOperationException("Starting gold cannot be negative.");
+        StartingCharacterGold = options.Value.StartingCharacterGold;
+        if (StartingCharacterGold < 0) throw new InvalidOperationException("Starting gold cannot be negative.");
         var enhancementCosts = options.Value.EnhancementFragmentCosts.Count == 0
             ? new List<int> { 2, 4, 8 }
             : options.Value.EnhancementFragmentCosts;

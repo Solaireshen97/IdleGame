@@ -128,8 +128,8 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 return;
             }
             var quantityLong = (long)cycles * task.OutputQuantity;
-            var stack = await db.UserWarehouseStacks.SingleOrDefaultAsync(item =>
-                item.UserId == task.UserId && item.ItemCode == task.MaterialCode);
+            var stack = await db.CharacterItemStacks.SingleOrDefaultAsync(item =>
+                item.CharacterId == task.CharacterId && item.ItemCode == task.MaterialCode);
             if (quantityLong > int.MaxValue ||
                 stack is not null && stack.Quantity > int.MaxValue - quantityLong ||
                 task.TotalQuantity > int.MaxValue - quantityLong || task.CompletedCycles > int.MaxValue - cycles)
@@ -141,9 +141,9 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             }
             var quantity = (int)quantityLong;
             if (stack is null)
-                db.UserWarehouseStacks.Add(new UserWarehouseStack
+                db.CharacterItemStacks.Add(new CharacterItemStack
                 {
-                    UserId = task.UserId, ItemCode = task.MaterialCode, Quantity = quantity
+                    CharacterId = task.CharacterId, ItemCode = task.MaterialCode, Quantity = quantity
                 });
             else
             {
@@ -182,8 +182,8 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         var opportunities = await db.CharacterGatheringOpportunities.AsNoTracking()
             .Where(item => item.CharacterId == character.Id)
             .ToDictionaryAsync(item => item.PointCode, item => item.AvailableCount);
-        var stacks = await db.UserWarehouseStacks.AsNoTracking()
-            .Where(item => item.UserId == user.Id)
+        var stacks = await db.CharacterItemStacks.AsNoTracking()
+            .Where(item => item.CharacterId == character.Id)
             .ToDictionaryAsync(item => item.ItemCode, item => item.Quantity);
         var tasks = await db.GatheringTasks.AsNoTracking()
             .Where(item => item.CharacterId == character.Id && item.UserId == user.Id)
@@ -201,7 +201,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 RegionName = world.Regions.Single(region => region.Code == point.RegionCode).Name,
                 MaterialCode = point.MaterialCode,
                 MaterialName = materials.FindItem(point.MaterialCode)!.Name,
-                WarehouseQuantity = stacks.GetValueOrDefault(point.MaterialCode),
+                CharacterQuantity = stacks.GetValueOrDefault(point.MaterialCode),
                 OutputQuantity = point.OutputQuantity, CycleSeconds = point.CycleSeconds,
                 MinimumCharacterLevel = point.MinimumCharacterLevel,
                 MinimumGatheringLevel = point.MinimumGatheringLevel,

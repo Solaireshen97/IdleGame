@@ -32,7 +32,7 @@ public class ShopServiceTests
         Assert.Equal(test.Character.Id, stack.CharacterId);
         Assert.Equal(5, stack.Quantity);
         Assert.Empty(await test.Db.CharacterItemStacks.Where(item => item.CharacterId == other.Id).ToListAsync());
-        Assert.Equal(1, test.User.Version);
+        Assert.Equal(0, test.User.Version);
         Assert.Equal(1, test.Character.Version);
     }
 
@@ -77,7 +77,7 @@ public class ShopServiceTests
             Assert.Null(response);
             Assert.Equal(expectedError, error);
         }
-        Assert.Equal(100, test.User.Gold);
+        Assert.Equal(100, test.Character.Gold);
         Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
         Assert.Empty(await test.Db.CharacterWeapons.ToListAsync());
 
@@ -92,14 +92,14 @@ public class ShopServiceTests
         });
         Assert.Null(limitResponse);
         Assert.Equal("InventoryLimitReached", limitError);
-        Assert.Equal(100, test.User.Gold);
+        Assert.Equal(100, test.Character.Gold);
     }
 
     [Fact]
     public async Task StaleWalletPurchaseRollsBackDelivery()
     {
         await using var test = await ShopTestContext.CreateAsync();
-        test.User.Gold = 45;
+        test.Character.Gold = 45;
         await test.Db.SaveChangesAsync();
         await using var firstDb = test.CreateDbContext();
         await using var secondDb = test.CreateDbContext();
@@ -117,12 +117,12 @@ public class ShopServiceTests
         Assert.Null(secondResponse);
         Assert.Equal("ConcurrencyConflict", secondError);
         await using var verification = test.CreateDbContext();
-        Assert.Equal(0, (await verification.Users.SingleAsync()).Gold);
+        Assert.Equal(0, (await verification.Characters.SingleAsync()).Gold);
         Assert.Single(await verification.CharacterWeapons.ToListAsync());
     }
 
     [Fact]
-    public async Task ShopViewFollowsSelectedCharacterAndKeepsSharedWallet()
+    public async Task ShopViewFollowsSelectedCharacterAndKeepsGoldSeparate()
     {
         await using var test = await ShopTestContext.CreateAsync();
         var second = new Character { UserId = 1, Name = "Mage", Hp = 100, MaxHp = 100, Attack = 8};
@@ -139,7 +139,8 @@ public class ShopServiceTests
 
         Assert.Null(error);
         Assert.Equal(second.Id, view!.CharacterId);
-        Assert.Equal(90, view.Gold);
+        Assert.Equal(0, view.Gold);
+        Assert.Equal(90, test.Character.Gold);
         Assert.Equal(0, view.Items.Single(item => item.Code == "minor-healing-potion").OwnedQuantity);
     }
 
@@ -199,8 +200,8 @@ public class ShopServiceTests
             var options = new DbContextOptionsBuilder<GameDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options;
             var db = new GameDbContext(options);
             await db.Database.EnsureCreatedAsync();
-            var user = new User { Id = 1, UserName = "shopper", PasswordHash = "x", ActiveCharacterId = 1, Gold = 100 };
-            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
+            var user = new User { Id = 1, UserName = "shopper", PasswordHash = "x", ActiveCharacterId = 1 };
+            var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20, Gold = 100};
             db.AddRange(user, character, new UserLoginSession
             {
                 UserId = 1, Token = "shop-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1)

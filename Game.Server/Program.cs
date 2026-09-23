@@ -35,7 +35,6 @@ builder.Services.AddScoped<ConsumableService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<WeaponService>();
 builder.Services.AddScoped<ShopService>();
-builder.Services.AddScoped<WarehouseService>();
 builder.Services.AddScoped<GatheringService>();
 builder.Services.AddScoped<ProductionService>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));

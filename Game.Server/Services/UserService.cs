@@ -38,7 +38,6 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         var user = new User
         {
             UserName = userName,
-            Gold = weaponCatalog?.StartingAccountGold ?? 0,
             CharacterSlotLimit = CharacterSlots.InitialSlots
         };
         user.PasswordHash = PasswordHasher.HashPassword(user, request.Password);
@@ -49,6 +48,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         await dbContext.SaveChangesAsync();
 
         var character = CreateCharacterEntity(user.Id, "剑士", SkillRules.DefaultProfessionCode);
+        character.Gold = weaponCatalog?.StartingCharacterGold ?? 0;
         dbContext.Characters.Add(character);
 
         var session = CreateSession(user.Id);
@@ -105,11 +105,12 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         }
 
         var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user.Id);
+        var activeCharacter = await ResolveActiveCharacterAsync(user);
         return (new CurrentUserResponse
         {
             UserId = user.Id,
             UserName = user.UserName,
-            Gold = user.Gold,
+            Gold = activeCharacter?.Gold ?? 0,
             CharacterCount = characterCount,
             CharacterSlotLimit = user.CharacterSlotLimit,
             MaximumCharacterSlots = CharacterSlots.MaximumSlots,
