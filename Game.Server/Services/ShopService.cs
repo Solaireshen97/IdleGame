@@ -163,7 +163,9 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
                     OwnedQuantity = consumable is not null
                         ? stocks.FirstOrDefault(item => item.ItemCode == product.Code)?.Quantity ?? 0
                         : ownedWeapons.GetValueOrDefault(product.Code),
-                    HealAmount = consumable is null ? null : ConsumableCatalog.HealAmountFor(consumable, TalentRules.EffectiveMaxHp(character)), CooldownRounds = consumable?.CooldownRounds,
+                    HealAmount = consumable is { Kind: "Healing" } ? ConsumableCatalog.HealAmountFor(consumable, TalentRules.EffectiveMaxHp(character)) : null,
+                    AttackPercent = consumable is { Kind: "OperationPotion" } ? consumable.AttackPercent : null,
+                    CooldownRounds = consumable is { Kind: "Healing" } ? consumable.CooldownRounds : null,
                     Element = weapon?.Element, Attack = weapon?.Attack, MaxHp = weapon?.MaxHp,
                     WeaponSkills = BuildWeaponSkills(weapon)
                 };

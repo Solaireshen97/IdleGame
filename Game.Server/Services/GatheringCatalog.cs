@@ -17,6 +17,8 @@ public sealed class GatheringCatalog
                 !_points.TryAdd(point.Code, point) ||
                 !world.Regions.Any(region => region.Code == point.RegionCode) ||
                 materials.FindItem(point.MaterialCode) is null ||
+                point.BonusMaterialCode is not null && (!point.IsRare ||
+                    point.BonusMaterialCode == point.MaterialCode || materials.FindItem(point.BonusMaterialCode) is null) ||
                 point.CycleSeconds is < 1 or > 3600 || point.OutputQuantity <= 0 || point.RequiredCount <= 0 ||
                 point.MinimumCharacterLevel <= 0 || point.MinimumGatheringLevel <= 0 || dungeon is null ||
                 point.UnlockKind is not ("MonsterKill" or "DungeonClear") ||

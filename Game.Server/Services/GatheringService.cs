@@ -8,8 +8,11 @@ using Microsoft.Extensions.Options;
 namespace Game.Server.Services;
 
 public sealed class GatheringService(GameDbContext db, UserService users, GatheringCatalog catalog,
-    WorldCatalog world, MaterialCatalog materials, IOptions<ActivityOptions> activities)
+    WorldCatalog world, MaterialCatalog materials, IOptions<ActivityOptions> activities,
+    ProfessionCatalog? professions = null)
 {
+    private readonly ProfessionCatalog progression = professions ?? ProfessionCatalog.Default;
+
     public async Task<(GatheringOverviewResponse? Response, string? Error)> GetAsync(string? token)
     {
         var (user, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
@@ -35,18 +38,27 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 item.CharacterId == character.Id && item.PointCode == point.Code && item.AvailableCount > 0))
             return (null, "NoGatheringOpportunity");
 
+        var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
+            item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.GatheringCode).ToListAsync();
+        var cycleSeconds = Math.Max(1, point.CycleSeconds - progression.EffectValue(talents,
+            ProfessionCatalog.GatheringCode, "CycleReductionSeconds"));
         var now = DateTime.UtcNow;
         var hours = Math.Clamp(activities.Value.MaximumHours, 1, 12);
         var deadline = now.AddHours(hours);
-        var cycleTicks = TimeSpan.FromSeconds(point.CycleSeconds).Ticks;
+        var cycleTicks = TimeSpan.FromSeconds(cycleSeconds).Ticks;
         var cycleCount = point.IsRare ? 1 : (deadline.Ticks - now.Ticks + cycleTicks - 1) / cycleTicks;
         var task = new GatheringTask
         {
             UserId = user!.Id, CharacterId = character.Id, PointCode = point.Code,
-            MaterialCode = point.MaterialCode, IsRare = point.IsRare, CycleSeconds = point.CycleSeconds,
+            MaterialCode = point.MaterialCode, IsRare = point.IsRare, CycleSeconds = cycleSeconds,
             OutputQuantity = point.OutputQuantity,
+            ExtraYieldChancePercent = point.IsRare ? 0 : progression.EffectValue(talents,
+                ProfessionCatalog.GatheringCode, "ExtraYieldChancePercent"),
+            RareBonusChancePercent = point.IsRare ? progression.EffectValue(talents,
+                ProfessionCatalog.GatheringCode, "RareBonusChancePercent") : 0,
+            BonusMaterialCode = point.IsRare ? point.BonusMaterialCode : null,
             StartedAtUtc = now, EndsAtUtc = now.AddTicks(cycleCount * cycleTicks),
-            NextCycleAtUtc = now.AddSeconds(point.CycleSeconds)
+            NextCycleAtUtc = now.AddSeconds(cycleSeconds)
         };
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
@@ -127,12 +139,29 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 await ReleaseActivityAsync(task);
                 return;
             }
-            var quantityLong = (long)cycles * task.OutputQuantity;
+            if (task.CompletedCycles > int.MaxValue - cycles)
+            {
+                task.Status = "InventoryFull";
+                task.StoppedAtUtc = now;
+                await ReleaseActivityAsync(task);
+                return;
+            }
+            var extra = 0;
+            for (var cycle = 1; cycle <= cycles; cycle++)
+                if (ProfessionRoll.Succeeds(task.Id, task.CompletedCycles + cycle, 1,
+                    task.ExtraYieldChancePercent)) extra++;
+            var bonus = task.IsRare && task.BonusMaterialCode is not null &&
+                ProfessionRoll.Succeeds(task.Id, task.CompletedCycles + 1, 2,
+                    task.RareBonusChancePercent) ? 1 : 0;
+            var quantityLong = (long)cycles * task.OutputQuantity + extra;
             var stack = await db.CharacterItemStacks.SingleOrDefaultAsync(item =>
                 item.CharacterId == task.CharacterId && item.ItemCode == task.MaterialCode);
+            var bonusStack = bonus > 0 ? await db.CharacterItemStacks.SingleOrDefaultAsync(item =>
+                item.CharacterId == task.CharacterId && item.ItemCode == task.BonusMaterialCode) : null;
             if (quantityLong > int.MaxValue ||
                 stack is not null && stack.Quantity > int.MaxValue - quantityLong ||
-                task.TotalQuantity > int.MaxValue - quantityLong || task.CompletedCycles > int.MaxValue - cycles)
+                task.TotalQuantity > int.MaxValue - quantityLong || task.ExtraYieldQuantity > int.MaxValue - extra ||
+                bonus > 0 && (bonusStack?.Quantity == int.MaxValue || task.BonusQuantity == int.MaxValue))
             {
                 task.Status = "InventoryFull";
                 task.StoppedAtUtc = now;
@@ -150,9 +179,28 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 stack.Quantity += quantity;
                 stack.Version++;
             }
+            if (bonus > 0)
+            {
+                if (bonusStack is null)
+                    db.CharacterItemStacks.Add(new CharacterItemStack
+                    {
+                        CharacterId = task.CharacterId, ItemCode = task.BonusMaterialCode!, Quantity = bonus
+                    });
+                else
+                {
+                    bonusStack.Quantity += bonus;
+                    bonusStack.Version++;
+                }
+                task.BonusQuantity += bonus;
+            }
             task.CompletedCycles += cycles;
             task.TotalQuantity += quantity;
+            task.ExtraYieldQuantity += extra;
             task.NextCycleAtUtc = task.NextCycleAtUtc.AddSeconds((long)cycles * task.CycleSeconds);
+            var character = await db.Characters.FindAsync(task.CharacterId);
+            if (character is not null)
+                progression.GrantExperience(character, ProfessionCatalog.GatheringCode,
+                    (long)cycles * (task.IsRare ? progression.RareGatheringExperiencePerCycle : progression.GatheringExperiencePerCycle));
             if (opportunity is not null)
             {
                 opportunity.AvailableCount--;
@@ -177,6 +225,10 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
 
     private async Task<GatheringOverviewResponse> BuildResponseAsync(User user, Character character)
     {
+        var profession = await progression.BuildProgressAsync(db, character, ProfessionCatalog.GatheringCode);
+        var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
+            item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.GatheringCode).ToListAsync();
+        var cycleReduction = progression.EffectValue(talents, ProfessionCatalog.GatheringCode, "CycleReductionSeconds");
         var milestones = await db.CharacterBattleMilestones.AsNoTracking()
             .Where(item => item.CharacterId == character.Id).ToListAsync();
         var opportunities = await db.CharacterGatheringOpportunities.AsNoTracking()
@@ -202,7 +254,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 MaterialCode = point.MaterialCode,
                 MaterialName = materials.FindItem(point.MaterialCode)!.Name,
                 CharacterQuantity = stacks.GetValueOrDefault(point.MaterialCode),
-                OutputQuantity = point.OutputQuantity, CycleSeconds = point.CycleSeconds,
+                OutputQuantity = point.OutputQuantity, CycleSeconds = Math.Max(1, point.CycleSeconds - cycleReduction),
                 MinimumCharacterLevel = point.MinimumCharacterLevel,
                 MinimumGatheringLevel = point.MinimumGatheringLevel,
                 UnlockDescription = point.UnlockKind == BattleMilestoneService.MonsterKillKind
@@ -224,13 +276,17 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
                 Status = task.Status, StartedAtUtc = task.StartedAtUtc, EndsAtUtc = task.EndsAtUtc,
                 NextCycleAtUtc = task.NextCycleAtUtc, StoppedAtUtc = task.StoppedAtUtc,
                 CycleSeconds = task.CycleSeconds, CompletedCycles = task.CompletedCycles,
-                TotalQuantity = task.TotalQuantity
+                TotalQuantity = task.TotalQuantity,
+                ExtraYieldQuantity = task.ExtraYieldQuantity,
+                BonusMaterialName = materials.FindItem(task.BonusMaterialCode)?.Name,
+                BonusQuantity = task.BonusQuantity
             };
         }
         return new GatheringOverviewResponse
         {
             CharacterId = character.Id, CharacterName = character.Name, ServerTimeUtc = DateTime.UtcNow,
             GatheringLevel = character.GatheringLevel,
+            Profession = profession,
             Points = points,
             ActiveTask = tasks.FirstOrDefault(task => task.Status == "Running") is { } active ? Map(active) : null,
             RecentTasks = tasks.Where(task => task.Status != "Running").Take(5).Select(Map).ToList()

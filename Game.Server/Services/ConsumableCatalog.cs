@@ -16,8 +16,12 @@ public sealed class ConsumableCatalog
         foreach (var item in settings.Items)
         {
             if (string.IsNullOrWhiteSpace(item.Code) || string.IsNullOrWhiteSpace(item.Name) ||
-                string.IsNullOrWhiteSpace(item.CooldownGroup) || item.HealAmount < 0 || item.CooldownRounds < 0 ||
-                item.HealMaxHpPercent is < 0 or > 100 || item.HealAmount == 0 && item.HealMaxHpPercent == 0 ||
+                item.Kind is not ("Healing" or "OperationPotion") || item.HealAmount < 0 || item.CooldownRounds < 0 ||
+                item.HealMaxHpPercent is < 0 or > 100 || item.AttackPercent is < 0 or > 100 ||
+                item.Kind == "Healing" && (string.IsNullOrWhiteSpace(item.CooldownGroup) ||
+                    item.HealAmount == 0 && item.HealMaxHpPercent == 0 || item.AttackPercent != 0) ||
+                item.Kind == "OperationPotion" && (item.AttackPercent == 0 || item.HealAmount != 0 ||
+                    item.HealMaxHpPercent != 0 || item.CooldownRounds != 0) ||
                 !_items.TryAdd(item.Code, item))
                 throw new InvalidOperationException($"Invalid consumable item configuration: {item.Code}");
             item.CooldownGroup = item.CooldownGroup.Trim().ToLowerInvariant();

@@ -42,9 +42,13 @@
                 <div class="production-active__top"><span>正在生产</span><span>12 小时后完成当前轮</span></div>
                 <h2>@task.RecipeName</h2>
                 <p>每 @task.CycleSeconds 秒制作一轮；结算时才扣当前角色背包材料。关闭网页后，服务器继续生产。</p>
+                @if (task.SavedIngredientQuantity > 0)
+                {
+                    <p>累计节省首种原料 @task.SavedIngredientQuantity 份。</p>
+                }
                 <div class="production-active__metrics">
                     <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
-                    <div><small>累计产出</small><strong>@task.TotalQuantity <em>瓶</em></strong></div>
+                    <div><small>累计产出 · 额外 @task.ExtraYieldQuantity</small><strong>@task.TotalQuantity <em>瓶</em></strong></div>
                     <div><small>剩余时限</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
                 </div>
                 <div class="production-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
@@ -54,6 +58,8 @@
                 <button class="production-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止生产并结算</button>
             </section>
         }
+
+        <ProfessionTalentBoard Progress="_overview.Profession" OnSpend="SpendTalentAsync" OnReset="ResetTalentsAsync" IsBusy="_isBusy" />
 
         <section class="production-recipes" aria-label="炼金配方">
             <div class="production-section-title"><span>RECIPES</span><h2>炼金配方</h2></div>
@@ -98,7 +104,7 @@
                 <div class="production-section-title"><span>RECENT RUNS</span><h2>最近生产</h2></div>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="production-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity</strong></div>
+                    <div class="production-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.SavedIngredientQuantity > 0 ? $" · 节省原料 {completed.SavedIngredientQuantity}" : "")</strong></div>
                 }
             </section>
         }
@@ -188,6 +194,33 @@
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
         finally { _isBusy = false; }
+    }
+
+    private async Task SpendTalentAsync(string nodeCode) => await ChangeTalentsAsync(nodeCode);
+    private async Task ResetTalentsAsync() => await ChangeTalentsAsync(null);
+
+    private async Task ChangeTalentsAsync(string? nodeCode)
+    {
+        if (_isBusy || _overview is null) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var characterId = _overview.CharacterId;
+            var (progress, error) = nodeCode is null
+                ? await ApiService.ResetProfessionTalentsAsync("Alchemy")
+                : await ApiService.SpendProfessionTalentAsync("Alchemy", nodeCode);
+            if (characterId != ActiveCharacters.Current?.CharacterId) return;
+            if (error is not null) _notice = error;
+            else if (progress is not null)
+            {
+                _overview.Profession = progress;
+                _notice = nodeCode is null ? "炼金天赋已重置，点数已返还。" : "炼金天赋已升级，新任务会使用新效果。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认天赋状态。"; }
+        finally { _isBusy = false; }
+        await LoadAsync();
     }
 
     private async Task StopAsync(int taskId)

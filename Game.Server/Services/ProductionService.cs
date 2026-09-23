@@ -10,8 +10,10 @@ namespace Game.Server.Services;
 
 public sealed class ProductionService(GameDbContext db, UserService users, ProductionCatalog catalog,
     WorldCatalog world, MaterialCatalog materials, ConsumableCatalog consumables,
-    IOptions<ActivityOptions> activities)
+    IOptions<ActivityOptions> activities, ProfessionCatalog? professions = null)
 {
+    private readonly ProfessionCatalog progression = professions ?? ProfessionCatalog.Default;
+
     public async Task<(ProductionOverviewResponse? Response, string? Error)> GetAsync(string? token)
     {
         var (user, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
@@ -41,18 +43,26 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         if (recipe.Ingredients.Any(item => stocks.GetValueOrDefault(item.Code) < item.Quantity))
             return (null, "InsufficientMaterials");
 
+        var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
+            item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.AlchemyCode).ToListAsync();
+        var cycleSeconds = Math.Max(1, recipe.CycleSeconds - progression.EffectValue(talents,
+            ProfessionCatalog.AlchemyCode, "CycleReductionSeconds"));
         var now = DateTime.UtcNow;
         var deadline = now.AddHours(Math.Clamp(activities.Value.MaximumHours, 1, 12));
-        var cycleTicks = TimeSpan.FromSeconds(recipe.CycleSeconds).Ticks;
+        var cycleTicks = TimeSpan.FromSeconds(cycleSeconds).Ticks;
         var cycleCount = (deadline.Ticks - now.Ticks + cycleTicks - 1) / cycleTicks;
         var task = new ProductionTask
         {
             UserId = user.Id, CharacterId = character.Id, RecipeCode = recipe.Code,
             OutputCode = recipe.OutputCode, OutputQuantity = recipe.OutputQuantity,
+            ExtraYieldChancePercent = progression.EffectValue(talents,
+                ProfessionCatalog.AlchemyCode, "ExtraYieldChancePercent"),
+            IngredientSaveChancePercent = progression.EffectValue(talents,
+                ProfessionCatalog.AlchemyCode, "IngredientSaveChancePercent"),
             IngredientsJson = JsonSerializer.Serialize(recipe.Ingredients),
-            CycleSeconds = recipe.CycleSeconds, StartedAtUtc = now,
+            CycleSeconds = cycleSeconds, StartedAtUtc = now,
             EndsAtUtc = now.AddTicks(cycleCount * cycleTicks),
-            NextCycleAtUtc = now.AddSeconds(recipe.CycleSeconds)
+            NextCycleAtUtc = now.AddSeconds(cycleSeconds)
         };
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
@@ -129,37 +139,70 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 .ToDictionaryAsync(item => item.ItemCode);
             var output = await db.CharacterItemStacks.SingleOrDefaultAsync(item =>
                 item.CharacterId == task.CharacterId && item.ItemCode == task.OutputCode);
-            var inputCapacity = ingredients.Min(item =>
-                inputs.GetValueOrDefault(item.Code)?.Quantity / item.Quantity ?? 0);
-            var outputCapacity = Math.Min((long)int.MaxValue - (output?.Quantity ?? 0),
-                (long)int.MaxValue - task.TotalQuantity) / task.OutputQuantity;
-            var cycles = (int)Math.Min(due, Math.Min(inputCapacity, outputCapacity));
+            var cycles = 0;
+            var produced = 0;
+            var extraProduced = 0;
+            var saved = 0;
+            var stopReason = "MaterialShortage";
+            for (var cycle = 0; cycle < due; cycle++)
+            {
+                if (task.CompletedCycles > int.MaxValue - cycle - 1 ||
+                    task.SavedIngredientQuantity > int.MaxValue - saved - 1 ||
+                    task.ExtraYieldQuantity > int.MaxValue - extraProduced - 1)
+                {
+                    stopReason = "InventoryFull";
+                    break;
+                }
+                if (ingredients.Any(item => (inputs.GetValueOrDefault(item.Code)?.Quantity ?? 0) < item.Quantity))
+                    break;
+                var extra = ProfessionRoll.Succeeds(task.Id, task.CompletedCycles + cycle + 1, 3,
+                    task.ExtraYieldChancePercent) ? 1 : 0;
+                var nextOutput = (long)task.OutputQuantity + extra;
+                if (nextOutput > int.MaxValue - (long)(output?.Quantity ?? 0) - produced ||
+                    nextOutput > int.MaxValue - (long)task.TotalQuantity - produced)
+                {
+                    stopReason = "InventoryFull";
+                    break;
+                }
+                foreach (var ingredient in ingredients)
+                    inputs[ingredient.Code].Quantity -= ingredient.Quantity;
+                if (ProfessionRoll.Succeeds(task.Id, task.CompletedCycles + cycle + 1, 4,
+                    task.IngredientSaveChancePercent))
+                {
+                    inputs[ingredients[0].Code].Quantity++;
+                    saved++;
+                }
+                produced += (int)nextOutput;
+                extraProduced += extra;
+                cycles++;
+            }
             if (cycles > 0)
             {
                 foreach (var ingredient in ingredients)
-                {
-                    var stack = inputs[ingredient.Code];
-                    stack.Quantity -= cycles * ingredient.Quantity;
-                    stack.Version++;
-                }
-                var quantity = cycles * task.OutputQuantity;
+                    inputs[ingredient.Code].Version++;
                 if (output is null)
                     db.CharacterItemStacks.Add(new CharacterItemStack
                     {
-                        CharacterId = task.CharacterId, ItemCode = task.OutputCode, Quantity = quantity
+                        CharacterId = task.CharacterId, ItemCode = task.OutputCode, Quantity = produced
                     });
                 else
                 {
-                    output.Quantity += quantity;
+                    output.Quantity += produced;
                     output.Version++;
                 }
                 task.CompletedCycles += cycles;
-                task.TotalQuantity += quantity;
+                task.TotalQuantity += produced;
+                task.ExtraYieldQuantity += extraProduced;
+                task.SavedIngredientQuantity += saved;
                 task.NextCycleAtUtc = task.NextCycleAtUtc.AddSeconds((long)cycles * task.CycleSeconds);
+                var character = await db.Characters.FindAsync(task.CharacterId);
+                if (character is not null)
+                    progression.GrantExperience(character, ProfessionCatalog.AlchemyCode,
+                        (long)cycles * progression.AlchemyExperiencePerCycle);
             }
             if (cycles < due)
             {
-                task.Status = inputCapacity <= outputCapacity ? "MaterialShortage" : "InventoryFull";
+                task.Status = stopReason;
                 task.StoppedAtUtc = task.NextCycleAtUtc;
                 await ReleaseActivityAsync(task);
                 return;
@@ -182,6 +225,10 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
 
     private async Task<ProductionOverviewResponse> BuildResponseAsync(User user, Character character)
     {
+        var profession = await progression.BuildProgressAsync(db, character, ProfessionCatalog.AlchemyCode);
+        var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
+            item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.AlchemyCode).ToListAsync();
+        var cycleReduction = progression.EffectValue(talents, ProfessionCatalog.AlchemyCode, "CycleReductionSeconds");
         var milestones = await db.CharacterBattleMilestones.AsNoTracking()
             .Where(item => item.CharacterId == character.Id).ToListAsync();
         var bag = await db.CharacterItemStacks.AsNoTracking()
@@ -202,7 +249,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 OutputName = consumables.FindItem(recipe.OutputCode)!.Name,
                 OutputQuantity = recipe.OutputQuantity,
                 CharacterQuantity = bag.GetValueOrDefault(recipe.OutputCode),
-                CycleSeconds = recipe.CycleSeconds,
+                CycleSeconds = Math.Max(1, recipe.CycleSeconds - cycleReduction),
                 MinimumCharacterLevel = recipe.MinimumCharacterLevel,
                 MinimumAlchemyLevel = recipe.MinimumAlchemyLevel,
                 UnlockDescription = recipe.UnlockKind == BattleMilestoneService.MonsterKillKind
@@ -227,12 +274,14 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
             Status = task.Status, CycleSeconds = task.CycleSeconds,
             StartedAtUtc = task.StartedAtUtc, EndsAtUtc = task.EndsAtUtc,
             NextCycleAtUtc = task.NextCycleAtUtc, StoppedAtUtc = task.StoppedAtUtc,
-            CompletedCycles = task.CompletedCycles, TotalQuantity = task.TotalQuantity
+            CompletedCycles = task.CompletedCycles, TotalQuantity = task.TotalQuantity,
+            ExtraYieldQuantity = task.ExtraYieldQuantity,
+            SavedIngredientQuantity = task.SavedIngredientQuantity
         };
         return new ProductionOverviewResponse
         {
             CharacterId = character.Id, CharacterName = character.Name,
-            AlchemyLevel = character.AlchemyLevel, ServerTimeUtc = DateTime.UtcNow,
+            AlchemyLevel = character.AlchemyLevel, Profession = profession, ServerTimeUtc = DateTime.UtcNow,
             Recipes = recipes,
             ActiveTask = tasks.FirstOrDefault(task => task.Status == "Running") is { } active ? Map(active) : null,
             RecentTasks = tasks.Where(task => task.Status != "Running").Take(5).Select(Map).ToList()

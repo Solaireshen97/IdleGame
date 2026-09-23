@@ -1,0 +1,53 @@
+@using Game.Shared.Dtos.Professions
+
+<section class="profession-board" aria-label="@($"{Progress.ProfessionName}天赋")">
+    <header class="profession-board__header">
+        <div>
+            <span class="profession-board__eyebrow">PROFESSION TALENTS</span>
+            <h2>@Progress.ProfessionName · 专业天赋</h2>
+            <p>完成每轮工作获得专业经验；升级获得 1 点该专业天赋点。</p>
+        </div>
+        <div class="profession-board__points"><small>可用天赋点</small><strong>@Progress.AvailableTalentPoints</strong></div>
+    </header>
+
+    <div class="profession-board__experience">
+        <span>Lv.@Progress.Level</span>
+        <div class="profession-board__track" role="progressbar" aria-label="专业升级进度" aria-valuemin="0"
+             aria-valuemax="@(Progress.ExperienceToNextLevel ?? 1)" aria-valuenow="@(Progress.ExperienceToNextLevel is null ? 1 : Progress.Experience)">
+            <span style="width: @(Progress.ExperienceToNextLevel is > 0 ? Math.Clamp(100.0 * Progress.Experience / Progress.ExperienceToNextLevel.Value, 0, 100) : 100)%"></span>
+        </div>
+        <span>@(Progress.ExperienceToNextLevel is int next ? $"{Progress.Experience} / {next}" : "MAX")</span>
+    </div>
+
+    <div class="profession-board__nodes">
+        @foreach (var node in Progress.Nodes)
+        {
+            <article class="profession-board__node @(node.Rank > 0 ? "profession-board__node--active" : "")">
+                <div class="profession-board__node-head"><small>第 @node.Tier 层</small><strong>@node.Rank / @node.MaxRank</strong></div>
+                <h3>@node.Name</h3>
+                <p>@node.Description</p>
+                <div class="profession-board__rank" aria-label="@($"{node.Name} {node.Rank} 级")">
+                    @for (var rank = 0; rank < node.MaxRank; rank++)
+                    {
+                        <span class="@(rank < node.Rank ? "profession-board__rank--filled" : "")"></span>
+                    }
+                </div>
+                <div class="profession-board__node-foot">
+                    <small>@(node.LockReason ?? (node.PrerequisiteName is null ? $"需要 Lv.{node.MinimumLevel}" : $"前置：{node.PrerequisiteName} {node.PrerequisiteRank} 级"))</small>
+                    <button type="button" @onclick="() => OnSpend.InvokeAsync(node.Code)" disabled="@(IsBusy || !node.CanPurchase)">加点 +</button>
+                </div>
+            </article>
+        }
+    </div>
+    @if (Progress.Nodes.Any(node => node.Rank > 0))
+    {
+        <div class="profession-board__footer"><span>重置后返还该专业的已投入点数。进行中的工作保留开始时的天赋效果。</span><button type="button" @onclick="() => OnReset.InvokeAsync()" disabled="@IsBusy">重置加点</button></div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public ProfessionProgressResponse Progress { get; set; } = new();
+    [Parameter] public EventCallback<string> OnSpend { get; set; }
+    [Parameter] public EventCallback OnReset { get; set; }
+    [Parameter] public bool IsBusy { get; set; }
+}

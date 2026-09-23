@@ -15,6 +15,48 @@ public sealed class ProductionServiceTests
     private const string HerbCode = "peacebloom";
 
     [Fact]
+    public async Task AlchemyLevelsIndependentlyAndIngredientSavingUsesTaskSnapshot()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(4);
+        var catalog = ProfessionTestFactory.Create();
+        var service = test.NewService(test.Db, catalog);
+        var first = await service.StartAsync(test.Token,
+            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        Assert.Null(first.Error);
+        var initial = first.Response!.ActiveTask!;
+        Assert.Null(await service.AdvanceDueAsync(initial.Id, initial.StartedAtUtc.AddSeconds(20)));
+        Assert.Equal(2, test.First.AlchemyLevel);
+        Assert.Equal(1, test.First.AlchemyTalentPoints);
+        Assert.Equal(1, test.Second.AlchemyLevel);
+        Assert.Null((await service.StopAsync(test.Token, initial.Id)).Error);
+
+        catalog.GrantExperience(test.First, ProfessionCatalog.AlchemyCode, 10);
+
+        var talents = new ProfessionService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), catalog);
+        Assert.Null((await talents.SpendAsync(test.Token, ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
+        Assert.Null((await talents.SpendAsync(test.Token, ProfessionCatalog.AlchemyCode, "alchemy-yield")).Error);
+        var herb = await test.Db.CharacterItemStacks.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.ItemCode == HerbCode);
+        herb.Quantity = 3;
+        herb.Version++;
+        await test.Db.SaveChangesAsync();
+        var second = await service.StartAsync(test.Token,
+            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        Assert.Null(second.Error);
+        var enhanced = second.Response!.ActiveTask!;
+        Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.IngredientSaveChancePercent);
+        Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.ExtraYieldChancePercent);
+        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
+        Assert.Null(await service.AdvanceDueAsync(enhanced.Id, enhanced.StartedAtUtc.AddSeconds(20)));
+        var completed = (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!;
+        Assert.Equal(4, completed.TotalQuantity);
+        Assert.Equal(2, completed.ExtraYieldQuantity);
+        Assert.Equal(2, completed.SavedIngredientQuantity);
+        Assert.Equal(1, herb.Quantity);
+    }
+
+    [Fact]
     public async Task GatheredHerbsCanBeUsedForAlchemyWithoutAnyTransfer()
     {
         await using var test = await ProductionTestContext.CreateAsync(0);
@@ -235,10 +277,10 @@ public sealed class ProductionServiceTests
         public GameDbContext NewDbContext() => new(new DbContextOptionsBuilder<GameDbContext>()
             .UseSqlite($"Data Source={_path};Pooling=False").Options);
 
-        public ProductionService NewService(GameDbContext db) => new(db,
+        public ProductionService NewService(GameDbContext db, ProfessionCatalog? professions = null) => new(db,
             new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
             _catalog, _world, _materials, _consumables,
-            Options.Create(new ActivityOptions { MaximumHours = 12 }));
+            Options.Create(new ActivityOptions { MaximumHours = 12 }), professions);
 
         public GatheringService NewGatheringService()
         {

@@ -128,7 +128,7 @@ else
                                         @foreach (var effect in slot.StatusEffects.Take(3))
                                         {
                                             <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
-                                                  title="@($"{effect.Name} · {effect.RemainingRounds} 回合")"
+                                                  title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}")"
                                                   aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
                                         }
                                         @if (slot.StatusEffects.Count > 3)
@@ -328,7 +328,7 @@ else
                                     {
                                         <li class="status-detail status-detail--positive">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -552,6 +552,14 @@ else
                         <div class="battle-supplies__character" @key="characterSlot.CharacterId">
                             <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName</strong><span>HP @characterSlot.CharacterHp / @characterSlot.CharacterMaxHp</span></div>
                             <div class="battle-supplies__slots">
+                                @if (characterSlot.OperationPotion is { } operationPotion)
+                                {
+                                    <div class="battle-supply battle-supply--operation" title="作战药剂在本场首次结算时自动使用">
+                                        <span class="battle-supply__icon" aria-hidden="true">✦</span>
+                                        <span class="battle-supply__body"><strong>@(operationPotion.ItemName ?? "空作战药剂槽")</strong><small>@(operationPotion.ItemCode is null ? "前往补给页装备" : $"库存 {operationPotion.Quantity} · 每场 1 瓶")</small></span>
+                                        <span class="battle-supply__action">药剂</span>
+                                    </div>
+                                }
                                 @foreach (var supply in characterSlot.Consumables.OrderBy(supply => supply.SlotIndex))
                                 {
                                     var selected = characterSlot.PendingConsumableSlotIndex == supply.SlotIndex;
@@ -570,7 +578,7 @@ else
                         </div>
                     }
                 </div>
-                <p>手动使用将在下一次结算时触发，不占用攻击；自动用药与 Auto 自动准备分别设置。</p>
+                <p>普通消耗品可手动排队至下一次结算，不占用攻击；作战药剂在本场首次结算时自动使用。</p>
                 @if (_consumableMessage is not null) { <p class="battle-supplies__message" role="alert">@_consumableMessage</p> }
             </div>
             </div>
@@ -639,7 +647,7 @@ else
                     else
                     {
                         <div class="party-slot__identity"><h3>空槽位</h3><span>等待冒险者加入</span></div>
-                        @if (!IsOwner && !_roomDetail.CanLeaveRoom && CanChangeFormation)
+                        @if (!IsOwner && !_roomDetail.CanLeaveRoom && CanJoinRoom)
                         {
                             <button class="button button--secondary" @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
                         }
@@ -718,6 +726,9 @@ else
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
     private bool CanChangeFormation => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
         _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0;
+    private bool CanJoinRoom => _roomDetail?.ClosedAtUtc is null &&
+        (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.Cooldown ||
+         _roomDetail?.NextBattleStartAtUtc is not null);
 
     protected override async Task OnInitializedAsync()
     {
@@ -816,6 +827,7 @@ else
     private static string GetStatusEffectGlyph(BattleStatusEffectResponse effect)
     {
         var label = $"{effect.Code} {effect.Name}";
+        if (effect.Code.StartsWith("operation-potion:", StringComparison.OrdinalIgnoreCase)) return "✦";
         if (label.Contains("poison", StringComparison.OrdinalIgnoreCase) || label.Contains("毒", StringComparison.Ordinal)) return "☠";
         if (label.Contains("berserk", StringComparison.OrdinalIgnoreCase) || label.Contains("fury", StringComparison.OrdinalIgnoreCase) ||
             label.Contains("狂暴", StringComparison.Ordinal) || label.Contains("狂怒", StringComparison.Ordinal)) return "⚔";
@@ -823,6 +835,9 @@ else
         if (label.Contains("guard", StringComparison.OrdinalIgnoreCase) || label.Contains("shield", StringComparison.OrdinalIgnoreCase) || label.Contains("护盾", StringComparison.Ordinal)) return "◆";
         return effect.IsPositive ? "↑" : "↓";
     }
+
+    private static string GetStatusEffectDuration(BattleStatusEffectResponse effect) =>
+        effect.ExpiresWithRun ? "本场持续" : $"剩余 {effect.RemainingRounds} 回合";
 
     private async Task AssignSlotAsync(int slotIndex)
     {

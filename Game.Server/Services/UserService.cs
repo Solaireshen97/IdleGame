@@ -302,10 +302,12 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.CharacterItemStacks.RemoveRange(await dbContext.CharacterItemStacks.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterBattleMilestones.RemoveRange(await dbContext.CharacterBattleMilestones.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterGatheringOpportunities.RemoveRange(await dbContext.CharacterGatheringOpportunities.Where(item => item.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterProfessionTalents.RemoveRange(await dbContext.CharacterProfessionTalents.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.GatheringTasks.RemoveRange(await dbContext.GatheringTasks.Where(task => task.CharacterId == characterId).ToListAsync());
         dbContext.ProductionTasks.RemoveRange(await dbContext.ProductionTasks.Where(task => task.CharacterId == characterId).ToListAsync());
         dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
+        dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());

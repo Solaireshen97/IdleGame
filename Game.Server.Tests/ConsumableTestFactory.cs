@@ -17,6 +17,13 @@ internal static class ConsumableTestFactory
                 HealAmount = 20,
                 CooldownRounds = 3,
                 CooldownGroup = "healing"
+            },
+            new ConsumableItemOptions
+            {
+                Code = "northshire-battle-draught",
+                Name = "北郡战意药剂",
+                Kind = "OperationPotion",
+                AttackPercent = 15
             }
         ]
     }));

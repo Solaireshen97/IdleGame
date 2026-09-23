@@ -10,6 +10,11 @@ public sealed class GatheringTask
     public string MaterialCode { get; set; } = string.Empty;
     public int CycleSeconds { get; set; }
     public int OutputQuantity { get; set; }
+    public int ExtraYieldChancePercent { get; set; }
+    public int RareBonusChancePercent { get; set; }
+    public string? BonusMaterialCode { get; set; }
+    public int BonusQuantity { get; set; }
+    public int ExtraYieldQuantity { get; set; }
     public string Status { get; set; } = "Running";
     public DateTime StartedAtUtc { get; set; }
     public DateTime EndsAtUtc { get; set; }

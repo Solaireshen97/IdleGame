@@ -17,16 +17,34 @@ namespace Game.Server.Tests;
 public sealed class WorldContentTests
 {
     [Fact]
+    public void ProfessionProgressionConfigurationDefinesBothTreesAndRareBonusMaterials()
+    {
+        var content = new Content();
+        var professions = new ProfessionCatalog(content.Bind<ProfessionProgressionOptions>(ProfessionProgressionOptions.SectionName));
+        Assert.Equal(30, professions.ExperienceToNextLevel(1));
+        Assert.Null(professions.ExperienceToNextLevel(10));
+        Assert.Equal(3, content.Bind<ProfessionProgressionOptions>(ProfessionProgressionOptions.SectionName).Value.TalentNodes.Count(node =>
+            node.ProfessionCode == ProfessionCatalog.GatheringCode));
+        Assert.Equal(3, content.Bind<ProfessionProgressionOptions>(ProfessionProgressionOptions.SectionName).Value.TalentNodes.Count(node =>
+            node.ProfessionCode == ProfessionCatalog.AlchemyCode));
+        var gathering = new GatheringCatalog(content.Bind<GatheringOptions>(GatheringOptions.SectionName),
+            content.World, content.Materials);
+        Assert.All(gathering.Points.Where(point => point.IsRare), point => Assert.NotNull(point.BonusMaterialCode));
+    }
+
+    [Fact]
     public void ProductionRecipeUsesGatheredHerbsAndCharacterConsumable()
     {
         var content = new Content();
         var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
             content.World, content.Materials, content.Consumables);
-        var recipe = Assert.Single(production.Recipes);
+        var recipe = production.Recipes.Single(item => item.Code == "minor-healing-potion");
         Assert.Equal("minor-healing-potion", recipe.OutputCode);
         Assert.Equal(10, recipe.CycleSeconds);
         Assert.Equal("northshire-wolves", recipe.UnlockTargetCode);
         Assert.Equal(("peacebloom", 2), (Assert.Single(recipe.Ingredients).Code, recipe.Ingredients[0].Quantity));
+        var operationPotion = production.Recipes.Single(item => item.Code == "northshire-battle-draught");
+        Assert.Equal(("peacebloom", 3), (Assert.Single(operationPotion.Ingredients).Code, operationPotion.Ingredients[0].Quantity));
     }
 
     [Fact]

@@ -1,0 +1,16 @@
+.profession-board{padding:22px;border:1px solid #425c6f;border-radius:16px;background:#1a2b3b;color:#f2f6f7}
+.profession-board__header,.profession-board__node-head,.profession-board__node-foot,.profession-board__footer{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.profession-board__eyebrow,.profession-board__node-head small{font-size:.72rem;letter-spacing:.12em;color:#efc678;font-weight:700}
+.profession-board h2{margin:6px 0;font-size:1.45rem}.profession-board h3{margin:12px 0 6px;font-size:1.05rem}
+.profession-board p,.profession-board__footer span{margin:0;color:#b4c6d4;font-size:.9rem}
+.profession-board__points{min-width:92px;text-align:center;padding:9px 14px;border:1px solid #627585;border-radius:10px;background:#142333}
+.profession-board__points small{display:block;color:#b4c6d4}.profession-board__points strong{font-size:1.6rem;color:#efc678}
+.profession-board__experience{display:flex;align-items:center;gap:12px;margin:20px 0;color:#efc678;font-size:.84rem;font-weight:700}
+.profession-board__track{flex:1;height:7px;background:#10202d;border:1px solid #3e5567;border-radius:99px;overflow:hidden}.profession-board__track span{display:block;height:100%;background:linear-gradient(90deg,#d5a756,#f8df9a)}
+.profession-board__nodes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.profession-board__node{min-width:0;padding:16px;border:1px solid #3d5465;border-radius:12px;background:#142333}.profession-board__node--active{border-color:#d8ab5d;background:#213039}
+.profession-board__node-head strong{color:#bcd2de;font-size:.8rem}.profession-board__node p{min-height:42px}
+.profession-board__rank{display:flex;gap:5px;margin:14px 0}.profession-board__rank span{height:5px;flex:1;border-radius:4px;background:#3b5261}.profession-board__rank .profession-board__rank--filled{background:#efc678}
+.profession-board__node-foot small{color:#aebfca;line-height:1.35}.profession-board button{flex-shrink:0;border:1px solid #d8ad62;border-radius:8px;background:#d8ad62;color:#14202b;font-weight:700;padding:8px 11px;cursor:pointer}.profession-board button:disabled{opacity:.45;cursor:not-allowed}
+.profession-board__footer{margin-top:15px;padding-top:15px;border-top:1px solid #3d5465}.profession-board__footer button{background:transparent;color:#e6c481}
+@media(max-width:800px){.profession-board__nodes{grid-template-columns:1fr}.profession-board__node p{min-height:0}.profession-board__header,.profession-board__footer{align-items:flex-start}.profession-board__footer{flex-direction:column}}

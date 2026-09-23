@@ -12,7 +12,9 @@ public class ConsumableItemResponse
 {
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public string Kind { get; set; } = "Healing";
     public int HealAmount { get; set; }
+    public int AttackPercent { get; set; }
     public int CooldownRounds { get; set; }
     public int Quantity { get; set; }
 }

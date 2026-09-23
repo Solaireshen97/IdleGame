@@ -19,6 +19,9 @@
 .consumables-board__slot-card.active { border-color: #e0b15f; background: linear-gradient(155deg, rgba(224, 177, 95, .17), #152b3f 58%); box-shadow: 0 0 0 1px rgba(224, 177, 95, .24) inset; }
 .consumables-board__slot-card--empty { border-style: dashed; }
 .consumables-board__slot-card--dirty { border-color: #e0b15f; }
+.consumables-board__operation-heading { margin-top: 1rem; }
+.consumables-board__slot-card--operation { width: 100%; min-height: 78px; border-color: #8a7548; background: linear-gradient(125deg, #283a3c, #172737 68%); }
+.consumables-board__slot-card--operation .inventory-item__icon { border-color: #c2a05c; background: linear-gradient(145deg, #705831, #292d32); color: #f4d28a; }
 .consumables-board__slot-index { position: absolute; top: .35rem; left: .45rem; color: #9ab0bf; font-size: .625rem; font-weight: 800; letter-spacing: .08em; }
 .consumables-board__slot-card > span:nth-child(3) { display: grid; gap: .15rem; min-width: 0; }
 .consumables-board__slot-card strong { overflow: hidden; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }

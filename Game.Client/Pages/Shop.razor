@@ -133,12 +133,12 @@
                     var total = item.Price * quantity;
                     <article class="shop-item" @key="item.Code">
                         <div class="shop-item__top">
-                            <span class="shop-item__symbol" aria-hidden="true">@(item.Kind == "Weapon" ? "⚔" : "✚")</span>
-                            <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : "CONSUMABLE")</span>
+                            <span class="shop-item__symbol" aria-hidden="true">@(item.Kind == "Weapon" ? "⚔" : item.AttackPercent.HasValue ? "✦" : "✚")</span>
+                            <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : item.AttackPercent.HasValue ? "OPERATION POTION" : "CONSUMABLE")</span>
                         </div>
                         <h2>@item.Name</h2>
                         @if (item.Kind == "Consumable")
-                        { <p>恢复 @item.HealAmount HP · 冷却 @item.CooldownRounds 回合</p> }
+                        { <p>@(item.AttackPercent.HasValue ? $"作战药剂 · 整场攻击 +{item.AttackPercent}% · 每场消耗 1 瓶" : $"恢复 {item.HealAmount} HP · 冷却 {item.CooldownRounds} 回合")</p> }
                         else
                         {
                             <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>

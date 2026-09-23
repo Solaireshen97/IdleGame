@@ -9,6 +9,7 @@ public sealed class BattleStatusEffectResponse
     public bool CanDispel { get; set; }
     public int Stacks { get; set; }
     public int RemainingRounds { get; set; }
+    public bool ExpiresWithRun { get; set; }
 }
 
 public sealed class MonsterIntentResponse

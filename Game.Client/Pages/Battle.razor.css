@@ -861,9 +861,11 @@
 .battle-supplies__identity { flex: 0 0 150px; flex-direction: column; align-items: flex-start; gap: .1rem; min-width: 0; }
 .battle-supplies__identity strong { overflow: hidden; max-width: 100%; color: #e8eef3; font-size: .85rem; white-space: nowrap; text-overflow: ellipsis; }
 .battle-supplies__identity span { color: #a4b6c5; font-size: .7rem; white-space: nowrap; }
-.battle-supplies__slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: min(100%, 550px); }
+.battle-supplies__slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; width: min(100%, 720px); }
 .battle-supply { min-width: 0; border: 1px solid #486478; border-radius: .55rem; padding: .5rem .6rem; background: #13283a; color: #dce8ef; text-align: left; }
-.battle-supply:not(:disabled):hover { border-color: #d9b06d; background: #213d52; }
+button.battle-supply:not(:disabled):hover { border-color: #d9b06d; background: #213d52; }
+.battle-supply--operation { border-color: #806a43; background: #252d30; }
+.battle-supply--operation .battle-supply__icon { color: #efce87; background: rgba(205, 164, 93, .16); }
 .battle-supply--selected { border-color: #d4a861; background: #3a342e; }
 .battle-supply__icon { display: grid; place-items: center; flex: 0 0 1.8rem; height: 1.8rem; border-radius: .4rem; background: rgba(112, 194, 166, .16); color: #a7e0c5; font-size: 1.1rem; }
 .battle-supply__body { display: grid; gap: .1rem; flex: 1; min-width: 0; }
@@ -1440,7 +1442,7 @@
     transition: border-color .15s, background .15s, transform .15s;
 }
 
-.battle-supply:not(:disabled):active { transform: scale(.985); }
+button.battle-supply:not(:disabled):active { transform: scale(.985); }
 
 .battle-supply--selected {
     border-color: #e2b76e;
@@ -2092,6 +2094,7 @@
     .battle-skill-card__auto { inset: .22rem .08rem auto auto; padding: .1rem .18rem; font-size: .48rem; }
     .battle-skills > p, .battle-supplies > p { display: none; }
     .battle-supplies__slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .battle-supply--operation { grid-column: 1 / -1; }
     .battle-supply { min-height: 64px; padding: .45rem .5rem; }
     .battle-supply__action { font-size: .65rem; }
 

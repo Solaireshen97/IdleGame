@@ -37,6 +37,7 @@ builder.Services.AddScoped<WeaponService>();
 builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<GatheringService>();
 builder.Services.AddScoped<ProductionService>();
+builder.Services.AddScoped<ProfessionService>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
@@ -52,6 +53,7 @@ builder.Services.Configure<CharacterSlotOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<ActivityOptions>(builder.Configuration.GetSection(ActivityOptions.SectionName));
 builder.Services.Configure<GatheringOptions>(builder.Configuration.GetSection(GatheringOptions.SectionName));
 builder.Services.Configure<ProductionOptions>(builder.Configuration.GetSection(ProductionOptions.SectionName));
+builder.Services.Configure<ProfessionProgressionOptions>(builder.Configuration.GetSection(ProfessionProgressionOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
@@ -63,6 +65,7 @@ builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();
 builder.Services.AddSingleton<GatheringCatalog>();
 builder.Services.AddSingleton<ProductionCatalog>();
+builder.Services.AddSingleton<ProfessionCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<WorldCatalog>();
 builder.Services.AddSingleton<CharacterSlotCatalog>();
@@ -90,6 +93,7 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
     _ = scope.ServiceProvider.GetRequiredService<GatheringCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
+    _ = scope.ServiceProvider.GetRequiredService<ProfessionCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world);
 }
 

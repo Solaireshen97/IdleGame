@@ -29,7 +29,8 @@ public class ShopConfigurationTests
             configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!),
             materials, weapons);
 
-        Assert.Equal(7, catalog.Items.Count);
+        Assert.Equal(8, catalog.Items.Count);
+        Assert.Equal(15, consumables.FindItem("northshire-battle-draught")?.AttackPercent);
         Assert.Equal(2, characterSlots.InitialSlots);
         Assert.Equal(5, characterSlots.MaximumSlots);
         Assert.Equal(new[] { 500, 1500, 4000 }, characterSlots.UnlockCosts);

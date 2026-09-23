@@ -7,11 +7,48 @@ using Game.Shared.Dtos.Characters;
 using Game.Shared.Dtos.Shop;
 using Game.Shared.Dtos.Gathering;
 using Game.Shared.Dtos.Production;
+using Game.Shared.Dtos.Professions;
 
 namespace Game.Client.Services;
 
 public class ApiService(HttpClient httpClient, UserSessionService userSessionService)
 {
+    public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> SpendProfessionTalentAsync(
+        string professionCode, string nodeCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post,
+            $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/{Uri.EscapeDataString(nodeCode)}", requiresAuth: true);
+        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+    }
+
+    public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> ResetProfessionTalentsAsync(string professionCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post,
+            $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/reset", requiresAuth: true);
+        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+    }
+
+    private async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> ReadProfessionResultAsync(HttpResponseMessage response)
+    {
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.IsSuccessStatusCode)
+                return (await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>(), null);
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "ProfessionLevelTooLow" => "专业等级还未达到要求。",
+                "TalentPointsExhausted" => "当前没有可用的专业天赋点。",
+                "TalentAtMaximum" => "这个天赋已经达到上限。",
+                "TalentPrerequisiteMissing" => "请先点满要求的前置天赋等级。",
+                "ConcurrencyConflict" => "专业数据刚刚变化，请刷新后重试。",
+                "TalentNotFound" or "ProfessionNotFound" => "这个专业天赋已不存在，请刷新页面。",
+                _ => "加点失败，请稍后重试。"
+            });
+        }
+    }
+
     public async Task<ProductionOverviewResponse?> GetProductionAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/production", requiresAuth: true);

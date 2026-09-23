@@ -42,9 +42,13 @@
                 <div class="gathering-active__top"><span>@(task.IsRare ? "正在稀有采集" : "正在采集")</span><span>@(task.IsRare ? "完成本轮后消耗 1 次机会" : "12 小时后完成当前轮")</span></div>
                 <h2>@task.PointName</h2>
                 <p>@(task.IsRare ? $"本轮保底获得 {task.MaterialName}。中途停止不消耗机会。" : $"每轮收获 {task.MaterialName}。关闭网页后，服务器仍会继续结算。")</p>
+                @if (task.BonusQuantity > 0)
+                {
+                    <p>稀有附加产物：@task.BonusMaterialName × @task.BonusQuantity</p>
+                }
                 <div class="gathering-active__metrics">
                     <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
-                    <div><small>累计产出</small><strong>@task.TotalQuantity <em>株</em></strong></div>
+                    <div><small>累计产出 · 额外 @task.ExtraYieldQuantity</small><strong>@task.TotalQuantity <em>株</em></strong></div>
                     <div><small>@(task.IsRare ? "本轮剩余" : "剩余时限")</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
                 </div>
                 <div class="gathering-active__timer"><span>@(task.IsRare ? "本次采集" : "下一轮")</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
@@ -54,6 +58,8 @@
                 <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止采集并结算")</button>
             </section>
         }
+
+        <ProfessionTalentBoard Progress="_overview.Profession" OnSpend="SpendTalentAsync" OnReset="ResetTalentsAsync" IsBusy="_isBusy" />
 
         <section class="gathering-points" aria-label="采集地点">
             <div class="gathering-section-title"><span>GATHERING SITES</span><h2>采集地点</h2></div>
@@ -96,7 +102,7 @@
                 <div class="gathering-section-title"><span>RECENT RUNS</span><h2>最近采集</h2></div>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity</strong></div>
+                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.BonusQuantity > 0 ? $" · {completed.BonusMaterialName} × {completed.BonusQuantity}" : "")</strong></div>
                 }
             </section>
         }
@@ -186,6 +192,33 @@
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
         finally { _isBusy = false; }
+    }
+
+    private async Task SpendTalentAsync(string nodeCode) => await ChangeTalentsAsync(nodeCode);
+    private async Task ResetTalentsAsync() => await ChangeTalentsAsync(null);
+
+    private async Task ChangeTalentsAsync(string? nodeCode)
+    {
+        if (_isBusy || _overview is null) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var characterId = _overview.CharacterId;
+            var (progress, error) = nodeCode is null
+                ? await ApiService.ResetProfessionTalentsAsync("Gathering")
+                : await ApiService.SpendProfessionTalentAsync("Gathering", nodeCode);
+            if (characterId != ActiveCharacters.Current?.CharacterId) return;
+            if (error is not null) _notice = error;
+            else if (progress is not null)
+            {
+                _overview.Profession = progress;
+                _notice = nodeCode is null ? "采集天赋已重置，点数已返还。" : "采集天赋已升级，新任务会使用新效果。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认天赋状态。"; }
+        finally { _isBusy = false; }
+        await LoadAsync();
     }
 
     private async Task StopAsync(int taskId)

@@ -8,6 +8,10 @@ public sealed class ProductionTask
     public string RecipeCode { get; set; } = string.Empty;
     public string OutputCode { get; set; } = string.Empty;
     public int OutputQuantity { get; set; }
+    public int ExtraYieldChancePercent { get; set; }
+    public int IngredientSaveChancePercent { get; set; }
+    public int SavedIngredientQuantity { get; set; }
+    public int ExtraYieldQuantity { get; set; }
     public string IngredientsJson { get; set; } = string.Empty;
     public int CycleSeconds { get; set; }
     public string Status { get; set; } = "Running";

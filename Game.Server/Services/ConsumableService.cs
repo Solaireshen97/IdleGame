@@ -20,11 +20,13 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
-        if (slotIndex < 1 || slotIndex > ConsumableRules.SlotCount) return (null, "InvalidSlotIndex");
+        if (slotIndex < 1 || slotIndex > ConsumableRules.OperationPotionSlotIndex) return (null, "InvalidSlotIndex");
         if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
 
         var item = request.ItemCode is null ? null : catalog.FindItem(request.ItemCode.Trim());
         if (request.ItemCode is not null && item is null) return (null, "UnknownConsumable");
+        if (item is not null && (slotIndex == ConsumableRules.OperationPotionSlotIndex) !=
+            (item.Kind == "OperationPotion")) return (null, "WrongConsumableSlot");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
         Room? room = null;
@@ -54,7 +56,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
             slotToUpdate.Version++;
         }
         slotToUpdate.ItemCode = item?.Code;
-        slotToUpdate.AutoUseEnabled = item is not null && request.AutoUseEnabled;
+        slotToUpdate.AutoUseEnabled = item is { Kind: "Healing" } && request.AutoUseEnabled;
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
         if (room is not null) room.Version++;
@@ -98,11 +100,13 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
             {
                 Code = item.Code,
                 Name = item.Name,
-                HealAmount = ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)),
+                Kind = item.Kind,
+                HealAmount = item.Kind == "Healing" ? ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)) : 0,
+                AttackPercent = item.AttackPercent,
                 CooldownRounds = item.CooldownRounds,
                 Quantity = inventory.GetValueOrDefault(item.Code)
             }).ToList(),
-            Slots = Enumerable.Range(1, ConsumableRules.SlotCount).Select(index =>
+            Slots = Enumerable.Range(1, ConsumableRules.OperationPotionSlotIndex).Select(index =>
             {
                 equipped.TryGetValue(index, out var slot);
                 return new ConsumableSlotResponse

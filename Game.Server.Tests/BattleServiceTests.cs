@@ -566,6 +566,233 @@ public class BattleServiceTests
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
+    [Fact]
+    public async Task OperationPotionAppliesFromFirstRoundThroughTheSameRun()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        await test.AddOperationPotionAsync(test.Character, quantity: 2);
+
+        var (first, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(482, first!.MonsterHp); // floor(20 * 1.15 - 5)
+        Assert.Contains(first.Logs, log => log.Contains("使用 北郡战意药剂"));
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
+        var firstSlot = (await test.GetRoomDetailAsync())!.Slots.Single(slot => slot.CharacterId == test.Character.Id);
+        var effect = firstSlot.OperationPotion;
+        Assert.True(effect!.IsActive);
+        Assert.Equal(15, effect.AttackPercent);
+        var buff = Assert.Single(firstSlot.StatusEffects, status => status.Code == "operation-potion:northshire-battle-draught");
+        Assert.True(buff.IsPositive);
+        Assert.True(buff.ExpiresWithRun);
+        Assert.False(buff.CanDispel);
+        Assert.Contains("15%", buff.Description);
+
+        await test.CompleteCooldownAndPrepareAsync();
+
+        Assert.Equal(464, test.Monster.Hp);
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync(item => item.ItemCode == "northshire-battle-draught")).Quantity);
+        Assert.Single(await test.Db.BattleOperationPotionStates.ToListAsync());
+        Assert.Contains((await test.GetRoomDetailAsync())!.Slots.Single().StatusEffects,
+            status => status.Code == "operation-potion:northshire-battle-draught");
+    }
+
+    [Fact]
+    public async Task OperationPotionAlsoBoostsDamageSkillsInTheFirstRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        await test.AddOperationPotionAsync(test.Character, quantity: 1);
+        await test.AddSkillAsync(test.Character, 1, "knight-strike", autoUse: true);
+
+        var (round, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(round!.Logs, log => log.Contains("普通攻击") && log.Contains("造成 18 点伤害"));
+        Assert.Contains(round.Logs, log => log.Contains("使用 盾击") && log.Contains("造成 27 点伤害"));
+        Assert.Equal(455, round.MonsterHp);
+    }
+
+    [Fact]
+    public async Task RepeatBattleConsumesOperationPotionAgainAfterNewRunStarts()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100, monsterAttack: 1);
+        test.Room.IsRepeatBattle = true;
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl)).IsAutoEnabled = true;
+        await test.AddOperationPotionAsync(test.Character, quantity: 2);
+
+        var (first, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, first!.RoomStatus);
+        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync(item => item.ItemCode == "northshire-battle-draught")).Quantity);
+        Assert.DoesNotContain((await test.GetRoomDetailAsync())!.Slots.Single().StatusEffects,
+            status => status.Code.StartsWith("operation-potion:"));
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (second, restartError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(restartError);
+        Assert.Equal(RoomStatus.BattleOver, second!.RoomStatus);
+        Assert.Equal(2, test.Room.RunSequence);
+        Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(item => item.ItemCode == "northshire-battle-draught")).Quantity);
+        var state = Assert.Single(await test.Db.BattleOperationPotionStates.ToListAsync());
+        Assert.Equal(2, state.RunSequence);
+        Assert.Equal(15, state.AttackPercent);
+        Assert.DoesNotContain((await test.GetRoomDetailAsync())!.Slots.Single().StatusEffects,
+            status => status.Code.StartsWith("operation-potion:"));
+    }
+
+    [Fact]
+    public async Task ResetBattleClearsOperationPotionBeforeTheNextRun()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        await test.AddOperationPotionAsync(test.Character, quantity: 1);
+        var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Single(await test.Db.BattleOperationPotionStates.ToListAsync());
+
+        var (reset, resetError) = await test.Service.ResetBattleAsync(1, test.Token);
+
+        Assert.True(reset);
+        Assert.Null(resetError);
+        Assert.Empty(await test.Db.BattleOperationPotionStates.ToListAsync());
+        Assert.DoesNotContain((await test.GetRoomDetailAsync())!.Slots.Single().StatusEffects,
+            status => status.Code.StartsWith("operation-potion:"));
+    }
+
+    [Fact]
+    public async Task OperationPotionWithoutStockIsSkippedForTheWholeRun()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        await test.AddOperationPotionAsync(test.Character, quantity: 0);
+
+        var (first, error) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(error);
+        Assert.Equal(485, first!.MonsterHp);
+        Assert.Contains(first.Logs, log => log.Contains("库存不足"));
+        var stock = await test.Db.CharacterItemStacks.SingleAsync();
+        stock.Quantity = 1;
+        stock.Version++;
+        await test.Db.SaveChangesAsync();
+
+        await test.CompleteCooldownAndPrepareAsync();
+
+        Assert.Equal(470, test.Monster.Hp);
+        Assert.Equal(1, stock.Quantity);
+        Assert.Equal(0, (await test.Db.BattleOperationPotionStates.SingleAsync()).AttackPercent);
+        Assert.DoesNotContain((await test.GetRoomDetailAsync())!.Slots.Single().StatusEffects,
+            status => status.Code.StartsWith("operation-potion:"));
+    }
+
+    [Fact]
+    public async Task CharacterJoiningBetweenRoundsUsesOperationPotionOnItsFirstRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        var guest = new Character { Id = 2, UserId = 2, Name = "Guest", Hp = 100, MaxHp = 100, Attack = 20 };
+        test.Db.AddRange(
+            new User { Id = 2, UserName = "guest", PasswordHash = "x", ActiveCharacterId = 2 },
+            guest,
+            new RoomSlot { RoomId = 1, SlotIndex = 2 },
+            new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) },
+            new CharacterItemStack { CharacterId = 2, ItemCode = "northshire-battle-draught", Quantity = 1 },
+            new CharacterConsumableSlot { CharacterId = 2, SlotIndex = 3, ItemCode = "northshire-battle-draught" });
+        await test.Db.SaveChangesAsync();
+
+        await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Equal(RoomStatus.Cooldown, test.Room.Status);
+        var progression = ProgressionTestFactory.Create();
+        var roomService = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression));
+
+        var (joined, joinError) = await roomService.JoinRoomAsync(1,
+            new Game.Shared.Dtos.JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        Assert.Null(joinError);
+        Assert.Equal(RoomStatus.Cooldown, joined!.RoomStatus);
+        Assert.Equal(guest.Id, joined!.Slots.Single(slot => slot.SlotIndex == 2).CharacterId);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        await test.Service.SyncRoomAsync(1);
+        Assert.Equal(RoomStatus.NotStarted, test.Room.Status);
+        await test.Service.StartPreparationAsync(1, test.Token);
+        var (round, roundError) = await test.Service.StartPreparationAsync(1, "other-token");
+
+        Assert.Null(roundError);
+        Assert.Contains(round!.Logs, log => log.Contains("Guest 使用 北郡战意药剂"));
+        Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(item => item.CharacterId == 2)).Quantity);
+        Assert.Equal(15, (await test.Db.BattleOperationPotionStates.SingleAsync(state => state.CharacterId == 2)).AttackPercent);
+        var guestStatus = (await roomService.GetRoomDetailAsync(1, test.Token))!.Slots.Single(slot => slot.CharacterId == guest.Id).StatusEffects;
+        Assert.Contains(guestStatus, status => status.Code == "operation-potion:northshire-battle-draught");
+    }
+
+    [Fact]
+    public async Task CharacterJoiningBetweenRepeatRunsUsesOperationPotionInTheNextRun()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        var guest = new Character { Id = 2, UserId = 2, Name = "Guest", Hp = 100, MaxHp = 100, Attack = 20 };
+        test.Db.AddRange(
+            new User { Id = 2, UserName = "guest", PasswordHash = "x", ActiveCharacterId = 2 },
+            guest,
+            new RoomSlot { RoomId = 1, SlotIndex = 2 },
+            new UserLoginSession { UserId = 2, Token = "other-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+        await test.Db.SaveChangesAsync();
+        await test.AddOperationPotionAsync(guest, quantity: 1);
+        var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.BattleOver, first!.RoomStatus);
+
+        var progression = ProgressionTestFactory.Create();
+        var roomService = new RoomService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(test.Db, progression));
+        var (joined, joinError) = await roomService.JoinRoomAsync(1,
+            new Game.Shared.Dtos.JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        Assert.Null(joinError);
+        Assert.Equal(RoomStatus.BattleOver, joined!.RoomStatus);
+
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+        await test.Service.SyncRoomAsync(1);
+        await test.Service.StartPreparationAsync(1, test.Token);
+        var (second, secondError) = await test.Service.StartPreparationAsync(1, "other-token");
+
+        Assert.Null(secondError);
+        Assert.Contains(second!.Logs, log => log.Contains("Guest 使用 北郡战意药剂"));
+        Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(stack =>
+            stack.CharacterId == guest.Id && stack.ItemCode == "northshire-battle-draught")).Quantity);
+        Assert.Equal(2, (await test.Db.BattleOperationPotionStates.SingleAsync(state =>
+            state.CharacterId == guest.Id)).RunSequence);
+    }
+
+    [Fact]
+    public async Task OperationPotionCannotBeEquippedOrQueuedAsOrdinaryConsumable()
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var consumables = test.CreateConsumableService();
+        var wrongOrdinary = await consumables.SetSlotAsync(test.Token, test.Character.Id, 1,
+            new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "northshire-battle-draught" });
+        var wrongOperation = await consumables.SetSlotAsync(test.Token, test.Character.Id, 3,
+            new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "minor-healing-potion" });
+        var correct = await consumables.SetSlotAsync(test.Token, test.Character.Id, 3,
+            new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "northshire-battle-draught" });
+        var queued = await test.Service.QueueConsumableAsync(new Game.Shared.Dtos.QueueConsumableRequest
+        {
+            RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 3
+        }, test.Token);
+
+        Assert.Equal("WrongConsumableSlot", wrongOrdinary.Error);
+        Assert.Equal("WrongConsumableSlot", wrongOperation.Error);
+        Assert.Null(correct.Error);
+        Assert.Equal("northshire-battle-draught", correct.Response!.Slots.Single(slot => slot.SlotIndex == 3).ItemCode);
+        Assert.Equal("InvalidSlotIndex", queued.Error);
+    }
+
     [Theory]
     [InlineData(40, 59, 1)]
     [InlineData(10, 49, 0)]
@@ -934,8 +1161,8 @@ public class BattleServiceTests
 
         Assert.Null(setError);
         Assert.Null(firstError);
-        Assert.Equal(0, Assert.Single(secondLoadout!.Items).Quantity);
-        Assert.Equal(3, Assert.Single(firstLoadout!.Items).Quantity);
+        Assert.Equal(0, secondLoadout!.Items.Single(item => item.Code == "minor-healing-potion").Quantity);
+        Assert.Equal(3, firstLoadout!.Items.Single(item => item.Code == "minor-healing-potion").Quantity);
         Assert.True(secondLoadout.Slots.Single(slot => slot.SlotIndex == 1).AutoUseEnabled);
         Assert.False(firstLoadout.Slots.Single(slot => slot.SlotIndex == 1).AutoUseEnabled);
     }
@@ -1831,6 +2058,21 @@ public class BattleServiceTests
                 ItemCode = "minor-healing-potion",
                 AutoUseEnabled = autoUse,
                 AutoHpThresholdPercent = threshold
+            });
+            await Db.SaveChangesAsync();
+        }
+
+        public async Task AddOperationPotionAsync(Character character, int quantity)
+        {
+            Db.CharacterItemStacks.Add(new CharacterItemStack
+            {
+                CharacterId = character.Id, ItemCode = "northshire-battle-draught", Quantity = quantity
+            });
+            Db.CharacterConsumableSlots.Add(new CharacterConsumableSlot
+            {
+                CharacterId = character.Id,
+                SlotIndex = Game.Shared.ConsumableRules.OperationPotionSlotIndex,
+                ItemCode = "northshire-battle-draught"
             });
             await Db.SaveChangesAsync();
         }

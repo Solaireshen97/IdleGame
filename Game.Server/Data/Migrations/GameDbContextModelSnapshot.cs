@@ -69,9 +69,15 @@ namespace Game.Server.Data.Migrations
                         .HasDefaultValue(1)
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("GatheringExperience").HasColumnType("INTEGER");
+                    b.Property<int>("GatheringTalentPoints").HasColumnType("INTEGER");
+
                     b.Property<int>("AlchemyLevel")
                         .HasDefaultValue(1)
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("AlchemyExperience").HasColumnType("INTEGER");
+                    b.Property<int>("AlchemyTalentPoints").HasColumnType("INTEGER");
 
                     b.Property<int>("MaxHp")
                         .HasColumnType("INTEGER");
@@ -200,6 +206,17 @@ namespace Game.Server.Data.Migrations
                     b.HasKey("Id");
                     b.HasIndex("RoomId", "CharacterId", "CooldownGroup").IsUnique();
                     b.ToTable("BattleConsumableCooldowns");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.BattleOperationPotionState", b =>
+                {
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").HasColumnType("TEXT");
+                    b.Property<int>("AttackPercent").HasColumnType("INTEGER");
+                    b.HasKey("RoomId", "RunSequence", "CharacterId");
+                    b.ToTable("BattleOperationPotionStates", t => t.HasCheckConstraint("CK_BattleOperationPotionStates_AttackPercent", "AttackPercent BETWEEN 0 AND 100"));
                 });
 
             modelBuilder.Entity("Game.Shared.Models.CharacterSkillSlot", b =>
@@ -438,6 +455,16 @@ namespace Game.Server.Data.Migrations
                         "AvailableCount >= 0 AND EarnedCount >= 0 AND SpentCount >= 0 AND EarnedCount = AvailableCount + SpentCount"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterProfessionTalent", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ProfessionCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("NodeCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Rank").HasColumnType("INTEGER");
+                    b.HasKey("CharacterId", "ProfessionCode", "NodeCode");
+                    b.ToTable("CharacterProfessionTalents", t => t.HasCheckConstraint("CK_CharacterProfessionTalents_Rank", "Rank > 0"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.GatheringTask", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -448,6 +475,11 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("MaterialCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("CycleSeconds").HasColumnType("INTEGER");
                     b.Property<int>("OutputQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("ExtraYieldChancePercent").HasColumnType("INTEGER");
+                    b.Property<int>("ExtraYieldQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("RareBonusChancePercent").HasColumnType("INTEGER");
+                    b.Property<string>("BonusMaterialCode").HasColumnType("TEXT");
+                    b.Property<int>("BonusQuantity").HasColumnType("INTEGER");
                     b.Property<string>("Status").IsRequired().HasColumnType("TEXT");
                     b.Property<DateTime>("StartedAtUtc").HasColumnType("TEXT");
                     b.Property<DateTime>("EndsAtUtc").HasColumnType("TEXT");
@@ -469,6 +501,10 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("RecipeCode").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("OutputCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("OutputQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("ExtraYieldChancePercent").HasColumnType("INTEGER");
+                    b.Property<int>("ExtraYieldQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("IngredientSaveChancePercent").HasColumnType("INTEGER");
+                    b.Property<int>("SavedIngredientQuantity").HasColumnType("INTEGER");
                     b.Property<string>("IngredientsJson").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("CycleSeconds").HasColumnType("INTEGER");
                     b.Property<string>("Status").IsRequired().HasColumnType("TEXT");

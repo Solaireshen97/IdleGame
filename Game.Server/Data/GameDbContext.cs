@@ -10,6 +10,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterActivity> CharacterActivities => Set<CharacterActivity>();
     public DbSet<CharacterBattleMilestone> CharacterBattleMilestones => Set<CharacterBattleMilestone>();
     public DbSet<CharacterGatheringOpportunity> CharacterGatheringOpportunities => Set<CharacterGatheringOpportunity>();
+    public DbSet<CharacterProfessionTalent> CharacterProfessionTalents => Set<CharacterProfessionTalent>();
     public DbSet<GatheringTask> GatheringTasks => Set<GatheringTask>();
     public DbSet<ProductionTask> ProductionTasks => Set<ProductionTask>();
     public DbSet<Monster> Monsters => Set<Monster>();
@@ -21,6 +22,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
+    public DbSet<BattleOperationPotionState> BattleOperationPotionStates => Set<BattleOperationPotionState>();
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
     public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
@@ -41,6 +43,9 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<CharacterBattleMilestone>().HasKey(milestone => new { milestone.CharacterId, milestone.Kind, milestone.TargetCode });
         modelBuilder.Entity<CharacterBattleMilestone>().ToTable(table => table.HasCheckConstraint("CK_CharacterBattleMilestones_Count", "Count > 0"));
         modelBuilder.Entity<CharacterGatheringOpportunity>().HasKey(item => new { item.CharacterId, item.PointCode });
+        modelBuilder.Entity<CharacterProfessionTalent>().HasKey(item => new { item.CharacterId, item.ProfessionCode, item.NodeCode });
+        modelBuilder.Entity<CharacterProfessionTalent>().ToTable(table => table.HasCheckConstraint(
+            "CK_CharacterProfessionTalents_Rank", "Rank > 0"));
         modelBuilder.Entity<CharacterGatheringOpportunity>().Property(item => item.Version).IsConcurrencyToken();
         modelBuilder.Entity<CharacterGatheringOpportunity>().ToTable(table => table.HasCheckConstraint(
             "CK_CharacterGatheringOpportunities_Counts",
@@ -81,6 +86,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<BattleConsumableCooldown>()
             .HasIndex(cooldown => new { cooldown.RoomId, cooldown.CharacterId, cooldown.CooldownGroup })
             .IsUnique();
+        modelBuilder.Entity<BattleOperationPotionState>()
+            .HasKey(state => new { state.RoomId, state.RunSequence, state.CharacterId });
+        modelBuilder.Entity<BattleOperationPotionState>()
+            .ToTable(table => table.HasCheckConstraint("CK_BattleOperationPotionStates_AttackPercent",
+                "AttackPercent BETWEEN 0 AND 100"));
         modelBuilder.Entity<CharacterSkillSlot>()
             .Property(slot => slot.Version)
             .IsConcurrencyToken();

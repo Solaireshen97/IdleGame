@@ -10,6 +10,7 @@ public class RoomSlotResponse
     public int PendingSkillSlotMask { get; set; }
     public List<RoomSkillSlotResponse> Skills { get; set; } = [];
     public List<RoomConsumableSlotResponse> Consumables { get; set; } = [];
+    public RoomOperationPotionResponse? OperationPotion { get; set; }
     public string? CharacterName { get; set; }
     public ElementType? CharacterElement { get; set; }
     public int OutgoingElementModifierPercent { get; set; }
@@ -59,4 +60,14 @@ public class RoomConsumableSlotResponse
     public int CooldownRoundsRemaining { get; set; }
     public bool AutoUseEnabled { get; set; }
     public int AutoHpThresholdPercent { get; set; }
+}
+
+public sealed class RoomOperationPotionResponse
+{
+    public string? ItemCode { get; set; }
+    public string? ItemName { get; set; }
+    public int Quantity { get; set; }
+    public int AttackPercent { get; set; }
+    public bool HasAttempted { get; set; }
+    public bool IsActive { get; set; }
 }

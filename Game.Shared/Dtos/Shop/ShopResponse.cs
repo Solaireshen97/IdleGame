@@ -24,6 +24,7 @@ public sealed class ShopItemResponse
     public int Price { get; set; }
     public int OwnedQuantity { get; set; }
     public int? HealAmount { get; set; }
+    public int? AttackPercent { get; set; }
     public int? CooldownRounds { get; set; }
     public ElementType? Element { get; set; }
     public int? Attack { get; set; }
