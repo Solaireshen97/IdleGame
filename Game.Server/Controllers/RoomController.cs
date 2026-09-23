@@ -149,7 +149,7 @@ public class RoomController(RoomService roomService, BattleService battleService
         "NotFound" => NotFound(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
         "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" or "AutoNotUnlocked" or "CharacterLevelTooLow" => StatusCode(StatusCodes.Status403Forbidden, error),
-        "RoomCooldown" or "RoomLocked" or "BattleOver" => Conflict(error),
+        "RoomCooldown" or "RoomLocked" or "BattleOver" or "RoomClosed" or "CharacterAlreadyInRoom" => Conflict(error),
         _ => BadRequest(error)
     };
 }

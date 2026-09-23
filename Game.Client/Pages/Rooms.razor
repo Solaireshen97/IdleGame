@@ -21,7 +21,7 @@ else
         <button type="button" id="current-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Current ? "true" : "false")" aria-controls="current-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Current ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Current)">
             <span class="lobby-tab__icon" aria-hidden="true">◆</span>
-            <span><strong>当前战斗</strong><small>@(CurrentRoomCount > 0 ? $"{CurrentRoomCount} 个进行中" : "尚未加入")</small></span>
+            <span><strong>我的战斗</strong><small>@(CurrentRoomCount > 0 ? $"{CurrentRoomCount} 个房间" : "尚未加入")</small></span>
         </button>
         <button type="button" id="create-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Create ? "true" : "false")" aria-controls="create-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Create ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">
@@ -48,15 +48,15 @@ else
             {
                 <section class="room-list room-list--priority" aria-label="@(isCurrentBattleTab ? "当前战斗" : "可加入的房间")">
                     <div class="room-list__heading">
-                        <div><span class="section-kicker">@(isCurrentBattleTab ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrentBattleTab ? "当前战斗" : "活跃房间")</h2></div>
-                        <span class="room-list__count">@visibleRooms.Count @(isCurrentBattleTab ? "个进行中" : "个可加入")</span>
+                        <div><span class="section-kicker">@(isCurrentBattleTab ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrentBattleTab ? "我的战斗与记录" : "活跃房间")</h2></div>
+                        <span class="room-list__count">@visibleRooms.Count @(isCurrentBattleTab ? "个房间" : "个可加入")</span>
                     </div>
                     <div class="room-grid">
                         @foreach (var room in visibleRooms)
                         {
                             <article class="room-card">
                                 <div class="room-card__identity">
-                                    <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge status-badge--@RoomStatusTone(room.RoomStatus)">@RoomStatusName(room.RoomStatus)</span></div>
+                                    <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge status-badge--@RoomStatusTone(room.RoomStatus)">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
                                     <h3>@room.MonsterName</h3>
                                     <p>@room.RegionName · @room.DungeonName</p>
                                     <div class="room-card__rules"><span>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</span><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span></div>
@@ -67,8 +67,8 @@ else
                                     <small>敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</small>
                                 </div>
                                 <button class="button button--primary room-card__enter"
-                                        aria-label="@(isCurrentBattleTab ? "返回战斗" : "加入战斗")：@room.MonsterName"
-                                        @onclick="() => EnterRoom(room.RoomId)">@(isCurrentBattleTab ? "返回战斗" : "加入战斗") <span>→</span></button>
+                                        aria-label="@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrentBattleTab ? "返回战斗" : "加入战斗")：@room.MonsterName"
+                                        @onclick="() => EnterRoom(room.RoomId)">@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrentBattleTab ? "返回战斗" : "加入战斗") <span>→</span></button>
                             </article>
                         }
                     </div>
@@ -213,7 +213,7 @@ else
     private InspectorPanel? _inspectorPanel;
     private LobbyTab _activeLobbyTab = LobbyTab.Create;
     private int CurrentRoomCount => _rooms?.Count(room => room.IsCurrentUserParticipant) ?? 0;
-    private int JoinableRoomCount => _rooms?.Count(room => !room.IsCurrentUserParticipant) ?? 0;
+    private int JoinableRoomCount => _rooms?.Count(room => !room.IsCurrentUserParticipant && !room.ClosedAtUtc.HasValue) ?? 0;
     private DungeonSummaryResponse? _selectedDungeon => _dungeons.SingleOrDefault(dungeon => dungeon.DungeonId == _selectedDungeonId);
 
     private enum LobbyTab
@@ -229,7 +229,7 @@ else
     private void CloseInspector() => _inspectorPanel = null;
 
     private IEnumerable<RoomSummaryResponse> GetRoomsForActiveTab() => (_rooms ?? [])
-        .Where(room => _activeLobbyTab == LobbyTab.Current ? room.IsCurrentUserParticipant : !room.IsCurrentUserParticipant);
+        .Where(room => _activeLobbyTab == LobbyTab.Current ? room.IsCurrentUserParticipant : !room.IsCurrentUserParticipant && !room.ClosedAtUtc.HasValue);
 
     private void SwitchLobbyTab(LobbyTab tab)
     {

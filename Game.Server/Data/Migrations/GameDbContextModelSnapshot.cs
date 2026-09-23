@@ -389,6 +389,18 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("RewardEntries", t => t.HasCheckConstraint("CK_RewardEntries_Quantity", "Quantity > 0"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterActivity", b =>
+                {
+                    b.Property<int>("CharacterId").ValueGeneratedNever().HasColumnType("INTEGER");
+                    b.Property<string>("Kind").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("SourceId").HasColumnType("INTEGER");
+                    b.Property<DateTime>("StartedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime?>("EndsAtUtc").HasColumnType("TEXT");
+                    b.HasKey("CharacterId");
+                    b.HasIndex("Kind", "SourceId");
+                    b.ToTable("CharacterActivities");
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Room", b =>
                 {
                     b.Property<int>("Id")
@@ -397,6 +409,12 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<DateTime?>("BattleEndedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartedAtUtc").HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExpiresAtUtc").HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ClosedAtUtc").HasColumnType("TEXT");
 
                     b.Property<int>("DungeonId")
                         .HasColumnType("INTEGER");
@@ -565,6 +583,29 @@ namespace Game.Server.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("UserLoginSessions");
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.UserWarehouseStack", b =>
+                {
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Quantity").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("UserId", "ItemCode");
+                    b.ToTable("UserWarehouseStacks", t => t.HasCheckConstraint("CK_UserWarehouseStacks_Quantity", "Quantity >= 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.WarehouseTransferRecord", b =>
+                {
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<string>("RequestId").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Direction").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Quantity").HasColumnType("INTEGER");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.HasKey("UserId", "RequestId");
+                    b.ToTable("WarehouseTransferRecords");
                 });
             modelBuilder.Entity("Game.Shared.Models.CharacterWeaponSkill", b =>
                 {

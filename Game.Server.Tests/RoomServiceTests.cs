@@ -58,6 +58,46 @@ public class RoomServiceTests
     }
 
     [Fact]
+    public async Task RepeatRoomDeadlineReleasesOnlyItsCharacterAndKeepsHistoryVisible()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (first, firstError) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isRepeatBattle: true);
+        Assert.Null(firstError);
+        Assert.NotNull(first!.ExpiresAtUtc);
+        Assert.InRange(first.ExpiresAtUtc.Value - first.StartedAtUtc!.Value,
+            TimeSpan.FromHours(12).Subtract(TimeSpan.FromSeconds(1)),
+            TimeSpan.FromHours(12).Add(TimeSpan.FromSeconds(1)));
+        var secondCharacter = await test.AddCharacterAsync("Mage");
+        var user = await test.Db.Users.SingleAsync();
+        user.ActiveCharacterId = secondCharacter.Id;
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await test.Service.CreateRoomAsync(null, "Slime", test.Token);
+        Assert.Null(secondError);
+        Assert.Equal(2, await test.Db.CharacterActivities.CountAsync());
+
+        var firstRoom = await test.Db.Rooms.FindAsync(first.RoomId);
+        firstRoom!.ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var progression = ProgressionTestFactory.Create();
+        var battle = new BattleService(test.Db,
+            new UserService(test.Db, progression, SkillTestFactory.Create()),
+            ConsumableTestFactory.Create(), SkillTestFactory.Create(),
+            RewardTestFactory.CreateService(test.Db, progression));
+        var (_, syncError) = await battle.SyncRoomAsync(first.RoomId);
+        Assert.Null(syncError);
+        Assert.NotNull(firstRoom.ClosedAtUtc);
+        Assert.False(await test.Db.CharacterActivities.AnyAsync(activity => activity.CharacterId == test.ActiveCharacter.Id));
+        Assert.True(await test.Db.CharacterActivities.AnyAsync(activity => activity.CharacterId == secondCharacter.Id));
+        Assert.Contains(await test.Service.GetRoomsAsync(test.Token), room => room.RoomId == first.RoomId && room.ClosedAtUtc.HasValue);
+
+        user.ActiveCharacterId = test.ActiveCharacter.Id;
+        await test.Db.SaveChangesAsync();
+        var (third, thirdError) = await test.Service.CreateRoomAsync(null, "Slime", test.Token);
+        Assert.Null(thirdError);
+        Assert.NotNull(third);
+    }
+
+    [Fact]
     public async Task CreateRoomAsync_InitializesDefaultDungeonsAndUsesSelectedDungeon()
     {
         await using var test = await RoomTestContext.CreateAsync();

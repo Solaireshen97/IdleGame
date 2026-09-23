@@ -20,6 +20,34 @@
 {
     <GameStateCard Compact="true" Title="正在进入战场" Detail="同步房间成员与敌方状态…" />
 }
+else if (_roomDetail.ClosedAtUtc.HasValue)
+{
+    <section class="battle-rewards" aria-label="已结束的战斗任务">
+        <div class="battle-rewards__heading">
+            <div><span class="section-kicker">EXPEDITION COMPLETE</span><h1>@_roomDetail.DungeonName · 任务已结束</h1></div>
+            <span>第 @_roomDetail.RunSequence 轮 · @(_roomDetail.RoundNumber == 0 ? "到期停止" : _roomDetail.MonsterHp <= 0 ? "通关后停止" : "战败后停止")</span>
+        </div>
+        <p>本次任务已停止，角色可以开始新的战斗或其他活动。继续讨伐请创建新房间。</p>
+        @if (_roomDetail.CumulativeRewards is { } cumulative)
+        {
+            <p>已结算 @cumulative.CompletedRuns 轮</p>
+            <div class="battle-rewards__totals"><strong>累计金币 +@cumulative.Gold</strong><strong>累计经验 +@cumulative.Experience</strong></div>
+            @if (cumulative.Items.Count > 0)
+            {
+                <ul>
+                    @foreach (var item in cumulative.Items)
+                    {
+                        <li><span>@item.CharacterName</span><strong>@item.Name × @item.Quantity</strong></li>
+                    }
+                </ul>
+            }
+        }
+        @if (IsOwner)
+        {
+            <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">删除记录</button>
+        }
+    </section>
+}
 else
 {
     var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner));
@@ -36,6 +64,10 @@ else
             <div class="battle-stage__meta">
                 <span class="battle-mode">第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波</span>
                 <span class="battle-mode">@(_roomDetail.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span>
+                @if (_roomDetail.ExpiresAtUtc is DateTime expiresAt)
+                {
+                    <span class="battle-mode">任务截止：@DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc).ToLocalTime().ToString("MM-dd HH:mm")</span>
+                }
                 <span class="battle-status">@GetStatusText()</span>
             </div>
         </div>
@@ -129,30 +161,38 @@ else
             <span class="battle-field__versus" aria-hidden="true">VS</span>
 
             <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "") @(_isCombatFeedbackVisible ? "battle-field__enemy--hit" : "")">
-                <div class="battle-field__enemy-art">
-                    <img src="@GetMonsterArtPath()" alt="@_roomDetail.MonsterName" />
+                <button type="button" class="battle-field__enemy-art" @onclick="OpenMonsterStatusDialog" @ref="_monsterTrigger"
+                        title="点击查看 @_roomDetail.MonsterName 的状态"
+                        aria-label="@_roomDetail.MonsterName，生命值 @_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp，@_roomDetail.MonsterEffects.Count 个状态效果，点击查看详细状态"
+                        aria-haspopup="dialog">
+                    <img src="@GetMonsterArtPath()" alt="" />
+                    @if (_roomDetail.MonsterEffects.Count > 0)
+                    {
+                        <span class="enemy-effect-icons" aria-hidden="true">
+                            @foreach (var effect in _roomDetail.MonsterEffects.Take(3))
+                            {
+                                <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
+                                      title="@($"{effect.Name} · {effect.RemainingRounds} 回合")">@GetStatusEffectGlyph(effect)</span>
+                            }
+                            @if (_roomDetail.MonsterEffects.Count > 3)
+                            {
+                                <span class="fighter__effect-icon fighter__effect-icon--more">+@(_roomDetail.MonsterEffects.Count - 3)</span>
+                            }
+                        </span>
+                    }
                     @if (_isCombatFeedbackVisible)
                     {
                         <span class="battle-hit-slash" aria-hidden="true"></span>
                         <strong class="battle-damage-popup" aria-live="polite">@_combatFeedbackText</strong>
                     }
-                </div>
-                <div class="enemy-vitals">
-                    <span>当前敌人 · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
-                    <div class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></div>
+                </button>
+                <button type="button" class="enemy-vitals" @onclick="OpenMonsterStatusDialog"
+                        title="点击查看 @_roomDetail.MonsterName 的状态"
+                        aria-label="查看 @_roomDetail.MonsterName 的生命值与状态效果" aria-haspopup="dialog">
+                    <span class="enemy-vitals__eyebrow">当前敌人 · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
+                    <span class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP <b aria-hidden="true">›</b></span></span>
                     <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
-                    @if (_roomDetail.MonsterEffects.Count > 0)
-                    {
-                        <div class="battle-effects battle-effects--enemy" aria-label="怪物状态">
-                            @foreach (var effect in _roomDetail.MonsterEffects)
-                            {
-                                <span class="battle-effect @(effect.IsPositive ? "battle-effect--positive" : "battle-effect--negative")" title="@($"{effect.Description}{(effect.CanDispel ? " · 可移除" : " · 不可移除")}")">
-                                    @effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "") · @effect.RemainingRounds 回合
-                                </span>
-                            }
-                        </div>
-                    }
-                </div>
+                </button>
             </div>
         </div>
         <div class="battle-stage__footer"><span><strong>进度</strong> 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @_roomDetail.SlotCount</span><span><strong>规则</strong> @(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则临时 Auto" : "无准备超时")</span></div>
@@ -300,6 +340,71 @@ else
                                 <h3 id="negative-status-title">负面状态 <span>@negativeEffects.Count</span></h3>
                                 <ul>
                                     @foreach (var effect in negativeEffects)
+                                    {
+                                        <li class="status-detail status-detail--negative">
+                                            <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                    }
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_isMonsterStatusDialogOpen && _roomDetail is { } monsterStatus)
+    {
+        var positiveMonsterEffects = monsterStatus.MonsterEffects.Where(effect => effect.IsPositive).ToList();
+        var negativeMonsterEffects = monsterStatus.MonsterEffects.Where(effect => !effect.IsPositive).ToList();
+        <div class="status-dialog-overlay" @onclick="CloseMonsterStatusDialog">
+            <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" @onclick:stopPropagation>
+                <header class="status-dialog__header">
+                    <div class="status-dialog__identity">
+                        <span class="status-dialog__portrait status-dialog__portrait--enemy" aria-hidden="true"><img src="@GetMonsterArtPath()" alt="" /></span>
+                        <div>
+                            <span class="section-kicker">ENEMY STATUS · 第 @monsterStatus.CurrentWaveNumber 波</span>
+                            <h2 id="monster-status-dialog-title">@monsterStatus.MonsterName</h2>
+                            <p>@WeaponRules.ElementName(monsterStatus.MonsterElement)属性 · 第 @monsterStatus.CurrentEnemyNumber / @monsterStatus.EnemiesInCurrentWave 位</p>
+                        </div>
+                    </div>
+                    <button type="button" class="status-dialog__close" @onclick="CloseMonsterStatusDialog" @ref="_monsterStatusDialogCloseButton" aria-label="关闭怪物状态详情">×</button>
+                </header>
+                <div class="status-dialog__content">
+                    <div class="status-dialog__vitals">
+                        <div><span>生命值</span><strong>@monsterStatus.MonsterHp / @monsterStatus.MonsterMaxHp</strong></div>
+                        <progress value="@monsterStatus.MonsterHp" max="@monsterStatus.MonsterMaxHp" aria-label="@monsterStatus.MonsterName 生命值"></progress>
+                        <small>当前 @monsterStatus.MonsterEffects.Count 个状态效果</small>
+                    </div>
+                    @if (monsterStatus.MonsterEffects.Count == 0)
+                    {
+                        <div class="status-dialog__empty"><span aria-hidden="true">◇</span><strong>当前没有状态效果</strong><small>怪物获得强化或负面状态后会显示在这里。</small></div>
+                    }
+                    else
+                    {
+                        @if (positiveMonsterEffects.Count > 0)
+                        {
+                            <section class="status-dialog__group" aria-labelledby="monster-positive-status-title">
+                                <h3 id="monster-positive-status-title">强化效果 <span>@positiveMonsterEffects.Count</span></h3>
+                                <ul>
+                                    @foreach (var effect in positiveMonsterEffects)
+                                    {
+                                        <li class="status-detail status-detail--positive">
+                                            <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                        @if (negativeMonsterEffects.Count > 0)
+                        {
+                            <section class="status-dialog__group" aria-labelledby="monster-negative-status-title">
+                                <h3 id="monster-negative-status-title">负面状态 <span>@negativeMonsterEffects.Count</span></h3>
+                                <ul>
+                                    @foreach (var effect in negativeMonsterEffects)
                                     {
                                         <li class="status-detail status-detail--negative">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
@@ -586,6 +691,8 @@ else
     private ElementReference _logCloseButton;
     private ElementReference _skillDialogCloseButton;
     private ElementReference _statusDialogCloseButton;
+    private ElementReference _monsterTrigger;
+    private ElementReference _monsterStatusDialogCloseButton;
     private bool _isLogOpen;
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
@@ -599,6 +706,9 @@ else
     private string? _skillDialogMessage;
     private int? _selectedStatusCharacterId;
     private bool _focusStatusDialogCloseButton;
+    private bool _isMonsterStatusDialogOpen;
+    private bool _focusMonsterStatusDialogCloseButton;
+    private bool _focusMonsterTrigger;
     private CancellationTokenSource? _combatFeedbackCancellation;
     private bool _isCombatFeedbackVisible;
     private string _combatFeedbackText = string.Empty;
@@ -630,6 +740,16 @@ else
             _focusStatusDialogCloseButton = false;
             await _statusDialogCloseButton.FocusAsync();
         }
+        else if (_focusMonsterStatusDialogCloseButton)
+        {
+            _focusMonsterStatusDialogCloseButton = false;
+            await _monsterStatusDialogCloseButton.FocusAsync();
+        }
+        else if (_focusMonsterTrigger)
+        {
+            _focusMonsterTrigger = false;
+            await _monsterTrigger.FocusAsync();
+        }
         else if (_focusLogCloseButton)
         {
             _focusLogCloseButton = false;
@@ -659,6 +779,7 @@ else
         if (args.Key != "Escape") return;
         if (_isSkillDialogOpen) CloseSkillDialog();
         else if (_selectedStatusCharacterId.HasValue) CloseStatusDialog();
+        else if (_isMonsterStatusDialogOpen) CloseMonsterStatusDialog();
         else if (_isLogOpen) CloseBattleLog();
     }
 
@@ -672,6 +793,20 @@ else
     private void CloseStatusDialog()
     {
         _selectedStatusCharacterId = null;
+    }
+
+    private void OpenMonsterStatusDialog()
+    {
+        if (_roomDetail is null) return;
+        _isMonsterStatusDialogOpen = true;
+        _focusMonsterStatusDialogCloseButton = true;
+    }
+
+    private void CloseMonsterStatusDialog()
+    {
+        _isMonsterStatusDialogOpen = false;
+        _focusMonsterStatusDialogCloseButton = false;
+        _focusMonsterTrigger = _roomDetail?.ClosedAtUtc is null;
     }
 
     private RoomSlotResponse? GetStatusDialogCharacter() => _selectedStatusCharacterId is int characterId
@@ -1107,6 +1242,14 @@ else
     private void ApplyRoomDetail(RoomDetailResponse? detail, bool allowCombatFeedback = true)
     {
         var previous = _roomDetail;
+        if (_isMonsterStatusDialogOpen && (detail is null || previous is null || detail.ClosedAtUtc.HasValue ||
+            detail.RunSequence != previous.RunSequence || detail.CurrentWaveNumber != previous.CurrentWaveNumber ||
+            detail.CurrentEnemyNumber != previous.CurrentEnemyNumber ||
+            !string.Equals(detail.MonsterName, previous.MonsterName, StringComparison.Ordinal)))
+        {
+            _isMonsterStatusDialogOpen = false;
+            _focusMonsterStatusDialogCloseButton = false;
+        }
         _roomDetail = detail;
         if (!allowCombatFeedback || previous is null || detail is null || detail.RoundNumber <= 0) return;
 
@@ -1247,9 +1390,10 @@ else
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 ticks++;
-                if (ticks % 2 == 0 && !_isBusy && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing or Game.Shared.Enums.RoomStatus.WaveTransition ||
+                if (ticks % 2 == 0 && !_isBusy && _roomDetail?.ClosedAtUtc is null && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing or Game.Shared.Enums.RoomStatus.WaveTransition ||
                     _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.IsPreparationTimeoutEnabled ||
-                    _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null)
+                    _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null ||
+                    _roomDetail?.ExpiresAtUtc is DateTime deadline && DateTime.UtcNow >= deadline)
                 )
                 {
                     await ApiService.SyncBattleAsync(RoomId);

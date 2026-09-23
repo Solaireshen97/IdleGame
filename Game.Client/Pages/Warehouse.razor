@@ -1,0 +1,182 @@
+@page "/warehouse"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Warehouse
+@inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>营地仓库</PageTitle>
+
+<div class="warehouse-page">
+    <header class="warehouse-page__intro">
+        <a href="/rooms">← 返回大厅</a>
+        <div>
+            <span class="warehouse-page__eyebrow">CAMP STORAGE</span>
+            <h1>营地仓库</h1>
+            <p>角色背包各自独立；可流通的材料与补给可以存入这里，供同账号的其他角色取用。</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <GameStateCard Compact="true" Title="正在清点营地物资" Detail="读取当前角色背包与共享仓库…" />
+    }
+    else if (_warehouse is null)
+    {
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="仓库读取失败" Detail="请检查登录状态后重试。" />
+        <button class="warehouse-page__refresh" @onclick="LoadAsync">重新读取</button>
+    }
+    else
+    {
+        <section class="warehouse-overview" aria-label="仓库概况">
+            <div><small>当前操作角色</small><strong>@_warehouse.CharacterName</strong><span>切换角色后，可从同一仓库取出物品。</span></div>
+            <div><small>可共享物品</small><strong>@_warehouse.Items.Count(item => item.CanTransfer)</strong><span>角色绑定物品不能转移。</span></div>
+        </section>
+
+        <div class="warehouse-toolbar">
+            <label for="warehouse-quantity">每次转移数量</label>
+            <input id="warehouse-quantity" type="number" min="1" step="1" @bind="_quantity" disabled="@_isBusy" />
+            <button @onclick="LoadAsync" disabled="@_isBusy">刷新库存</button>
+        </div>
+
+        @if (_message is not null)
+        {
+            <p class="warehouse-page__message" role="status">@_message</p>
+        }
+
+        @if (_warehouse.Items.Count == 0)
+        {
+            <p class="warehouse-page__empty">当前没有可展示的物品。采集与生产开放后，这里也会显示对应材料。</p>
+        }
+        else
+        {
+            <section class="warehouse-items" aria-label="背包和仓库物品">
+                @foreach (var item in _warehouse.Items)
+                {
+                    <article class="warehouse-item">
+                        <div class="warehouse-item__title">
+                            <div><small>@(item.Kind == "Consumable" ? "补给" : "材料")</small><h2>@item.Name</h2></div>
+                            <span class="warehouse-item__badge @(item.CanTransfer ? "warehouse-item__badge--shared" : "")">@(item.CanTransfer ? "可共享" : "角色绑定")</span>
+                        </div>
+                        <p>@item.Description</p>
+                        <div class="warehouse-item__balances">
+                            <div><span>@_warehouse.CharacterName 的背包</span><strong>@item.CharacterQuantity</strong></div>
+                            <div><span>营地仓库</span><strong>@item.WarehouseQuantity</strong></div>
+                        </div>
+                        @if (item.CanTransfer)
+                        {
+                            <div class="warehouse-item__actions">
+                                <button @onclick='() => TransferAsync(item, "Deposit")'
+                                        disabled="@(_isBusy || _quantity < 1 || item.CharacterQuantity < _quantity)">存入仓库 →</button>
+                                <button @onclick='() => TransferAsync(item, "Withdraw")'
+                                        disabled="@(_isBusy || _quantity < 1 || item.WarehouseQuantity < _quantity)">← 取回背包</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <small class="warehouse-item__bound">该物品保留在获得它的角色背包中。</small>
+                        }
+                    </article>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private WarehouseResponse? _warehouse;
+    private bool _isLoading = true;
+    private bool _isBusy;
+    private int _quantity = 1;
+    private string? _message;
+    private PendingTransfer? _pendingTransfer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ActiveCharacters.RefreshAsync();
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        if (ActiveCharacters.Current is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        _isLoading = true;
+        try
+        {
+            var response = await ApiService.GetWarehouseAsync();
+            if (expectedCharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _warehouse = response is not null && response.CharacterId == expectedCharacterId ? response : null;
+                _message = null;
+            }
+        }
+        catch
+        {
+            _warehouse = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task TransferAsync(WarehouseItemResponse item, string direction)
+    {
+        if (_isBusy || _warehouse is null || _quantity < 1 || !item.CanTransfer) return;
+        var characterId = _warehouse.CharacterId;
+        _pendingTransfer = _pendingTransfer is { } previous &&
+            previous.CharacterId == characterId && previous.ItemCode == item.Code &&
+            previous.Direction == direction && previous.Quantity == _quantity
+            ? previous : new PendingTransfer(characterId, item.Code, direction, _quantity, Guid.NewGuid());
+        _isBusy = true;
+        _message = null;
+        try
+        {
+            var (response, error) = await ApiService.TransferWarehouseAsync(characterId, item.Code,
+                direction, _quantity, _pendingTransfer.RequestId);
+            if (error is not null)
+            {
+                _pendingTransfer = null;
+                _message = error;
+                await LoadAsync();
+                _message = error;
+            }
+            else if (response is not null)
+            {
+                _pendingTransfer = null;
+                if (ActiveCharacters.Current?.CharacterId == response.CharacterId)
+                    _warehouse = response;
+                _message = direction == "Deposit"
+                    ? $"已将 {item.Name} × {_quantity} 存入仓库。"
+                    : $"已将 {item.Name} × {_quantity} 取回背包。";
+            }
+        }
+        catch
+        {
+            _message = "连接中断；若要重试这次转移，请保持物品和数量不变后再次点击。";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        _pendingTransfer = null;
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+
+    private sealed record PendingTransfer(int CharacterId, string ItemCode, string Direction,
+        int Quantity, Guid RequestId);
+}

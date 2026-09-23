@@ -16,6 +16,9 @@ public class Room
     public DateTime? BattleEndedAtUtc { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; } = true;
     public bool IsRepeatBattle { get; set; }
+    public DateTime? StartedAtUtc { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    public DateTime? ClosedAtUtc { get; set; }
     public int RoundNumber { get; set; }
     public int RunSequence { get; set; } = 1;
     public int CurrentWaveNumber { get; set; } = 1;

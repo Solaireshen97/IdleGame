@@ -189,27 +189,6 @@
 .intent-rule--yes { color: #8debc8; }
 .intent-rule--no { color: #ef9c92; }
 
-.battle-effects {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: .25rem;
-    margin-top: .3rem;
-}
-
-.battle-effect {
-    padding: .18rem .38rem;
-    border: 1px solid;
-    border-radius: 999px;
-    font-size: .625rem;
-    line-height: 1.2;
-    white-space: nowrap;
-}
-
-.battle-effect--positive { color: #8debc8; border-color: rgba(76, 200, 155, .55); background: rgba(32, 117, 88, .24); }
-.battle-effect--negative { color: #ffad9c; border-color: rgba(239, 112, 91, .58); background: rgba(133, 45, 39, .28); }
-.battle-effects--enemy { justify-content: flex-start; }
-
 .formation-panel__heading > span:last-child span {
     display: inline-block;
     transition: transform .2s;
@@ -349,6 +328,10 @@
 .status-dialog__identity { display: flex; align-items: center; gap: .8rem; min-width: 0; }
 .status-dialog__portrait { display: grid; width: 60px; height: 60px; flex: 0 0 60px; place-items: end center; overflow: hidden; border: 1px solid #607b8d; border-radius: .7rem; background: radial-gradient(circle at 50% 35%, rgba(130, 175, 187, .38), rgba(8, 22, 36, .9)); }
 .status-dialog__portrait img { display: block; width: 100%; max-height: 58px; object-fit: contain; object-position: bottom; }
+.status-dialog__portrait--enemy { place-items: center; border-color: #ae7772; background: radial-gradient(circle at 50% 45%, rgba(198, 112, 103, .35), rgba(8, 22, 36, .9)); }
+.status-dialog__portrait--enemy img { max-height: 54px; object-position: center; }
+.status-dialog--enemy { border-color: #ad7772; }
+.status-dialog--enemy .status-dialog__vitals progress { accent-color: #df8276; }
 .status-dialog__header h2 { margin: .1rem 0; color: #f8ecda; font: 700 1.3rem Georgia, serif; }
 .status-dialog__header p { margin: 0; color: #a9bdc9; font-size: .72rem; }
 .status-dialog__close { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border: 1px solid #4e687d; border-radius: 50%; background: rgba(5, 17, 27, .55); color: #dce7ec; font-size: 1.45rem; }
@@ -606,6 +589,25 @@
     justify-content: center;
     width: 100%;
     min-height: 245px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.battle-field__enemy-art:focus-visible,
+.enemy-vitals:focus-visible { outline: 2px solid #f0c77f; outline-offset: 3px; }
+.battle-field__enemy-art:hover img { filter: drop-shadow(0 18px 20px rgba(0, 0, 0, .4)) drop-shadow(0 0 8px rgba(239, 187, 111, .45)); }
+.enemy-effect-icons {
+    position: absolute;
+    z-index: 5;
+    top: .35rem;
+    right: .35rem;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    pointer-events: none;
 }
 
 .battle-field__enemy-art img {
@@ -677,15 +679,21 @@
 }
 
 .enemy-vitals {
+    display: block;
     width: 100%;
     max-width: 330px;
     border: 1px solid rgba(145, 173, 186, .28);
     border-radius: .6rem;
     padding: .7rem .85rem;
     background: rgba(5, 16, 28, .78);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
 }
 
-.enemy-vitals > span {
+.enemy-vitals:hover { border-color: rgba(232, 189, 124, .72); }
+.enemy-vitals__eyebrow {
+    display: block;
     color: #e0b983;
     font-size: .625rem;
     font-weight: 800;
@@ -710,6 +718,7 @@
     font-size: .77rem;
     white-space: nowrap;
 }
+.enemy-vitals__name b { color: #e9bd7e; font-size: 1.1em; }
 
 .enemy-vitals__health {
     height: .55rem;
@@ -1982,7 +1991,7 @@
     .battle-field__enemy-art { min-height: 82px; }
     .battle-field__enemy-art img { max-height: 88px; }
     .enemy-vitals { padding: .45rem .5rem; }
-    .enemy-vitals > span { display: none; }
+    .enemy-vitals__eyebrow { display: none; }
     .enemy-vitals__name {
         align-items: flex-start;
         flex-direction: column;
@@ -2020,13 +2029,6 @@
     .fighter > strong { margin-top: .25rem; }
     .fighter .battle-element { display: none; }
     .fighter__health { margin-top: .2rem; }
-    .battle-effects {
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        overflow-x: auto;
-        scrollbar-width: none;
-    }
-    .battle-effects::-webkit-scrollbar { display: none; }
     .battle-stage__footer { display: none; }
 
     .battle-command {

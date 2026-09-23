@@ -19,6 +19,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
+        if (room!.IsRepeatBattle && room.ExpiresAtUtc is DateTime deadline && now >= deadline &&
+            room.Status == RoomStatus.NotStarted && room.RoundNumber == 0)
+        {
+            await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, now);
+            await SaveResultAsync(room, slots!, monster!, now, ["任务已达到时限，无法开始新一轮战斗。"]);
+            return (null, "RoomClosed");
+        }
         if (expectedRoundNumber.HasValue && room!.RoundNumber != expectedRoundNumber.Value)
             return (BuildResult(room, slots!, monster!, now, ["当前回合已经推进，本次准备请求已忽略。"]), "StaleRound");
         if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["战斗已经结束，请重置房间。"]), "BattleOver");
@@ -83,6 +90,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     private async Task<(BattleResult? Result, string? Error)> SyncCoreAsync(Room room, List<SlotCharacter> slots, Monster monster)
     {
         var now = DateTime.UtcNow;
+        if (room.ClosedAtUtc.HasValue) return (null, "RoomClosed");
+        if (room.IsRepeatBattle && room.ExpiresAtUtc is DateTime deadline && now >= deadline &&
+            (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0))
+        {
+            await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, now);
+            return await SaveResultAsync(room, slots, monster, now, ["任务已达到时限，本轮结束后停止重复战斗。"]);
+        }
         var restartedBattle = false;
         if (room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && monster.Hp <= 0 &&
             room.BattleEndedAtUtc is DateTime endedAt && now >= endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds))
@@ -328,6 +342,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         if (error is not null) return (false, error);
         if (room!.OwnerUserId != user!.Id) return (false, "NotOwner");
         if (room.Status != RoomStatus.BattleOver) return (false, "BattleNotOver");
+        if (room.ClosedAtUtc.HasValue) return (false, "RoomClosed");
         if (room.IsRepeatBattle && monster!.Hp <= 0) return (false, "RepeatBattlePending");
         monster = await GetDungeonRunService().ResetEncounterAsync(room);
         foreach (var entry in slots!) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
@@ -461,6 +476,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         room.RoundNumber++;
         ClearRoundState(room, slots);
+        if (room.IsRepeatBattle && room.Status == RoomStatus.BattleOver &&
+            (monster.Hp > 0 || room.ExpiresAtUtc is DateTime deadline && now >= deadline))
+        {
+            await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, now);
+            logs.Add(monster.Hp > 0 ? "队伍战败，重复战斗已停止。" : "任务已达到时限，本轮结算后停止重复战斗。");
+        }
         if (monsterCombatService is not null && room.Status != RoomStatus.BattleOver && monster.Hp > 0)
             await monsterCombatService.EnsureIntentAsync(room, monster);
         return await SaveResultAsync(room, slots, monster, now, logs);
@@ -930,6 +951,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         var (room, slots, monster, roomError) = await GetRoomStateAsync(roomId);
         if (roomError is not null) return (room, slots, monster, null, roomError);
+        if (room!.ClosedAtUtc.HasValue) return (room, slots, monster, null, "RoomClosed");
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (room, null, null, null, error);
         if (!slots!.Any(x => x.Slot.UserId == user!.Id)) return (room, null, null, user, "NotInRoom");

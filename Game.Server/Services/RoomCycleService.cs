@@ -39,11 +39,12 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
         var now = DateTime.UtcNow;
         var repeatCutoff = now.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
         var roomIds = await dbContext.Rooms.AsNoTracking()
-            .Where(room => room.Status == RoomStatus.NotStarted ||
+            .Where(room => room.ClosedAtUtc == null && (room.Status == RoomStatus.NotStarted ||
                 room.Status == RoomStatus.Preparing ||
                 room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now ||
                 room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now ||
-                room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && room.BattleEndedAtUtc <= repeatCutoff)
+                room.IsRepeatBattle && room.ExpiresAtUtc <= now && room.Status == RoomStatus.BattleOver ||
+                room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && room.BattleEndedAtUtc <= repeatCutoff))
             .Select(room => room.Id)
             .ToListAsync(cancellationToken);
 

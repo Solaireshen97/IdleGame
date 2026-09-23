@@ -7,6 +7,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Character> Characters => Set<Character>();
+    public DbSet<CharacterActivity> CharacterActivities => Set<CharacterActivity>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
@@ -14,6 +15,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Dungeon> Dungeons => Set<Dungeon>();
     public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
+    public DbSet<UserWarehouseStack> UserWarehouseStacks => Set<UserWarehouseStack>();
+    public DbSet<WarehouseTransferRecord> WarehouseTransferRecords => Set<WarehouseTransferRecord>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
@@ -30,6 +33,9 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CharacterActivity>().HasKey(activity => activity.CharacterId);
+        modelBuilder.Entity<CharacterActivity>().Property(activity => activity.CharacterId).ValueGeneratedNever();
+        modelBuilder.Entity<CharacterActivity>().HasIndex(activity => new { activity.Kind, activity.SourceId });
         modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
         modelBuilder.Entity<RewardRun>().HasKey(run => new { run.RoomId, run.Sequence });
         modelBuilder.Entity<RewardEvent>().HasKey(entry => new { entry.RoomId, entry.Sequence, entry.EventKey });
@@ -46,6 +52,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .IsUnique();
         modelBuilder.Entity<CharacterItemStack>()
             .ToTable(table => table.HasCheckConstraint("CK_CharacterItemStacks_Quantity", "Quantity >= 0"));
+        modelBuilder.Entity<UserWarehouseStack>().HasKey(stack => new { stack.UserId, stack.ItemCode });
+        modelBuilder.Entity<UserWarehouseStack>().Property(stack => stack.Version).IsConcurrencyToken();
+        modelBuilder.Entity<UserWarehouseStack>()
+            .ToTable(table => table.HasCheckConstraint("CK_UserWarehouseStacks_Quantity", "Quantity >= 0"));
+        modelBuilder.Entity<WarehouseTransferRecord>().HasKey(record => new { record.UserId, record.RequestId });
         modelBuilder.Entity<CharacterConsumableSlot>()
             .Property(slot => slot.Version)
             .IsConcurrencyToken();

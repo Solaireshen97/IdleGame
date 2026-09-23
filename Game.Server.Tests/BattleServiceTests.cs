@@ -164,11 +164,14 @@ public class BattleServiceTests
 
         var (result, error) = await test.Service.SyncRoomAsync(1);
 
-        Assert.Null(error);
-        Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
+        Assert.Null(result);
+        Assert.Equal("RoomClosed", error);
+        Assert.NotNull(test.Room.ClosedAtUtc);
+        Assert.Null((await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1)).CharacterId);
         Assert.Equal(0, test.Character.Hp);
         Assert.True(test.Monster.Hp > 0);
         Assert.Equal(0, test.Character.Experience);
+        Assert.Equal(1, (await test.GetRoomDetailAsync())!.CumulativeRewards!.CompletedRuns);
     }
 
     [Fact]
@@ -1293,13 +1296,10 @@ public class BattleServiceTests
         Assert.Null(test.Room.BattleEndedAtUtc);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ResetBattleAsync_AfterDefeat_RestoresPartyForRetry(bool isRepeatBattle)
+    [Fact]
+    public async Task ResetBattleAsync_AfterDefeat_RestoresPartyForRetry()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 5, characterAttack: 1, monsterAttack: 100);
-        test.Room.IsRepeatBattle = isRepeatBattle;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
@@ -1311,6 +1311,53 @@ public class BattleServiceTests
         Assert.Equal(100, test.Character.Hp);
         Assert.Equal(50, test.Monster.Hp);
         Assert.Equal(RoomStatus.NotStarted, test.Room.Status);
+    }
+
+    [Fact]
+    public async Task RepeatBattleExpiresAfterCurrentRunAndReleasesCharacter()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        test.Room.ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Status = RoomStatus.Preparing;
+        test.Db.CharacterActivities.Add(new CharacterActivity
+        {
+            CharacterId = test.Character.Id, Kind = CharacterActivityManager.BattleKind,
+            SourceId = test.Room.Id, StartedAtUtc = DateTime.UtcNow.AddHours(-12), EndsAtUtc = test.Room.ExpiresAtUtc
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
+        Assert.NotNull(test.Room.ClosedAtUtc);
+        Assert.Null((await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1)).CharacterId);
+        Assert.False(await test.Db.CharacterActivities.AnyAsync());
+        var detail = await test.GetRoomDetailAsync();
+        Assert.NotNull(detail!.CumulativeRewards);
+        Assert.True(detail.CumulativeRewards.CompletedRuns >= 1);
+    }
+
+    [Fact]
+    public async Task ExpiredRepeatBattleDoesNotStartAnotherRun()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+        test.Room.ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.NotNull(result);
+        Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
+        Assert.Equal(1, test.Room.RunSequence);
+        Assert.NotNull(test.Room.ClosedAtUtc);
     }
 
     [Theory]

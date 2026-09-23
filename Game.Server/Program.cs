@@ -33,6 +33,7 @@ builder.Services.AddScoped<ConsumableService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<WeaponService>();
 builder.Services.AddScoped<ShopService>();
+builder.Services.AddScoped<WarehouseService>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
@@ -45,6 +46,7 @@ builder.Services.Configure<MaterialOptions>(builder.Configuration.GetSection(Mat
 builder.Services.Configure<DungeonExchangeOptions>(builder.Configuration.GetSection(DungeonExchangeOptions.SectionName));
 builder.Services.Configure<WorldOptions>(builder.Configuration.GetSection(WorldOptions.SectionName));
 builder.Services.Configure<CharacterSlotOptions>(builder.Configuration.GetSection(CharacterSlotOptions.SectionName));
+builder.Services.Configure<ActivityOptions>(builder.Configuration.GetSection(ActivityOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();

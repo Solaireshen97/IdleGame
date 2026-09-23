@@ -29,6 +29,9 @@ public class RoomDetailResponse
     public DateTime? NextBattleStartAtUtc { get; set; }
     public DateTime? NextWaveStartAtUtc { get; set; }
     public bool IsRepeatBattle { get; set; }
+    public DateTime? StartedAtUtc { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    public DateTime? ClosedAtUtc { get; set; }
     public DateTime ServerTimeUtc { get; set; }
     public bool CanExecuteRound { get; set; }
     public bool IsMixedTeam { get; set; }
@@ -42,6 +45,7 @@ public class RoomDetailResponse
     public List<BattleStatusEffectResponse> MonsterEffects { get; set; } = [];
     public List<RoomSlotResponse> Slots { get; set; } = new();
     public RoomRewardSummaryResponse? Rewards { get; set; }
+    public RoomCumulativeRewardsResponse? CumulativeRewards { get; set; }
     public List<BattleLogResponse> BattleLogs { get; set; } = [];
 }
 

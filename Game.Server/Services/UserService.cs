@@ -283,7 +283,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (false, "CannotDeleteLastCharacter");
         }
 
-        var isCharacterInRoom = await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == characterId);
+        var isCharacterInRoom = await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == characterId) ||
+            await dbContext.CharacterActivities.AnyAsync(activity => activity.CharacterId == characterId);
         if (isCharacterInRoom)
         {
             return (false, "CharacterInRoom");
