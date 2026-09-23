@@ -17,6 +17,19 @@ namespace Game.Server.Tests;
 public sealed class WorldContentTests
 {
     [Fact]
+    public void ProductionRecipeUsesGatheredHerbsAndWarehouseConsumable()
+    {
+        var content = new Content();
+        var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
+            content.World, content.Materials, content.Consumables);
+        var recipe = Assert.Single(production.Recipes);
+        Assert.Equal("minor-healing-potion", recipe.OutputCode);
+        Assert.Equal(10, recipe.CycleSeconds);
+        Assert.Equal("northshire-wolves", recipe.UnlockTargetCode);
+        Assert.Equal(("peacebloom", 2), (Assert.Single(recipe.Ingredients).Code, recipe.Ingredients[0].Quantity));
+    }
+
+    [Fact]
     public void ProductionRareGatheringPointsRequireEliteVictoriesAndHaveWarehouseMaterials()
     {
         var content = new Content();

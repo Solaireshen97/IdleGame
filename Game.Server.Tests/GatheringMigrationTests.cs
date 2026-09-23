@@ -32,6 +32,7 @@ public sealed class GatheringMigrationTests
                 Assert.Equal((7, 3), (slot.RoomId, slot.CharacterId));
                 Assert.False(slot.HasParticipatedInRun);
                 Assert.Null(slot.LastParticipatedMonsterId);
+                Assert.Empty(await db.ProductionTasks.ToListAsync());
                 Assert.False(db.Database.HasPendingModelChanges());
             }
         }

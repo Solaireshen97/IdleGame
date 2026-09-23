@@ -1,0 +1,250 @@
+@page "/production"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Production
+@inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>炼金生产</PageTitle>
+
+<div class="production-page">
+    <header class="production-intro">
+        <span>CAMP ALCHEMY</span>
+        <h1>炼金生产</h1>
+        <p>采集的草药先存入营地仓库，取到当前角色背包后即可炼金。原料与成品都属于当前角色。</p>
+    </header>
+
+    @if (_isLoading)
+    {
+        <GameStateCard Compact="true" Title="正在查看炼金配方" Detail="读取角色配方和生产任务…" />
+    }
+    else if (_overview is null)
+    {
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="炼金信息读取失败" Detail="请检查登录状态后重试。" />
+        <button class="production-refresh" @onclick="LoadAsync">重新读取</button>
+    }
+    else
+    {
+        <div class="production-summary">
+            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>炼金 Lv.@_overview.AlchemyLevel · 配方按角色解锁</span></div>
+            <div><small>已解锁配方</small><strong>@_overview.Recipes.Count(recipe => recipe.IsUnlocked) / @_overview.Recipes.Count</strong><span>生产时消耗角色背包原料</span></div>
+        </div>
+
+        @if (_notice is not null)
+        {
+            <p class="production-notice" role="status">@_notice</p>
+        }
+
+        @if (_overview.ActiveTask is { } task)
+        {
+            <section class="production-active" aria-label="当前生产任务">
+                <div class="production-active__top"><span>正在生产</span><span>12 小时后完成当前轮</span></div>
+                <h2>@task.RecipeName</h2>
+                <p>每 @task.CycleSeconds 秒制作一轮；结算时才扣当前角色背包材料。关闭网页后，服务器继续生产。</p>
+                <div class="production-active__metrics">
+                    <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
+                    <div><small>累计产出</small><strong>@task.TotalQuantity <em>瓶</em></strong></div>
+                    <div><small>剩余时限</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                </div>
+                <div class="production-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
+                <div class="production-progress" role="progressbar" aria-label="下一轮生产进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
+                    <span @key="task.NextCycleAtUtc" class="production-progress__fill" style="width: @(CycleProgress(task))%"></span>
+                </div>
+                <button class="production-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止生产并结算</button>
+            </section>
+        }
+
+        <section class="production-recipes" aria-label="炼金配方">
+            <div class="production-section-title"><span>RECIPES</span><h2>炼金配方</h2></div>
+            <div class="production-recipe-grid">
+                @foreach (var recipe in _overview.Recipes)
+                {
+                    var materialsReady = recipe.Ingredients.All(item => item.CharacterQuantity >= item.Quantity);
+                    var availableCycles = recipe.Ingredients.Min(item => item.CharacterQuantity / item.Quantity);
+                    var canStart = recipe.IsUnlocked && ActiveCharacters.Current?.Level >= recipe.MinimumCharacterLevel &&
+                        _overview.AlchemyLevel >= recipe.MinimumAlchemyLevel && _overview.ActiveTask is null && materialsReady;
+                    <article class="production-recipe @(recipe.IsUnlocked ? "production-recipe--unlocked" : "")">
+                        <div class="production-recipe__top"><span>炼金 · 每 @recipe.CycleSeconds 秒</span><span>@(recipe.IsUnlocked ? "已解锁" : "未解锁")</span></div>
+                        <h3>@recipe.Name</h3>
+                        <p>每轮产出 @recipe.OutputName × @recipe.OutputQuantity</p>
+                        <div class="production-recipe__materials">
+                            <small>每轮消耗 · 当前角色背包</small>
+                            @foreach (var ingredient in recipe.Ingredients)
+                            {
+                                <div><span>@ingredient.Name × @ingredient.Quantity</span><strong class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "production-recipe__short" : "")">背包 @ingredient.CharacterQuantity · 仓库 @ingredient.WarehouseQuantity</strong></div>
+                            }
+                        </div>
+                        <div class="production-recipe__stock"><span>当前材料可做 @availableCycles 轮</span><strong>成品 @((long)availableCycles * recipe.OutputQuantity) 件</strong></div>
+                        <div class="production-recipe__stock"><span>背包成品</span><strong>@recipe.CharacterQuantity</strong></div>
+                        <div class="production-recipe__unlock"><span>@recipe.UnlockDescription</span><strong>@recipe.UnlockProgress / @recipe.UnlockRequired</strong></div>
+                        @if (ActiveCharacters.Current?.Level < recipe.MinimumCharacterLevel)
+                        {
+                            <small class="production-recipe__level">需要角色 Lv.@recipe.MinimumCharacterLevel</small>
+                        }
+                        @if (_overview.AlchemyLevel < recipe.MinimumAlchemyLevel)
+                        {
+                            <small class="production-recipe__level">需要炼金 Lv.@recipe.MinimumAlchemyLevel</small>
+                        }
+                        <button @onclick="() => StartAsync(recipe)" disabled="@(_isBusy || !canStart)">@(recipe.IsUnlocked ? materialsReady ? "开始生产" : "背包材料不足" : "完成战斗后解锁")</button>
+                    </article>
+                }
+            </div>
+        </section>
+
+        @if (_overview.RecentTasks.Count > 0)
+        {
+            <section class="production-history" aria-label="最近生产记录">
+                <div class="production-section-title"><span>RECENT RUNS</span><h2>最近生产</h2></div>
+                @foreach (var completed in _overview.RecentTasks)
+                {
+                    <div class="production-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity</strong></div>
+                }
+            </section>
+        }
+        <a class="production-warehouse" href="/warehouse">前往营地仓库取材 →</a>
+    }
+</div>
+
+@code {
+    private ProductionOverviewResponse? _overview;
+    private readonly CancellationTokenSource _refreshCancellation = new();
+    private bool _isLoading = true;
+    private bool _isRefreshing;
+    private bool _isBusy;
+    private string? _notice;
+    private TimeSpan _serverOffset;
+    private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ActiveCharacters.RefreshAsync();
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        if (ActiveCharacters.Current is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        await LoadAsync();
+        _ = RefreshLoopAsync(_refreshCancellation.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        var ticks = 0;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (++ticks % 2 == 0)
+                        await LoadAsync();
+                    if (!token.IsCancellationRequested)
+                        StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_isRefreshing || _isBusy) return;
+        _isRefreshing = true;
+        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        try
+        {
+            var response = await ApiService.GetProductionAsync();
+            if (expectedCharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response is not null && response.CharacterId == expectedCharacterId ? response : null;
+                if (response is not null) _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+            }
+        }
+        catch { _overview = null; }
+        finally
+        {
+            _isLoading = false;
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task StartAsync(ProductionRecipeResponse recipe)
+    {
+        if (_isBusy || _overview is null) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.StartProductionAsync(_overview.CharacterId, recipe.Code);
+            if (error is not null) _notice = error;
+            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response;
+                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+                _notice = $"{recipe.Name} 已开始生产，每轮结算时消耗材料。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
+        finally { _isBusy = false; }
+    }
+
+    private async Task StopAsync(int taskId)
+    {
+        if (_isBusy) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.StopProductionAsync(taskId);
+            if (error is not null) _notice = error;
+            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response;
+                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+                _notice = "生产已停止，已完成的小轮成品保留在当前角色背包。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
+        finally { _isBusy = false; }
+    }
+
+    private int CycleProgress(ProductionTaskResponse task)
+    {
+        if (task.CycleSeconds <= 0) return 0;
+        var remaining = Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds);
+        return (int)Math.Clamp(Math.Round(100 * (1 - remaining / task.CycleSeconds)), 0, 100);
+    }
+
+    private static string FormatDuration(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
+        return span.TotalHours >= 1 ? $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2}"
+            : $"{span.Minutes:D2}:{span.Seconds:D2}";
+    }
+
+    private static string StatusName(string status) => status switch
+    {
+        "Completed" => "到期完成",
+        "Stopped" => "手动停止",
+        "MaterialShortage" => "材料耗尽",
+        "InventoryFull" => "背包已满",
+        _ => status
+    };
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        _notice = null;
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
+        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+    }
+}

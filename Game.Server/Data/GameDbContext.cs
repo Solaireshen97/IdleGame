@@ -11,6 +11,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterBattleMilestone> CharacterBattleMilestones => Set<CharacterBattleMilestone>();
     public DbSet<CharacterGatheringOpportunity> CharacterGatheringOpportunities => Set<CharacterGatheringOpportunity>();
     public DbSet<GatheringTask> GatheringTasks => Set<GatheringTask>();
+    public DbSet<ProductionTask> ProductionTasks => Set<ProductionTask>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
@@ -49,6 +50,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<GatheringTask>().Property(task => task.Version).IsConcurrencyToken();
         modelBuilder.Entity<GatheringTask>().HasIndex(task => new { task.CharacterId, task.Status });
         modelBuilder.Entity<GatheringTask>().ToTable(table => table.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
+        modelBuilder.Entity<ProductionTask>().Property(task => task.Version).IsConcurrencyToken();
+        modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.CharacterId, task.Status });
+        modelBuilder.Entity<ProductionTask>().ToTable(table => table.HasCheckConstraint("CK_ProductionTasks_Quantities",
+            "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
         modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
         modelBuilder.Entity<RewardRun>().HasKey(run => new { run.RoomId, run.Sequence });
         modelBuilder.Entity<RewardEvent>().HasKey(entry => new { entry.RoomId, entry.Sequence, entry.EventKey });
@@ -58,6 +63,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .Property(character => character.Version)
             .IsConcurrencyToken();
         modelBuilder.Entity<Character>().Property(character => character.GatheringLevel).HasDefaultValue(1);
+        modelBuilder.Entity<Character>().Property(character => character.AlchemyLevel).HasDefaultValue(1);
         modelBuilder.Entity<CharacterItemStack>()
             .Property(stack => stack.Version)
             .IsConcurrencyToken();

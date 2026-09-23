@@ -9,6 +9,7 @@ public static class CharacterActivityManager
 {
     public const string BattleKind = "Battle";
     public const string GatheringKind = "Gathering";
+    public const string ProductionKind = "Production";
 
     public static async Task<bool> IsBusyAsync(GameDbContext db, int characterId) =>
         await db.CharacterActivities.AnyAsync(activity => activity.CharacterId == characterId) ||
@@ -29,6 +30,16 @@ public static class CharacterActivityManager
         {
             CharacterId = task.CharacterId,
             Kind = GatheringKind,
+            SourceId = task.Id,
+            StartedAtUtc = task.StartedAtUtc,
+            EndsAtUtc = task.EndsAtUtc
+        });
+
+    public static void StartProduction(GameDbContext db, ProductionTask task) =>
+        db.CharacterActivities.Add(new CharacterActivity
+        {
+            CharacterId = task.CharacterId,
+            Kind = ProductionKind,
             SourceId = task.Id,
             StartedAtUtc = task.StartedAtUtc,
             EndsAtUtc = task.EndsAtUtc

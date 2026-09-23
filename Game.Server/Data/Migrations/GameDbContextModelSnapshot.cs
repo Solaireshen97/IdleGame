@@ -66,6 +66,10 @@ namespace Game.Server.Data.Migrations
                         .HasDefaultValue(1)
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("AlchemyLevel")
+                        .HasDefaultValue(1)
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("MaxHp")
                         .HasColumnType("INTEGER");
 
@@ -452,6 +456,30 @@ namespace Game.Server.Data.Migrations
                     b.HasKey("Id");
                     b.HasIndex("CharacterId", "Status");
                     b.ToTable("GatheringTasks", t => t.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.ProductionTask", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("RecipeCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("OutputCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("OutputQuantity").HasColumnType("INTEGER");
+                    b.Property<string>("IngredientsJson").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("CycleSeconds").HasColumnType("INTEGER");
+                    b.Property<string>("Status").IsRequired().HasColumnType("TEXT");
+                    b.Property<DateTime>("StartedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("EndsAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("NextCycleAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime?>("StoppedAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("CompletedCycles").HasColumnType("INTEGER");
+                    b.Property<int>("TotalQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "Status");
+                    b.ToTable("ProductionTasks", t => t.HasCheckConstraint("CK_ProductionTasks_Quantities",
+                        "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
                 });
 
             modelBuilder.Entity("Game.Shared.Models.Room", b =>
