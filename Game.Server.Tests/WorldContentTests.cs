@@ -54,7 +54,16 @@ public sealed class WorldContentTests
         var gathering = new GatheringCatalog(content.Bind<GatheringOptions>(GatheringOptions.SectionName),
             content.World, content.Materials);
         var rarePoints = gathering.Points.Where(point => point.IsRare).ToList();
-        Assert.Equal(2, rarePoints.Count);
+        Assert.Equal(6, rarePoints.Count);
+        Assert.Equal(24, gathering.Points.Count);
+        foreach (var region in content.World.Regions)
+        {
+            var points = gathering.Points.Where(point => point.RegionCode == region.Code).ToList();
+            Assert.Equal(4, points.Count);
+            Assert.Single(points, point => point.IsRare);
+            Assert.Single(points, point => point.UnlockKind == "DungeonClear" && point.OutputQuantity == 2);
+            Assert.All(points, point => Assert.Equal(20, point.CycleSeconds));
+        }
         Assert.All(rarePoints, point =>
         {
             Assert.Equal("Elite", content.World.Dungeons.Single(dungeon =>
@@ -62,6 +71,20 @@ public sealed class WorldContentTests
             Assert.NotNull(content.Materials.FindItem(point.MaterialCode));
             Assert.Equal(20, point.CycleSeconds);
         });
+        var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
+            content.World, content.Materials, content.Consumables);
+        var gatheredMaterials = gathering.Points.Select(point => point.MaterialCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(32, production.Recipes.Count);
+        Assert.All(production.Recipes.Where(recipe => recipe.Code != "elwynn-assault-legacy-batch"), recipe =>
+            Assert.All(recipe.Ingredients, ingredient => Assert.Contains(ingredient.Code, gatheredMaterials)));
+        foreach (var rare in rarePoints)
+        {
+            var batches = production.Recipes.Where(recipe => recipe.Ingredients.Any(ingredient =>
+                ingredient.Code == rare.MaterialCode)).ToList();
+            var batch = Assert.Single(batches);
+            Assert.Contains(batch.OutputQuantity, new[] { 3, 4 });
+            Assert.Equal(10, batch.CycleSeconds);
+        }
     }
 
     [Fact]

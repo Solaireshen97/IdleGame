@@ -1,6 +1,7 @@
 using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared;
+using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -392,7 +393,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task GuaranteedEpicWeaponDropPersistsQualitySkillBonusAndDisplaysIt()
+    public async Task GuaranteedEpicWeaponDropPersistsQualityCapacityAndDisplaysIt()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         var progression = ProgressionTestFactory.Create();
@@ -412,7 +413,8 @@ public class BattleServiceTests
         Assert.Null(weapon.EquippedSlotIndex);
         Assert.Equal(7, weapon.Attack);
         var skill = Assert.Single(weapon.Skills);
-        Assert.Equal((5, 2, 3, 0),
+        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal((2, 2, 0, 0),
             (skill.Level, skill.BaseLevel, skill.QualityBonusLevel, skill.EnhancementLevel));
         Assert.Contains(victory.Logs, log => log.Contains("史诗·疾风短弓"));
         Assert.Contains(await test.Db.RewardEntries.ToListAsync(), entry =>
@@ -1324,6 +1326,145 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
         Assert.InRange((result.NextRoundAvailableAtUtc!.Value - result.ServerTimeUtc).TotalSeconds, 29, 31);
+    }
+
+    [Fact]
+    public async Task OfflinePartyAutoAdvancesAndReturningPlayerResumesManualTiming()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
+        await test.AddOtherMemberAsync();
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Room.IsPreparationTimeoutEnabled = false;
+        var slots = await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync();
+        foreach (var slot in slots) slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        await test.Db.SaveChangesAsync();
+
+        var (autoRound, autoError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(autoError);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal(RoomStatus.Cooldown, autoRound!.RoomStatus);
+        Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.False(slots[0].IsAutoEnabled);
+        Assert.False(slots[1].IsAutoEnabled);
+        Assert.Contains(autoRound.Logs, log => log.Contains("1号位") && log.Contains("普通攻击"));
+        Assert.Contains(autoRound.Logs, log => log.Contains("2号位") && log.Contains("普通攻击"));
+
+        var (returned, returnError) = await test.Service.SyncAsync(1, test.Token);
+        Assert.Null(returnError);
+        Assert.Equal(BattleRules.RoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.InRange((returned!.NextRoundAvailableAtUtc!.Value - returned.ServerTimeUtc).TotalSeconds, 9, 11);
+        var detail = await test.GetRoomDetailAsync();
+        Assert.False(detail!.Slots.Single(slot => slot.SlotIndex == 1).IsOfflineAuto);
+        Assert.True(detail.Slots.Single(slot => slot.SlotIndex == 2).IsOfflineAuto);
+
+        var (queued, queueError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(queueError);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.True(slots.All(slot => slot.IsConfirmed));
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var (manualRound, manualError) = await test.Service.SyncRoomAsync(1);
+        Assert.Null(manualError);
+        Assert.Equal(2, test.Room.RoundNumber);
+        Assert.Equal(RoomStatus.Cooldown, manualRound!.RoomStatus);
+    }
+
+    [Fact]
+    public async Task PreparingRoomContinuesWhenLastOnlineMemberGoesOffline()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
+        await test.AddOtherMemberAsync();
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.Status = RoomStatus.Preparing;
+        test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Room.IsPreparationTimeoutEnabled = false;
+        var slots = await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync();
+        slots.Single(slot => slot.SlotIndex == 1).IsConfirmed = true;
+        foreach (var slot in slots) slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
+        Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.All(slots, slot => Assert.False(slot.IsConfirmed));
+    }
+
+    [Fact]
+    public async Task OfflineMultiplayerRepeatBattleRestartsAndSettlesBothRuns()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
+        await test.AddOtherMemberAsync();
+        test.Room.IsRepeatBattle = true;
+        test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Room.ExpiresAtUtc = DateTime.UtcNow.AddHours(1);
+        test.Room.IsPreparationTimeoutEnabled = false;
+        test.Monster.Hp = test.Monster.MaxHp = 10;
+        foreach (var slot in await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync())
+            slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        await test.Db.SaveChangesAsync();
+
+        var (first, firstError) = await test.Service.SyncRoomAsync(1);
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.BattleOver, first!.RoomStatus);
+        Assert.Equal(1, test.Room.RunSequence);
+        Assert.Equal(2, await test.Db.RewardEntries.Where(entry => entry.Sequence == 1 && entry.Kind == "Gold")
+            .Select(entry => entry.CharacterId).Distinct().CountAsync());
+
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds - 1);
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await test.Service.SyncRoomAsync(1);
+        Assert.Null(secondError);
+        Assert.Equal(RoomStatus.BattleOver, second!.RoomStatus);
+        Assert.Equal(2, test.Room.RunSequence);
+        Assert.Equal(2, await test.Db.RewardEntries.Where(entry => entry.Sequence == 2 && entry.Kind == "Gold")
+            .Select(entry => entry.CharacterId).Distinct().CountAsync());
+        Assert.Equal(2, await test.Db.RewardRuns.CountAsync(run => run.Status == "Victory"));
+    }
+
+    [Fact]
+    public async Task GuestCanJoinAfterFirstRoundAndShareTheFollowingVictory()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
+        var (first, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(firstError);
+        Assert.Equal(RoomStatus.Cooldown, first!.RoomStatus);
+        Assert.Equal(1, test.Room.RoundNumber);
+
+        var guest = new Character { Id = 2, UserId = 2, Name = "Guest", Hp = 25, MaxHp = 100, Attack = 100 };
+        test.Db.AddRange(new User { Id = 2, UserName = "guest", PasswordHash = "x", ActiveCharacterId = 2 },
+            guest, new RoomSlot { RoomId = 1, SlotIndex = 2 },
+            new UserLoginSession { UserId = 2, Token = "guest-token",
+                CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+        await test.Db.SaveChangesAsync();
+        var progression = ProgressionTestFactory.Create();
+        var skills = SkillTestFactory.Create();
+        var rooms = new RoomService(test.Db, new UserService(test.Db, progression, skills), progression,
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
+
+        var (joined, joinError) = await rooms.JoinRoomAsync(1,
+            new JoinRoomRequest { SlotIndex = 2 }, "guest-token");
+        Assert.Null(joinError);
+        Assert.Equal(100, guest.Hp);
+        Assert.False(joined!.Slots.Single(slot => slot.SlotIndex == 2).IsConfirmed);
+
+        Assert.Null((await test.Service.StartPreparationAsync(1, test.Token)).Error);
+        Assert.Null((await test.Service.StartPreparationAsync(1, "guest-token")).Error);
+        Assert.Equal(1, test.Room.RoundNumber);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var (victory, victoryError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(victoryError);
+        Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
+        Assert.Equal(2, test.Room.RoundNumber);
+        Assert.Equal(2, await test.Db.RewardEntries.Where(entry => entry.Sequence == 1 && entry.Kind == "Gold")
+            .Select(entry => entry.CharacterId).Distinct().CountAsync());
+        Assert.True((await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 2)).HasParticipatedInRun);
     }
 
     [Fact]

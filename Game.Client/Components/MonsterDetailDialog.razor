@@ -125,7 +125,7 @@
         <WeaponDetailDialog Name="@selectedDrop.Name" Element="@weapon.Element" ItemLevel="@weapon.ItemLevel"
                             Attack="@weapon.Attack" MaxHp="@weapon.MaxHp" Skills="@weapon.Skills"
                             Category="WEAPON PREVIEW" Subtitle="@($"基础模板 · 装等 {weapon.ItemLevel}")"
-                            Note="显示的是基础属性；实际掉落品质可能提高技能等级。"
+                            Note="显示的是基础属性；掉落品质只提高每条技能的强化上限。"
                             CloseLabel="← 返回掉落预览" OnClose="CloseWeapon" />
     }
 </div>

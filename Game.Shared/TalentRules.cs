@@ -21,7 +21,7 @@ public static class TalentRules
     public static int EffectiveMaxHp(Character character)
     {
         var weaponHp = decimal.Floor(character.MaxHp *
-            (1m + character.WeaponHealthBonusPercent / 100m) *
+            (1m + (character.WeaponHealthBonusPercent + character.TemporaryWeaponHealthBonusPercent) / 100m) *
             (1m + character.TalentMaxHpPercent / 100m));
         return (int)Math.Min(int.MaxValue, Math.Max(1m, weaponHp));
     }

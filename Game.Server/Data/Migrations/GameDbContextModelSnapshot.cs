@@ -146,6 +146,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("ItemLevel").HasColumnType("INTEGER");
                     b.Property<int>("SellGold").HasColumnType("INTEGER");
                     b.Property<int>("DismantleFragments").HasColumnType("INTEGER");
+                    b.Property<int>("QualityRank").HasColumnType("INTEGER");
                     b.Property<bool>("IsLocked").HasColumnType("INTEGER");
                     b.Property<int?>("EquippedSlotIndex").HasColumnType("INTEGER");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
@@ -177,7 +178,7 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterWeaponSkills", t =>
                     {
                         t.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
-                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel BETWEEN 0 AND 3 AND EnhancementLevel BETWEEN 0 AND 3 AND Level = BaseLevel + QualityBonusLevel + EnhancementLevel");
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel = 0 AND EnhancementLevel BETWEEN 0 AND 6 AND Level = BaseLevel + EnhancementLevel");
                         t.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
                     });
                 });
@@ -208,6 +209,22 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("BattleConsumableCooldowns");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.BattleConsumableBuff", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ItemCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("WeaponSkillCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("SkillLevel").HasColumnType("INTEGER");
+                    b.Property<int>("AppliedRound").HasColumnType("INTEGER");
+                    b.Property<int>("ExpiresAfterRound").HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "RunSequence", "CharacterId", "WeaponSkillCode", "AppliedRound").IsUnique();
+                    b.ToTable("BattleConsumableBuffs", t => t.HasCheckConstraint("CK_BattleConsumableBuffs_Values", "SkillLevel > 0 AND ExpiresAfterRound >= AppliedRound"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.BattleOperationPotionState", b =>
                 {
                     b.Property<int>("RoomId").HasColumnType("INTEGER");
@@ -215,6 +232,10 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<string>("ItemCode").HasColumnType("TEXT");
                     b.Property<int>("AttackPercent").HasColumnType("INTEGER");
+                    b.Property<int>("FinalDamagePercent").HasColumnType("INTEGER");
+                    b.Property<int>("DamageTakenPercent").HasColumnType("INTEGER");
+                    b.Property<int>("NormalAttackDamagePercent").HasColumnType("INTEGER");
+                    b.Property<int>("AreaDamageReductionPercent").HasColumnType("INTEGER");
                     b.HasKey("RoomId", "RunSequence", "CharacterId");
                     b.ToTable("BattleOperationPotionStates", t => t.HasCheckConstraint("CK_BattleOperationPotionStates_AttackPercent", "AttackPercent BETWEEN 0 AND 100"));
                 });
@@ -604,6 +625,9 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int?>("LastParticipatedMonsterId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAutoEnabled")
                         .HasColumnType("INTEGER");

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Game.Shared.Models;
 
 public class Character
@@ -18,6 +20,14 @@ public class Character
     public decimal WeaponDoubleAttackChancePercent { get; set; }
     public decimal WeaponNormalEchoPercent { get; set; }
     public decimal WeaponSkillDamagePercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponAttackBonusPercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponHealthBonusPercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponCriticalChancePercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponStaminaPercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponEnmityPercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponDoubleAttackChancePercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponNormalEchoPercent { get; set; }
+    [NotMapped] public decimal TemporaryWeaponSkillDamagePercent { get; set; }
     public int Level { get; set; } = 1;
     public int GatheringLevel { get; set; } = 1;
     public int AlchemyLevel { get; set; } = 1;

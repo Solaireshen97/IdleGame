@@ -1,6 +1,7 @@
 using Game.Server.Data;
 using Game.Server.Configuration;
 using Game.Server.Services;
+using Game.Shared;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
@@ -336,7 +337,7 @@ public class RoomServiceTests
     }
 
     [Fact]
-    public async Task JoinRoomAsync_OccupiedOrLockedSlot_IsRejected()
+    public async Task JoinRoomAsync_OccupiedOrFinishedRoom_IsRejected()
     {
         await using var test = await RoomTestContext.CreateAsync();
         var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
@@ -344,12 +345,95 @@ public class RoomServiceTests
 
         var (_, occupiedError) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 1 }, "other-token");
         var entity = await test.Db.Rooms.FindAsync(room.RoomId);
-        entity!.Status = RoomStatus.Preparing;
+        entity!.Status = RoomStatus.BattleOver;
         await test.Db.SaveChangesAsync();
         var (_, lockedError) = await test.Service.JoinRoomAsync(room.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
 
         Assert.Equal("SlotOccupied", occupiedError);
-        Assert.Equal("RoomLocked", lockedError);
+        Assert.Equal("BattleOver", lockedError);
+    }
+
+    [Fact]
+    public async Task JoiningDuringAutoCooldownSwitchesToManualRoundTiming()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+        var room = await test.Db.Rooms.FindAsync(created!.RoomId);
+        room!.Status = RoomStatus.Cooldown;
+        room.RoundNumber = 1;
+        room.RoundCooldownDurationSeconds = BattleRules.AutoRoundCooldownSeconds;
+        room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(25);
+        await test.Db.SaveChangesAsync();
+
+        var (joined, error) = await test.Service.JoinRoomAsync(room.Id,
+            new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+
+        Assert.Null(error);
+        Assert.Equal(BattleRules.RoundCooldownSeconds, joined!.RoundCooldownDurationSeconds);
+        Assert.InRange((joined.NextRoundAvailableAtUtc!.Value - joined.ServerTimeUtc).TotalSeconds, 4, 6);
+        Assert.Equal(RoomStatus.Cooldown, joined.RoomStatus);
+        Assert.NotNull((await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == room.Id && slot.SlotIndex == 2)).LastSeenAtUtc);
+    }
+
+    [Fact]
+    public async Task StaleConcurrentJoinReturnsConflictWithoutOccupyingAnotherSlot()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+        test.Db.AddRange(new User { Id = 3, UserName = "third", PasswordHash = "x", ActiveCharacterId = 3 },
+            new Character { Id = 3, UserId = 3, Name = "Third", Hp = 100, MaxHp = 100, Attack = 20 },
+            new UserLoginSession { UserId = 3, Token = "third-token",
+                CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+        await test.Db.SaveChangesAsync();
+        await using var staleDb = test.CreateDbContext();
+        await staleDb.Rooms.SingleAsync(room => room.Id == created!.RoomId);
+        var progression = ProgressionTestFactory.Create();
+        var skills = SkillTestFactory.Create();
+        var staleService = new RoomService(staleDb,
+            new UserService(staleDb, progression, skills), progression,
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(staleDb, progression));
+
+        Assert.Null((await test.Service.JoinRoomAsync(created!.RoomId,
+            new JoinRoomRequest { SlotIndex = 2 }, "other-token")).Error);
+        var (_, error) = await staleService.JoinRoomAsync(created.RoomId,
+            new JoinRoomRequest { SlotIndex = 3 }, "third-token");
+
+        Assert.Equal("ConcurrencyConflict", error);
+        Assert.Null((await test.Db.RoomSlots.SingleAsync(slot =>
+            slot.RoomId == created.RoomId && slot.SlotIndex == 3)).CharacterId);
+        Assert.False(await test.Db.CharacterActivities.AnyAsync(activity => activity.CharacterId == 3));
+    }
+
+    [Fact]
+    public async Task GuestCanJoinPreparingRoomAndGetsFullPreparationWindow()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await test.AddOtherActiveCharacterAsync();
+        var room = await test.Db.Rooms.FindAsync(created!.RoomId);
+        room!.Status = RoomStatus.Preparing;
+        room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-25);
+        var ownerSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == room.Id && slot.SlotIndex == 1);
+        ownerSlot.IsConfirmed = true;
+        await test.Db.SaveChangesAsync();
+
+        var (joined, joinError) = await test.Service.JoinRoomAsync(room.Id,
+            new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        Assert.Null(joinError);
+        Assert.Equal(RoomStatus.Preparing, joined!.RoomStatus);
+        Assert.InRange((joined.PreparationExpiresAtUtc!.Value - joined.ServerTimeUtc).TotalSeconds, 29, 31);
+        Assert.False(joined.Slots.Single(slot => slot.SlotIndex == 2).IsConfirmed);
+
+        var progression = ProgressionTestFactory.Create();
+        var skills = SkillTestFactory.Create();
+        var battle = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
+        var (round, error) = await battle.StartPreparationAsync(room.Id, "other-token", 0);
+        Assert.Null(error);
+        Assert.NotNull(round);
+        Assert.Equal(1, room.RoundNumber);
     }
 
     [Fact]
@@ -385,6 +469,9 @@ public class RoomServiceTests
         public GameDbContext Db { get; }
         public Character ActiveCharacter { get; }
         public RoomService Service { get; }
+
+        public GameDbContext CreateDbContext() => new(new DbContextOptionsBuilder<GameDbContext>()
+            .UseSqlite($"Data Source={_path};Pooling=False").Options);
 
         public static async Task<RoomTestContext> CreateAsync()
         {

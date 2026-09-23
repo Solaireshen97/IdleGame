@@ -50,7 +50,7 @@
                         @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
                     <span class="consumables-board__slot-index">@slot.SlotIndex.ToString("00")</span>
                     <span class="inventory-item__icon" aria-hidden="true">@(equippedItem is null ? "+" : "✚")</span>
-                    <span><strong>@(equippedItem?.Name ?? "空槽位")</strong><small>@(equippedItem is null ? "点击配置" : slot.AutoUseEnabled ? $"AUTO · HP ≤ {slot.AutoHpThresholdPercent}%" : "手动使用")</small></span>
+                    <span><strong>@(equippedItem?.Name ?? "空槽位")</strong><small>@(equippedItem is null ? "点击配置" : !slot.AutoUseEnabled ? "手动使用" : equippedItem.Kind == "Healing" ? $"AUTO · HP ≤ {slot.AutoHpThresholdPercent}%" : "AUTO · 条件满足时使用")</small></span>
                     @if (IsDirty(slot)) { <b>未保存</b> }
                 </button>
             }
@@ -68,7 +68,7 @@
                     aria-label="@($"作战药剂槽：{potionItem?.Name ?? "空槽位"}")" @onclick="() => OpenEditor(potionSlot.SlotIndex)">
                 <span class="consumables-board__slot-index">作战药剂</span>
                 <span class="inventory-item__icon" aria-hidden="true">✦</span>
-                <span><strong>@(potionItem?.Name ?? "未装备作战药剂")</strong><small>@(potionItem is null ? "点击配置" : $"攻击 +{potionItem.AttackPercent}% · 库存 {potionItem.Quantity}")</small></span>
+                <span><strong>@(potionItem?.Name ?? "未装备作战药剂")</strong><small>@(potionItem is null ? "点击配置" : $"{potionItem.Description} · 库存 {potionItem.Quantity}")</small></span>
                 @if (IsDirty(potionSlot)) { <b>未保存</b> }
             </button>
         }
@@ -79,17 +79,17 @@
                 <small>点按道具后可装备到对应槽位 · 共 @_data.Items.Sum(item => item.Quantity) 件</small>
             </header>
             <div class="consumables-board__inventory">
-                @if (_data.Items.Count == 0)
+                @if (!_data.Items.Any(item => item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)))
                 {
                     <p class="consumables-board__inventory-empty">背包里还没有可用道具，可前往商店补充。</p>
                 }
-                @foreach (var item in _data.Items)
+                @foreach (var item in _data.Items.Where(item => item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)))
                 {
                     var equippedSlot = _drafts.FirstOrDefault(slot => slot.ItemCode == item.Code);
                     <button type="button" class="inventory-item @(equippedSlot is not null ? "inventory-item--equipped" : null)"
                             disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)">
                         <span class="inventory-item__icon" aria-hidden="true">✚</span>
-                        <span><strong>@item.Name</strong><small>@(item.Kind == "OperationPotion" ? $"整场攻击 +{item.AttackPercent}% · 每场 1 瓶" : $"恢复 {item.HealAmount} HP · 冷却 {item.CooldownRounds} 回合")</small></span>
+                        <span><strong>@item.Name</strong><small>@item.Description</small></span>
                         <span class="inventory-item__meta"><b>×@item.Quantity</b><small>@(equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</small></span>
                     </button>
                 }
@@ -112,7 +112,9 @@
                         装备道具
                         <select value="@(selectedSlot.ItemCode ?? string.Empty)" @onchange="e => UpdateItem(selectedSlot, e.Value?.ToString())" disabled="@_isSaving">
                             <option value="">不装备</option>
-                            @foreach (var item in _data.Items.Where(item => (selectedSlot.SlotIndex == Game.Shared.ConsumableRules.OperationPotionSlotIndex) == (item.Kind == "OperationPotion")))
+                            @foreach (var item in _data.Items.Where(item =>
+                                (selectedSlot.SlotIndex == Game.Shared.ConsumableRules.OperationPotionSlotIndex) == (item.Kind == "OperationPotion") &&
+                                (item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code))))
                             {
                                 <option value="@item.Code" disabled="@IsUsedInOtherSlot(item.Code, selectedSlot.SlotIndex)">@item.Name（库存 @item.Quantity）</option>
                             }
@@ -126,21 +128,24 @@
                     {
                         @if (selectedItem.Kind == "OperationPotion")
                         {
-                            <p class="consumables-board__item-description">本场首次参与回合结算时消耗 1 瓶，<span>攻击 +@selectedItem.AttackPercent%</span>，整场生效。无需开启 Auto。</p>
+                            <p class="consumables-board__item-description">本场首次参与回合结算时消耗 1 瓶，<span>@selectedItem.Description</span>，整场生效。无需开启 Auto。</p>
                         }
                         else
                         {
-                        <p class="consumables-board__item-description">恢复 @selectedItem.HealAmount HP <span>冷却 @selectedItem.CooldownRounds 回合</span></p>
+                        <p class="consumables-board__item-description">@selectedItem.Description</p>
                         <div class="consumables-board__automation">
                             <label class="consumable-slot__toggle">
                                 <input type="checkbox" checked="@selectedSlot.AutoUseEnabled" @onchange="e => UpdateAuto(selectedSlot, e.Value is true)" disabled="@_isSaving" />
-                                <span><strong>自动使用</strong><small>生命低于设定阈值时</small></span>
+                                <span><strong>自动使用</strong><small>@(selectedItem.Kind == "Healing" ? "生命低于设定阈值时" : selectedItem.WeaponSkillCode == "weapon-enmity" ? "生命不高于 50%、效果结束且冷却就绪时" : "效果结束且冷却就绪时")</small></span>
                             </label>
-                            <label class="consumable-slot__threshold">
-                                <span>HP ≤</span>
-                                <input type="number" min="1" max="100" value="@selectedSlot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(selectedSlot, e.Value?.ToString())" disabled="@_isSaving" />
-                                <span>%</span>
-                            </label>
+                            @if (selectedItem.Kind == "Healing")
+                            {
+                                <label class="consumable-slot__threshold">
+                                    <span>HP ≤</span>
+                                    <input type="number" min="1" max="100" value="@selectedSlot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(selectedSlot, e.Value?.ToString())" disabled="@_isSaving" />
+                                    <span>%</span>
+                                </label>
+                            }
                         </div>
                         }
                     }

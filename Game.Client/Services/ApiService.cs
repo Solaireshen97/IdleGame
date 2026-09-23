@@ -636,6 +636,12 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         SendWeaponRequestAsync(HttpMethod.Post,
             $"api/user/characters/{characterId}/weapons/{weaponId}/skills/{skillSlotIndex}/enhance");
 
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> UpgradeWeaponQualityAsync(
+        int characterId, int weaponId, int materialWeaponId) =>
+        SendWeaponRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/weapons/{weaponId}/quality/upgrade",
+            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId });
+
     private async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SendWeaponRequestAsync(
         HttpMethod method, string url, object? configuration = null)
     {

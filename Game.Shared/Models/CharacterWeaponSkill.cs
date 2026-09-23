@@ -8,6 +8,7 @@ public sealed class CharacterWeaponSkill
     public string SkillCode { get; set; } = string.Empty;
     public int Level { get; set; }
     public int BaseLevel { get; set; } = 1;
+    // Legacy database column. New weapon quality is stored on CharacterWeapon.
     public int QualityBonusLevel { get; set; }
     public int EnhancementLevel { get; set; }
     public int? SpentFragments { get; set; }

@@ -3,6 +3,7 @@
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Characters
 @using Game.Shared.Enums
+@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject AccountBalanceState AccountBalance
 @inject IJSRuntime Js
@@ -71,7 +72,7 @@
                         {
                             <div><span>@fragment.Name</span><strong>@fragment.Quantity</strong></div>
                         }
-                        <p>装等 1～9 使用 T1 碎片，10～19 使用 T2 碎片；碎片归当前角色所有。</p>
+                        <p>装等 1～10 使用 T1 碎片，11～20 使用 T2 碎片；碎片归当前角色所有。</p>
                     </div>
 
                     <div class="weapon-board__effects" aria-label="已生效的武器技能">
@@ -144,7 +145,7 @@
             <div>
                 <span class="weapon-board__eyebrow">CHARACTER ARMORY</span>
                 <h2>武器仓库 · 当前选择 @(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</h2>
-                <p>可以在这里编成、锁定、强化、出售或分解武器。</p>
+                <p>可以在这里编成、锁定、强化、升品、出售或分解武器。</p>
             </div>
             @if (_selectedSlot > 1 && FindEquipped(_selectedSlot) is not null)
             {
@@ -221,6 +222,24 @@
                                 Note="@(inspected.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop ? "初始或商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
                                 CloseLabel="← 返回武器仓库" OnClose="CloseWeaponDetails">
                 <AdditionalContent>
+                    <section class="weapon-detail-management" aria-label="武器升品">
+                        <h3>品质提升 <small>@inspected.QualityName · 每条技能强化上限 +@(WeaponRules.MaxEnhancementPerSkill + inspected.QualityRank)</small></h3>
+                        @if (inspected.QualityRank >= WeaponRules.MaxQualityBonusLevels)
+                        {
+                            <p class="weapon-detail-preview">已达最高品质。</p>
+                        }
+                        else if (MatchingQualityMaterials(inspected).Count == 0)
+                        {
+                            <p class="weapon-detail-preview">需要另一把未装备、未锁定的同名武器，品质不限。初始赠送武器不能作为素材。</p>
+                        }
+                        else
+                        {
+                            <button type="button" class="weapon-quality-open" @ref="_qualityPickerTrigger" @onclick="OpenQualityPicker" disabled="@_isSaving">
+                                <span><strong>选择同名武器素材</strong><small>@QualityMaterials(inspected).Count 把可用 · @MatchingQualityMaterials(inspected).Count 把同款</small></span><span aria-hidden="true">›</span>
+                            </button>
+                            <p class="weapon-detail-preview">升品消耗一把同款武器，素材的品质与强化投入不会继承。</p>
+                        }
+                    </section>
                     @if (inspected.Skills.Count > 0)
                     {
                         <section class="weapon-detail-management" aria-label="技能强化">
@@ -229,7 +248,7 @@
                             {
                                 var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(inspected.FragmentTier) >= cost;
                                 <div class="weapon-detail-management__row">
-                                    <span><strong>@skill.Name</strong><small>基础 Lv@(skill.BaseLevel) · 品质 +@(skill.QualityBonusLevel) · 强化 +@(skill.EnhancementLevel) / @(skill.MaximumEnhancementLevel)</small></span>
+                                    <span><strong>@skill.Name</strong><small>基础 Lv@(skill.BaseLevel) · 强化 +@(skill.EnhancementLevel) / @(skill.MaximumEnhancementLevel)</small></span>
                                     <button type="button" @onclick="() => EnhanceAsync(inspected, skill)" disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
                                         @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{inspected.FragmentTier} ×{nextCost}" : "强化已满")
                                     </button>
@@ -251,6 +270,50 @@
                 </Actions>
             </WeaponDetailDialog>
         }
+        @if (_qualityPickerOpen && InspectedWeapon is { } qualityTarget)
+        {
+            <div class="weapon-quality-overlay" @onclick="CloseQualityPicker" @onkeydown="HandleQualityPickerKeyDown" @onkeydown:stopPropagation>
+                <section class="weapon-quality-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-quality-title" @onclick:stopPropagation>
+                    <header class="weapon-quality-header">
+                        <div><span>QUALITY UPGRADE · @qualityTarget.Name</span><h2 id="weapon-quality-title">选择升品素材</h2><p>@qualityTarget.QualityName → @WeaponRules.QualityName(qualityTarget.QualityRank + 1) · 选择一把同款武器</p></div>
+                        <button type="button" class="weapon-quality-close" @onclick="CloseQualityPicker" @ref="_qualityPickerCloseButton" aria-label="关闭素材选择">×</button>
+                    </header>
+                    <div class="weapon-quality-body">
+                        <p class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示低品质、低装等素材。</p>
+                        <div class="weapon-quality-grid" role="group" aria-label="同款武器素材">
+                            @foreach (var material in MatchingQualityMaterials(qualityTarget))
+                            {
+                                var blockedReason = QualityMaterialBlockReason(material);
+                                <button type="button" class="weapon-quality-option element-@material.Element.ToString().ToLowerInvariant() quality-@material.QualityCode @(_qualityMaterialId == material.Id ? "weapon-quality-option--selected" : null)"
+                                        @key="material.Id" @onclick="() => _qualityMaterialId = material.Id" disabled="@(_isSaving || blockedReason is not null)" aria-pressed="@(_qualityMaterialId == material.Id)"
+                                        aria-label="@material.QualityName @material.Name，装等 @material.ItemLevel，攻击 @material.Attack，生命 @material.MaxHp，@(blockedReason ?? "可作为素材")">
+                                    <span class="weapon-quality-option__top"><b>@material.QualityName · @WeaponRules.ElementName(material.Element)</b><small>#@material.Id</small></span>
+                                    <span class="weapon-quality-option__crest" aria-hidden="true">@GetSymbol(material.Element)</span>
+                                    <strong>@material.Name</strong>
+                                    <span class="weapon-quality-option__stats">装等 @material.ItemLevel · ⚔ @material.Attack · ✚ @material.MaxHp</span>
+                                    <span class="weapon-quality-option__skills">@(material.Skills.Count == 0 ? "无武器技能" : string.Join(" · ", material.Skills.Select(skill => $"{skill.Name} Lv{skill.Level}")))</span>
+                                    <span class="weapon-quality-option__state">@(blockedReason ?? (material.Skills.Sum(skill => skill.EnhancementLevel) > 0 ? $"可消耗 · 已强化 +{material.Skills.Sum(skill => skill.EnhancementLevel)}" : "可作为素材"))</span>
+                                </button>
+                            }
+                        </div>
+                        @if (QualityMaterials(qualityTarget).Count == 0)
+                        {
+                            <p class="weapon-quality-warning">目前没有可消耗的素材。请先卸下或解锁同款武器。</p>
+                        }
+                        @if (SelectedQualityMaterial is { } chosen)
+                        {
+                            <div class="weapon-quality-selection"><strong>已选：@chosen.QualityName · @chosen.Name #@chosen.Id</strong><span>装等 @chosen.ItemLevel · 攻击 @chosen.Attack · HP @chosen.MaxHp · 强化投入 +@chosen.Skills.Sum(skill => skill.EnhancementLevel)</span></div>
+                        }
+                        <p class="weapon-quality-warning">升品后素材会消失，素材的品质与技能强化投入不会继承，也不会返还。</p>
+                        @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
+                    </div>
+                    <footer class="weapon-quality-footer">
+                        <button type="button" class="weapon-quality-cancel" @onclick="CloseQualityPicker">取消</button>
+                        <button type="button" class="weapon-quality-confirm" @onclick="() => UpgradeQualityAsync(qualityTarget)" disabled="@(_isSaving || SelectedQualityMaterial is null)">消耗所选 · 提升至 @WeaponRules.QualityName(qualityTarget.QualityRank + 1)</button>
+                    </footer>
+                </section>
+            </div>
+        }
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
         <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。强化、出售与分解结果均由服务端结算。</p>
@@ -269,11 +332,31 @@
     private string _mobileView = "grid";
     private ElementType? _selectedElementFilter;
     private int? _inspectedWeaponId;
+    private int _qualityMaterialId;
+    private bool _qualityPickerOpen;
+    private bool _focusQualityPicker;
+    private bool _focusQualityTrigger;
+    private ElementReference _qualityPickerCloseButton;
+    private ElementReference _qualityPickerTrigger;
     private readonly HashSet<int> _selectedWeaponIds = [];
     private string? _error;
     private string? _notice;
 
     protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusQualityPicker)
+        {
+            _focusQualityPicker = false;
+            await _qualityPickerCloseButton.FocusAsync();
+        }
+        else if (_focusQualityTrigger)
+        {
+            _focusQualityTrigger = false;
+            await _qualityPickerTrigger.FocusAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -285,6 +368,9 @@
             var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
             _data = response;
             _inspectedWeaponId = null;
+            _qualityPickerOpen = false;
+            _focusQualityPicker = false;
+            _focusQualityTrigger = false;
             _selectedWeaponIds.Clear();
             _error = GetError(error);
         }
@@ -307,6 +393,9 @@
         ? _data?.Weapons.FirstOrDefault(weapon => weapon.Id == id)
         : null;
 
+    private CharacterWeaponResponse? SelectedQualityMaterial => InspectedWeapon is { } target
+        ? QualityMaterials(target).FirstOrDefault(item => item.Id == _qualityMaterialId) : null;
+
     private void SelectElementFilter(ElementType? element)
     {
         _selectedElementFilter = element;
@@ -315,8 +404,45 @@
         _notice = null;
     }
 
-    private void OpenWeaponDetails(int weaponId) => _inspectedWeaponId = weaponId;
-    private void CloseWeaponDetails() => _inspectedWeaponId = null;
+    private void OpenWeaponDetails(int weaponId) { _inspectedWeaponId = weaponId; _qualityMaterialId = 0; _qualityPickerOpen = false; _focusQualityTrigger = false; }
+    private void CloseWeaponDetails() { _inspectedWeaponId = null; _qualityMaterialId = 0; _qualityPickerOpen = false; _focusQualityTrigger = false; }
+
+    private void OpenQualityPicker()
+    {
+        if (_isSaving || InspectedWeapon is null) return;
+        _qualityMaterialId = 0;
+        _qualityPickerOpen = true;
+        _focusQualityPicker = true;
+        _error = null;
+    }
+
+    private void CloseQualityPicker()
+    {
+        _qualityPickerOpen = false;
+        _qualityMaterialId = 0;
+        _focusQualityTrigger = InspectedWeapon is not null;
+        _error = null;
+    }
+
+    private void HandleQualityPickerKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CloseQualityPicker();
+    }
+
+    private List<CharacterWeaponResponse> MatchingQualityMaterials(CharacterWeaponResponse target) => _data?.Weapons
+        .Where(item => item.Id != target.Id &&
+            string.Equals(item.WeaponCode, target.WeaponCode, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(item => QualityMaterialBlockReason(item) is null ? 0 : 1)
+        .ThenBy(item => item.QualityRank).ThenBy(item => item.ItemLevel).ThenBy(item => item.Id)
+        .ToList() ?? [];
+
+    private List<CharacterWeaponResponse> QualityMaterials(CharacterWeaponResponse target) =>
+        MatchingQualityMaterials(target).Where(item => QualityMaterialBlockReason(item) is null).ToList();
+
+    private static string? QualityMaterialBlockReason(CharacterWeaponResponse weapon) => weapon.Origin == WeaponOrigin.Starter
+        ? "初始赠品不可消耗" : weapon.EquippedSlotIndex.HasValue
+        ? "已装备，请先卸下" : weapon.IsLocked
+        ? "已锁定，请先解锁" : null;
 
     private static IReadOnlyList<WeaponDropSkillPreviewResponse> GetDetailSkills(CharacterWeaponResponse weapon) =>
         weapon.Skills.Select(skill => new WeaponDropSkillPreviewResponse
@@ -338,6 +464,8 @@
         _selectedSlot = index;
         _mobileView = "inventory";
         _inspectedWeaponId = null;
+        _qualityPickerOpen = false;
+        _focusQualityTrigger = false;
         _error = null;
         _notice = null;
     }
@@ -436,6 +564,23 @@
             $"{weapon.Name} 的{skill.Name}提升至 Lv{skill.Level + 1}。", refreshCharacter: true);
     }
 
+    private async Task UpgradeQualityAsync(CharacterWeaponResponse weapon)
+    {
+        var material = SelectedQualityMaterial;
+        if (material is null) return;
+        if (!await Js.InvokeAsync<bool>("confirm",
+                $"消耗 {material.QualityName}·{material.Name} #{material.Id}（装等 {material.ItemLevel}，攻击 {material.Attack}，HP {material.MaxHp}，技能强化 +{material.Skills.Sum(skill => skill.EnhancementLevel)}）提升 {weapon.Name}？素材会消失且强化投入不返还，目标品质将变为 {WeaponRules.QualityName(weapon.QualityRank + 1)}。")) return;
+        await RunWeaponActionAsync(
+            () => ApiService.UpgradeWeaponQualityAsync(CharacterId, weapon.Id, material.Id),
+            $"{weapon.Name} 已提升至{WeaponRules.QualityName(weapon.QualityRank + 1)}。");
+        if (_error is null && _notice is not null)
+        {
+            _qualityMaterialId = 0;
+            _qualityPickerOpen = false;
+            _focusQualityTrigger = false;
+        }
+    }
+
     private async Task SellAsync(CharacterWeaponResponse weapon)
     {
         if (!await Js.InvokeAsync<bool>("confirm", $"出售 {weapon.Name}？将获得 {weapon.SellGold} 金币，强化投入不会返还。")) return;
@@ -515,6 +660,10 @@
         "WeaponLocked" => "锁定的武器不能出售或分解。",
         "WeaponSkillNotFound" => "没有找到需要强化的武器技能。",
         "WeaponSkillAtMaximum" => "这项武器技能已经强化至当前上限。",
+        "WeaponQualityAtMaximum" => "这把武器已达最高品质。",
+        "QualityMaterialMustMatch" => "只能消耗同名武器升品。",
+        "InvalidQualityMaterial" => "请选择另一把武器作为素材。",
+        "StarterWeaponCannotBeConsumed" => "初始赠送武器不能作为升品素材。",
         "StarterWeaponCannotBeSold" => "初始赠送武器不能出售。",
         "WeaponCannotBeDismantled" => "这把武器没有可回收的材料；商店武器需强化后才能分解。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",

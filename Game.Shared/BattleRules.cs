@@ -7,6 +7,7 @@ public static class BattleRules
     public const int PreparationTimeoutSeconds = 30;
     public const int RepeatBattleDelaySeconds = 30;
     public const int WaveTransitionSeconds = 3;
+    public const int PresenceTimeoutSeconds = 30;
     public const int MaxGuardDamageReductionPercent = 75;
     public const int CriticalDamageBonusPercent = 50;
 }

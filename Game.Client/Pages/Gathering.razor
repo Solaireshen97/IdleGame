@@ -1,6 +1,7 @@
 @page "/gathering"
 @using Game.Client.Services
 @using Game.Shared.Dtos.Gathering
+@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
@@ -8,11 +9,10 @@
 
 <PageTitle>采集</PageTitle>
 
-<div class="gathering-page">
-    <header class="gathering-intro">
-        <span>FIELD WORK · ELWYNN FOREST</span>
-        <h1>草药采集</h1>
-        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。精英讨伐提供限次采集机会，产物进入该角色背包。</p>
+<div class="activity-page activity-page--gathering">
+    <header class="activity-intro">
+        <div><span>FIELD WORK · ELWYNN FOREST</span><h1>草药采集</h1></div>
+        <p>选择地点查看收益与解锁条件；产物进入当前角色背包。</p>
     </header>
 
     @if (_isLoading)
@@ -22,87 +22,78 @@
     else if (_overview is null)
     {
         <GameStateCard Compact="true" Tone="error" Icon="!" Title="采集信息读取失败" Detail="请检查登录状态后重试。" />
-        <button class="gathering-refresh" @onclick="LoadAsync">重新读取</button>
+        <button class="activity-refresh" @onclick="LoadAsync">重新读取</button>
     }
     else
     {
-        <div class="gathering-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>采集 Lv.@_overview.GatheringLevel · <a href="/talents?tree=Gathering">管理天赋 →</a></span></div>
-            <div><small>已解锁地点</small><strong>@_overview.Points.Count(point => point.IsUnlocked) / @_overview.Points.Count</strong><span>不同角色需要各自完成战斗</span></div>
+        <div class="activity-summary">
+            <div><small>当前角色</small><strong>@_overview.CharacterName · 采集 Lv.@_overview.GatheringLevel</strong></div>
+            <span>已解锁 @_overview.Points.Count(point => point.IsUnlocked) / @_overview.Points.Count 处</span>
+            <a href="/talents?tree=Gathering">采集天赋 ↗</a>
         </div>
 
         @if (_notice is not null)
         {
-            <p class="gathering-notice" role="status">@_notice</p>
+            <p class="activity-notice" role="status">@_notice</p>
         }
 
         @if (_overview.ActiveTask is { } task)
         {
-            <section class="gathering-active" aria-label="当前采集任务">
-                <div class="gathering-active__top"><span>@(task.IsRare ? "正在稀有采集" : "正在采集")</span><span>@(task.IsRare ? "完成本轮后消耗 1 次机会" : "12 小时后完成当前轮")</span></div>
-                <h2>@task.PointName</h2>
-                <p>@(task.IsRare ? $"本轮保底获得 {task.MaterialName}。中途停止不消耗机会。" : $"每轮收获 {task.MaterialName}。关闭网页后，服务器仍会继续结算。")</p>
-                @if (task.BonusQuantity > 0)
-                {
-                    <p>稀有附加产物：@task.BonusMaterialName × @task.BonusQuantity</p>
-                }
-                <div class="gathering-active__metrics">
-                    <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
-                    <div><small>累计产出 · 额外 @task.ExtraYieldQuantity</small><strong>@task.TotalQuantity <em>株</em></strong></div>
-                    <div><small>@(task.IsRare ? "本轮剩余" : "剩余时限")</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+            <section class="activity-active" aria-label="当前采集任务">
+                <div class="activity-active__heading"><span>@(task.IsRare ? "稀有采集中" : "采集中")</span><strong>剩余 @FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                <div class="activity-active__main">
+                    <div><h2>@task.PointName</h2><p>已完成 @task.CompletedCycles 轮 · 收获 @task.TotalQuantity 株@(task.ExtraYieldQuantity > 0 ? $" · 额外 {task.ExtraYieldQuantity}" : "")</p></div>
+                    <button type="button" class="activity-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止并结算")</button>
                 </div>
-                <div class="gathering-active__timer"><span>@(task.IsRare ? "本次采集" : "下一轮")</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
-                <div class="gathering-progress" role="progressbar" aria-label="下一轮采集进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
-                    <span @key="task.NextCycleAtUtc" class="gathering-progress__fill" style="width: @(CycleProgress(task))%"></span>
+                <div class="activity-active__timer"><span>@(task.IsRare ? "本次采集" : "下一轮")</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
+                <div class="activity-progress" role="progressbar" aria-label="下一轮采集进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
+                    <span @key="task.NextCycleAtUtc" style="width: @(CycleProgress(task))%"></span>
                 </div>
-                <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止采集并结算")</button>
+                <details class="activity-active__more"><summary>查看任务规则与附加产物</summary><p>@(task.IsRare ? "完成本轮后消耗 1 次机会；中途停止不消耗机会。" : "任务到期后结算当前轮；关闭网页后服务器仍会继续采集。") @(task.BonusQuantity > 0 ? $"稀有附加产物：{task.BonusMaterialName} × {task.BonusQuantity}。" : "")</p></details>
             </section>
         }
 
-        <section class="gathering-points" aria-label="采集地点">
-            <div class="gathering-section-title"><span>GATHERING SITES</span><h2>采集地点</h2></div>
-            <div class="gathering-point-grid">
+        <section class="activity-options" aria-label="采集地点">
+            <div class="activity-section-title"><div><span>GATHERING SITES</span><h2>采集地点</h2></div><small>点击地点查看详情</small></div>
+            <div class="activity-option-grid">
                 @foreach (var point in _overview.Points)
                 {
-                    var canStart = point.IsUnlocked && ActiveCharacters.Current?.Level >= point.MinimumCharacterLevel &&
-                        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null &&
-                        (!point.IsRare || point.AvailableOpportunities > 0);
-                    <article class="gathering-point @(point.IsUnlocked ? "gathering-point--unlocked" : "") @(point.IsRare ? "gathering-point--rare" : "")">
-                        <div class="gathering-point__top"><span>@point.RegionName · @(point.IsRare ? "稀有" : "普通")</span><span>@(point.IsUnlocked ? "已解锁" : "未解锁")</span></div>
-                        <h3>@point.Name</h3>
-                        <p>@(point.IsRare ? $"单次 {point.CycleSeconds} 秒，保底获得 {point.MaterialName} × {point.OutputQuantity}" : $"每 {point.CycleSeconds} 秒获得 {point.MaterialName} × {point.OutputQuantity}")</p>
-                        @if (point.IsRare)
-                        {
-                            <div class="gathering-point__opportunity"><span>当前角色可采集</span><strong>@point.AvailableOpportunities 次</strong></div>
-                        }
-                        <div class="gathering-point__stock"><span>当前角色背包</span><strong>@point.CharacterQuantity</strong></div>
-                        <div class="gathering-point__unlock">
-                            <span>@point.UnlockDescription</span>
-                            <strong>@point.UnlockProgress / @point.UnlockRequired</strong>
-                        </div>
-                        @if (ActiveCharacters.Current?.Level < point.MinimumCharacterLevel)
-                        {
-                            <small class="gathering-point__level">需要角色 Lv.@point.MinimumCharacterLevel</small>
-                        }
-                        @if (_overview.GatheringLevel < point.MinimumGatheringLevel)
-                        {
-                            <small class="gathering-point__level">需要采集 Lv.@point.MinimumGatheringLevel</small>
-                        }
-                        <button @onclick="() => StartAsync(point)" disabled="@(_isBusy || !canStart)">@(point.IsUnlocked ? point.IsRare ? point.AvailableOpportunities > 0 ? "开始稀有采集" : "暂无采集机会" : "开始采集" : "完成战斗后解锁")</button>
-                    </article>
+                    <button type="button" class="activity-option @(point.IsRare ? "activity-option--rare" : null) @(!point.IsUnlocked ? "activity-option--locked" : null)"
+                            @key="point.Code" @onclick="() => OpenPoint(point.Code)" aria-haspopup="dialog" aria-label="查看 @point.Name 的采集详情">
+                        <span class="activity-option__top"><span>@(point.IsRare ? "稀有采集" : point.RegionName)</span><b>@(point.IsUnlocked ? point.IsRare ? $"机会 {point.AvailableOpportunities}" : "已解锁" : "未解锁")</b></span>
+                        <strong>@point.Name</strong>
+                        <span class="activity-option__output">@point.MaterialName × @point.OutputQuantity <small>/ @point.CycleSeconds 秒</small></span>
+                        <span class="activity-option__foot">背包 @point.CharacterQuantity <span aria-hidden="true">详情 ›</span></span>
+                    </button>
                 }
             </div>
         </section>
 
         @if (_overview.RecentTasks.Count > 0)
         {
-            <section class="gathering-history" aria-label="最近采集记录">
-                <div class="gathering-section-title"><span>RECENT RUNS</span><h2>最近采集</h2></div>
+            <details class="activity-history">
+                <summary>最近采集 <small>@_overview.RecentTasks.Count 条记录</small></summary>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.BonusQuantity > 0 ? $" · {completed.BonusMaterialName} × {completed.BonusQuantity}" : "")</strong></div>
+                    <div class="activity-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.BonusQuantity > 0 ? $" · {completed.BonusMaterialName} × {completed.BonusQuantity}" : "")</strong></div>
                 }
-            </section>
+            </details>
+        }
+
+        @if (SelectedPoint is { } selected)
+        {
+            <div class="activity-dialog-overlay" @onclick="ClosePoint" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
+                <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="gathering-dialog-title" @onclick:stopPropagation>
+                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true">@(selected.IsRare ? "✦" : "♣")</span><div><small>@selected.RegionName · @(selected.IsRare ? "稀有" : "普通")</small><h2 id="gathering-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="ClosePoint" @ref="_dialogCloseButton" aria-label="关闭采集详情">×</button></header>
+                    <div class="activity-dialog__body">
+                        <p>@(selected.IsRare ? $"单次 {selected.CycleSeconds} 秒，保底获得 {selected.MaterialName} × {selected.OutputQuantity}。" : $"每 {selected.CycleSeconds} 秒获得 {selected.MaterialName} × {selected.OutputQuantity}。")</p>
+                        <div class="activity-dialog__stats"><div><span>当前角色背包</span><strong>@selected.CharacterQuantity</strong></div><div><span>解锁进度</span><strong>@selected.UnlockProgress / @selected.UnlockRequired</strong></div>@if (selected.IsRare) { <div><span>剩余机会</span><strong>@selected.AvailableOpportunities 次</strong></div> }</div>
+                        <div class="activity-dialog__requirements"><strong>@(selected.IsUnlocked ? "已满足战斗条件" : "尚未解锁")</strong><span>@selected.UnlockDescription</span>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <span>需要角色 Lv.@selected.MinimumCharacterLevel</span> }@if (_overview.GatheringLevel < selected.MinimumGatheringLevel) { <span>需要采集 Lv.@selected.MinimumGatheringLevel</span> }</div>
+                        @if (_notice is not null) { <p class="activity-notice" role="status">@_notice</p> }
+                    </div>
+                    <footer class="activity-dialog__footer"><button type="button" class="activity-dialog__primary" @onclick="() => StartAsync(selected)" disabled="@(_isBusy || !CanStart(selected))">@StartLabel(selected)</button><button type="button" class="activity-dialog__back" @onclick="ClosePoint">返回采集地点</button></footer>
+                </section>
+            </div>
         }
     }
 </div>
@@ -114,8 +105,12 @@
     private bool _isRefreshing;
     private bool _isBusy;
     private string? _notice;
+    private string? _selectedPointCode;
+    private bool _focusDialog;
+    private ElementReference _dialogCloseButton;
     private TimeSpan _serverOffset;
     private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
+    private GatheringPointResponse? SelectedPoint => _overview?.Points.FirstOrDefault(point => point.Code == _selectedPointCode);
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,6 +124,28 @@
         await LoadAsync();
         _ = RefreshLoopAsync(_refreshCancellation.Token);
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDialog) return;
+        _focusDialog = false;
+        await _dialogCloseButton.FocusAsync();
+    }
+
+    private void OpenPoint(string code) { _selectedPointCode = code; _focusDialog = true; _notice = null; }
+    private void ClosePoint() => _selectedPointCode = null;
+    private void HandleDialogKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") ClosePoint(); }
+
+    private bool CanStart(GatheringPointResponse point) => _overview is not null && point.IsUnlocked &&
+        ActiveCharacters.Current?.Level >= point.MinimumCharacterLevel &&
+        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null &&
+        (!point.IsRare || point.AvailableOpportunities > 0);
+
+    private string StartLabel(GatheringPointResponse point) => !point.IsUnlocked ? "完成战斗后解锁"
+        : ActiveCharacters.Current?.Level < point.MinimumCharacterLevel || _overview?.GatheringLevel < point.MinimumGatheringLevel ? "等级不足"
+        : _overview?.ActiveTask is not null ? "已有进行中的任务"
+        : point.IsRare && point.AvailableOpportunities == 0 ? "暂无采集机会"
+        : point.IsRare ? "开始稀有采集" : "开始采集";
 
     private async Task RefreshLoopAsync(CancellationToken token)
     {
@@ -184,6 +201,7 @@
             else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
             {
                 _overview = response;
+                _selectedPointCode = null;
                 _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
                 _notice = point.IsRare ? $"{point.Name} 的稀有采集已开始，完成后消耗 1 次机会。" : $"{point.Name} 的采集已开始。";
             }
@@ -240,6 +258,7 @@
     private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
     {
         _notice = null;
+        _selectedPointCode = null;
         await LoadAsync();
         StateHasChanged();
     });

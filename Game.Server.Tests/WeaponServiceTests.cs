@@ -19,6 +19,17 @@ namespace Game.Server.Tests;
 public sealed class WeaponServiceTests
 {
     [Fact]
+    public void FragmentTiersCoverCompleteTenLevelRanges()
+    {
+        Assert.Equal(1, WeaponRules.FragmentTier(1));
+        Assert.Equal(1, WeaponRules.FragmentTier(10));
+        Assert.Equal(2, WeaponRules.FragmentTier(11));
+        Assert.Equal(2, WeaponRules.FragmentTier(20));
+        Assert.Equal(3, WeaponRules.FragmentTier(21));
+        Assert.Throws<ArgumentOutOfRangeException>(() => WeaponRules.FragmentTier(0));
+    }
+
+    [Fact]
     public void ProductionWeaponSkillConfigurationLoads()
     {
         var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
@@ -297,10 +308,10 @@ public sealed class WeaponServiceTests
 
         await using var dismantleTest = await WeaponTestContext.CreateAsync();
         var tierOne = dismantleTest.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
-        tierOne.ItemLevel = 8;
+        tierOne.ItemLevel = 10;
         tierOne.DismantleFragments = 2;
         var tierTwo = dismantleTest.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
-        tierTwo.ItemLevel = 12;
+        tierTwo.ItemLevel = 11;
         tierTwo.DismantleFragments = 3;
 
         var (dismantled, dismantleError) = await dismantleTest.Service.DismantleAsync(
@@ -338,6 +349,7 @@ public sealed class WeaponServiceTests
     {
         await using var test = await WeaponTestContext.CreateAsync(CreateSkillCatalog());
         var main = test.Weapons.Single(weapon => weapon.EquippedSlotIndex == 1);
+        main.ItemLevel = 10;
         test.Db.CharacterItemStacks.Add(new CharacterItemStack
         {
             CharacterId = 1, ItemCode = WeaponRules.FragmentCode(1), Quantity = 14
@@ -374,7 +386,7 @@ public sealed class WeaponServiceTests
     {
         var options = new WeaponOptions
         {
-            EnhancementFragmentCosts = [2, 4, 8],
+            EnhancementFragmentCosts = [2, 4, 8, 16, 32, 64],
             SkillGrowth =
             [
                 new WeaponSkillGrowthSegmentOptions { MaximumLevel = 5, MultiplierPercent = 100 },
@@ -401,7 +413,7 @@ public sealed class WeaponServiceTests
     }
 
     [Fact]
-    public void EpicDropDistributesThreeQualityLevelsWithoutChangingBaseSnapshot()
+    public void EpicDropRaisesEverySkillEnhancementLimitWithoutChangingBaseLevels()
     {
         var options = new WeaponOptions
         {
@@ -435,13 +447,95 @@ public sealed class WeaponServiceTests
         var dropSnapshot = catalog.CreateDropSnapshot("stone-hammer", new Random(42));
         var weapon = dropSnapshot.ToCharacterWeapon(1);
 
-        Assert.Equal(0, shopSnapshot.QualityBonusLevel);
-        Assert.Equal(3, dropSnapshot.QualityBonusLevel);
+        Assert.Equal(0, shopSnapshot.QualityRank);
+        Assert.Equal(3, dropSnapshot.QualityRank);
         Assert.Equal("史诗", dropSnapshot.QualityName);
-        Assert.Equal(3, weapon.Skills.Sum(skill => skill.QualityBonusLevel));
+        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal(new[] { 2, 1 }, weapon.Skills.Select(skill => skill.Level));
         Assert.All(weapon.Skills, skill =>
-            Assert.Equal(skill.BaseLevel + skill.QualityBonusLevel, skill.Level));
+            Assert.Equal(6, WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel)));
         Assert.All(weapon.Skills, skill => Assert.Equal(0, skill.EnhancementLevel));
+    }
+
+    [Fact]
+    public async Task QualityUpgradeConsumesOneSameTemplateWeaponRegardlessOfMaterialQuality()
+    {
+        var catalog = CreateSkillCatalog();
+        await using var test = await WeaponTestContext.CreateAsync(catalog);
+        var target = test.Weapons.Single(weapon => weapon.WeaponCode == "ember-blade");
+        var material = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
+        material.QualityRank = 3;
+        test.Db.CharacterWeapons.Add(material);
+        await test.Db.SaveChangesAsync();
+
+        var (first, firstError) = await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, material.Id);
+        Assert.Null(firstError);
+        Assert.Equal(1, target.QualityRank);
+        Assert.Equal(4, first!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
+        Assert.Equal(2, target.Skills.Single().Level);
+        Assert.Null(await test.Db.CharacterWeapons.FindAsync(material.Id));
+
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = 1, ItemCode = WeaponRules.FragmentCode(1), Quantity = 30
+        });
+        await test.Db.SaveChangesAsync();
+        for (var level = 0; level < 4; level++)
+            Assert.Null((await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1)).Error);
+        Assert.Equal(6, target.Skills.Single().Level);
+        Assert.Equal("WeaponSkillAtMaximum",
+            (await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1)).Error);
+
+        var whiteMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
+        test.Db.CharacterWeapons.Add(whiteMaterial);
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, whiteMaterial.Id);
+        Assert.Null(secondError);
+        Assert.Equal(2, target.QualityRank);
+        Assert.Equal(5, second!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
+        Assert.Equal(6, target.Skills.Single().Level);
+
+        var greenMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
+        greenMaterial.QualityRank = 1;
+        test.Db.CharacterWeapons.Add(greenMaterial);
+        await test.Db.SaveChangesAsync();
+        var (third, thirdError) = await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, greenMaterial.Id);
+        Assert.Null(thirdError);
+        Assert.Equal(3, target.QualityRank);
+        Assert.Equal(6, third!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
+        var unusedMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
+        test.Db.CharacterWeapons.Add(unusedMaterial);
+        await test.Db.SaveChangesAsync();
+        Assert.Equal("WeaponQualityAtMaximum",
+            (await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, unusedMaterial.Id)).Error);
+    }
+
+    [Fact]
+    public async Task QualityUpgradeRejectsWrongMaterialAndProtectedWeapons()
+    {
+        var catalog = CreateSkillCatalog();
+        await using var test = await WeaponTestContext.CreateAsync(catalog);
+        var target = test.Weapons.Single(weapon => weapon.WeaponCode == "ember-blade");
+        var wrong = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        Assert.Equal("QualityMaterialMustMatch",
+            (await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, wrong.Id)).Error);
+        Assert.Equal("InvalidQualityMaterial",
+            (await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, target.Id)).Error);
+
+        var same = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
+        test.Db.CharacterWeapons.Add(same);
+        await test.Db.SaveChangesAsync();
+        same.IsLocked = true;
+        await test.Db.SaveChangesAsync();
+        Assert.Equal("WeaponLocked",
+            (await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, same.Id)).Error);
+        same.IsLocked = false;
+        same.Origin = WeaponOrigin.Starter;
+        await test.Db.SaveChangesAsync();
+        Assert.Equal("StarterWeaponCannotBeConsumed",
+            (await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, same.Id)).Error);
+        Assert.Equal(0, target.QualityRank);
+        Assert.NotNull(await test.Db.CharacterWeapons.FindAsync(same.Id));
     }
 
     [Fact]
@@ -456,11 +550,34 @@ public sealed class WeaponServiceTests
         var snapshot = JsonSerializer.Deserialize<WeaponRewardSnapshot>(json);
         var weapon = snapshot!.ToCharacterWeapon(1);
 
-        Assert.Equal(0, snapshot.QualityBonusLevel);
+        Assert.Equal(0, snapshot.QualityRank);
         Assert.Equal("普通", snapshot.QualityName);
         Assert.Equal((2, 2, 0),
             (weapon.Skills.Single().Level, weapon.Skills.Single().BaseLevel,
                 weapon.Skills.Single().QualityBonusLevel));
+    }
+
+    [Fact]
+    public void PendingLegacyWeaponDropKeepsItsQualityWithoutKeepingRandomSkillLevels()
+    {
+        const string json = """
+            {"Code":"ember-blade","Name":"余烬短剑","Element":0,"Attack":20,"MaxHp":50,
+             "ItemLevel":1,"SellGold":10,"DismantleFragments":1,
+             "Skills":[{"Code":"weapon-might","Level":1,"QualityBonusLevel":2},
+                       {"Code":"weapon-health","Level":1,"QualityBonusLevel":1}]}
+            """;
+
+        var snapshot = JsonSerializer.Deserialize<WeaponRewardSnapshot>(json);
+        var weapon = snapshot!.ToCharacterWeapon(1);
+
+        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal("史诗", snapshot.QualityName);
+        Assert.All(weapon.Skills, skill =>
+        {
+            Assert.Equal(1, skill.BaseLevel);
+            Assert.Equal(1, skill.Level);
+            Assert.Equal(6, WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel));
+        });
     }
 
     [Fact]

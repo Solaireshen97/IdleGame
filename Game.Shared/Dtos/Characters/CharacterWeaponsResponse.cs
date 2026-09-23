@@ -39,7 +39,7 @@ public sealed class CharacterWeaponResponse
     public int DismantleFragments { get; set; }
     public int DismantleReturnQuantity { get; set; }
     public bool CanDismantle { get; set; }
-    public int QualityBonusLevel { get; set; }
+    public int QualityRank { get; set; }
     public string QualityName { get; set; } = string.Empty;
     public string QualityCode { get; set; } = string.Empty;
     public bool IsLocked { get; set; }
@@ -54,7 +54,6 @@ public sealed class WeaponSkillResponse
     public string Name { get; set; } = string.Empty;
     public int Level { get; set; }
     public int BaseLevel { get; set; }
-    public int QualityBonusLevel { get; set; }
     public int EnhancementLevel { get; set; }
     public int MaximumEnhancementLevel { get; set; }
     public int? NextEnhancementCost { get; set; }

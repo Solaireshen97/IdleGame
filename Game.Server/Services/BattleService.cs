@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -77,6 +77,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
+        try { await dbContext.SaveChangesAsync(); }
+        catch (DbUpdateException) { return (null, "ConcurrencyConflict"); }
         return await SyncCoreAsync(room!, slots!, monster!);
     }
 
@@ -102,7 +104,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             room.BattleEndedAtUtc is DateTime endedAt && now >= endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds))
         {
             monster = await GetDungeonRunService().ResetEncounterAsync(room);
-            foreach (var entry in slots) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
+            foreach (var entry in slots)
+            {
+                BattleConsumableBonusCalculator.Apply(entry.Character, null);
+                entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
+            }
             await ResetConsumableCooldownsAsync(room.Id);
             await ResetOperationPotionStatesAsync(room.Id);
             await ResetSkillCooldownsAsync(room.Id);
@@ -116,7 +122,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
             room.BattleEndedAtUtc = null;
             if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
-            battleLogStore?.Clear(room.Id);
             restartedBattle = true;
         }
 
@@ -125,6 +130,23 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedCharacterIds));
         var stateChanged = restartedBattle;
         var transitionCompleted = false;
+        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime cooldownDeadline)
+        {
+            if (!allAliveMembersAuto && room.RoundCooldownDurationSeconds == BattleRules.AutoRoundCooldownSeconds)
+            {
+                room.RoundCooldownDurationSeconds = BattleRules.RoundCooldownSeconds;
+                room.NextRoundAvailableAtUtc = cooldownDeadline.AddSeconds(
+                    BattleRules.RoundCooldownSeconds - BattleRules.AutoRoundCooldownSeconds);
+                stateChanged = true;
+            }
+            else if (allAliveMembersAuto && room.RoundCooldownDurationSeconds == BattleRules.RoundCooldownSeconds)
+            {
+                room.RoundCooldownDurationSeconds = BattleRules.AutoRoundCooldownSeconds;
+                room.NextRoundAvailableAtUtc = cooldownDeadline.AddSeconds(
+                    BattleRules.AutoRoundCooldownSeconds - BattleRules.RoundCooldownSeconds);
+                stateChanged = true;
+            }
+        }
         if (room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now)
         {
             var transitionDeadline = room.NextRoundAvailableAtUtc.Value;
@@ -178,6 +200,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         if (room.Status == RoomStatus.Preparing)
         {
+            if (allAliveMembersAuto && aliveSlots.Count > 0 && monster.Hp > 0)
+            {
+                foreach (var entry in aliveSlots) entry.Slot.IsConfirmed = true;
+                return await ExecutePreparedRoundAsync(room, slots, monster, now,
+                    ["全队已进入自动准备，本回合继续结算。"]);
+            }
             return stateChanged ? await SaveResultAsync(room, slots, monster, now, []) : (BuildResult(room, slots, monster, now, []), null);
         }
         if (room.Status == RoomStatus.NotStarted && !allAliveMembersAuto)
@@ -185,7 +213,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             return stateChanged
                 ? await SaveResultAsync(room, slots, monster, now, restartedBattle
                     ? ["下一场副本战斗已经就绪，全队生命值已恢复。"]
-                    : transitionCompleted ? [$"第 {room.CurrentWaveNumber} 波战斗已经就绪。"] : [])
+                    : transitionCompleted ? [$"第 {room.CurrentWaveNumber} 波战斗已经就绪。"] : [],
+                    resetLog: restartedBattle)
                 : (BuildResult(room, slots, monster, now, []), null);
         }
 
@@ -202,7 +231,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 : transitionCompleted
                     ? new List<string> { $"第 {room.CurrentWaveNumber} 波战斗开始。", "全队均已开启自动战斗，本回合自动开始。" }
                     : new List<string> { "全队均已开启自动战斗，本回合自动开始。" };
-            return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
+            return await ExecutePreparedRoundAsync(room, slots, monster, now, logs, resetLog: restartedBattle);
         }
         if (stateChanged)
         {
@@ -211,7 +240,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 : transitionCompleted && allAliveMembersAuto
                     ? new List<string> { $"第 {room.CurrentWaveNumber} 波敌人已经就绪，自动战斗将在回合冷却结束后继续。" }
                     : [];
-            return await SaveResultAsync(room, slots, monster, now, logs);
+            return await SaveResultAsync(room, slots, monster, now, logs, resetLog: restartedBattle);
         }
         return (BuildResult(room, slots, monster, now, []), null);
     }
@@ -277,8 +306,15 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var equipped = await dbContext.CharacterConsumableSlots.SingleOrDefaultAsync(
                 slot => slot.CharacterId == participant.Character.Id && slot.SlotIndex == slotIndex);
             var item = consumableCatalog.FindItem(equipped?.ItemCode);
-            if (item is null) return (false, "NoConsumableEquipped");
-            if (participant.Character.Hp >= TalentRules.EffectiveMaxHp(participant.Character)) return (false, "HpFull");
+            if (item is null || item.Kind is not ("Healing" or "CombatBuff")) return (false, "NoConsumableEquipped");
+            if (item.Kind == "Healing" && participant.Character.Hp >= TalentRules.EffectiveMaxHp(participant.Character)) return (false, "HpFull");
+            if (item.Kind == "CombatBuff" && await dbContext.BattleConsumableBuffs.AnyAsync(buff =>
+                buff.RoomId == room.Id && buff.RunSequence == room.RunSequence &&
+                buff.CharacterId == participant.Character.Id && buff.WeaponSkillCode == item.WeaponSkillCode &&
+                buff.ExpiresAfterRound >= room.RoundNumber)) return (false, "BuffAlreadyActive");
+            if (participant.Character.Level < (item.Tier - 1) * 10 + 1 ||
+                ConsumableRules.EffectScalePercent(item.Tier, participant.Character.Level) == 0)
+                return (false, "ConsumableIneffective");
             var stock = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(
                 stack => stack.CharacterId == participant.Character.Id && stack.ItemCode == item.Code);
             if (stock?.Quantity is not > 0) return (false, "OutOfStock");
@@ -347,7 +383,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         if (room.ClosedAtUtc.HasValue) return (false, "RoomClosed");
         if (room.IsRepeatBattle && monster!.Hp <= 0) return (false, "RepeatBattlePending");
         monster = await GetDungeonRunService().ResetEncounterAsync(room);
-        foreach (var entry in slots!) entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
+        foreach (var entry in slots!)
+        {
+            BattleConsumableBonusCalculator.Apply(entry.Character, null);
+            entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
+        }
         await ResetConsumableCooldownsAsync(room.Id);
         await ResetOperationPotionStatesAsync(room.Id);
         await ResetSkillCooldownsAsync(room.Id);
@@ -367,7 +407,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         return save;
     }
 
-    private async Task<(BattleResult? Result, string? Error)> ExecutePreparedRoundAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)
+    private async Task<(BattleResult? Result, string? Error)> ExecutePreparedRoundAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs, bool resetLog = false)
     {
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
         if (aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed)) return (null, "PreparationRequired");
@@ -379,7 +419,16 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var combatParticipants = slots.OrderBy(x => x.Slot.SlotIndex)
             .Select(x => new MonsterCombatParticipant(x.Slot, x.Character)).ToList();
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
-        var operationAttackBonuses = await ApplyOperationPotionsAsync(room, aliveSlots, logs);
+        var operationBonuses = await ApplyOperationPotionsAsync(room, aliveSlots, logs);
+        await UpdateTemporaryWeaponBonusesAsync(room, aliveSlots);
+        var previousMaxHp = aliveSlots.ToDictionary(entry => entry.Character.Id,
+            entry => TalentRules.EffectiveMaxHp(entry.Character));
+        var buffUsers = await ApplyCombatBuffsAsync(room, aliveSlots, logs);
+        await UpdateTemporaryWeaponBonusesAsync(room, aliveSlots);
+        foreach (var entry in aliveSlots.Where(entry => buffUsers.Contains(entry.Character.Id)))
+            entry.Character.Hp = Math.Min(TalentRules.EffectiveMaxHp(entry.Character),
+                entry.Character.Hp + Math.Max(0, TalentRules.EffectiveMaxHp(entry.Character) -
+                    previousMaxHp[entry.Character.Id]));
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
             .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);
@@ -395,20 +444,25 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var statusAttack = monsterCombatService is null ? 0m :
                 await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "AttackPercent");
             var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character),
-                entry.Character.WeaponStaminaPercent, entry.Character.WeaponEnmityPercent);
-            var hits = WeaponCombatRules.RollPercent(entry.Character.WeaponDoubleAttackChancePercent, random) ? 2 : 1;
+                entry.Character.WeaponStaminaPercent + entry.Character.TemporaryWeaponStaminaPercent,
+                entry.Character.WeaponEnmityPercent + entry.Character.TemporaryWeaponEnmityPercent);
+            var hits = WeaponCombatRules.RollPercent(entry.Character.WeaponDoubleAttackChancePercent +
+                entry.Character.TemporaryWeaponDoubleAttackChancePercent, random) ? 2 : 1;
             for (var hit = 0; hit < hits && monster.Hp > 0; hit++)
             {
                 var critical = RollCritical(entry.Character);
                 var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
-                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + statusAttack + entry.Character.TalentNormalAttackPercent + operationAttackBonuses.GetValueOrDefault(entry.Character.Id),
+                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + entry.Character.TemporaryWeaponAttackBonusPercent + statusAttack + entry.Character.TalentNormalAttackPercent + operationBonuses.GetValueOrDefault(entry.Character.Id).AttackPercent,
                         HealthPercent: healthPercent,
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                         ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
-                        ReductionPercent: monsterReduction));
+                        ReductionPercent: monsterReduction,
+                        ConsumablePercent: operationBonuses.GetValueOrDefault(entry.Character.Id).FinalDamagePercent +
+                            operationBonuses.GetValueOrDefault(entry.Character.Id).NormalAttackDamagePercent));
                 monster.Hp = Math.Max(0, monster.Hp - damage);
                 logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} {(hit == 0 ? "普通攻击" : "二连击")} {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
-                var echo = WeaponCombatRules.EchoDamage(damage, entry.Character.WeaponNormalEchoPercent + talentEcho);
+                var echo = WeaponCombatRules.EchoDamage(damage,
+                    entry.Character.WeaponNormalEchoPercent + entry.Character.TemporaryWeaponNormalEchoPercent + talentEcho);
                 if (monster.Hp > 0 && echo > 0)
                 {
                     monster.Hp = Math.Max(0, monster.Hp - echo);
@@ -418,7 +472,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (monster.Hp <= 0) break;
         }
         var roundDefense = monster.Hp > 0
-            ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationAttackBonuses, logs)
+            ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationBonuses, logs)
             : default;
         var monsterDefeated = monster.Hp <= 0;
         if (monsterDefeated)
@@ -434,7 +488,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         if (!monsterDefeated)
         {
-            await ApplyCombatConsumablesAsync(room, aliveSlots, logs);
+            await ApplyCombatConsumablesAsync(room, aliveSlots, buffUsers, logs);
             if (!slots.Any(x => x.Character.Hp > 0))
             {
                 SetBattleOver(room, now);
@@ -446,8 +500,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 if (monsterCombatService is not null)
                 {
                     await monsterCombatService.ExecuteIntentAsync(room, monster, combatParticipants,
-                        mainWeaponElements, roundDefense, logs);
-                    await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs);
+                        mainWeaponElements, roundDefense, logs, operationBonuses);
+                    await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
+                        operationBonuses);
                 }
                 else
                 {
@@ -455,7 +510,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
                     var damage = DamageCalculator.Calculate(monster.Attack, 0,
                         factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
-                            ReductionPercent: roundDefense.ReductionPercent));
+                            ReductionPercent: roundDefense.ReductionPercent -
+                                operationBonuses.GetValueOrDefault(target.Character.Id).DamageTakenPercent));
                     target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                     logs.Add($"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
                 }
@@ -481,7 +537,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 {
                     var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
                     room.Status = RoomStatus.Cooldown;
-                    room.RoundCooldownDurationSeconds = aliveSlots.All(slot => IsSlotAuto(room, slot, clearedCharacterIds))
+                    room.RoundCooldownDurationSeconds = slots.Where(slot => slot.Character.Hp > 0)
+                        .All(slot => IsSlotAuto(room, slot, clearedCharacterIds))
                         ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds;
                     room.NextRoundAvailableAtUtc = now.AddSeconds(room.RoundCooldownDurationSeconds.Value);
                     room.BattleEndedAtUtc = null;
@@ -489,6 +546,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             }
         }
         room.RoundNumber++;
+        await UpdateTemporaryWeaponBonusesAsync(room, slots);
         ClearRoundState(room, slots);
         if (room.IsRepeatBattle && room.Status == RoomStatus.BattleOver &&
             (monster.Hp > 0 || room.ExpiresAtUtc is DateTime deadline && now >= deadline))
@@ -498,12 +556,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         if (monsterCombatService is not null && room.Status != RoomStatus.BattleOver && monster.Hp > 0)
             await monsterCombatService.EnsureIntentAsync(room, monster);
-        return await SaveResultAsync(room, slots, monster, now, logs);
+        return await SaveResultAsync(room, slots, monster, now, logs, resetLog);
     }
 
     private async Task<PlayerRoundDefense> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
         IReadOnlyDictionary<int, ElementType> mainWeaponElements,
-        IReadOnlyDictionary<int, int> operationAttackBonuses, List<string> logs)
+        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var equipment = await dbContext.CharacterSkillSlots
@@ -543,8 +601,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var holyHealEcho = SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Heal") &&
                 await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-heal", false) ? 10m : 0m;
             var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
-                TalentRules.EffectiveMaxHp(participant.Character), participant.Character.WeaponStaminaPercent,
-                participant.Character.WeaponEnmityPercent);
+                TalentRules.EffectiveMaxHp(participant.Character),
+                participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
+                participant.Character.WeaponEnmityPercent + participant.Character.TemporaryWeaponEnmityPercent);
             foreach (var effect in SkillCatalog.EffectsFor(skill))
             {
                 switch (effect.Type)
@@ -559,13 +618,14 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         var monsterReduction = monsterCombatService is null ? 0m :
                             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
                         var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
-                            effect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + attackModifier + operationAttackBonuses.GetValueOrDefault(participant.Character.Id),
+                            effect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + participant.Character.TemporaryWeaponAttackBonusPercent + attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
                                 HealthPercent: healthPercent,
                                 CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                                 ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
                                 ReductionPercent: monsterReduction,
-                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho +
-                                    (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0)), effect.AttackPowerPercent);
+                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho +
+                                    (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
+                                ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent), effect.AttackPowerPercent);
                         monster.Hp = Math.Max(0, monster.Hp - damage);
                         totalDamage += damage;
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
@@ -796,11 +856,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
     private bool RollCritical(Character character, bool isSkill = false)
     {
-        var chance = character.WeaponCriticalChancePercent + (isSkill ? character.TalentSkillCriticalChancePercent : 0);
+        var chance = character.WeaponCriticalChancePercent + character.TemporaryWeaponCriticalChancePercent +
+            (isSkill ? character.TalentSkillCriticalChancePercent : 0);
         return WeaponCombatRules.RollPercent(chance, random);
     }
 
-    private async Task<Dictionary<int, int>> ApplyOperationPotionsAsync(Room room,
+    private async Task<Dictionary<int, OperationPotionBonuses>> ApplyOperationPotionsAsync(Room room,
         List<SlotCharacter> aliveSlots, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -829,26 +890,141 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (equipped.TryGetValue(characterId, out var slot) &&
                 consumableCatalog.FindItem(slot.ItemCode) is { Kind: "OperationPotion" } item)
             {
-                if (stocks.TryGetValue((characterId, item.Code), out var stock) && stock.Quantity > 0)
+                var usable = participant.Character.Level >= (item.Tier - 1) * 10 + 1 &&
+                    ConsumableRules.EffectScalePercent(item.Tier, participant.Character.Level) > 0;
+                if (usable && stocks.TryGetValue((characterId, item.Code), out var stock) && stock.Quantity > 0)
                 {
                     stock.Quantity--;
                     stock.Version++;
                     state.ItemCode = item.Code;
-                    state.AttackPercent = item.AttackPercent;
-                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {item.Name}，本场战斗攻击提高 {item.AttackPercent}%。");
+                    state.AttackPercent = ConsumableRules.ScaledPercent(item.AttackPercent, item.Tier, participant.Character.Level);
+                    state.FinalDamagePercent = ConsumableRules.ScaledPercent(item.FinalDamagePercent, item.Tier, participant.Character.Level);
+                    state.NormalAttackDamagePercent = ConsumableRules.ScaledPercent(item.NormalAttackDamagePercent, item.Tier, participant.Character.Level);
+                    state.AreaDamageReductionPercent = ConsumableRules.ScaledPercent(item.AreaDamageReductionPercent, item.Tier, participant.Character.Level);
+                    state.DamageTakenPercent = item.DamageTakenPercent;
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {item.Name}，{ConsumableCatalog.Description(item, participant.Character.Level)}。");
                 }
                 else
                 {
-                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的 {item.Name} 库存不足，本场跳过使用。");
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的 {item.Name} {(usable ? "库存不足" : "当前等级无法生效")}，本场跳过使用。");
                 }
             }
             states[characterId] = state;
             dbContext.BattleOperationPotionStates.Add(state);
         }
-        return states.ToDictionary(entry => entry.Key, entry => entry.Value.AttackPercent);
+        return states.ToDictionary(entry => entry.Key, entry => new OperationPotionBonuses(
+            entry.Value.AttackPercent, entry.Value.FinalDamagePercent, entry.Value.DamageTakenPercent,
+            entry.Value.NormalAttackDamagePercent, entry.Value.AreaDamageReductionPercent));
     }
 
-    private async Task ApplyCombatConsumablesAsync(Room room, List<SlotCharacter> aliveSlots, List<string> logs)
+    private async Task<HashSet<int>> ApplyCombatBuffsAsync(Room room, List<SlotCharacter> aliveSlots, List<string> logs)
+    {
+        var used = new HashSet<int>();
+        if (weaponCatalog is null) return used;
+        var ids = aliveSlots.Select(entry => entry.Character.Id).ToList();
+        var equipment = await dbContext.CharacterConsumableSlots.Where(slot =>
+            ids.Contains(slot.CharacterId) && slot.SlotIndex <= ConsumableRules.SlotCount && slot.ItemCode != null)
+            .OrderBy(slot => slot.SlotIndex).ToListAsync();
+        var stocks = await dbContext.CharacterItemStacks.Where(stack => ids.Contains(stack.CharacterId)).ToListAsync();
+        var cooldowns = await dbContext.BattleConsumableCooldowns.Where(cooldown =>
+            cooldown.RoomId == room.Id && ids.Contains(cooldown.CharacterId)).ToListAsync();
+        var active = await dbContext.BattleConsumableBuffs.Where(buff => buff.RoomId == room.Id &&
+            buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
+            ids.Contains(buff.CharacterId)).ToListAsync();
+
+        foreach (var participant in aliveSlots)
+        {
+            var character = participant.Character;
+            var characterEquipment = equipment.Where(slot => slot.CharacterId == character.Id).ToList();
+            var selected = characterEquipment.FirstOrDefault(slot => slot.SlotIndex == participant.Slot.PendingConsumableSlotIndex);
+            if (selected is not null && consumableCatalog.FindItem(selected.ItemCode)?.Kind == "Healing") continue;
+            var automaticHeal = characterEquipment.FirstOrDefault(slot =>
+                slot.AutoUseEnabled && consumableCatalog.FindItem(slot.ItemCode) is { Kind: "Healing" } item &&
+                (long)character.Hp * 100 <= (long)TalentRules.EffectiveMaxHp(character) * slot.AutoHpThresholdPercent &&
+                stocks.Any(stock => stock.CharacterId == character.Id && stock.ItemCode == item.Code && stock.Quantity > 0) &&
+                !cooldowns.Any(cooldown => cooldown.CharacterId == character.Id &&
+                    cooldown.CooldownGroup == item.CooldownGroup && cooldown.ReadyAtRound > room.RoundNumber));
+            var firstAutomaticBuffSlot = characterEquipment.Where(slot => slot.AutoUseEnabled &&
+                consumableCatalog.FindItem(slot.ItemCode)?.Kind == "CombatBuff")
+                .Select(slot => slot.SlotIndex).DefaultIfEmpty(int.MaxValue).Min();
+            bool TryUse(CharacterConsumableSlot slot, bool automatic)
+            {
+                var item = consumableCatalog.FindItem(slot.ItemCode);
+                if (item is not { Kind: "CombatBuff" }) return false;
+                if (automatic && (!slot.AutoUseEnabled ||
+                    item.WeaponSkillCode == "weapon-enmity" &&
+                    (long)character.Hp * 100 > (long)TalentRules.EffectiveMaxHp(character) * 50)) return false;
+                if (character.Level < (item.Tier - 1) * 10 + 1) return false;
+                var skillLevel = ConsumableRules.ScaledSkillLevel(item.WeaponSkillLevel, item.Tier, character.Level);
+                if (skillLevel <= 0 || active.Any(buff => buff.CharacterId == character.Id &&
+                    buff.WeaponSkillCode == item.WeaponSkillCode)) return false;
+                var stock = stocks.FirstOrDefault(stack => stack.CharacterId == character.Id && stack.ItemCode == item.Code);
+                if (stock?.Quantity is not > 0) return false;
+                var cooldown = cooldowns.FirstOrDefault(entry => entry.CharacterId == character.Id &&
+                    entry.CooldownGroup.Equals(item.CooldownGroup, StringComparison.OrdinalIgnoreCase));
+                if (cooldown?.ReadyAtRound > room.RoundNumber) return false;
+                stock.Quantity--;
+                stock.Version++;
+                if (cooldown is null)
+                {
+                    cooldown = new BattleConsumableCooldown { RoomId = room.Id, CharacterId = character.Id,
+                        CooldownGroup = item.CooldownGroup };
+                    cooldowns.Add(cooldown);
+                    dbContext.BattleConsumableCooldowns.Add(cooldown);
+                }
+                cooldown.ReadyAtRound = checked(room.RoundNumber + item.CooldownRounds + 1);
+                var buff = new BattleConsumableBuff { RoomId = room.Id, RunSequence = room.RunSequence,
+                    CharacterId = character.Id, ItemCode = item.Code, WeaponSkillCode = item.WeaponSkillCode!,
+                    SkillLevel = skillLevel, AppliedRound = room.RoundNumber,
+                    ExpiresAfterRound = room.RoundNumber + item.DurationRounds - 1 };
+                active.Add(buff);
+                dbContext.BattleConsumableBuffs.Add(buff);
+                logs.Add($"{participant.Slot.SlotIndex}号位 {character.Name} 使用 {item.Name}，获得 {ConsumableCatalog.Description(item, character.Level)}。");
+                used.Add(character.Id);
+                return true;
+            }
+            if (selected is not null && TryUse(selected, false)) continue;
+            if (automaticHeal is not null && automaticHeal.SlotIndex < firstAutomaticBuffSlot) continue;
+            foreach (var slot in characterEquipment)
+                if (TryUse(slot, true)) break;
+        }
+        return used;
+    }
+
+    private async Task UpdateTemporaryWeaponBonusesAsync(Room room, IEnumerable<SlotCharacter> participants)
+    {
+        var entries = participants.ToList();
+        if (entries.Count == 0) return;
+        var ids = entries.Select(entry => entry.Character.Id).ToList();
+        var active = room.Status == RoomStatus.BattleOver
+            ? []
+            : await dbContext.BattleConsumableBuffs.Where(buff => buff.RoomId == room.Id &&
+                buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
+                ids.Contains(buff.CharacterId)).ToListAsync();
+        active = active.Concat(dbContext.BattleConsumableBuffs.Local.Where(buff =>
+            dbContext.Entry(buff).State == EntityState.Added && buff.RoomId == room.Id &&
+            buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
+            ids.Contains(buff.CharacterId))).ToList();
+        var weapons = active.Count == 0 || weaponCatalog is null ? [] :
+            await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
+                .Where(weapon => ids.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex != null).ToListAsync();
+        foreach (var entry in entries)
+        {
+            var buffs = active.Where(buff => buff.CharacterId == entry.Character.Id).ToList();
+            if (buffs.Count == 0 || weaponCatalog is null) BattleConsumableBonusCalculator.Apply(entry.Character, null);
+            else
+            {
+                var levels = buffs.GroupBy(buff => buff.WeaponSkillCode, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Sum(buff => buff.SkillLevel), StringComparer.OrdinalIgnoreCase);
+                BattleConsumableBonusCalculator.Apply(entry.Character,
+                    weaponCatalog.CalculateBonuses(weapons.Where(weapon => weapon.CharacterId == entry.Character.Id), levels));
+            }
+            entry.Character.Hp = Math.Min(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character));
+        }
+    }
+
+    private async Task ApplyCombatConsumablesAsync(Room room, List<SlotCharacter> aliveSlots,
+        HashSet<int> buffUsers, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var equipment = await dbContext.CharacterConsumableSlots
@@ -866,6 +1042,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         foreach (var participant in aliveSlots)
         {
             var character = participant.Character;
+            if (buffUsers.Contains(character.Id)) continue;
             var characterEquipment = equipment.Where(slot => slot.CharacterId == character.Id).ToList();
             if (character.Hp >= TalentRules.EffectiveMaxHp(character)) continue;
 
@@ -882,7 +1059,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     string.Equals(entry.CooldownGroup, item.CooldownGroup, StringComparison.OrdinalIgnoreCase));
                 if (cooldown?.ReadyAtRound > room.RoundNumber) return false;
 
-                var raw = (int)decimal.Floor(ConsumableCatalog.HealAmountFor(item, maxHp) * (1 + character.TalentHealingReceivedPercent / 100m));
+                var raw = (int)decimal.Floor(ConsumableCatalog.HealAmountFor(item, maxHp, character.Level) * (1 + character.TalentHealingReceivedPercent / 100m));
                 var healed = Math.Min(raw, maxHp - character.Hp);
                 if (healed <= 0) return false;
                 character.Hp += healed;
@@ -923,6 +1100,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates
             .Where(state => state.RoomId == roomId).ToListAsync());
+        dbContext.BattleConsumableBuffs.RemoveRange(await dbContext.BattleConsumableBuffs
+            .Where(buff => buff.RoomId == roomId).ToListAsync());
     }
 
     private async Task ResetSkillCooldownsAsync(int roomId)
@@ -982,11 +1161,15 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
     }
 
-    private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs)
+    private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs, bool resetLog = false)
     {
         room.Version++;
         var save = await SaveAsync();
-        if (save.Success) battleLogStore?.Append(room.Id, logs, now);
+        if (save.Success)
+        {
+            if (resetLog) battleLogStore?.Replace(room.Id, logs, now);
+            else battleLogStore?.Append(room.Id, logs, now);
+        }
         return (save.Success ? BuildResult(room, slots, monster, now, logs) : null, save.Error);
     }
     private async Task<(bool Success, string? Error)> SaveAsync()
@@ -1005,8 +1188,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
     }
     private static bool IsSlotAuto(Room room, SlotCharacter entry, List<int> clearedCharacterIds) =>
-        clearedCharacterIds.Contains(entry.Character.Id) &&
-        (entry.Slot.IsAutoEnabled || (entry.Slot.UserId == room.OwnerUserId && !entry.Slot.IsMainControl));
+        RoomAutoPolicy.IsAuto(room, entry.Slot, clearedCharacterIds, DateTime.UtcNow);
 
     private async Task<List<int>> GetClearedCharacterIdsAsync(int dungeonId)
     {
@@ -1032,6 +1214,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (room, null, null, null, error);
         if (!slots!.Any(x => x.Slot.UserId == user!.Id)) return (room, null, null, user, "NotInRoom");
+        var seenAt = DateTime.UtcNow;
+        var ownSlots = slots.Where(entry => entry.Slot.UserId == user.Id).ToList();
+        if (ownSlots.Any(entry => RoomAutoPolicy.IsOffline(room, entry.Slot, seenAt))) room.Version++;
+        foreach (var slot in ownSlots)
+            slot.Slot.LastSeenAtUtc = seenAt;
         return (room, slots, monster, user, null);
     }
 

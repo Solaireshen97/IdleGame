@@ -56,6 +56,15 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
         return error is null ? Ok(response) : ToError(error);
     }
 
+    [HttpPost("{weaponId:int}/quality/upgrade")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> UpgradeQuality(
+        int characterId, int weaponId, [FromBody] UpgradeWeaponQualityRequest request)
+    {
+        var (response, error) = await weaponService.UpgradeQualityAsync(
+            GetToken(), characterId, weaponId, request.MaterialWeaponId);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
     private string? GetToken()
     {
         const string prefix = "Bearer ";

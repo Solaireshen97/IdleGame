@@ -556,7 +556,7 @@ else
                                 {
                                     <div class="battle-supply battle-supply--operation" title="作战药剂在本场首次结算时自动使用">
                                         <span class="battle-supply__icon" aria-hidden="true">✦</span>
-                                        <span class="battle-supply__body"><strong>@(operationPotion.ItemName ?? "空作战药剂槽")</strong><small>@(operationPotion.ItemCode is null ? "前往补给页装备" : $"库存 {operationPotion.Quantity} · 每场 1 瓶")</small></span>
+                                        <span class="battle-supply__body"><strong>@(operationPotion.ItemName ?? "空作战药剂槽")</strong><small>@(operationPotion.ItemCode is null ? "前往补给页装备" : $"库存 {operationPotion.Quantity} · {operationPotion.Description}")</small></span>
                                         <span class="battle-supply__action">药剂</span>
                                     </div>
                                 }
@@ -642,12 +642,12 @@ else
                             <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
                             <small>未分配天赋点 @slot.TalentPoints</small>
                         </div>
-                        <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
+                        <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                     }
                     else
                     {
                         <div class="party-slot__identity"><h3>空槽位</h3><span>等待冒险者加入</span></div>
-                        @if (!IsOwner && !_roomDetail.CanLeaveRoom && CanJoinRoom)
+                        @if (!IsOwner && !_roomDetail.Slots.Any(member => member.IsCurrentUserCharacter) && CanJoinRoom)
                         {
                             <button class="button button--secondary" @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
                         }
@@ -727,7 +727,8 @@ else
     private bool CanChangeFormation => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
         _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0;
     private bool CanJoinRoom => _roomDetail?.ClosedAtUtc is null &&
-        (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.Cooldown ||
+        (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.Preparing or
+            Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.WaveTransition ||
          _roomDetail?.NextBattleStartAtUtc is not null);
 
     protected override async Task OnInitializedAsync()
@@ -736,6 +737,11 @@ else
         if (_currentUser is null) { Navigation.NavigateTo("/login", replace: true); return; }
         _characters = await ApiService.GetCurrentCharactersAsync() ?? new();
         await RefreshRoomDetailAsync();
+        if (_roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter) == true)
+        {
+            await ApiService.SyncBattleAsync(RoomId);
+            await RefreshRoomDetailAsync();
+        }
         _ = RefreshCooldownAsync(_refreshCancellation.Token);
     }
 
@@ -908,7 +914,8 @@ else
     {
         "CharacterLevelTooLow" => "当前角色等级未达到该副本的最低进入要求。",
         "SlotOccupied" => "该槽位已被占用。",
-        "RoomLocked" => "战斗已开始，当前无法调整队伍。",
+        "RoomLocked" => "当前阶段无法加入，请等待回合冷却或下一场战斗。",
+        "ConcurrencyConflict" => "房间状态刚刚变化，请刷新后重试。",
         null or "" => fallback,
         var message => message
     };
@@ -916,7 +923,11 @@ else
     private bool CanQueueConsumable(RoomSlotResponse character, RoomConsumableSlotResponse supply) =>
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && supply.ItemCode is not null &&
         (character.PendingConsumableSlotIndex == supply.SlotIndex ||
-            supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 && character.CharacterHp < character.CharacterMaxHp);
+            supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 &&
+            (supply.Kind != "Healing" || character.CharacterHp < character.CharacterMaxHp) &&
+            (supply.Kind != "CombatBuff" || !character.StatusEffects.Any(effect =>
+                effect.Code == $"combat-consumable:{supply.ItemCode}")) &&
+            supply.Description != "当前等级已无效果");
 
     private SkillDialogContext? GetSkillDialogContext()
     {
@@ -1172,8 +1183,12 @@ else
         if (character.PendingConsumableSlotIndex == supply.SlotIndex) return "点击取消本回合的手动使用";
         if (supply.Quantity <= 0) return "背包中没有该道具";
         if (supply.CooldownRoundsRemaining > 0) return $"还需等待 {supply.CooldownRoundsRemaining} 回合";
-        if (character.CharacterHp >= character.CharacterMaxHp) return "当前 HP 已满";
-        return $"安排下一次结算使用，恢复最多 {supply.HealAmount} HP";
+        if (supply.Kind == "CombatBuff" && character.StatusEffects.Any(effect =>
+            effect.Code == $"combat-consumable:{supply.ItemCode}")) return "效果仍在持续";
+        if (supply.Description == "当前等级已无效果") return "当前等级已无效果";
+        if (supply.Kind == "Healing" && character.CharacterHp >= character.CharacterMaxHp) return "当前 HP 已满";
+        return supply.Kind == "Healing" ? $"安排下一次结算使用，恢复最多 {supply.HealAmount} HP" :
+            $"安排下一次结算使用：{supply.Description}";
     }
 
     private static string GetConsumableStatus(RoomConsumableSlotResponse supply, bool selected)
@@ -1181,7 +1196,7 @@ else
         if (supply.ItemCode is null) return "前往补给页装备";
         if (selected) return $"已排队 · 库存 {supply.Quantity}";
         if (supply.CooldownRoundsRemaining > 0) return $"冷却 {supply.CooldownRoundsRemaining} 回合 · 库存 {supply.Quantity}";
-        return $"库存 {supply.Quantity} · 恢复 {supply.HealAmount} HP";
+        return $"库存 {supply.Quantity} · {supply.Description}";
     }
 
     private async Task ToggleConsumableAsync(RoomSlotResponse character, RoomConsumableSlotResponse supply)
@@ -1222,6 +1237,8 @@ else
         "HpFull" => "当前 HP 已满，无法使用治疗道具。",
         "OutOfStock" => "该角色的道具已用完。",
         "ConsumableCooldown" => "道具仍在冷却中。",
+        "ConsumableIneffective" => "当前等级下该道具已无效果。",
+        "BuffAlreadyActive" => "该药剂效果仍在持续。",
         "CharacterDead" => "角色已阵亡，无法使用道具。",
         "BattleOver" => "战斗已结束。",
         "ConcurrencyConflict" => "战斗状态已变化，请重试。",
@@ -1245,7 +1262,9 @@ else
 
     private async Task RefreshRoomDetailAsync()
     {
-        ApplyRoomDetail(await ApiService.GetRoomDetailAsync(RoomId));
+        var latest = await ApiService.GetRoomDetailAsync(RoomId);
+        if (latest is null) return;
+        ApplyRoomDetail(latest);
         if (_roomDetail is not null)
         {
             foreach (var slot in _roomDetail.Slots) _selectedCharacterIds.TryAdd(slot.SlotIndex, 0);
@@ -1405,14 +1424,18 @@ else
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 ticks++;
-                if (ticks % 2 == 0 && !_isBusy && _roomDetail?.ClosedAtUtc is null && (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.Preparing or Game.Shared.Enums.RoomStatus.WaveTransition ||
-                    _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.IsPreparationTimeoutEnabled ||
-                    _roomDetail?.IsAllAliveMembersAuto == true || _roomDetail?.NextBattleStartAtUtc is not null ||
-                    _roomDetail?.ExpiresAtUtc is DateTime deadline && DateTime.UtcNow >= deadline)
-                )
+                if (ticks % 2 == 0 && !_isBusy && _roomDetail?.ClosedAtUtc is null)
                 {
-                    await ApiService.SyncBattleAsync(RoomId);
-                    await RefreshRoomDetailAsync();
+                    try
+                    {
+                        if (_roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter) == true)
+                            await ApiService.SyncBattleAsync(RoomId);
+                        await RefreshRoomDetailAsync();
+                    }
+                    catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        // Keep the last good room state and retry on the next poll.
+                    }
                 }
                 await InvokeAsync(StateHasChanged);
             }

@@ -46,4 +46,19 @@ public sealed class BattleLogStore
     {
         lock (_gate) _entriesByRoom.Remove(roomId);
     }
+
+    public void Replace(int roomId, IEnumerable<string> logs, DateTime createdAtUtc)
+    {
+        var messages = logs.Where(message => !string.IsNullOrWhiteSpace(message)).ToList();
+        lock (_gate)
+        {
+            _entriesByRoom.Remove(roomId);
+            if (messages.Count == 0) return;
+            _entriesByRoom[roomId] = messages.TakeLast(MaximumEntriesPerRoom)
+                .Select(message => new BattleLogResponse
+                {
+                    Id = ++_nextId, Text = message, CreatedAtUtc = createdAtUtc
+                }).ToList();
+        }
+    }
 }

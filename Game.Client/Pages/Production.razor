@@ -1,6 +1,7 @@
 @page "/production"
 @using Game.Client.Services
 @using Game.Shared.Dtos.Production
+@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
@@ -8,11 +9,10 @@
 
 <PageTitle>炼金生产</PageTitle>
 
-<div class="production-page">
-    <header class="production-intro">
-        <span>CAMP ALCHEMY</span>
-        <h1>炼金生产</h1>
-        <p>当前角色采集草药并存入自己的背包，再用这些材料炼金。原料与成品都属于该角色。</p>
+<div class="activity-page activity-page--production">
+    <header class="activity-intro">
+        <div><span>CAMP ALCHEMY</span><h1>炼金生产</h1></div>
+        <p>选择配方查看材料与产出；原料和成品属于当前角色。</p>
     </header>
 
     @if (_isLoading)
@@ -22,89 +22,75 @@
     else if (_overview is null)
     {
         <GameStateCard Compact="true" Tone="error" Icon="!" Title="炼金信息读取失败" Detail="请检查登录状态后重试。" />
-        <button class="production-refresh" @onclick="LoadAsync">重新读取</button>
+        <button class="activity-refresh" @onclick="LoadAsync">重新读取</button>
     }
     else
     {
-        <div class="production-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>炼金 Lv.@_overview.AlchemyLevel · <a href="/talents?tree=Alchemy">管理天赋 →</a></span></div>
-            <div><small>已解锁配方</small><strong>@_overview.Recipes.Count(recipe => recipe.IsUnlocked) / @_overview.Recipes.Count</strong><span>生产时消耗角色背包原料</span></div>
+        <div class="activity-summary">
+            <div><small>当前角色</small><strong>@_overview.CharacterName · 炼金 Lv.@_overview.AlchemyLevel</strong></div>
+            <span>已解锁 @_overview.Recipes.Count(recipe => recipe.IsUnlocked) / @_overview.Recipes.Count 种</span>
+            <a href="/talents?tree=Alchemy">炼金天赋 ↗</a>
         </div>
 
         @if (_notice is not null)
         {
-            <p class="production-notice" role="status">@_notice</p>
+            <p class="activity-notice" role="status">@_notice</p>
         }
 
         @if (_overview.ActiveTask is { } task)
         {
-            <section class="production-active" aria-label="当前生产任务">
-                <div class="production-active__top"><span>正在生产</span><span>12 小时后完成当前轮</span></div>
-                <h2>@task.RecipeName</h2>
-                <p>每 @task.CycleSeconds 秒制作一轮；结算时才扣当前角色背包材料。关闭网页后，服务器继续生产。</p>
-                @if (task.SavedIngredientQuantity > 0)
-                {
-                    <p>累计节省首种原料 @task.SavedIngredientQuantity 份。</p>
-                }
-                <div class="production-active__metrics">
-                    <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
-                    <div><small>累计产出 · 额外 @task.ExtraYieldQuantity</small><strong>@task.TotalQuantity <em>瓶</em></strong></div>
-                    <div><small>剩余时限</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+            <section class="activity-active" aria-label="当前生产任务">
+                <div class="activity-active__heading"><span>炼金中</span><strong>剩余 @FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                <div class="activity-active__main"><div><h2>@task.RecipeName</h2><p>已完成 @task.CompletedCycles 轮 · 产出 @task.TotalQuantity 瓶@(task.ExtraYieldQuantity > 0 ? $" · 额外 {task.ExtraYieldQuantity}" : "")</p></div><button type="button" class="activity-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止并结算</button></div>
+                <div class="activity-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
+                <div class="activity-progress" role="progressbar" aria-label="下一轮生产进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
+                    <span @key="task.NextCycleAtUtc" style="width: @(CycleProgress(task))%"></span>
                 </div>
-                <div class="production-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
-                <div class="production-progress" role="progressbar" aria-label="下一轮生产进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
-                    <span @key="task.NextCycleAtUtc" class="production-progress__fill" style="width: @(CycleProgress(task))%"></span>
-                </div>
-                <button class="production-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止生产并结算</button>
+                <details class="activity-active__more"><summary>查看生产规则与节省原料</summary><p>每 @task.CycleSeconds 秒制作一轮，结算时才扣当前角色背包材料。关闭网页后服务器仍会继续生产。@(task.SavedIngredientQuantity > 0 ? $"累计节省首种原料 {task.SavedIngredientQuantity} 份。" : "")</p></details>
             </section>
         }
 
-        <section class="production-recipes" aria-label="炼金配方">
-            <div class="production-section-title"><span>RECIPES</span><h2>炼金配方</h2></div>
-            <div class="production-recipe-grid">
+        <section class="activity-options" aria-label="炼金配方">
+            <div class="activity-section-title"><div><span>RECIPES</span><h2>炼金配方</h2></div><small>点击配方查看材料</small></div>
+            <div class="activity-option-grid">
                 @foreach (var recipe in _overview.Recipes)
                 {
-                    var materialsReady = recipe.Ingredients.All(item => item.CharacterQuantity >= item.Quantity);
-                    var availableCycles = recipe.Ingredients.Min(item => item.CharacterQuantity / item.Quantity);
-                    var canStart = recipe.IsUnlocked && ActiveCharacters.Current?.Level >= recipe.MinimumCharacterLevel &&
-                        _overview.AlchemyLevel >= recipe.MinimumAlchemyLevel && _overview.ActiveTask is null && materialsReady;
-                    <article class="production-recipe @(recipe.IsUnlocked ? "production-recipe--unlocked" : "")">
-                        <div class="production-recipe__top"><span>炼金 · 每 @recipe.CycleSeconds 秒</span><span>@(recipe.IsUnlocked ? "已解锁" : "未解锁")</span></div>
-                        <h3>@recipe.Name</h3>
-                        <p>每轮产出 @recipe.OutputName × @recipe.OutputQuantity</p>
-                        <div class="production-recipe__materials">
-                            <small>每轮消耗 · 当前角色背包</small>
-                            @foreach (var ingredient in recipe.Ingredients)
-                            {
-                                <div><span>@ingredient.Name × @ingredient.Quantity</span><strong class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "production-recipe__short" : "")">背包 @ingredient.CharacterQuantity</strong></div>
-                            }
-                        </div>
-                        <div class="production-recipe__stock"><span>当前材料可做 @availableCycles 轮</span><strong>成品 @((long)availableCycles * recipe.OutputQuantity) 件</strong></div>
-                        <div class="production-recipe__stock"><span>背包成品</span><strong>@recipe.CharacterQuantity</strong></div>
-                        <div class="production-recipe__unlock"><span>@recipe.UnlockDescription</span><strong>@recipe.UnlockProgress / @recipe.UnlockRequired</strong></div>
-                        @if (ActiveCharacters.Current?.Level < recipe.MinimumCharacterLevel)
-                        {
-                            <small class="production-recipe__level">需要角色 Lv.@recipe.MinimumCharacterLevel</small>
-                        }
-                        @if (_overview.AlchemyLevel < recipe.MinimumAlchemyLevel)
-                        {
-                            <small class="production-recipe__level">需要炼金 Lv.@recipe.MinimumAlchemyLevel</small>
-                        }
-                        <button @onclick="() => StartAsync(recipe)" disabled="@(_isBusy || !canStart)">@(recipe.IsUnlocked ? materialsReady ? "开始生产" : "背包材料不足" : "完成战斗后解锁")</button>
-                    </article>
+                    <button type="button" class="activity-option @(!recipe.IsUnlocked ? "activity-option--locked" : null)" @key="recipe.Code"
+                            @onclick="() => OpenRecipe(recipe.Code)" aria-haspopup="dialog" aria-label="查看 @recipe.Name 的炼金配方">
+                        <span class="activity-option__top"><span>炼金 · @recipe.CycleSeconds 秒</span><b>@(recipe.IsUnlocked ? IngredientsReady(recipe) ? "可生产" : "缺材料" : "未解锁")</b></span>
+                        <strong>@recipe.Name</strong>
+                        <span class="activity-option__output">@recipe.OutputName × @recipe.OutputQuantity <small>/ 轮</small></span>
+                        <span class="activity-option__foot">可做 @AvailableCycles(recipe) 轮 <span aria-hidden="true">详情 ›</span></span>
+                    </button>
                 }
             </div>
         </section>
 
         @if (_overview.RecentTasks.Count > 0)
         {
-            <section class="production-history" aria-label="最近生产记录">
-                <div class="production-section-title"><span>RECENT RUNS</span><h2>最近生产</h2></div>
+            <details class="activity-history"><summary>最近生产 <small>@_overview.RecentTasks.Count 条记录</small></summary>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="production-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.SavedIngredientQuantity > 0 ? $" · 节省原料 {completed.SavedIngredientQuantity}" : "")</strong></div>
+                    <div class="activity-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.SavedIngredientQuantity > 0 ? $" · 节省原料 {completed.SavedIngredientQuantity}" : "")</strong></div>
                 }
-            </section>
+            </details>
+        }
+
+        @if (SelectedRecipe is { } selected)
+        {
+            <div class="activity-dialog-overlay" @onclick="CloseRecipe" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
+                <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="production-dialog-title" @onclick:stopPropagation>
+                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true">⚗</span><div><small>炼金配方 · 每 @selected.CycleSeconds 秒</small><h2 id="production-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="CloseRecipe" @ref="_dialogCloseButton" aria-label="关闭配方详情">×</button></header>
+                    <div class="activity-dialog__body">
+                        <p>每轮产出 @selected.OutputName × @selected.OutputQuantity；结算时消耗当前角色背包原料。</p>
+                        <div class="activity-dialog__stats"><div><span>当前材料可做</span><strong>@AvailableCycles(selected) 轮</strong></div><div><span>预计产出</span><strong>@((long)AvailableCycles(selected) * selected.OutputQuantity) 件</strong></div><div><span>背包成品</span><strong>@selected.CharacterQuantity</strong></div></div>
+                        <div class="activity-dialog__ingredients"><strong>每轮消耗</strong>@foreach (var ingredient in selected.Ingredients) { <div><span>@ingredient.Name × @ingredient.Quantity</span><b class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "activity-dialog__short" : null)">背包 @ingredient.CharacterQuantity</b></div> }</div>
+                        <div class="activity-dialog__requirements"><strong>@(selected.IsUnlocked ? "已满足战斗条件" : "尚未解锁")</strong><span>@selected.UnlockDescription · @selected.UnlockProgress / @selected.UnlockRequired</span>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <span>需要角色 Lv.@selected.MinimumCharacterLevel</span> }@if (_overview.AlchemyLevel < selected.MinimumAlchemyLevel) { <span>需要炼金 Lv.@selected.MinimumAlchemyLevel</span> }</div>
+                        @if (_notice is not null) { <p class="activity-notice" role="status">@_notice</p> }
+                    </div>
+                    <footer class="activity-dialog__footer"><button type="button" class="activity-dialog__primary" @onclick="() => StartAsync(selected)" disabled="@(_isBusy || !CanStart(selected))">@StartLabel(selected)</button><button type="button" class="activity-dialog__back" @onclick="CloseRecipe">返回炼金配方</button></footer>
+                </section>
+            </div>
         }
     }
 </div>
@@ -116,8 +102,12 @@
     private bool _isRefreshing;
     private bool _isBusy;
     private string? _notice;
+    private string? _selectedRecipeCode;
+    private bool _focusDialog;
+    private ElementReference _dialogCloseButton;
     private TimeSpan _serverOffset;
     private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
+    private ProductionRecipeResponse? SelectedRecipe => _overview?.Recipes.FirstOrDefault(recipe => recipe.Code == _selectedRecipeCode);
 
     protected override async Task OnInitializedAsync()
     {
@@ -131,6 +121,33 @@
         await LoadAsync();
         _ = RefreshLoopAsync(_refreshCancellation.Token);
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDialog) return;
+        _focusDialog = false;
+        await _dialogCloseButton.FocusAsync();
+    }
+
+    private void OpenRecipe(string code) { _selectedRecipeCode = code; _focusDialog = true; _notice = null; }
+    private void CloseRecipe() => _selectedRecipeCode = null;
+    private void HandleDialogKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseRecipe(); }
+
+    private static bool IngredientsReady(ProductionRecipeResponse recipe) => recipe.Ingredients.Count > 0 &&
+        recipe.Ingredients.All(item => item.Quantity > 0 && item.CharacterQuantity >= item.Quantity);
+
+    private static int AvailableCycles(ProductionRecipeResponse recipe) => recipe.Ingredients.Count == 0 ||
+        recipe.Ingredients.Any(item => item.Quantity <= 0) ? 0 :
+        recipe.Ingredients.Min(item => item.CharacterQuantity / item.Quantity);
+
+    private bool CanStart(ProductionRecipeResponse recipe) => _overview is not null && recipe.IsUnlocked &&
+        ActiveCharacters.Current?.Level >= recipe.MinimumCharacterLevel &&
+        _overview.AlchemyLevel >= recipe.MinimumAlchemyLevel && _overview.ActiveTask is null && IngredientsReady(recipe);
+
+    private string StartLabel(ProductionRecipeResponse recipe) => !recipe.IsUnlocked ? "完成战斗后解锁"
+        : ActiveCharacters.Current?.Level < recipe.MinimumCharacterLevel || _overview?.AlchemyLevel < recipe.MinimumAlchemyLevel ? "等级不足"
+        : _overview?.ActiveTask is not null ? "已有进行中的任务"
+        : !IngredientsReady(recipe) ? "背包材料不足" : "开始生产";
 
     private async Task RefreshLoopAsync(CancellationToken token)
     {
@@ -186,6 +203,7 @@
             else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
             {
                 _overview = response;
+                _selectedRecipeCode = null;
                 _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
                 _notice = $"{recipe.Name} 已开始生产，每轮结算时消耗材料。";
             }
@@ -240,6 +258,7 @@
     private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
     {
         _notice = null;
+        _selectedRecipeCode = null;
         await LoadAsync();
         StateHasChanged();
     });

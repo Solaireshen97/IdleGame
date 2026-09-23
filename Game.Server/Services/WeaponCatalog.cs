@@ -23,11 +23,11 @@ public sealed class WeaponCatalog
         StartingCharacterGold = options.Value.StartingCharacterGold;
         if (StartingCharacterGold < 0) throw new InvalidOperationException("Starting gold cannot be negative.");
         var enhancementCosts = options.Value.EnhancementFragmentCosts.Count == 0
-            ? new List<int> { 2, 4, 8 }
+            ? new List<int> { 2, 4, 8, 16, 32, 64 }
             : options.Value.EnhancementFragmentCosts;
-        if (enhancementCosts.Count != WeaponRules.MaxEnhancementPerSkill ||
+        if (enhancementCosts.Count != WeaponRules.MaxEnhancementWithQuality ||
             enhancementCosts.Any(cost => cost <= 0))
-            throw new InvalidOperationException("Weapon enhancement costs must define three positive steps.");
+            throw new InvalidOperationException("Weapon enhancement costs must define six positive steps.");
         _enhancementFragmentCosts = enhancementCosts.ToList();
         var qualityOptions = options.Value.DropQualityWeights;
         var dropQualityWeights = new[]
@@ -166,13 +166,12 @@ public sealed class WeaponCatalog
         weapon.Skills = item.Skills.Select((grant, index) =>
         {
             var old = existing.GetValueOrDefault(index + 1);
-            var quality = old?.QualityBonusLevel ?? 0;
             var enhancement = old?.EnhancementLevel ?? 0;
-            if (grant.Level + quality + enhancement > WeaponRules.MaxSkillLevel)
+            if (grant.Level + enhancement > WeaponRules.MaxSkillLevel)
                 throw new InvalidOperationException($"Weapon revision exceeds skill level limit: {item.Code}");
             return new CharacterWeaponSkill { SlotIndex = index + 1, SkillCode = grant.Code,
-                BaseLevel = grant.Level, QualityBonusLevel = quality, EnhancementLevel = enhancement,
-                Level = grant.Level + quality + enhancement, SpentFragments = old is null ? 0 : InvestedFragments(old) };
+                BaseLevel = grant.Level, EnhancementLevel = enhancement,
+                Level = grant.Level + enhancement, SpentFragments = old is null ? 0 : InvestedFragments(old) };
         }).ToList();
         weapon.Version++;
     }
@@ -187,13 +186,13 @@ public sealed class WeaponCatalog
     public int MaxFragmentTier => _items.Values.Select(item => WeaponRules.FragmentTier(item.ItemLevel)).DefaultIfEmpty(1).Max();
 
     public int EnhancementCost(int completedEnhancements) =>
-        completedEnhancements is >= 0 and < WeaponRules.MaxEnhancementPerSkill
+        completedEnhancements is >= 0 and < WeaponRules.MaxEnhancementWithQuality
             ? _enhancementFragmentCosts[completedEnhancements]
             : throw new ArgumentOutOfRangeException(nameof(completedEnhancements));
 
     public int InvestedFragments(CharacterWeaponSkill skill) => skill.SpentFragments ?? skill.EnhancementLevel switch
     {
-        0 => 0, 1 => 2, 2 => 6, 3 => 14,
+        0 => 0, 1 => 2, 2 => 6, 3 => 14, 4 => 30, 5 => 62, 6 => 126,
         _ => throw new InvalidOperationException("Invalid historical enhancement rank.")
     };
 
@@ -252,26 +251,8 @@ public sealed class WeaponCatalog
     public WeaponRewardSnapshot CreateDropSnapshot(string code, Random? random = null)
     {
         var snapshot = CreateRewardSnapshot(code);
-        if (snapshot.Skills.Count == 0) return snapshot;
-
         random ??= Random.Shared;
-        var targetBonusLevels = RollQualityBonusLevels(random);
-        var allocated = new int[snapshot.Skills.Count];
-        for (var point = 0; point < targetBonusLevels; point++)
-        {
-            var candidates = Enumerable.Range(0, snapshot.Skills.Count)
-                .Where(index => snapshot.Skills[index].Level + allocated[index] +
-                    WeaponRules.MaxEnhancementPerSkill < WeaponRules.MaxSkillLevel)
-                .ToList();
-            if (candidates.Count == 0) break;
-            allocated[candidates[random.Next(candidates.Count)]]++;
-        }
-
-        return snapshot with
-        {
-            Skills = snapshot.Skills.Select((skill, index) =>
-                skill with { QualityBonusLevel = allocated[index] }).ToList()
-        };
+        return snapshot with { QualityRank = RollQualityBonusLevels(random) };
     }
 
     private int RollQualityBonusLevels(Random random)
@@ -286,14 +267,21 @@ public sealed class WeaponCatalog
         return 0;
     }
 
-    public WeaponSkillBonuses CalculateBonuses(IEnumerable<CharacterWeapon> weapons)
+    public WeaponSkillBonuses CalculateBonuses(IEnumerable<CharacterWeapon> weapons,
+        IReadOnlyDictionary<string, int>? temporarySkillLevels = null)
     {
         var equipped = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).ToList();
         var main = equipped.SingleOrDefault(weapon => weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex);
-        if (main is null) return new WeaponSkillBonuses(0, 0, 0, [], []);
+        if (main is null && (temporarySkillLevels is null || temporarySkillLevels.Count == 0))
+            return new WeaponSkillBonuses(0, 0, 0, [], []);
 
-        var active = equipped.Where(weapon => weapon.Element == main.Element)
+        var skillLevels = equipped.Where(weapon => main is not null && weapon.Element == main.Element)
             .SelectMany(weapon => weapon.Skills)
+            .Select(skill => (skill.SkillCode, skill.Level));
+        if (temporarySkillLevels is not null)
+            skillLevels = skillLevels.Concat(temporarySkillLevels.Select(skill =>
+                (SkillCode: skill.Key, Level: skill.Value)));
+        var active = skillLevels
             .GroupBy(skill => skill.SkillCode, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
             {

@@ -22,6 +22,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
+    public DbSet<BattleConsumableBuff> BattleConsumableBuffs => Set<BattleConsumableBuff>();
     public DbSet<BattleOperationPotionState> BattleOperationPotionStates => Set<BattleOperationPotionState>();
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
     public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
@@ -86,6 +87,12 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<BattleConsumableCooldown>()
             .HasIndex(cooldown => new { cooldown.RoomId, cooldown.CharacterId, cooldown.CooldownGroup })
             .IsUnique();
+        modelBuilder.Entity<BattleConsumableBuff>()
+            .HasIndex(buff => new { buff.RoomId, buff.RunSequence, buff.CharacterId, buff.WeaponSkillCode, buff.AppliedRound })
+            .IsUnique();
+        modelBuilder.Entity<BattleConsumableBuff>()
+            .ToTable(table => table.HasCheckConstraint("CK_BattleConsumableBuffs_Values",
+                "SkillLevel > 0 AND ExpiresAfterRound >= AppliedRound"));
         modelBuilder.Entity<BattleOperationPotionState>()
             .HasKey(state => new { state.RoomId, state.RunSequence, state.CharacterId });
         modelBuilder.Entity<BattleOperationPotionState>()
@@ -167,7 +174,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .ToTable(table =>
             {
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
-                table.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel BETWEEN 0 AND 3 AND EnhancementLevel BETWEEN 0 AND 3 AND Level = BaseLevel + QualityBonusLevel + EnhancementLevel");
+                table.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel = 0 AND EnhancementLevel BETWEEN 0 AND 6 AND Level = BaseLevel + EnhancementLevel");
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
             });
 

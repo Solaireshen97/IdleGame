@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null)
 {
     private const int SlotCount = 5;
     private TimeSpan MaximumActivityDuration => TimeSpan.FromHours(activityOptions?.Value.MaximumHours is > 0 and <= 168 ? activityOptions.Value.MaximumHours : 12);
@@ -131,6 +131,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             SlotIndex = index,
             CharacterId = index == 1 ? character.Id : null,
             UserId = index == 1 ? user.Id : null,
+            LastSeenAtUtc = index == 1 ? now : null,
             IsMainControl = index == 1
         }));
         CharacterActivityManager.StartBattle(dbContext, character.Id, room, now);
@@ -171,20 +172,43 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (room.Status == RoomStatus.BattleOver && (!room.IsRepeatBattle ||
             !await dbContext.Monsters.AnyAsync(monster => monster.Id == room.MonsterId && monster.Hp <= 0)))
             return (null, "BattleOver");
-        if (room.Status is not (RoomStatus.NotStarted or RoomStatus.Cooldown or RoomStatus.BattleOver)) return (null, "RoomLocked");
+        if (room.Status is not (RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown or
+            RoomStatus.WaveTransition or RoomStatus.BattleOver)) return (null, "RoomLocked");
         if (request.SlotIndex < 1 || request.SlotIndex > room.SlotCount) return (null, "InvalidSlotIndex");
         if (await dbContext.RoomSlots.AnyAsync(x => x.RoomId == roomId && x.UserId == user.Id)) return (null, "AlreadyInRoom");
         if (await CharacterActivityManager.IsBusyAsync(dbContext, character!.Id)) return (null, "CharacterAlreadyInRoom");
         var slot = await dbContext.RoomSlots.SingleAsync(x => x.RoomId == roomId && x.SlotIndex == request.SlotIndex);
         if (slot.CharacterId.HasValue) return (null, "SlotOccupied");
+        var joinedAt = DateTime.UtcNow;
         character.Hp = TalentRules.EffectiveMaxHp(character);
         slot.CharacterId = character.Id;
         slot.UserId = user.Id;
+        slot.LastSeenAtUtc = joinedAt;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
-        CharacterActivityManager.StartBattle(dbContext, character.Id, room, DateTime.UtcNow);
+        if (room.Status == RoomStatus.Preparing && room.IsPreparationTimeoutEnabled)
+            room.PreparationStartedAtUtc = joinedAt;
+        if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime cooldownDeadline &&
+            room.RoundCooldownDurationSeconds == BattleRules.AutoRoundCooldownSeconds)
+        {
+            var manualDeadline = cooldownDeadline.AddSeconds(
+                BattleRules.RoundCooldownSeconds - BattleRules.AutoRoundCooldownSeconds);
+            room.RoundCooldownDurationSeconds = BattleRules.RoundCooldownSeconds;
+            if (manualDeadline <= joinedAt)
+            {
+                room.Status = RoomStatus.NotStarted;
+                room.NextRoundAvailableAtUtc = null;
+                room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? joinedAt : null;
+            }
+            else room.NextRoundAvailableAtUtc = manualDeadline;
+        }
+        CharacterActivityManager.StartBattle(dbContext, character.Id, room, joinedAt);
         room.Version++;
         try { await dbContext.SaveChangesAsync(); }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
         catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
         {
             return (null, "CharacterAlreadyInRoom");
@@ -207,6 +231,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (character is not null) await CharacterActivityManager.ReleaseBattleAsync(dbContext, character.Id, room.Id);
         slot.CharacterId = null;
         slot.UserId = null;
+        slot.LastSeenAtUtc = null;
         slot.IsConfirmed = false;
         slot.IsAutoEnabled = false;
         slot.IsTemporaryAuto = false;
@@ -242,6 +267,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         character.Hp = TalentRules.EffectiveMaxHp(character);
         target.CharacterId = character.Id;
         target.UserId = user.Id;
+        target.LastSeenAtUtc = DateTime.UtcNow;
         if (existingSlot is null)
         {
             target.HasParticipatedInRun = false;
@@ -272,6 +298,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (character is not null) await CharacterActivityManager.ReleaseBattleAsync(dbContext, character.Id, room.Id);
         slot.CharacterId = null;
         slot.UserId = null;
+        slot.LastSeenAtUtc = null;
         slot.IsConfirmed = false;
         slot.IsAutoEnabled = false;
         slot.IsTemporaryAuto = false;
@@ -314,6 +341,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         dbContext.RoomSlots.RemoveRange(roomSlots);
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates.Where(x => x.RoomId == roomId).ToListAsync());
+        dbContext.BattleConsumableBuffs.RemoveRange(await dbContext.BattleConsumableBuffs.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.MonsterIntents.RemoveRange(await dbContext.MonsterIntents.Where(x => x.RoomId == roomId).ToListAsync());
         dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects.Where(x => x.RoomId == roomId).ToListAsync());
@@ -359,6 +387,25 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).OrderBy(x => x.SlotIndex).ToListAsync();
         var characterIds = slots.Where(x => x.CharacterId.HasValue).Select(x => x.CharacterId!.Value).ToList();
         var characters = await dbContext.Characters.Where(x => characterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+        var activeConsumableBuffs = room.Status == RoomStatus.BattleOver || room.ClosedAtUtc.HasValue
+            ? []
+            : await dbContext.BattleConsumableBuffs.Where(buff => buff.RoomId == room.Id &&
+                buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
+                characterIds.Contains(buff.CharacterId)).ToListAsync();
+        if (weaponCatalog is not null && activeConsumableBuffs.Count > 0)
+        {
+            var equippedWeapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
+                .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex != null).ToListAsync();
+            foreach (var character in characters.Values)
+            {
+                var levels = activeConsumableBuffs.Where(buff => buff.CharacterId == character.Id)
+                    .GroupBy(buff => buff.WeaponSkillCode, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.Sum(buff => buff.SkillLevel), StringComparer.OrdinalIgnoreCase);
+                if (levels.Count > 0)
+                    BattleConsumableBonusCalculator.Apply(character, weaponCatalog.CalculateBonuses(
+                        equippedWeapons.Where(weapon => weapon.CharacterId == character.Id), levels));
+            }
+        }
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
             .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);
@@ -394,7 +441,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var isCurrentUserAutoUnlocked = currentUserCharacterIds.Any(clearedDungeonCharacterIds.Contains);
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
-        var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot => IsSlotAuto(room, slot, clearedDungeonCharacterIds));
+        var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot =>
+            RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, now));
         var rewardRun = currentUserId.HasValue
             ? await dbContext.RewardRuns.Where(run => run.RoomId == room.Id && run.Sequence <= room.RunSequence)
                 .OrderByDescending(run => run.Sequence).FirstOrDefaultAsync()
@@ -508,7 +556,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                             SlotIndex = index,
                             ItemCode = item?.Code,
                             ItemName = item?.Name,
-                            HealAmount = item is null || character is null ? 0 : ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)),
+                            Kind = item?.Kind,
+                            Description = item is null || character is null ? null : ConsumableCatalog.Description(item, character.Level),
+                            HealAmount = item is null || character is null || item.Kind != "Healing" ? 0 : ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character), character.Level),
                             Quantity = item is null ? 0 : itemStacks.FirstOrDefault(stack => stack.CharacterId == id && stack.ItemCode == item.Code)?.Quantity ?? 0,
                             CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
                             AutoUseEnabled = equipped?.AutoUseEnabled ?? false,
@@ -527,11 +577,13 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                     {
                         ItemCode = item?.Code,
                         ItemName = item?.Name,
+                        Description = item is null || character is null ? null : state?.ItemCode is not null
+                            ? ConsumableCatalog.ActiveOperationDescription(state) : ConsumableCatalog.Description(item, character.Level),
                         Quantity = item is null ? 0 : itemStacks.FirstOrDefault(stack =>
                             stack.CharacterId == potionCharacterId && stack.ItemCode == item.Code)?.Quantity ?? 0,
                         AttackPercent = state?.AttackPercent > 0 ? state.AttackPercent : item?.AttackPercent ?? 0,
                         HasAttempted = state is not null,
-                        IsActive = state?.AttackPercent > 0 && room.Status != RoomStatus.BattleOver && room.ClosedAtUtc is null
+                        IsActive = state?.ItemCode is not null && room.Status != RoomStatus.BattleOver && room.ClosedAtUtc is null
                     };
                 }
                 var ownSkills = ownCharacterId is int skillCharacterId
@@ -570,9 +622,22 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 var statusEffects = character is null
                     ? new List<BattleStatusEffectResponse>()
                     : (characterEffects.GetValueOrDefault(character.Id) ?? []).ToList();
+                if (character is not null)
+                    foreach (var buff in activeConsumableBuffs.Where(buff => buff.CharacterId == character.Id))
+                    {
+                        var item = consumableCatalog.FindItem(buff.ItemCode);
+                        statusEffects.Insert(0, new BattleStatusEffectResponse
+                        {
+                            Code = $"combat-consumable:{buff.ItemCode}", Name = item?.Name ?? "战斗药剂",
+                            Description = $"{ConsumableCatalog.WeaponSkillName(buff.WeaponSkillCode)} Lv{buff.SkillLevel} · 本场剩余 {buff.ExpiresAfterRound - room.RoundNumber + 1} 回合",
+                            IsPositive = true, CanDispel = false, Stacks = 1,
+                            RemainingRounds = buff.ExpiresAfterRound - room.RoundNumber + 1,
+                            ExpiresWithRun = true
+                        });
+                    }
                 var activePotion = character is null || room.Status == RoomStatus.BattleOver || room.ClosedAtUtc.HasValue
                     ? null
-                    : operationPotionStates.FirstOrDefault(state => state.CharacterId == character.Id && state.AttackPercent > 0);
+                    : operationPotionStates.FirstOrDefault(state => state.CharacterId == character.Id && state.ItemCode is not null);
                 if (activePotion is not null)
                 {
                     var potionName = consumableCatalog.FindItem(activePotion.ItemCode)?.Name ?? "作战药剂";
@@ -580,7 +645,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                     {
                         Code = $"operation-potion:{activePotion.ItemCode}",
                         Name = potionName,
-                        Description = $"本场战斗攻击提高 {activePotion.AttackPercent}%。",
+                        Description = ConsumableCatalog.ActiveOperationDescription(activePotion),
                         IsPositive = true,
                         CanDispel = false,
                         Stacks = 1,
@@ -588,14 +653,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                         ExpiresWithRun = true
                     });
                 }
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = IsSlotAuto(room, slot, clearedDungeonCharacterIds), IsTemporaryAuto = slot.IsTemporaryAuto, IsAutoUnlockedForCurrentUser = canConfigureAuto, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, now), IsTemporaryAuto = slot.IsTemporaryAuto, IsOfflineAuto = RoomAutoPolicy.IsOffline(room, slot, now), IsAutoUnlockedForCurrentUser = canConfigureAuto, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }
-
-    private static bool IsSlotAuto(Room room, RoomSlot slot, List<int> clearedDungeonCharacterIds) =>
-        slot.CharacterId.HasValue && clearedDungeonCharacterIds.Contains(slot.CharacterId.Value) &&
-        (slot.IsAutoEnabled || (slot.UserId == room.OwnerUserId && !slot.IsMainControl));
 
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room, int? currentUserId = null)
     {

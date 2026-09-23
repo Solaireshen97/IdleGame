@@ -7,4 +7,8 @@ public sealed class BattleOperationPotionState
     public int CharacterId { get; set; }
     public string? ItemCode { get; set; }
     public int AttackPercent { get; set; }
+    public int FinalDamagePercent { get; set; }
+    public int DamageTakenPercent { get; set; }
+    public int NormalAttackDamagePercent { get; set; }
+    public int AreaDamageReductionPercent { get; set; }
 }

@@ -160,9 +160,10 @@ public sealed class T1WeaponEffectTests
         await DbInitializer.InitializeAsync(db, ProductionCatalog());
         var character = await db.Characters.SingleAsync();
         var weapon = await db.CharacterWeapons.Include(item => item.Skills).SingleAsync();
-        Assert.Equal(12, character.WeaponStaminaPercent);
+        Assert.Equal(6, character.WeaponStaminaPercent);
         Assert.Equal(25, character.Hp);
-        Assert.Equal(3, weapon.Skills.Single().QualityBonusLevel);
+        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal(0, weapon.Skills.Single().QualityBonusLevel);
         Assert.Equal(1, weapon.Skills.Single().EnhancementLevel);
         Assert.Equal(2, weapon.Skills.Single().SpentFragments);
         Assert.True(weapon.IsLocked);

@@ -30,6 +30,7 @@ public class RoomSlotResponse
     public string? PlayerName { get; set; }
     public bool IsAutoEnabled { get; set; }
     public bool IsTemporaryAuto { get; set; }
+    public bool IsOfflineAuto { get; set; }
     public bool IsAutoUnlockedForCurrentUser { get; set; }
     public bool CanConfigureAuto { get; set; }
     public List<BattleStatusEffectResponse> StatusEffects { get; set; } = [];
@@ -55,6 +56,8 @@ public class RoomConsumableSlotResponse
     public int SlotIndex { get; set; }
     public string? ItemCode { get; set; }
     public string? ItemName { get; set; }
+    public string? Kind { get; set; }
+    public string? Description { get; set; }
     public int HealAmount { get; set; }
     public int Quantity { get; set; }
     public int CooldownRoundsRemaining { get; set; }
@@ -66,6 +69,7 @@ public sealed class RoomOperationPotionResponse
 {
     public string? ItemCode { get; set; }
     public string? ItemName { get; set; }
+    public string? Description { get; set; }
     public int Quantity { get; set; }
     public int AttackPercent { get; set; }
     public bool HasAttempted { get; set; }

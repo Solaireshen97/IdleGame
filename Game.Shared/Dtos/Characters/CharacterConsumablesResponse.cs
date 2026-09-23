@@ -16,6 +16,9 @@ public class ConsumableItemResponse
     public int HealAmount { get; set; }
     public int AttackPercent { get; set; }
     public int CooldownRounds { get; set; }
+    public int Tier { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string? WeaponSkillCode { get; set; }
     public int Quantity { get; set; }
 }
 

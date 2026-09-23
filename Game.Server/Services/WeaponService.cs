@@ -180,7 +180,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapon is null) return (null, "WeaponNotOwned");
         var skill = weapon.Skills.SingleOrDefault(item => item.SlotIndex == skillSlotIndex);
         if (skill is null) return (null, "WeaponSkillNotFound");
-        if (skill.EnhancementLevel >= WeaponRules.MaxEnhancementPerSkill) return (null, "WeaponSkillAtMaximum");
+        if (skill.EnhancementLevel >= WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel))
+            return (null, "WeaponSkillAtMaximum");
         var tier = WeaponRules.FragmentTier(weapon.ItemLevel);
         var fragmentCode = WeaponRules.FragmentCode(tier);
         var cost = weaponCatalog.EnhancementCost(skill.EnhancementLevel);
@@ -198,6 +199,44 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             skill.Level++;
             weapon.Version++;
             RecalculateCharacter(character!, weapons);
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return (await BuildResponseAsync(character!), null);
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
+    public async Task<(CharacterWeaponsResponse? Response, string? Error)> UpgradeQualityAsync(
+        string? token, int characterId, int weaponId, int materialWeaponId)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        if (weaponId == materialWeaponId || materialWeaponId <= 0) return (null, "InvalidQualityMaterial");
+        if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
+        var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
+            .Where(weapon => weapon.CharacterId == characterId &&
+                (weapon.Id == weaponId || weapon.Id == materialWeaponId)).ToListAsync();
+        var target = weapons.SingleOrDefault(weapon => weapon.Id == weaponId);
+        var material = weapons.SingleOrDefault(weapon => weapon.Id == materialWeaponId);
+        if (target is null || material is null) return (null, "WeaponNotOwned");
+        if (target.QualityRank >= WeaponRules.MaxQualityBonusLevels) return (null, "WeaponQualityAtMaximum");
+        if (!string.Equals(weaponCatalog.FindItem(target.WeaponCode)?.Code ?? target.WeaponCode,
+                weaponCatalog.FindItem(material.WeaponCode)?.Code ?? material.WeaponCode,
+                StringComparison.OrdinalIgnoreCase)) return (null, "QualityMaterialMustMatch");
+        if (material.EquippedSlotIndex.HasValue) return (null, "WeaponEquipped");
+        if (material.IsLocked) return (null, "WeaponLocked");
+        if (material.Origin == WeaponOrigin.Starter) return (null, "StarterWeaponCannotBeConsumed");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            target.QualityRank++;
+            target.Version++;
+            character!.Version++;
+            dbContext.CharacterWeapons.Remove(material);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
@@ -309,10 +348,9 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 DismantleFragments = WeaponCatalog.BaseDismantleReturn(item),
                 DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),
                 CanDismantle = weaponCatalog.CanDismantle(item),
-                QualityBonusLevel = Math.Clamp(item.Skills.Sum(skill => skill.QualityBonusLevel),
-                    0, WeaponRules.MaxQualityBonusLevels),
-                QualityName = WeaponRules.QualityName(item.Skills.Sum(skill => skill.QualityBonusLevel)),
-                QualityCode = WeaponRules.QualityCode(item.Skills.Sum(skill => skill.QualityBonusLevel)),
+                QualityRank = item.QualityRank,
+                QualityName = WeaponRules.QualityName(item.QualityRank),
+                QualityCode = WeaponRules.QualityCode(item.QualityRank),
                 IsLocked = item.IsLocked,
                 EquippedSlotIndex = item.EquippedSlotIndex,
                 Skills = item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
@@ -325,10 +363,9 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                         Name = definition?.Name ?? skill.SkillCode,
                         Level = skill.Level,
                         BaseLevel = skill.BaseLevel,
-                        QualityBonusLevel = skill.QualityBonusLevel,
                         EnhancementLevel = skill.EnhancementLevel,
-                        MaximumEnhancementLevel = WeaponRules.MaxEnhancementPerSkill,
-                        NextEnhancementCost = skill.EnhancementLevel < WeaponRules.MaxEnhancementPerSkill
+                        MaximumEnhancementLevel = WeaponRules.EnhancementLimit(item.QualityRank, skill.BaseLevel),
+                        NextEnhancementCost = skill.EnhancementLevel < WeaponRules.EnhancementLimit(item.QualityRank, skill.BaseLevel)
                             ? weaponCatalog.EnhancementCost(skill.EnhancementLevel) : null,
                         TotalPercent = definition is null ? 0 : weaponCatalog.CalculateSkillPercent(definition, skill.Level),
                         Description = definition is null ? "未知技能" : weaponCatalog.DescribeSkill(definition, skill.Level),

@@ -10,11 +10,16 @@ public static class WeaponRules
     public const int MaxSkillLevel = 20;
     public const int MaxQualityBonusLevels = 3;
     public const int MaxEnhancementPerSkill = 3;
+    public const int MaxEnhancementWithQuality = MaxEnhancementPerSkill + MaxQualityBonusLevels;
+
+    public static int EnhancementLimit(int qualityRank, int baseLevel) =>
+        Math.Min(MaxEnhancementPerSkill + Math.Clamp(qualityRank, 0, MaxQualityBonusLevels),
+            MaxSkillLevel - baseLevel);
 
     public static int FragmentTier(int itemLevel)
     {
         if (itemLevel < 1) throw new ArgumentOutOfRangeException(nameof(itemLevel));
-        return itemLevel / 10 + 1;
+        return (itemLevel - 1) / 10 + 1;
     }
 
     public static string FragmentCode(int tier) => tier > 0

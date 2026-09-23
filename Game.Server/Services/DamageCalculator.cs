@@ -10,7 +10,8 @@ public readonly record struct DamageFactors(
     decimal CriticalPercent = 0,
     decimal ElementPercent = 0,
     decimal ReductionPercent = 0,
-    decimal SkillDamagePercent = 0);
+    decimal SkillDamagePercent = 0,
+    decimal ConsumablePercent = 0);
 
 public static class DamageCalculator
 {
@@ -23,10 +24,11 @@ public static class DamageCalculator
         var elementMultiplier = Math.Max(0m, 1m + factors.ElementPercent / 100m);
         var reductionMultiplier = Math.Max(0m, 1m - factors.ReductionPercent / 100m);
         var skillMultiplier = Math.Max(0m, 1m + factors.SkillDamagePercent / 100m);
+        var consumableMultiplier = Math.Max(0m, 1m + factors.ConsumablePercent / 100m);
 
         // Skill power is flat attack. Defense is removed before the remaining zones.
         var afterDefense = Math.Max(1m, (attack * Math.Max(0, attackPowerPercent) / 100m + skillPower) * attackMultiplier - defense);
-        var final = afterDefense * healthMultiplier * criticalMultiplier * elementMultiplier * reductionMultiplier * skillMultiplier;
+        var final = afterDefense * healthMultiplier * criticalMultiplier * elementMultiplier * reductionMultiplier * skillMultiplier * consumableMultiplier;
         return Math.Max(1, (int)Math.Min(int.MaxValue, decimal.Floor(final)));
     }
 }

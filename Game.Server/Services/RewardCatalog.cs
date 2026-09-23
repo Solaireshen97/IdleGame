@@ -147,26 +147,25 @@ public sealed class RewardCatalog
 
 public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType Element, int Attack, int MaxHp,
     int ItemLevel, int SellGold, int DismantleFragments, List<WeaponRewardSkillSnapshot> Skills, int TemplateRevision = 0,
-    WeaponOrigin Origin = WeaponOrigin.Drop)
+    WeaponOrigin Origin = WeaponOrigin.Drop, int QualityRank = 0)
 {
     [JsonIgnore]
-    public int QualityBonusLevel => Math.Clamp(Skills.Sum(skill => skill.QualityBonusLevel),
+    public int EffectiveQualityRank => Math.Clamp(Math.Max(QualityRank, Skills.Sum(skill => skill.QualityBonusLevel)),
         0, WeaponRules.MaxQualityBonusLevels);
     [JsonIgnore]
-    public string QualityName => WeaponRules.QualityName(QualityBonusLevel);
+    public string QualityName => WeaponRules.QualityName(EffectiveQualityRank);
     [JsonIgnore]
-    public string DisplayName => QualityBonusLevel == 0 ? Name : $"{QualityName}·{Name}";
+    public string DisplayName => EffectiveQualityRank == 0 ? Name : $"{QualityName}·{Name}";
 
     public CharacterWeapon ToCharacterWeapon(int characterId) => new()
     {
         CharacterId = characterId, WeaponCode = Code, Name = Name, Element = Element, TemplateRevision = TemplateRevision, Origin = Origin,
         Attack = Attack, MaxHp = MaxHp, ItemLevel = Math.Max(1, ItemLevel), SellGold = Math.Max(0, SellGold),
-        DismantleFragments = Math.Max(1, DismantleFragments),
+        DismantleFragments = Math.Max(1, DismantleFragments), QualityRank = EffectiveQualityRank,
         Skills = Skills.Select((skill, index) => new CharacterWeaponSkill
         {
             SlotIndex = index + 1, SkillCode = skill.Code,
-            Level = skill.Level + skill.QualityBonusLevel, BaseLevel = skill.Level,
-            QualityBonusLevel = skill.QualityBonusLevel, SpentFragments = 0
+            Level = skill.Level, BaseLevel = skill.Level, SpentFragments = 0
         }).ToList()
     };
 }

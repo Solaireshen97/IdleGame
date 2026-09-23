@@ -138,7 +138,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     public async Task ExecuteIntentAsync(Room room, Monster monster,
         IReadOnlyList<MonsterCombatParticipant> participants,
         IReadOnlyDictionary<int, ElementType> mainWeaponElements,
-        PlayerRoundDefense defense, List<string> logs)
+        PlayerRoundDefense defense, List<string> logs,
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null)
     {
         var intent = await EnsureIntentAsync(room, monster);
         dbContext.MonsterIntents.Remove(intent);
@@ -157,7 +158,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 logs.Add($"{monster.Name} 的预定目标已经失效，本回合攻击取消。");
                 return;
             }
-            await DealDamageAsync(room, monster, target, 100, mainWeaponElements, defense, logs, null);
+            await DealDamageAsync(room, monster, target, 100, mainWeaponElements, defense, logs, null,
+                operationBonuses, false);
             return;
         }
 
@@ -178,7 +180,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         {
             foreach (var target in targets)
                 await DealDamageAsync(room, monster, target, skill.DamagePowerPercent,
-                    mainWeaponElements, defense, logs, skill.Name);
+                    mainWeaponElements, defense, logs, skill.Name, operationBonuses,
+                    skill.TargetType == "AllAlive");
         }
         foreach (var application in skill.Statuses)
         {
@@ -213,7 +216,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     }
 
     public async Task ResolveEndOfRoundAsync(Room room, Monster monster,
-        IReadOnlyList<MonsterCombatParticipant> participants, List<string> logs)
+        IReadOnlyList<MonsterCombatParticipant> participants, List<string> logs,
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null)
     {
         var effects = await dbContext.BattleStatusEffects.Where(effect =>
             effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
@@ -227,6 +231,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             {
                 var target = participants.SingleOrDefault(entry => entry.Character.Id == effect.TargetId);
                 if (target is null || target.Character.Hp <= 0) continue;
+                var taken = operationBonuses?.GetValueOrDefault(target.Character.Id).DamageTakenPercent ?? 0;
+                damage = Math.Max(1, (int)decimal.Floor(damage * (1m + taken / 100m)));
                 target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                 logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 受到 {definition.Name} 造成的 {damage} 点伤害。");
             }
@@ -337,7 +343,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     private async Task DealDamageAsync(Room room, Monster monster, MonsterCombatParticipant target,
         int powerPercent, IReadOnlyDictionary<int, ElementType> mainWeaponElements,
-        PlayerRoundDefense defense, List<string> logs, string? skillName)
+        PlayerRoundDefense defense, List<string> logs, string? skillName,
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses, bool isAreaAttack)
     {
         var talents = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == target.Character.Id &&
             (node.NodeCode == "sword-guard-stance" || node.NodeCode == "sword-counteroffense"))
@@ -346,12 +353,14 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var targetReduction = await GetModifierAsync(room, "Character", target.Character.Id, "ReductionPercent");
         if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase)) targetReduction += 10;
         var guard = defense.TargetCharacterId == target.Character.Id ? defense.ReductionPercent : 0;
+        var potion = operationBonuses?.GetValueOrDefault(target.Character.Id) ?? default;
         var element = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
         var scaledAttack = Math.Max(1, (int)decimal.Floor(monster.Attack * powerPercent / 100m));
         var damage = DamageCalculator.Calculate(scaledAttack, 0,
             factors: new DamageFactors(AttackPercent: attackPercent,
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
-                ReductionPercent: guard + targetReduction));
+                ReductionPercent: guard + targetReduction + (isAreaAttack ? potion.AreaDamageReductionPercent : 0) -
+                    potion.DamageTakenPercent));
         target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
         logs.Add(skillName is null
             ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
@@ -362,7 +371,9 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             {
                 const int counterPower = 50;
                 var counter = DamageCalculator.Calculate(TalentRules.EffectiveAttack(target.Character), monster.Defense,
-                    factors: new DamageFactors(AttackPercent: target.Character.WeaponAttackBonusPercent), attackPowerPercent: counterPower);
+                    factors: new DamageFactors(AttackPercent: target.Character.WeaponAttackBonusPercent +
+                        target.Character.TemporaryWeaponAttackBonusPercent + potion.AttackPercent,
+                        ConsumablePercent: potion.FinalDamagePercent), attackPowerPercent: counterPower);
                 monster.Hp = Math.Max(0, monster.Hp - counter);
                 logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 招架后反击 {monster.Name}，造成 {counter} 点伤害。");
             }

@@ -115,9 +115,9 @@ public sealed class T1WeaponContentTests
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.MigrateAsync();
         var weapon = new CharacterWeapon { Id = 1, CharacterId = 1, WeaponCode = "goldtooth-pickaxe", Name = "旧金牙矿镐",
-            Element = ElementType.Earth, Attack = 14, MaxHp = 38, ItemLevel = 9, IsLocked = true, EquippedSlotIndex = 1,
-            Skills = [new() { SlotIndex = 1, SkillCode = "weapon-attack", BaseLevel = 2, QualityBonusLevel = 1, EnhancementLevel = 2, Level = 5 },
-                new() { SlotIndex = 2, SkillCode = "weapon-health", BaseLevel = 1, QualityBonusLevel = 2, EnhancementLevel = 1, Level = 4 }] };
+            Element = ElementType.Earth, Attack = 14, MaxHp = 38, ItemLevel = 9, IsLocked = true, EquippedSlotIndex = 1, QualityRank = 3,
+            Skills = [new() { SlotIndex = 1, SkillCode = "weapon-attack", BaseLevel = 2, EnhancementLevel = 2, Level = 4 },
+                new() { SlotIndex = 2, SkillCode = "weapon-health", BaseLevel = 1, EnhancementLevel = 1, Level = 2 }] };
         var retired = new CharacterWeapon { Id = 2, CharacterId = 1, WeaponCode = "grave-sickle", Name = "墓园镰刀",
             Element = ElementType.Dark, Attack = 5, MaxHp = 12, ItemLevel = 2, EquippedSlotIndex = 2,
             Skills = [new() { SlotIndex = 1, SkillCode = "weapon-critical", BaseLevel = 1, Level = 1 }] };
@@ -134,13 +134,14 @@ public sealed class T1WeaponContentTests
         Assert.Equal((22, 60, 1, 1), (rebased.Attack, rebased.MaxHp, rebased.ItemLevel, rebased.TemplateRevision));
         Assert.True(rebased.IsLocked);
         Assert.Equal(1, rebased.EquippedSlotIndex);
-        Assert.Equal(("weapon-might", 3, 1, 2, 6), Skill(rebased, 1));
-        Assert.Equal(("weapon-skill", 2, 2, 1, 5), Skill(rebased, 2));
+        Assert.Equal(3, rebased.QualityRank);
+        Assert.Equal(("weapon-might", 3, 0, 2, 5), Skill(rebased, 1));
+        Assert.Equal(("weapon-skill", 2, 0, 1, 3), Skill(rebased, 2));
         Assert.Equal("t1-wood-hilt-ritual-dagger", mapped.WeaponCode);
         Assert.Equal(ElementType.Dark, mapped.Element);
         Assert.Equal(2, mapped.EquippedSlotIndex);
         Assert.Equal((44, 105, 25), (character.Attack, character.MaxHp, character.Hp));
-        Assert.Equal(114, TalentRules.EffectiveMaxHp(character));
+        Assert.Equal(112, TalentRules.EffectiveMaxHp(character));
         var version = rebased.Version;
         await DbInitializer.InitializeAsync(db, catalog);
         Assert.Equal(version, rebased.Version);
@@ -164,8 +165,9 @@ public sealed class T1WeaponContentTests
         Assert.Equal(77, actual.CharacterId);
         Assert.Equal(ElementType.Dark, actual.Element);
         Assert.Equal(1, actual.TemplateRevision);
-        Assert.Equal(3, actual.Skills.Sum(skill => skill.QualityBonusLevel));
-        Assert.Equal(5, actual.Skills[0].Level);
+        Assert.Equal(3, actual.QualityRank);
+        Assert.All(actual.Skills, skill => Assert.Equal(0, skill.QualityBonusLevel));
+        Assert.Equal(2, actual.Skills[0].Level);
         Assert.Equal(2, actual.Skills.Count);
     }
 }

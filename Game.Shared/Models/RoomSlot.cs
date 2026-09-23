@@ -7,6 +7,7 @@ public class RoomSlot
     public int SlotIndex { get; set; }
     public int? CharacterId { get; set; }
     public int? UserId { get; set; }
+    public DateTime? LastSeenAtUtc { get; set; }
     public bool IsMainControl { get; set; }
     public bool IsConfirmed { get; set; }
     public bool IsAutoEnabled { get; set; }

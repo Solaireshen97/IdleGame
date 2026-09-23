@@ -56,7 +56,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
             slotToUpdate.Version++;
         }
         slotToUpdate.ItemCode = item?.Code;
-        slotToUpdate.AutoUseEnabled = item is { Kind: "Healing" } && request.AutoUseEnabled;
+        slotToUpdate.AutoUseEnabled = item is { Kind: "Healing" or "CombatBuff" } && request.AutoUseEnabled;
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
         if (room is not null) room.Version++;
@@ -101,9 +101,12 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
                 Code = item.Code,
                 Name = item.Name,
                 Kind = item.Kind,
-                HealAmount = item.Kind == "Healing" ? ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character)) : 0,
+                HealAmount = item.Kind == "Healing" ? ConsumableCatalog.HealAmountFor(item, TalentRules.EffectiveMaxHp(character), character.Level) : 0,
                 AttackPercent = item.AttackPercent,
                 CooldownRounds = item.CooldownRounds,
+                Tier = item.Tier,
+                Description = ConsumableCatalog.Description(item, character.Level),
+                WeaponSkillCode = item.WeaponSkillCode,
                 Quantity = inventory.GetValueOrDefault(item.Code)
             }).ToList(),
             Slots = Enumerable.Range(1, ConsumableRules.OperationPotionSlotIndex).Select(index =>
