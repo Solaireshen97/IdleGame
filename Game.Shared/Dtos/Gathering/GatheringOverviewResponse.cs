@@ -5,7 +5,6 @@ public sealed class GatheringOverviewResponse
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
     public int GatheringLevel { get; set; }
-    public Game.Shared.Dtos.Professions.ProfessionProgressResponse Profession { get; set; } = new();
     public DateTime ServerTimeUtc { get; set; }
     public List<GatheringPointResponse> Points { get; set; } = [];
     public GatheringTaskResponse? ActiveTask { get; set; }

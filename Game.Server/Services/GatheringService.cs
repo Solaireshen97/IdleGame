@@ -63,11 +63,18 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
+            character.Version++;
             db.GatheringTasks.Add(task);
             await db.SaveChangesAsync();
             CharacterActivityManager.StartGathering(db, task);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync();
+            db.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
         }
         catch (DbUpdateException)
         {
@@ -225,7 +232,6 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
 
     private async Task<GatheringOverviewResponse> BuildResponseAsync(User user, Character character)
     {
-        var profession = await progression.BuildProgressAsync(db, character, ProfessionCatalog.GatheringCode);
         var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
             item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.GatheringCode).ToListAsync();
         var cycleReduction = progression.EffectValue(talents, ProfessionCatalog.GatheringCode, "CycleReductionSeconds");
@@ -286,7 +292,6 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         {
             CharacterId = character.Id, CharacterName = character.Name, ServerTimeUtc = DateTime.UtcNow,
             GatheringLevel = character.GatheringLevel,
-            Profession = profession,
             Points = points,
             ActiveTask = tasks.FirstOrDefault(task => task.Status == "Running") is { } active ? Map(active) : null,
             RecentTasks = tasks.Where(task => task.Status != "Running").Take(5).Select(Map).ToList()

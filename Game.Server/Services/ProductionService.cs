@@ -67,11 +67,18 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
+            character.Version++;
             db.ProductionTasks.Add(task);
             await db.SaveChangesAsync();
             CharacterActivityManager.StartProduction(db, task);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync();
+            db.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
         }
         catch (DbUpdateException)
         {
@@ -225,7 +232,6 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
 
     private async Task<ProductionOverviewResponse> BuildResponseAsync(User user, Character character)
     {
-        var profession = await progression.BuildProgressAsync(db, character, ProfessionCatalog.AlchemyCode);
         var talents = await db.CharacterProfessionTalents.AsNoTracking().Where(item =>
             item.CharacterId == character.Id && item.ProfessionCode == ProfessionCatalog.AlchemyCode).ToListAsync();
         var cycleReduction = progression.EffectValue(talents, ProfessionCatalog.AlchemyCode, "CycleReductionSeconds");
@@ -281,7 +287,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         return new ProductionOverviewResponse
         {
             CharacterId = character.Id, CharacterName = character.Name,
-            AlchemyLevel = character.AlchemyLevel, Profession = profession, ServerTimeUtc = DateTime.UtcNow,
+            AlchemyLevel = character.AlchemyLevel, ServerTimeUtc = DateTime.UtcNow,
             Recipes = recipes,
             ActiveTask = tasks.FirstOrDefault(task => task.Status == "Running") is { } active ? Map(active) : null,
             RecentTasks = tasks.Where(task => task.Status != "Running").Take(5).Select(Map).ToList()

@@ -13,7 +13,41 @@ namespace Game.Server.Tests;
 public sealed class GatheringServiceTests
 {
     [Fact]
-    public async Task ProfessionExperienceTalentAndResetArePerCharacterAndTaskEffectsAreSnapshotted()
+    public async Task GatheringTaskLocksOnlyGatheringTalentChangesUntilItStops()
+    {
+        await using var test = await GatheringTestContext.CreateAsync();
+        test.First.GatheringLevel = 2;
+        test.First.GatheringTalentPoints = 1;
+        test.First.AlchemyLevel = 2;
+        test.First.AlchemyTalentPoints = 1;
+        await test.Db.SaveChangesAsync();
+        var catalog = ProfessionTestFactory.Create();
+        var gathering = test.NewService(catalog);
+        var talents = new ProfessionService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), catalog);
+        var started = await gathering.StartAsync(test.Token,
+            new Game.Shared.Dtos.Gathering.StartGatheringRequest
+            {
+                CharacterId = test.First.Id, PointCode = "elwynn-peacebloom"
+            });
+        Assert.Null(started.Error);
+        var view = await talents.GetAsync(test.Token, ProfessionCatalog.GatheringCode);
+        Assert.True(view.Progress!.IsTalentLocked);
+        Assert.All(view.Progress.Nodes, node => Assert.False(node.CanPurchase));
+        Assert.Equal("ProfessionTalentLocked", (await talents.SpendAsync(test.Token,
+            ProfessionCatalog.GatheringCode, "gather-yield")).Error);
+        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token,
+            ProfessionCatalog.GatheringCode)).Error);
+        Assert.Null((await talents.SpendAsync(test.Token,
+            ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
+        Assert.Null((await gathering.StopAsync(test.Token, started.Response!.ActiveTask!.Id)).Error);
+        Assert.False((await talents.GetAsync(test.Token, ProfessionCatalog.GatheringCode)).Progress!.IsTalentLocked);
+        Assert.Null((await talents.SpendAsync(test.Token,
+            ProfessionCatalog.GatheringCode, "gather-yield")).Error);
+    }
+
+    [Fact]
+    public async Task ProfessionExperienceAndPurchasedTalentEffectsBelongToCharacter()
     {
         await using var test = await GatheringTestContext.CreateAsync();
         var catalog = ProfessionTestFactory.Create();
@@ -49,10 +83,12 @@ public sealed class GatheringServiceTests
         Assert.Null(second.Error);
         var enhanced = second.Response!.ActiveTask!;
         Assert.Equal(100, (await test.Db.GatheringTasks.FindAsync(enhanced.Id))!.ExtraYieldChancePercent);
-        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.GatheringCode)).Error);
+        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token, ProfessionCatalog.GatheringCode)).Error);
         Assert.Null(await service.AdvanceDueAsync(enhanced.Id, enhanced.NextCycleAtUtc));
         Assert.Equal(2, (await test.Db.GatheringTasks.FindAsync(enhanced.Id))!.TotalQuantity);
         Assert.Equal(1, (await test.Db.GatheringTasks.FindAsync(enhanced.Id))!.ExtraYieldQuantity);
+        Assert.Null((await service.StopAsync(test.Token, enhanced.Id)).Error);
+        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.GatheringCode)).Error);
         Assert.Equal(1, test.First.GatheringTalentPoints);
     }
 

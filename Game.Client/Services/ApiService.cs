@@ -13,6 +13,15 @@ namespace Game.Client.Services;
 
 public class ApiService(HttpClient httpClient, UserSessionService userSessionService)
 {
+    public async Task<ProfessionProgressResponse?> GetProfessionProgressAsync(string professionCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get,
+            $"api/professions/{Uri.EscapeDataString(professionCode)}", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>() : null;
+    }
+
     public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> SpendProfessionTalentAsync(
         string professionCode, string nodeCode)
     {
@@ -42,6 +51,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 "TalentPointsExhausted" => "当前没有可用的专业天赋点。",
                 "TalentAtMaximum" => "这个天赋已经达到上限。",
                 "TalentPrerequisiteMissing" => "请先点满要求的前置天赋等级。",
+                "ProfessionTalentLocked" => "当前专业任务进行中，请结束任务后再修改该专业天赋。",
                 "ConcurrencyConflict" => "专业数据刚刚变化，请刷新后重试。",
                 "TalentNotFound" or "ProfessionNotFound" => "这个专业天赋已不存在，请刷新页面。",
                 _ => "加点失败，请稍后重试。"

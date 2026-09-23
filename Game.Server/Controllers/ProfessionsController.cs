@@ -7,6 +7,13 @@ namespace Game.Server.Controllers;
 [Route("api/professions")]
 public sealed class ProfessionsController(ProfessionService professions) : ControllerBase
 {
+    [HttpGet("{professionCode}")]
+    public async Task<IActionResult> Get(string professionCode)
+    {
+        var (progress, error) = await professions.GetAsync(Token(), professionCode);
+        return error is null ? Ok(progress) : ToError(error);
+    }
+
     [HttpPost("{professionCode}/talents/{nodeCode}")]
     public async Task<IActionResult> Spend(string professionCode, string nodeCode)
     {
@@ -26,7 +33,7 @@ public sealed class ProfessionsController(ProfessionService professions) : Contr
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" or "ProfessionNotFound" or "TalentNotFound" => NotFound(error),
         "ConcurrencyConflict" => Conflict(error),
-        "ProfessionLevelTooLow" or "TalentPointsExhausted" or "TalentAtMaximum" or "TalentPrerequisiteMissing" =>
+        "ProfessionLevelTooLow" or "TalentPointsExhausted" or "TalentAtMaximum" or "TalentPrerequisiteMissing" or "ProfessionTalentLocked" =>
             StatusCode(StatusCodes.Status403Forbidden, error),
         _ => BadRequest(error)
     };

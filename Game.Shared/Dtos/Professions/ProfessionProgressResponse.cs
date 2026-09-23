@@ -8,6 +8,7 @@ public sealed class ProfessionProgressResponse
     public int Experience { get; set; }
     public int? ExperienceToNextLevel { get; set; }
     public int AvailableTalentPoints { get; set; }
+    public bool IsTalentLocked { get; set; }
     public List<ProfessionTalentNodeResponse> Nodes { get; set; } = [];
 }
 

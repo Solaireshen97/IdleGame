@@ -8,6 +8,7 @@
 .gathering-summary small { color: #e0b36f; font-size: .7rem; font-weight: 800; }
 .gathering-summary strong { font-size: 1.25rem; }
 .gathering-summary span { color: #a9bac8; font-size: .72rem; }
+.gathering-summary a { color: #f0c981; }
 .gathering-notice { padding: .8rem 1rem; border: 1px solid #59735f; border-radius: .65rem; color: #c9eacf; background: #193329; }
 .gathering-active { margin: 1rem 0 1.5rem; padding: 1.1rem; border: 1px solid #a7864e; border-radius: .9rem; background: linear-gradient(135deg, #244036, #1a3040 65%); }
 .gathering-active__top, .gathering-point__top { display: flex; justify-content: space-between; gap: .7rem; color: #efc67c; font-size: .72rem; font-weight: 800; }

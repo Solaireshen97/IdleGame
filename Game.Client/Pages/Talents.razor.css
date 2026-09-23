@@ -7,6 +7,13 @@
 .talents-page__layout { display: grid; grid-template-columns: minmax(200px, 245px) minmax(0, 1fr); align-items: start; gap: 1rem; }
 .talents-page__aside, .talents-page__main { display: grid; gap: 1rem; min-width: 0; }
 .talents-page__panel { min-width: 0; scroll-margin-top: .75rem; }
+.talents-page__tree-switch { display: grid; gap: .45rem; margin-bottom: .75rem; padding: .65rem; border: 1px solid #40566b; border-radius: .8rem; background: #142437; }
+.talents-page__tree-switch-row { display: flex; flex-wrap: wrap; gap: .45rem; }
+.talents-page__tree-switch button { min-height: 40px; border: 1px solid #3d566a; border-radius: .5rem; background: #112337; color: #b9cbd6; padding: .45rem .85rem; cursor: pointer; }
+.talents-page__tree-switch button.active { border-color: #d7a85e; color: #f3e7cf; background: rgba(215,168,94,.15); }
+.talents-page__profession-tools { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .5rem; color: #b9cbd6; font-size: .8rem; }
+.talents-page__profession-tools button, .talents-page__refresh { min-height: 36px; border: 1px solid #586f82; border-radius: .5rem; background: #1c3346; color: #e8eef2; padding: .35rem .75rem; cursor: pointer; }
+.talents-page__profession-tools button:disabled { opacity: .5; cursor: not-allowed; }
 .talents-page__jump { display: none; }
 .talents-page__identity, .talents-page__roadmap, .talents-page__next { border: 1px solid #344a60; border-radius: .85rem; background: #172638; }
 .talents-page__identity, .talents-page__roadmap { padding: 1.15rem; }

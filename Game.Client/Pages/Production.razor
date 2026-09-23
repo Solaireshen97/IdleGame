@@ -27,7 +27,7 @@
     else
     {
         <div class="production-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>炼金 Lv.@_overview.AlchemyLevel · 配方按角色解锁</span></div>
+            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>炼金 Lv.@_overview.AlchemyLevel · <a href="/talents?tree=Alchemy">管理天赋 →</a></span></div>
             <div><small>已解锁配方</small><strong>@_overview.Recipes.Count(recipe => recipe.IsUnlocked) / @_overview.Recipes.Count</strong><span>生产时消耗角色背包原料</span></div>
         </div>
 
@@ -58,8 +58,6 @@
                 <button class="production-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止生产并结算</button>
             </section>
         }
-
-        <ProfessionTalentBoard Progress="_overview.Profession" OnSpend="SpendTalentAsync" OnReset="ResetTalentsAsync" IsBusy="_isBusy" />
 
         <section class="production-recipes" aria-label="炼金配方">
             <div class="production-section-title"><span>RECIPES</span><h2>炼金配方</h2></div>
@@ -194,33 +192,6 @@
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
         finally { _isBusy = false; }
-    }
-
-    private async Task SpendTalentAsync(string nodeCode) => await ChangeTalentsAsync(nodeCode);
-    private async Task ResetTalentsAsync() => await ChangeTalentsAsync(null);
-
-    private async Task ChangeTalentsAsync(string? nodeCode)
-    {
-        if (_isBusy || _overview is null) return;
-        _isBusy = true;
-        _notice = null;
-        try
-        {
-            var characterId = _overview.CharacterId;
-            var (progress, error) = nodeCode is null
-                ? await ApiService.ResetProfessionTalentsAsync("Alchemy")
-                : await ApiService.SpendProfessionTalentAsync("Alchemy", nodeCode);
-            if (characterId != ActiveCharacters.Current?.CharacterId) return;
-            if (error is not null) _notice = error;
-            else if (progress is not null)
-            {
-                _overview.Profession = progress;
-                _notice = nodeCode is null ? "炼金天赋已重置，点数已返还。" : "炼金天赋已升级，新任务会使用新效果。";
-            }
-        }
-        catch { _notice = "连接中断，请刷新后确认天赋状态。"; }
-        finally { _isBusy = false; }
-        await LoadAsync();
     }
 
     private async Task StopAsync(int taskId)

@@ -1,6 +1,8 @@
 @page "/talents"
 @page "/talents/{CharacterId:int}"
 @using Game.Client.Services
+@using Game.Shared.Dtos.Professions
+@inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
 @implements IDisposable
@@ -10,7 +12,7 @@
 <div class="talents-page">
     <div class="talents-page__intro">
         <a class="talents-page__back" href="/">← 返回大厅</a>
-        <p>为当前角色分配天赋，规划后续职业成长。</p>
+        <p>为当前角色规划战斗、采集与炼金的成长路线。</p>
     </div>
 
     @if (_isLoading)
@@ -46,9 +48,36 @@
                     <button type="button" id="skills-section-tab" role="tab" aria-controls="skill-loadout" class="@(_mobileSection == "skills" ? "active" : null)" aria-selected="@(_mobileSection == "skills" ? "true" : "false")" @onclick='() => _mobileSection = "skills"'><span aria-hidden="true">◆</span><strong>技能栏</strong><small>配置 Auto</small></button>
                 </nav>
                 <div class="talents-page__panel @(_mobileSection == "talents" ? "talents-page__panel--selected" : null)" id="talent-tree" role="tabpanel" aria-labelledby="talents-section-tab">
-                    <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
-                                          CharacterId="@character.CharacterId"
-                                          OnChanged="RefreshCurrentAsync" />
+                    <nav class="talents-page__tree-switch" aria-label="选择天赋树">
+                        <div class="talents-page__tree-switch-row">
+                            <button type="button" class="@(_activeTalentTree == "battle" ? "active" : null)" aria-pressed="@(_activeTalentTree == "battle")" @onclick='() => SelectTalentTreeAsync("battle")'>✦ 战斗天赋</button>
+                        </div>
+                        <div class="talents-page__tree-switch-row">
+                            <button type="button" class="@(_activeTalentTree == "Gathering" ? "active" : null)" aria-pressed="@(_activeTalentTree == "Gathering")" @onclick='() => SelectTalentTreeAsync("Gathering")'>♣ 采集天赋</button>
+                            <button type="button" class="@(_activeTalentTree == "Alchemy" ? "active" : null)" aria-pressed="@(_activeTalentTree == "Alchemy")" @onclick='() => SelectTalentTreeAsync("Alchemy")'>⚗ 炼金天赋</button>
+                        </div>
+                    </nav>
+                    @if (_activeTalentTree == "battle")
+                    {
+                        <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
+                                              CharacterId="@character.CharacterId"
+                                              OnChanged="RefreshCurrentAsync" />
+                    }
+                    else if (_isProfessionLoading)
+                    {
+                        <GameStateCard Compact="true" Title="正在读取专业天赋" Detail="同步当前角色的专业等级、点数与任务状态…" />
+                    }
+                    else if (_professionProgress is null)
+                    {
+                        <GameStateCard Compact="true" Tone="error" Icon="!" Title="专业天赋读取失败" Detail="@(_professionNotice ?? "请刷新后重试。")">
+                            <Actions><button type="button" class="talents-page__refresh" @onclick="LoadProfessionAsync">重新读取</button></Actions>
+                        </GameStateCard>
+                    }
+                    else
+                    {
+                        <div class="talents-page__profession-tools"><span role="status">@(_professionNotice ?? "专业等级和天赋点按角色分别保存。")</span><button type="button" @onclick="LoadProfessionAsync" disabled="@_isProfessionBusy">刷新状态</button></div>
+                        <ProfessionTalentBoard Progress="_professionProgress" OnSpend="SpendProfessionTalentAsync" OnReset="ResetProfessionTalentsAsync" IsBusy="_isProfessionBusy" />
+                    }
                 </div>
                 <div class="talents-page__panel @(_mobileSection == "skills" ? "talents-page__panel--selected" : null)" id="skill-loadout" role="tabpanel" aria-labelledby="skills-section-tab">
                     <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
@@ -74,10 +103,18 @@
 @code {
     [Parameter]
     public int? CharacterId { get; set; }
+    [SupplyParameterFromQuery(Name = "tree")]
+    public string? Tree { get; set; }
 
     private bool _isLoading = true;
     private int _talentRevision;
     private string _mobileSection = "talents";
+    private string _activeTalentTree = "battle";
+    private ProfessionProgressResponse? _professionProgress;
+    private string? _professionNotice;
+    private bool _isProfessionLoading;
+    private bool _isProfessionBusy;
+    private int _professionLoadSequence;
 
     protected override async Task OnInitializedAsync()
     {
@@ -87,9 +124,15 @@
         if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        if (CharacterId is not null) Navigation.NavigateTo("/talents", replace: true);
+        if (CharacterId is not null)
+        {
+            Navigation.NavigateTo("/talents", replace: true);
+            return;
+        }
+        if (ActiveCharacters.Current is not null && (Tree is "Gathering" or "Alchemy"))
+            await SelectTalentTreeAsync(Tree);
     }
 
     private async Task RefreshCurrentAsync()
@@ -97,7 +140,97 @@
         await ActiveCharacters.RefreshAsync();
         _talentRevision++;
     }
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+    private async Task SelectTalentTreeAsync(string tree)
+    {
+        if (_activeTalentTree == tree) return;
+        _activeTalentTree = tree;
+        _professionLoadSequence++;
+        _isProfessionLoading = false;
+        _professionProgress = null;
+        _professionNotice = null;
+        if (tree != "battle") await LoadProfessionAsync();
+    }
+
+    private async Task LoadProfessionAsync()
+    {
+        if (_activeTalentTree == "battle" || _isProfessionBusy) return;
+        _isProfessionLoading = true;
+        var requestSequence = ++_professionLoadSequence;
+        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        var expectedTree = _activeTalentTree;
+        try
+        {
+            var response = await ApiService.GetProfessionProgressAsync(expectedTree);
+            if (requestSequence == _professionLoadSequence &&
+                expectedCharacterId == ActiveCharacters.Current?.CharacterId && expectedTree == _activeTalentTree)
+            {
+                _professionProgress = response;
+                _professionNotice = response is null ? "专业状态读取失败。" : null;
+            }
+        }
+        catch
+        {
+            if (requestSequence == _professionLoadSequence)
+            {
+                _professionProgress = null;
+                _professionNotice = "连接中断，请重试。";
+            }
+        }
+        finally { if (requestSequence == _professionLoadSequence) _isProfessionLoading = false; }
+    }
+
+    private Task SpendProfessionTalentAsync(string nodeCode) => ChangeProfessionTalentsAsync(nodeCode);
+    private Task ResetProfessionTalentsAsync() => ChangeProfessionTalentsAsync(null);
+
+    private async Task ChangeProfessionTalentsAsync(string? nodeCode)
+    {
+        if (_isProfessionBusy || _professionProgress is null || _activeTalentTree == "battle") return;
+        _isProfessionBusy = true;
+        _professionNotice = null;
+        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        var expectedTree = _activeTalentTree;
+        var shouldReload = false;
+        try
+        {
+            var (progress, error) = nodeCode is null
+                ? await ApiService.ResetProfessionTalentsAsync(expectedTree)
+                : await ApiService.SpendProfessionTalentAsync(expectedTree, nodeCode);
+            if (expectedCharacterId == ActiveCharacters.Current?.CharacterId && expectedTree == _activeTalentTree)
+            {
+                if (error is not null)
+                {
+                    _professionNotice = error;
+                    shouldReload = true;
+                }
+                else if (progress is not null)
+                {
+                    _professionProgress = progress;
+                    _professionNotice = nodeCode is null ? "天赋已重置，点数已返还。" : "天赋已升级。";
+                }
+            }
+        }
+        catch { _professionNotice = "连接中断，请刷新后确认天赋状态。"; shouldReload = true; }
+        finally { _isProfessionBusy = false; }
+        if (_activeTalentTree != "battle" && expectedTree != _activeTalentTree)
+            await LoadProfessionAsync();
+        else if (shouldReload && _activeTalentTree != "battle" &&
+            expectedCharacterId == ActiveCharacters.Current?.CharacterId)
+        {
+            var notice = _professionNotice;
+            await LoadProfessionAsync();
+            _professionNotice = notice;
+        }
+    }
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        _professionProgress = null;
+        _professionNotice = null;
+        _professionLoadSequence++;
+        _talentRevision++;
+        if (_activeTalentTree != "battle") await LoadProfessionAsync();
+        StateHasChanged();
+    });
 
     public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
 }

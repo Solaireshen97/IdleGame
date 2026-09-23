@@ -99,6 +99,9 @@ public sealed class ProfessionCatalog
 
     public async Task<ProfessionProgressResponse> BuildProgressAsync(GameDbContext db, Character character, string code)
     {
+        var activityKind = code == GatheringCode ? CharacterActivityManager.GatheringKind : CharacterActivityManager.ProductionKind;
+        var locked = await db.CharacterActivities.AsNoTracking().AnyAsync(activity =>
+            activity.CharacterId == character.Id && activity.Kind == activityKind);
         var talents = await db.CharacterProfessionTalents.AsNoTracking()
             .Where(talent => talent.CharacterId == character.Id && talent.ProfessionCode == code)
             .ToDictionaryAsync(talent => talent.NodeCode, talent => talent.Rank);
@@ -112,12 +115,14 @@ public sealed class ProfessionCatalog
             Experience = code == GatheringCode ? character.GatheringExperience : character.AlchemyExperience,
             ExperienceToNextLevel = ExperienceToNextLevel(level),
             AvailableTalentPoints = available,
+            IsTalentLocked = locked,
             Nodes = nodes.Values.Where(node => node.ProfessionCode == code)
                 .OrderBy(node => node.Tier).ThenBy(node => node.Code).Select(node =>
                 {
                     var rank = talents.GetValueOrDefault(node.Code);
                     var prerequisite = node.PrerequisiteCode is null ? null : nodes[node.PrerequisiteCode];
-                    var reason = rank >= node.MaxRank ? "已达到上限" : level < node.MinimumLevel
+                    var reason = locked ? code == GatheringCode ? "采集中不能修改采集天赋" : "炼金中不能修改炼金天赋"
+                        : rank >= node.MaxRank ? "已达到上限" : level < node.MinimumLevel
                         ? $"需要专业 Lv.{node.MinimumLevel}" : prerequisite is not null &&
                         talents.GetValueOrDefault(prerequisite.Code) < node.PrerequisiteRank
                             ? $"需要「{prerequisite.Name}」{node.PrerequisiteRank} 级" : available == 0 ? "天赋点不足" : null;

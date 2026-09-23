@@ -6,6 +6,7 @@
 .profession-board__points{min-width:92px;text-align:center;padding:9px 14px;border:1px solid #627585;border-radius:10px;background:#142333}
 .profession-board__points small{display:block;color:#b4c6d4}.profession-board__points strong{font-size:1.6rem;color:#efc678}
 .profession-board__experience{display:flex;align-items:center;gap:12px;margin:20px 0;color:#efc678;font-size:.84rem;font-weight:700}
+.profession-board__locked{padding:10px 12px;border:1px solid #a7844b;border-radius:8px;background:#2c2b27;color:#f3d6a3 !important}
 .profession-board__track{flex:1;height:7px;background:#10202d;border:1px solid #3e5567;border-radius:99px;overflow:hidden}.profession-board__track span{display:block;height:100%;background:linear-gradient(90deg,#d5a756,#f8df9a)}
 .profession-board__nodes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .profession-board__node{min-width:0;padding:16px;border:1px solid #3d5465;border-radius:12px;background:#142333}.profession-board__node--active{border-color:#d8ab5d;background:#213039}

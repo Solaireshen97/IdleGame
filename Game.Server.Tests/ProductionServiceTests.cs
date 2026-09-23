@@ -15,7 +15,32 @@ public sealed class ProductionServiceTests
     private const string HerbCode = "peacebloom";
 
     [Fact]
-    public async Task AlchemyLevelsIndependentlyAndIngredientSavingUsesTaskSnapshot()
+    public async Task ProductionTaskLocksAlchemyTalentChangesUntilItStops()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(2);
+        test.First.AlchemyLevel = 2;
+        test.First.AlchemyTalentPoints = 1;
+        await test.Db.SaveChangesAsync();
+        var catalog = ProfessionTestFactory.Create();
+        var production = test.NewService(test.Db, catalog);
+        var talents = new ProfessionService(test.Db,
+            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), catalog);
+        var started = await production.StartAsync(test.Token,
+            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        Assert.Null(started.Error);
+        Assert.True((await talents.GetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Progress!.IsTalentLocked);
+        Assert.Equal("ProfessionTalentLocked", (await talents.SpendAsync(test.Token,
+            ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
+        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token,
+            ProfessionCatalog.AlchemyCode)).Error);
+        Assert.Null((await production.StopAsync(test.Token, started.Response!.ActiveTask!.Id)).Error);
+        Assert.Null((await talents.SpendAsync(test.Token,
+            ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
+    }
+
+
+    [Fact]
+    public async Task AlchemyLevelsIndependentlyAndTalentsAffectProduction()
     {
         await using var test = await ProductionTestContext.CreateAsync(4);
         var catalog = ProfessionTestFactory.Create();
@@ -47,13 +72,15 @@ public sealed class ProductionServiceTests
         var enhanced = second.Response!.ActiveTask!;
         Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.IngredientSaveChancePercent);
         Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.ExtraYieldChancePercent);
-        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
+        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
         Assert.Null(await service.AdvanceDueAsync(enhanced.Id, enhanced.StartedAtUtc.AddSeconds(20)));
         var completed = (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!;
         Assert.Equal(4, completed.TotalQuantity);
         Assert.Equal(2, completed.ExtraYieldQuantity);
         Assert.Equal(2, completed.SavedIngredientQuantity);
         Assert.Equal(1, herb.Quantity);
+        Assert.Null((await service.StopAsync(test.Token, enhanced.Id)).Error);
+        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
     }
 
     [Fact]

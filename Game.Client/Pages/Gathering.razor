@@ -27,7 +27,7 @@
     else
     {
         <div class="gathering-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>采集 Lv.@_overview.GatheringLevel · 进度按角色保存</span></div>
+            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>采集 Lv.@_overview.GatheringLevel · <a href="/talents?tree=Gathering">管理天赋 →</a></span></div>
             <div><small>已解锁地点</small><strong>@_overview.Points.Count(point => point.IsUnlocked) / @_overview.Points.Count</strong><span>不同角色需要各自完成战斗</span></div>
         </div>
 
@@ -58,8 +58,6 @@
                 <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止采集并结算")</button>
             </section>
         }
-
-        <ProfessionTalentBoard Progress="_overview.Profession" OnSpend="SpendTalentAsync" OnReset="ResetTalentsAsync" IsBusy="_isBusy" />
 
         <section class="gathering-points" aria-label="采集地点">
             <div class="gathering-section-title"><span>GATHERING SITES</span><h2>采集地点</h2></div>
@@ -192,33 +190,6 @@
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
         finally { _isBusy = false; }
-    }
-
-    private async Task SpendTalentAsync(string nodeCode) => await ChangeTalentsAsync(nodeCode);
-    private async Task ResetTalentsAsync() => await ChangeTalentsAsync(null);
-
-    private async Task ChangeTalentsAsync(string? nodeCode)
-    {
-        if (_isBusy || _overview is null) return;
-        _isBusy = true;
-        _notice = null;
-        try
-        {
-            var characterId = _overview.CharacterId;
-            var (progress, error) = nodeCode is null
-                ? await ApiService.ResetProfessionTalentsAsync("Gathering")
-                : await ApiService.SpendProfessionTalentAsync("Gathering", nodeCode);
-            if (characterId != ActiveCharacters.Current?.CharacterId) return;
-            if (error is not null) _notice = error;
-            else if (progress is not null)
-            {
-                _overview.Profession = progress;
-                _notice = nodeCode is null ? "采集天赋已重置，点数已返还。" : "采集天赋已升级，新任务会使用新效果。";
-            }
-        }
-        catch { _notice = "连接中断，请刷新后确认天赋状态。"; }
-        finally { _isBusy = false; }
-        await LoadAsync();
     }
 
     private async Task StopAsync(int taskId)

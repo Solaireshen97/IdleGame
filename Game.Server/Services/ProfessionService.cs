@@ -7,12 +7,21 @@ namespace Game.Server.Services;
 
 public sealed class ProfessionService(GameDbContext db, UserService users, ProfessionCatalog catalog)
 {
+    public async Task<(ProfessionProgressResponse? Progress, string? Error)> GetAsync(string? token, string professionCode)
+    {
+        var (_, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null) return (null, error);
+        if (!ProfessionCatalog.IsValidProfession(professionCode)) return (null, "ProfessionNotFound");
+        return (await catalog.BuildProgressAsync(db, character!, professionCode), null);
+    }
+
     public async Task<(ProfessionProgressResponse? Progress, string? Error)> SpendAsync(
         string? token, string professionCode, string nodeCode)
     {
         var (user, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (!ProfessionCatalog.IsValidProfession(professionCode)) return (null, "ProfessionNotFound");
+        if (await IsProfessionActiveAsync(character!.Id, professionCode)) return (null, "ProfessionTalentLocked");
         var node = catalog.FindNode(nodeCode);
         if (node is null || node.ProfessionCode != professionCode) return (null, "TalentNotFound");
         var level = professionCode == ProfessionCatalog.GatheringCode ? character!.GatheringLevel : character!.AlchemyLevel;
@@ -50,6 +59,7 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
         var (_, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (!ProfessionCatalog.IsValidProfession(professionCode)) return (null, "ProfessionNotFound");
+        if (await IsProfessionActiveAsync(character!.Id, professionCode)) return (null, "ProfessionTalentLocked");
         var talents = await db.CharacterProfessionTalents.Where(item =>
             item.CharacterId == character!.Id && item.ProfessionCode == professionCode).ToListAsync();
         var refunded = talents.Sum(item => item.Rank);
@@ -65,5 +75,12 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
             return (null, "ConcurrencyConflict");
         }
         return (await catalog.BuildProgressAsync(db, character, professionCode), null);
+    }
+
+    private Task<bool> IsProfessionActiveAsync(int characterId, string professionCode)
+    {
+        var kind = professionCode == ProfessionCatalog.GatheringCode
+            ? CharacterActivityManager.GatheringKind : CharacterActivityManager.ProductionKind;
+        return db.CharacterActivities.AnyAsync(activity => activity.CharacterId == characterId && activity.Kind == kind);
     }
 }

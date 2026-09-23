@@ -5,7 +5,6 @@ public sealed class ProductionOverviewResponse
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
     public int AlchemyLevel { get; set; }
-    public Game.Shared.Dtos.Professions.ProfessionProgressResponse Profession { get; set; } = new();
     public DateTime ServerTimeUtc { get; set; }
     public List<ProductionRecipeResponse> Recipes { get; set; } = [];
     public ProductionTaskResponse? ActiveTask { get; set; }

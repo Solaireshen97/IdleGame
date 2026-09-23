@@ -19,6 +19,11 @@
         <span>@(Progress.ExperienceToNextLevel is int next ? $"{Progress.Experience} / {next}" : "MAX")</span>
     </div>
 
+    @if (Progress.IsTalentLocked)
+    {
+        <p class="profession-board__locked" role="status">当前角色正在@(Progress.ProfessionCode == "Gathering" ? "采集" : "炼金")，结束任务后才能修改这一专业的天赋。</p>
+    }
+
     <div class="profession-board__nodes">
         @foreach (var node in Progress.Nodes)
         {
@@ -34,14 +39,14 @@
                 </div>
                 <div class="profession-board__node-foot">
                     <small>@(node.LockReason ?? (node.PrerequisiteName is null ? $"需要 Lv.{node.MinimumLevel}" : $"前置：{node.PrerequisiteName} {node.PrerequisiteRank} 级"))</small>
-                    <button type="button" @onclick="() => OnSpend.InvokeAsync(node.Code)" disabled="@(IsBusy || !node.CanPurchase)">加点 +</button>
+                    <button type="button" @onclick="() => OnSpend.InvokeAsync(node.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !node.CanPurchase)">加点 +</button>
                 </div>
             </article>
         }
     </div>
     @if (Progress.Nodes.Any(node => node.Rank > 0))
     {
-        <div class="profession-board__footer"><span>重置后返还该专业的已投入点数。进行中的工作保留开始时的天赋效果。</span><button type="button" @onclick="() => OnReset.InvokeAsync()" disabled="@IsBusy">重置加点</button></div>
+        <div class="profession-board__footer"><span>重置后返还该专业的已投入点数。</span><button type="button" @onclick="() => OnReset.InvokeAsync()" disabled="@(IsBusy || Progress.IsTalentLocked)">重置加点</button></div>
     }
 </section>
 

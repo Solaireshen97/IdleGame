@@ -8,6 +8,7 @@
 .production-summary small { color: #e0b36f; font-size: .7rem; font-weight: 800; }
 .production-summary strong { font-size: 1.25rem; }
 .production-summary span { color: #a9bac8; font-size: .72rem; }
+.production-summary a { color: #f0c981; }
 .production-notice { padding: .8rem 1rem; border: 1px solid #76654a; border-radius: .65rem; color: #f2dfb8; background: #302b27; }
 .production-active { margin: 1rem 0 1.5rem; padding: 1.1rem; border: 1px solid #aa8552; border-radius: .9rem; background: linear-gradient(135deg, #343144, #1b3040 65%); }
 .production-active__top { display: flex; justify-content: space-between; gap: .7rem; color: #efc67c; font-size: .72rem; font-weight: 800; }
