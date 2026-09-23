@@ -185,12 +185,19 @@
             {
                 var isBatchSelected = _selectedWeaponIds.Contains(weapon.Id);
                 var canBatchProcess = CanBatchProcess(weapon);
-                <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() quality-@weapon.QualityCode @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
-                    <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : weapon.EquippedSlotIndex.HasValue ? "已装备武器不能批量处理" : "请先解锁武器")">
-                        <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" aria-label="选择 @weapon.Name 进行批量处理" />
-                    </label>
+                <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() quality-@weapon.QualityCode @(weapon.EquippedSlotIndex.HasValue ? "weapon-tile--equipped" : null) @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
+                    @if (weapon.EquippedSlotIndex is null)
+                    {
+                        <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : "请先解锁武器")">
+                            <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" aria-label="选择 @weapon.Name 进行批量处理" />
+                        </label>
+                    }
                     <button type="button" class="weapon-tile__open" @onclick="() => OpenWeaponDetails(weapon.Id)" disabled="@_isSaving"
-                            aria-haspopup="dialog" aria-label="查看 @weapon.Name，@WeaponRules.ElementName(weapon.Element)属性，装等 @weapon.ItemLevel 的详情">
+                            aria-haspopup="dialog" aria-label="@GetWeaponTileLabel(weapon)">
+                        @if (weapon.EquippedSlotIndex.HasValue)
+                        {
+                            <span class="weapon-tile__equipped">装备中</span>
+                        }
                         <span class="weapon-tile__quality">@weapon.QualityName</span>
                         <span class="weapon-tile__crest" aria-hidden="true">@GetSymbol(weapon.Element)</span>
                         <strong>@weapon.Name</strong>
@@ -217,12 +224,12 @@
                     @if (inspected.Skills.Count > 0)
                     {
                         <section class="weapon-detail-management" aria-label="技能强化">
-                            <h3>技能强化 <small>T@inspected.FragmentTier 碎片：@GetFragmentQuantity(inspected.FragmentTier)</small></h3>
+                            <h3>技能强化 <small>T@(inspected.FragmentTier) 碎片：@GetFragmentQuantity(inspected.FragmentTier)</small></h3>
                             @foreach (var skill in inspected.Skills)
                             {
                                 var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(inspected.FragmentTier) >= cost;
                                 <div class="weapon-detail-management__row">
-                                    <span><strong>@skill.Name</strong><small>基础 Lv@skill.BaseLevel · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small></span>
+                                    <span><strong>@skill.Name</strong><small>基础 Lv@(skill.BaseLevel) · 品质 +@(skill.QualityBonusLevel) · 强化 +@(skill.EnhancementLevel) / @(skill.MaximumEnhancementLevel)</small></span>
                                     <button type="button" @onclick="() => EnhanceAsync(inspected, skill)" disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
                                         @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{inspected.FragmentTier} ×{nextCost}" : "强化已满")
                                     </button>
@@ -317,6 +324,14 @@
             Name = skill.Name, Level = skill.Level,
             Description = $"{skill.Description} · {(skill.IsActive ? "生效" : "未生效")}"
         }).ToList();
+
+    private static string GetWeaponTileLabel(CharacterWeaponResponse weapon)
+    {
+        var equipped = weapon.EquippedSlotIndex is int slot
+            ? $"，已装备在{(slot == 1 ? "主武器" : $"副武器 {slot:00}")}"
+            : string.Empty;
+        return $"查看 {weapon.Name}，{WeaponRules.ElementName(weapon.Element)}属性，装等 {weapon.ItemLevel}{equipped} 的详情";
+    }
 
     private void SelectSlot(int index)
     {

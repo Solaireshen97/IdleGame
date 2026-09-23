@@ -417,12 +417,27 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterBattleMilestones", t => t.HasCheckConstraint("CK_CharacterBattleMilestones_Count", "Count > 0"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterGatheringOpportunity", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("PointCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("AvailableCount").HasColumnType("INTEGER");
+                    b.Property<int>("EarnedCount").HasColumnType("INTEGER");
+                    b.Property<int>("SpentCount").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("CharacterId", "PointCode");
+                    b.ToTable("CharacterGatheringOpportunities", t => t.HasCheckConstraint(
+                        "CK_CharacterGatheringOpportunities_Counts",
+                        "AvailableCount >= 0 AND EarnedCount >= 0 AND SpentCount >= 0 AND EarnedCount = AvailableCount + SpentCount"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.GatheringTask", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
                     b.Property<int>("UserId").HasColumnType("INTEGER");
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<string>("PointCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<bool>("IsRare").HasColumnType("INTEGER");
                     b.Property<string>("MaterialCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("CycleSeconds").HasColumnType("INTEGER");
                     b.Property<int>("OutputQuantity").HasColumnType("INTEGER");

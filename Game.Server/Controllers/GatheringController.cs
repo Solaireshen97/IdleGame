@@ -35,7 +35,7 @@ public sealed class GatheringController(GatheringService gathering) : Controller
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" or "PointNotFound" or "TaskNotFound" => NotFound(error),
         "ActiveCharacterChanged" or "CharacterBusy" or "ConcurrencyConflict" => Conflict(error),
-        "PointLocked" or "LevelTooLow" or "GatheringLevelTooLow" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "PointLocked" or "LevelTooLow" or "GatheringLevelTooLow" or "NoGatheringOpportunity" => StatusCode(StatusCodes.Status403Forbidden, error),
         _ => BadRequest(error)
     };
 

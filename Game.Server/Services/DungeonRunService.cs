@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Game.Server.Services;
 
 public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService,
-    MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null)
+    MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null,
+    GatheringOpportunityService? gatheringOpportunities = null)
 {
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
@@ -57,9 +58,19 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
             participants.Select(participant => participant.UserId), now);
         if (await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true))
+        {
+            var actualCharacterIds = actualRunCharacterIds ?? participants.Select(participant => participant.Character.Id).ToList();
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
-                actualRunCharacterIds ?? participants.Select(participant => participant.Character.Id),
+                actualCharacterIds,
                 BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
+            if (dungeon.DungeonKind == "Elite" && gatheringOpportunities is not null)
+            {
+                var names = participants.DistinctBy(participant => participant.Character.Id)
+                    .ToDictionary(participant => participant.Character.Id, participant => participant.Character.Name);
+                foreach (var grant in await gatheringOpportunities.GrantForEliteAsync(dungeon.Code, actualCharacterIds))
+                    logs.Add($"{names[grant.CharacterId]} 获得 {grant.PointName} 的稀有采集机会 × 1。");
+            }
+        }
         var firstClearRewardCode = $"{dungeon.Code}-first-clear";
         if (firstClearUserIds.Count > 0 && rewardService.HasRewardProfile(firstClearRewardCode, true))
             await rewardService.RecordAsync(room, firstClearRewardCode,

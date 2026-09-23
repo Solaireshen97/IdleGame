@@ -300,6 +300,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
         dbContext.CharacterItemStacks.RemoveRange(await dbContext.CharacterItemStacks.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterBattleMilestones.RemoveRange(await dbContext.CharacterBattleMilestones.Where(item => item.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterGatheringOpportunities.RemoveRange(await dbContext.CharacterGatheringOpportunities.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.GatheringTasks.RemoveRange(await dbContext.GatheringTasks.Where(task => task.CharacterId == characterId).ToListAsync());
         dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());

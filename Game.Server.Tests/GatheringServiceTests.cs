@@ -3,6 +3,7 @@ using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared.Dtos.Gathering;
 using Game.Shared.Models;
+using Game.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -113,11 +114,138 @@ public sealed class GatheringServiceTests
         Assert.Equal(2, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
     }
 
+    [Fact]
+    public async Task RareHarvestOnlySpendsAnOpportunityOnCompletion()
+    {
+        await using var test = await GatheringTestContext.CreateAsync();
+        test.Db.AddRange(
+            new CharacterBattleMilestone
+            {
+                CharacterId = test.First.Id, Kind = BattleMilestoneService.MonsterKillKind,
+                TargetCode = "elwynn-grizzled-bear", Count = 1,
+                FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow
+            },
+            new CharacterGatheringOpportunity
+            {
+                CharacterId = test.First.Id, PointCode = "elwynn-earthroot",
+                AvailableCount = 1, EarnedCount = 1
+            });
+        await test.Db.SaveChangesAsync();
+
+        var (overview, _) = await test.Service.GetAsync(test.Token);
+        var point = overview!.Points.Single(item => item.Code == "elwynn-earthroot");
+        Assert.True(point.IsUnlocked);
+        Assert.Equal(1, point.AvailableOpportunities);
+
+        var (started, error) = await test.Service.StartAsync(test.Token,
+            new StartGatheringRequest { CharacterId = test.First.Id, PointCode = point.Code });
+        Assert.Null(error);
+        Assert.True(started!.ActiveTask!.IsRare);
+        Assert.Equal(TimeSpan.FromSeconds(20), started.ActiveTask.EndsAtUtc - started.ActiveTask.StartedAtUtc);
+        var (stopped, stopError) = await test.Service.StopAsync(test.Token, started.ActiveTask.Id);
+        Assert.Null(stopError);
+        Assert.Equal("Stopped", stopped!.RecentTasks[0].Status);
+        Assert.Equal(1, stopped.Points.Single(item => item.Code == point.Code).AvailableOpportunities);
+        Assert.Empty(await test.Db.UserWarehouseStacks.ToListAsync());
+
+        var (restarted, retryError) = await test.Service.StartAsync(test.Token,
+            new StartGatheringRequest { CharacterId = test.First.Id, PointCode = point.Code });
+        Assert.Null(retryError);
+        var task = restarted!.ActiveTask!;
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.EndsAtUtc));
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.EndsAtUtc.AddSeconds(20)));
+
+        var completed = await test.Db.GatheringTasks.FindAsync(task.Id);
+        Assert.Equal("Completed", completed!.Status);
+        Assert.Equal((1, 1), (completed.CompletedCycles, completed.TotalQuantity));
+        Assert.Equal(1, (await test.Db.UserWarehouseStacks.SingleAsync()).Quantity);
+        var opportunity = await test.Db.CharacterGatheringOpportunities.SingleAsync();
+        Assert.Equal((0, 1, 1), (opportunity.AvailableCount, opportunity.EarnedCount, opportunity.SpentCount));
+        Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
+        var (_, noChanceError) = await test.Service.StartAsync(test.Token,
+            new StartGatheringRequest { CharacterId = test.First.Id, PointCode = point.Code });
+        Assert.Equal("NoGatheringOpportunity", noChanceError);
+    }
+
+    [Fact]
+    public async Task EliteVictoryGrantsOnlyActualParticipantsOncePerRun()
+    {
+        await using var test = await GatheringTestContext.CreateAsync();
+        var dungeon = new Dungeon
+        {
+            Id = 1, Code = "elwynn-grizzled-bear", Name = "林地灰熊王", DungeonKind = "Elite",
+            MonsterName = "林地灰熊王", MonsterMaxHp = 100, MonsterAttack = 10, MonsterDefense = 2
+        };
+        test.Db.Dungeons.Add(dungeon);
+        await test.Db.SaveChangesAsync();
+        var rewards = RewardTestFactory.CreateService(test.Db, ProgressionTestFactory.Create());
+        var run = new DungeonRunService(test.Db, rewards,
+            battleMilestones: new BattleMilestoneService(test.Db),
+            gatheringOpportunities: new GatheringOpportunityService(test.Db, test.Catalog));
+
+        async Task DefeatAsync(int id)
+        {
+            var room = new Room
+            {
+                Id = id, DungeonId = dungeon.Id, MonsterId = id, OwnerUserId = test.Owner.Id,
+                SlotCount = 5, Status = RoomStatus.Preparing
+            };
+            var monster = new Monster
+            {
+                Id = id, RoomId = id, WaveNumber = 1, Position = 1,
+                Name = "林地灰熊王", MaxHp = 100, Hp = 0,
+                RewardProfileCode = dungeon.Code
+            };
+            test.Db.AddRange(room, monster);
+            await test.Db.SaveChangesAsync();
+            var participants = new[]
+            {
+                new RewardParticipant(test.Owner.Id, test.First),
+                new RewardParticipant(test.Owner.Id, test.Second)
+            };
+            await run.AdvanceAfterDefeatAsync(room, monster, participants, DateTime.UtcNow, [],
+                [test.First.Id], [test.First.Id]);
+            await test.Db.SaveChangesAsync();
+            await run.AdvanceAfterDefeatAsync(room, monster, participants, DateTime.UtcNow, [],
+                [test.First.Id], [test.First.Id]);
+            await test.Db.SaveChangesAsync();
+        }
+
+        await DefeatAsync(1);
+        var first = await test.Db.CharacterGatheringOpportunities.SingleAsync();
+        Assert.Equal(test.First.Id, first.CharacterId);
+        Assert.Equal(1, first.AvailableCount);
+        var (firstView, _) = await test.Service.GetAsync(test.Token);
+        Assert.Equal(1, firstView!.Points.Single(point => point.Code == "elwynn-earthroot").AvailableOpportunities);
+        test.Owner.ActiveCharacterId = test.Second.Id;
+        test.Owner.Version++;
+        test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
+        {
+            CharacterId = test.Second.Id, Kind = BattleMilestoneService.MonsterKillKind,
+            TargetCode = dungeon.Code, Count = 1,
+            FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow
+        });
+        await test.Db.SaveChangesAsync();
+        var (secondView, _) = await test.Service.GetAsync(test.Token);
+        Assert.Equal(0, secondView!.Points.Single(point => point.Code == "elwynn-earthroot").AvailableOpportunities);
+        var (_, secondError) = await test.Service.StartAsync(test.Token,
+            new StartGatheringRequest { CharacterId = test.Second.Id, PointCode = "elwynn-earthroot" });
+        Assert.Equal("NoGatheringOpportunity", secondError);
+
+        await DefeatAsync(2);
+        Assert.Equal(2, (await test.Db.CharacterGatheringOpportunities.SingleAsync()).AvailableCount);
+        Assert.Equal(2, (await test.Db.CharacterBattleMilestones.SingleAsync(item =>
+            item.CharacterId == test.First.Id && item.TargetCode == dungeon.Code &&
+            item.Kind == BattleMilestoneService.MonsterKillKind)).Count);
+        Assert.Equal(0, await test.Db.CharacterGatheringOpportunities.CountAsync(item =>
+            item.CharacterId == test.Second.Id));
+    }
+
     private sealed class GatheringTestContext : IAsyncDisposable
     {
         private readonly string _path;
         private GatheringTestContext(string path, GameDbContext db, User owner, Character first, Character second,
-            GatheringService service)
+            GatheringService service, GatheringCatalog catalog)
         {
             _path = path;
             Db = db;
@@ -125,6 +253,7 @@ public sealed class GatheringServiceTests
             First = first;
             Second = second;
             Service = service;
+            Catalog = catalog;
         }
 
         public GameDbContext Db { get; }
@@ -132,6 +261,7 @@ public sealed class GatheringServiceTests
         public Character First { get; }
         public Character Second { get; }
         public GatheringService Service { get; }
+        public GatheringCatalog Catalog { get; }
         public string Token => "gathering-owner-token";
 
         public static async Task<GatheringTestContext> CreateAsync(int cycleSeconds = 20)
@@ -141,8 +271,8 @@ public sealed class GatheringServiceTests
                 .UseSqlite($"Data Source={path};Pooling=False").Options);
             await db.Database.EnsureCreatedAsync();
             var owner = new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 };
-            var first = new Character { Id = 1, UserId = 1, Name = "First", Level = 8, Hp = 100, MaxHp = 100, Attack = 20 };
-            var second = new Character { Id = 2, UserId = 1, Name = "Second", Level = 8, Hp = 100, MaxHp = 100, Attack = 20 };
+            var first = new Character { Id = 1, UserId = 1, Name = "First", Level = 10, Hp = 100, MaxHp = 100, Attack = 20 };
+            var second = new Character { Id = 2, UserId = 1, Name = "Second", Level = 10, Hp = 100, MaxHp = 100, Attack = 20 };
             db.AddRange(owner, first, second,
                 new CharacterBattleMilestone
                 {
@@ -162,7 +292,8 @@ public sealed class GatheringServiceTests
                 Items =
                 [
                     new MaterialItemOptions { Code = "peacebloom", Name = "宁神花", Description = "测试", CanStoreInWarehouse = true },
-                    new MaterialItemOptions { Code = "silverleaf", Name = "银叶草", Description = "测试", CanStoreInWarehouse = true }
+                    new MaterialItemOptions { Code = "silverleaf", Name = "银叶草", Description = "测试", CanStoreInWarehouse = true },
+                    new MaterialItemOptions { Code = "earthroot", Name = "地根草", Description = "测试", CanStoreInWarehouse = true }
                 ]
             }));
             var catalog = new GatheringCatalog(Options.Create(new GatheringOptions
@@ -182,13 +313,20 @@ public sealed class GatheringServiceTests
                         MaterialCode = "silverleaf", CycleSeconds = 20, OutputQuantity = 1,
                         MinimumCharacterLevel = 8, UnlockKind = BattleMilestoneService.DungeonClearKind,
                         UnlockTargetCode = "kobold-mine"
+                    },
+                    new GatheringPointOptions
+                    {
+                        Code = "elwynn-earthroot", Name = "灰熊巢地根草", RegionCode = "elwynn",
+                        MaterialCode = "earthroot", IsRare = true, CycleSeconds = 20, OutputQuantity = 1,
+                        MinimumCharacterLevel = 9, UnlockKind = BattleMilestoneService.MonsterKillKind,
+                        UnlockTargetCode = "elwynn-grizzled-bear"
                     }
                 ]
             }), world, materials);
             var service = new GatheringService(db,
                 new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
                 catalog, world, materials, Options.Create(new ActivityOptions { MaximumHours = 12 }));
-            return new GatheringTestContext(path, db, owner, first, second, service);
+            return new GatheringTestContext(path, db, owner, first, second, service, catalog);
         }
 
         public async ValueTask DisposeAsync()

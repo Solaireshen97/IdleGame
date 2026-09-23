@@ -17,6 +17,8 @@ public sealed class GatheringPointResponse
     public string Name { get; set; } = string.Empty;
     public string RegionName { get; set; } = string.Empty;
     public string MaterialCode { get; set; } = string.Empty;
+    public bool IsRare { get; set; }
+    public int AvailableOpportunities { get; set; }
     public string MaterialName { get; set; } = string.Empty;
     public int WarehouseQuantity { get; set; }
     public int OutputQuantity { get; set; }
@@ -33,6 +35,7 @@ public sealed class GatheringTaskResponse
 {
     public int Id { get; set; }
     public string PointCode { get; set; } = string.Empty;
+    public bool IsRare { get; set; }
     public string PointName { get; set; } = string.Empty;
     public string MaterialName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;

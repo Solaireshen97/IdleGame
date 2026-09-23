@@ -12,7 +12,7 @@
     <header class="gathering-intro">
         <span>FIELD WORK · ELWYNN FOREST</span>
         <h1>草药采集</h1>
-        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。产物直接进入营地仓库。</p>
+        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。精英讨伐提供限次采集机会，产物直接进入营地仓库。</p>
     </header>
 
     @if (_isLoading)
@@ -39,17 +39,19 @@
         @if (_overview.ActiveTask is { } task)
         {
             <section class="gathering-active" aria-label="当前采集任务">
-                <div class="gathering-active__top"><span>正在采集</span><span>12 小时后完成当前轮</span></div>
+                <div class="gathering-active__top"><span>@(task.IsRare ? "正在稀有采集" : "正在采集")</span><span>@(task.IsRare ? "完成本轮后消耗 1 次机会" : "12 小时后完成当前轮")</span></div>
                 <h2>@task.PointName</h2>
-                <p>每轮收获 @task.MaterialName。关闭网页后，服务器仍会继续结算。</p>
+                <p>@(task.IsRare ? $"本轮保底获得 {task.MaterialName}。中途停止不消耗机会。" : $"每轮收获 {task.MaterialName}。关闭网页后，服务器仍会继续结算。")</p>
                 <div class="gathering-active__metrics">
                     <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
                     <div><small>累计产出</small><strong>@task.TotalQuantity <em>株</em></strong></div>
-                    <div><small>剩余时限</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                    <div><small>@(task.IsRare ? "本轮剩余" : "剩余时限")</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
                 </div>
-                <div class="gathering-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
-                <progress value="@CycleProgress(task)" max="100" aria-label="下一轮采集进度"></progress>
-                <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止采集并结算</button>
+                <div class="gathering-active__timer"><span>@(task.IsRare ? "本次采集" : "下一轮")</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
+                <div class="gathering-progress" role="progressbar" aria-label="下一轮采集进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
+                    <span @key="task.NextCycleAtUtc" class="gathering-progress__fill" style="width: @(CycleProgress(task))%"></span>
+                </div>
+                <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止采集并结算")</button>
             </section>
         }
 
@@ -59,11 +61,16 @@
                 @foreach (var point in _overview.Points)
                 {
                     var canStart = point.IsUnlocked && ActiveCharacters.Current?.Level >= point.MinimumCharacterLevel &&
-                        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null;
-                    <article class="gathering-point @(point.IsUnlocked ? "gathering-point--unlocked" : "")">
-                        <div class="gathering-point__top"><span>@point.RegionName</span><span>@(point.IsUnlocked ? "已解锁" : "未解锁")</span></div>
+                        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null &&
+                        (!point.IsRare || point.AvailableOpportunities > 0);
+                    <article class="gathering-point @(point.IsUnlocked ? "gathering-point--unlocked" : "") @(point.IsRare ? "gathering-point--rare" : "")">
+                        <div class="gathering-point__top"><span>@point.RegionName · @(point.IsRare ? "稀有" : "普通")</span><span>@(point.IsUnlocked ? "已解锁" : "未解锁")</span></div>
                         <h3>@point.Name</h3>
-                        <p>每 @point.CycleSeconds 秒获得 @point.MaterialName × @point.OutputQuantity</p>
+                        <p>@(point.IsRare ? $"单次 {point.CycleSeconds} 秒，保底获得 {point.MaterialName} × {point.OutputQuantity}" : $"每 {point.CycleSeconds} 秒获得 {point.MaterialName} × {point.OutputQuantity}")</p>
+                        @if (point.IsRare)
+                        {
+                            <div class="gathering-point__opportunity"><span>当前角色可采集</span><strong>@point.AvailableOpportunities 次</strong></div>
+                        }
                         <div class="gathering-point__stock"><span>营地仓库现有</span><strong>@point.WarehouseQuantity</strong></div>
                         <div class="gathering-point__unlock">
                             <span>@point.UnlockDescription</span>
@@ -77,7 +84,7 @@
                         {
                             <small class="gathering-point__level">需要采集 Lv.@point.MinimumGatheringLevel</small>
                         }
-                        <button @onclick="() => StartAsync(point)" disabled="@(_isBusy || !canStart)">@(point.IsUnlocked ? "开始采集" : "完成战斗后解锁")</button>
+                        <button @onclick="() => StartAsync(point)" disabled="@(_isBusy || !canStart)">@(point.IsUnlocked ? point.IsRare ? point.AvailableOpportunities > 0 ? "开始稀有采集" : "暂无采集机会" : "开始采集" : "完成战斗后解锁")</button>
                     </article>
                 }
             </div>
@@ -89,7 +96,7 @@
                 <div class="gathering-section-title"><span>RECENT RUNS</span><h2>最近采集</h2></div>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed.Status)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity</strong></div>
+                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity</strong></div>
                 }
             </section>
         }
@@ -122,11 +129,20 @@
 
     private async Task RefreshLoopAsync(CancellationToken token)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        var ticks = 0;
         try
         {
             while (await timer.WaitForNextTickAsync(token))
-                await InvokeAsync(LoadAsync);
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (++ticks % 2 == 0)
+                        await LoadAsync();
+                    if (!token.IsCancellationRequested)
+                        StateHasChanged();
+                });
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
@@ -166,7 +182,7 @@
             {
                 _overview = response;
                 _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = $"{point.Name} 的采集已开始。";
+                _notice = point.IsRare ? $"{point.Name} 的稀有采集已开始，完成后消耗 1 次机会。" : $"{point.Name} 的采集已开始。";
             }
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
@@ -186,18 +202,20 @@
             {
                 _overview = response;
                 _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = "采集已停止，已完成的小轮产物保留在营地仓库。";
+                _notice = response.RecentTasks.FirstOrDefault(task => task.Id == taskId) is { IsRare: true } rare
+                    ? rare.Status == "Completed" ? "稀有采集已完成，产物已存入营地仓库，消耗 1 次机会。" : "稀有采集已停止，未消耗机会。"
+                    : "采集已停止，已完成的小轮产物保留在营地仓库。";
             }
         }
         catch { _notice = "连接中断，请刷新后确认任务状态。"; }
         finally { _isBusy = false; }
     }
 
-    private double CycleProgress(GatheringTaskResponse task)
+    private int CycleProgress(GatheringTaskResponse task)
     {
         if (task.CycleSeconds <= 0) return 0;
         var remaining = Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds);
-        return 100 * (1 - remaining / task.CycleSeconds);
+        return (int)Math.Clamp(Math.Round(100 * (1 - remaining / task.CycleSeconds)), 0, 100);
     }
 
     private static string FormatDuration(TimeSpan span)
@@ -207,12 +225,13 @@
             : $"{span.Minutes:D2}:{span.Seconds:D2}";
     }
 
-    private static string StatusName(string status) => status switch
+    private static string StatusName(GatheringTaskResponse task) => task.Status switch
     {
-        "Completed" => "到期完成",
+        "Completed" => task.IsRare ? "采集完成" : "到期完成",
         "Stopped" => "手动停止",
         "InventoryFull" => "仓库已满",
-        _ => status
+        "NoOpportunity" => "采集机会不足",
+        _ => task.Status
     };
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>

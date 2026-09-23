@@ -48,6 +48,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 "ActiveCharacterChanged" => "当前角色已切换，请刷新采集页面。",
                 "CharacterBusy" => "这个角色已有进行中的战斗或采集任务。",
                 "PointLocked" => "该角色尚未完成采集点的战斗解锁条件。",
+                "NoGatheringOpportunity" => "该角色没有这个采集点的剩余机会，请先完成对应精英讨伐。",
                 "LevelTooLow" => "角色等级不足。",
                 "GatheringLevelTooLow" => "采集专业等级不足。",
                 "ConcurrencyConflict" => "任务刚刚发生变化，请刷新后重试。",

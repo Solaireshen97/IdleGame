@@ -28,6 +28,7 @@ builder.Services.AddScoped<DungeonRunService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<RewardService>();
 builder.Services.AddScoped<BattleMilestoneService>();
+builder.Services.AddScoped<GatheringOpportunityService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TalentService>();
 builder.Services.AddScoped<ConsumableService>();

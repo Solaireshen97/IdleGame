@@ -9,6 +9,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Character> Characters => Set<Character>();
     public DbSet<CharacterActivity> CharacterActivities => Set<CharacterActivity>();
     public DbSet<CharacterBattleMilestone> CharacterBattleMilestones => Set<CharacterBattleMilestone>();
+    public DbSet<CharacterGatheringOpportunity> CharacterGatheringOpportunities => Set<CharacterGatheringOpportunity>();
     public DbSet<GatheringTask> GatheringTasks => Set<GatheringTask>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
@@ -40,6 +41,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<CharacterActivity>().HasIndex(activity => new { activity.Kind, activity.SourceId });
         modelBuilder.Entity<CharacterBattleMilestone>().HasKey(milestone => new { milestone.CharacterId, milestone.Kind, milestone.TargetCode });
         modelBuilder.Entity<CharacterBattleMilestone>().ToTable(table => table.HasCheckConstraint("CK_CharacterBattleMilestones_Count", "Count > 0"));
+        modelBuilder.Entity<CharacterGatheringOpportunity>().HasKey(item => new { item.CharacterId, item.PointCode });
+        modelBuilder.Entity<CharacterGatheringOpportunity>().Property(item => item.Version).IsConcurrencyToken();
+        modelBuilder.Entity<CharacterGatheringOpportunity>().ToTable(table => table.HasCheckConstraint(
+            "CK_CharacterGatheringOpportunities_Counts",
+            "AvailableCount >= 0 AND EarnedCount >= 0 AND SpentCount >= 0 AND EarnedCount = AvailableCount + SpentCount"));
         modelBuilder.Entity<GatheringTask>().Property(task => task.Version).IsConcurrencyToken();
         modelBuilder.Entity<GatheringTask>().HasIndex(task => new { task.CharacterId, task.Status });
         modelBuilder.Entity<GatheringTask>().ToTable(table => table.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));

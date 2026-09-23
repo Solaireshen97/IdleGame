@@ -31,16 +31,19 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             item.TargetCode == point.UnlockTargetCode).Select(item => (int?)item.Count).SingleOrDefaultAsync() ?? 0;
         if (progress < point.RequiredCount) return (null, "PointLocked");
         if (await CharacterActivityManager.IsBusyAsync(db, character.Id)) return (null, "CharacterBusy");
+        if (point.IsRare && !await db.CharacterGatheringOpportunities.AnyAsync(item =>
+                item.CharacterId == character.Id && item.PointCode == point.Code && item.AvailableCount > 0))
+            return (null, "NoGatheringOpportunity");
 
         var now = DateTime.UtcNow;
         var hours = Math.Clamp(activities.Value.MaximumHours, 1, 12);
         var deadline = now.AddHours(hours);
         var cycleTicks = TimeSpan.FromSeconds(point.CycleSeconds).Ticks;
-        var cycleCount = (deadline.Ticks - now.Ticks + cycleTicks - 1) / cycleTicks;
+        var cycleCount = point.IsRare ? 1 : (deadline.Ticks - now.Ticks + cycleTicks - 1) / cycleTicks;
         var task = new GatheringTask
         {
             UserId = user!.Id, CharacterId = character.Id, PointCode = point.Code,
-            MaterialCode = point.MaterialCode, CycleSeconds = point.CycleSeconds,
+            MaterialCode = point.MaterialCode, IsRare = point.IsRare, CycleSeconds = point.CycleSeconds,
             OutputQuantity = point.OutputQuantity,
             StartedAtUtc = now, EndsAtUtc = now.AddTicks(cycleCount * cycleTicks),
             NextCycleAtUtc = now.AddSeconds(point.CycleSeconds)
@@ -111,8 +114,19 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         var cutoff = now < task.EndsAtUtc ? now : task.EndsAtUtc;
         if (task.NextCycleAtUtc <= cutoff)
         {
-            var cycles = checked((int)((cutoff.Ticks - task.NextCycleAtUtc.Ticks) /
+            var cycles = task.IsRare ? 1 : checked((int)((cutoff.Ticks - task.NextCycleAtUtc.Ticks) /
                 TimeSpan.FromSeconds(task.CycleSeconds).Ticks + 1));
+            var opportunity = task.IsRare
+                ? await db.CharacterGatheringOpportunities.SingleOrDefaultAsync(item =>
+                    item.CharacterId == task.CharacterId && item.PointCode == task.PointCode)
+                : null;
+            if (task.IsRare && opportunity is not { AvailableCount: > 0 })
+            {
+                task.Status = "NoOpportunity";
+                task.StoppedAtUtc = now;
+                await ReleaseActivityAsync(task);
+                return;
+            }
             var quantityLong = (long)cycles * task.OutputQuantity;
             var stack = await db.UserWarehouseStacks.SingleOrDefaultAsync(item =>
                 item.UserId == task.UserId && item.ItemCode == task.MaterialCode);
@@ -139,8 +153,14 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             task.CompletedCycles += cycles;
             task.TotalQuantity += quantity;
             task.NextCycleAtUtc = task.NextCycleAtUtc.AddSeconds((long)cycles * task.CycleSeconds);
+            if (opportunity is not null)
+            {
+                opportunity.AvailableCount--;
+                opportunity.SpentCount++;
+                opportunity.Version++;
+            }
         }
-        if (now >= task.EndsAtUtc)
+        if ((task.IsRare && task.CompletedCycles > 0) || now >= task.EndsAtUtc)
         {
             task.Status = "Completed";
             task.StoppedAtUtc = task.EndsAtUtc;
@@ -159,6 +179,9 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
     {
         var milestones = await db.CharacterBattleMilestones.AsNoTracking()
             .Where(item => item.CharacterId == character.Id).ToListAsync();
+        var opportunities = await db.CharacterGatheringOpportunities.AsNoTracking()
+            .Where(item => item.CharacterId == character.Id)
+            .ToDictionaryAsync(item => item.PointCode, item => item.AvailableCount);
         var stacks = await db.UserWarehouseStacks.AsNoTracking()
             .Where(item => item.UserId == user.Id)
             .ToDictionaryAsync(item => item.ItemCode, item => item.Quantity);
@@ -173,6 +196,8 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             return new GatheringPointResponse
             {
                 Code = point.Code, Name = point.Name,
+                IsRare = point.IsRare,
+                AvailableOpportunities = opportunities.GetValueOrDefault(point.Code),
                 RegionName = world.Regions.Single(region => region.Code == point.RegionCode).Name,
                 MaterialCode = point.MaterialCode,
                 MaterialName = materials.FindItem(point.MaterialCode)!.Name,
@@ -194,6 +219,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             return new GatheringTaskResponse
             {
                 Id = task.Id, PointCode = task.PointCode, PointName = point?.Name ?? task.PointCode,
+                IsRare = task.IsRare,
                 MaterialName = materials.FindItem(task.MaterialCode)?.Name ?? task.MaterialCode,
                 Status = task.Status, StartedAtUtc = task.StartedAtUtc, EndsAtUtc = task.EndsAtUtc,
                 NextCycleAtUtc = task.NextCycleAtUtc, StoppedAtUtc = task.StoppedAtUtc,

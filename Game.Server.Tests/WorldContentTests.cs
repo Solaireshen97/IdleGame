@@ -17,6 +17,23 @@ namespace Game.Server.Tests;
 public sealed class WorldContentTests
 {
     [Fact]
+    public void ProductionRareGatheringPointsRequireEliteVictoriesAndHaveWarehouseMaterials()
+    {
+        var content = new Content();
+        var gathering = new GatheringCatalog(content.Bind<GatheringOptions>(GatheringOptions.SectionName),
+            content.World, content.Materials);
+        var rarePoints = gathering.Points.Where(point => point.IsRare).ToList();
+        Assert.Equal(2, rarePoints.Count);
+        Assert.All(rarePoints, point =>
+        {
+            Assert.Equal("Elite", content.World.Dungeons.Single(dungeon =>
+                dungeon.Code == point.UnlockTargetCode).DungeonKind);
+            Assert.True(content.Materials.FindItem(point.MaterialCode)!.CanStoreInWarehouse);
+            Assert.Equal(20, point.CycleSeconds);
+        });
+    }
+
+    [Fact]
     public void ProductionWorldHasSixCompleteRegionsWithExclusiveBossLootAndIndependentExchanges()
     {
         var content = new Content();

@@ -12,6 +12,7 @@ public sealed class GatheringPointOptions
     public string Name { get; set; } = string.Empty;
     public string RegionCode { get; set; } = string.Empty;
     public string MaterialCode { get; set; } = string.Empty;
+    public bool IsRare { get; set; }
     public int OutputQuantity { get; set; } = 1;
     public int CycleSeconds { get; set; } = 20;
     public int MinimumCharacterLevel { get; set; } = 1;

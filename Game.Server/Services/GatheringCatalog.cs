@@ -20,7 +20,8 @@ public sealed class GatheringCatalog
                 point.CycleSeconds is < 1 or > 3600 || point.OutputQuantity <= 0 || point.RequiredCount <= 0 ||
                 point.MinimumCharacterLevel <= 0 || point.MinimumGatheringLevel <= 0 || dungeon is null ||
                 point.UnlockKind is not ("MonsterKill" or "DungeonClear") ||
-                point.UnlockKind == "DungeonClear" && dungeon.DungeonKind != "Dungeon")
+                point.UnlockKind == "DungeonClear" && dungeon.DungeonKind != "Dungeon" ||
+                point.IsRare && (point.UnlockKind != "MonsterKill" || dungeon.DungeonKind != "Elite"))
                 throw new InvalidOperationException($"Invalid gathering point: {point.Code}");
         }
     }

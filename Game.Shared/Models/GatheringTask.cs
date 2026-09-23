@@ -6,6 +6,7 @@ public sealed class GatheringTask
     public int UserId { get; set; }
     public int CharacterId { get; set; }
     public string PointCode { get; set; } = string.Empty;
+    public bool IsRare { get; set; }
     public string MaterialCode { get; set; } = string.Empty;
     public int CycleSeconds { get; set; }
     public int OutputQuantity { get; set; }
