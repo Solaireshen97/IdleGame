@@ -175,6 +175,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         character.Hp = TalentRules.EffectiveMaxHp(character);
         slot.CharacterId = character.Id;
         slot.UserId = user.Id;
+        slot.HasParticipatedInRun = false;
+        slot.LastParticipatedMonsterId = null;
         CharacterActivityManager.StartBattle(dbContext, character.Id, room, DateTime.UtcNow);
         room.Version++;
         try { await dbContext.SaveChangesAsync(); }
@@ -205,6 +207,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
         slot.PendingSkillSlotMask = 0;
+        slot.HasParticipatedInRun = false;
+        slot.LastParticipatedMonsterId = null;
         room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user.Id), null);
@@ -233,6 +237,11 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         character.Hp = TalentRules.EffectiveMaxHp(character);
         target.CharacterId = character.Id;
         target.UserId = user.Id;
+        if (existingSlot is null)
+        {
+            target.HasParticipatedInRun = false;
+            target.LastParticipatedMonsterId = null;
+        }
         if (existingSlot is null) CharacterActivityManager.StartBattle(dbContext, character.Id, room, DateTime.UtcNow);
         target.PendingConsumableSlotIndex = null;
         target.PendingSkillSlotMask = 0;
@@ -263,6 +272,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
         slot.PendingSkillSlotMask = 0;
+        slot.HasParticipatedInRun = false;
+        slot.LastParticipatedMonsterId = null;
         room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user!.Id), null);

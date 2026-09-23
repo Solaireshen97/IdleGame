@@ -146,6 +146,7 @@ public class UserController(UserService userService, TalentService talentService
             "NotOwner" => StatusCode(403, "Character does not belong to current user."),
             "CannotDeleteLastCharacter" => BadRequest("Cannot delete the last character."),
             "CharacterInRoom" => BadRequest("Character is still in a room."),
+            "CharacterBusy" => Conflict("CharacterBusy"),
             _ => BadRequest()
         };
     }

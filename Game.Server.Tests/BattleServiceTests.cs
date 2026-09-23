@@ -10,6 +10,27 @@ namespace Game.Server.Tests;
 
 public class BattleServiceTests
 {
+    [Fact]
+    public async Task BattleMilestonesExcludeCharacterWhoNeverFought()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Db.AddRange(
+            new User { Id = 2, UserName = "spectator", PasswordHash = "x", ActiveCharacterId = 2 },
+            new Character { Id = 2, UserId = 2, Name = "Spectator", Hp = 0, MaxHp = 100, Attack = 10 },
+            new RoomSlot { RoomId = test.Room.Id, SlotIndex = 2, UserId = 2, CharacterId = 2 });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.True(result!.IsVictory);
+        var milestones = await test.Db.CharacterBattleMilestones.ToListAsync();
+        Assert.Equal(2, milestones.Count);
+        Assert.All(milestones, item => Assert.Equal(test.Character.Id, item.CharacterId));
+        Assert.Contains(milestones, item => item.Kind == BattleMilestoneService.MonsterKillKind && item.TargetCode == "slime-field");
+        Assert.Contains(milestones, item => item.Kind == BattleMilestoneService.DungeonClearKind && item.TargetCode == "slime-field");
+    }
+
     [Theory]
     [InlineData(ElementType.Fire, ElementType.Wind, 32, 91)]
     [InlineData(ElementType.Fire, ElementType.Water, 39, 85)]

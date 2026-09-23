@@ -53,7 +53,8 @@ public sealed class WarehouseServiceTests
         await using var test = await WarehouseTestContext.CreateAsync();
         var (view, viewError) = await test.Service.GetAsync(test.Token);
         Assert.Null(viewError);
-        Assert.False(view!.Items.Single(item => item.Code == "kobold-mine-token").CanTransfer);
+        Assert.DoesNotContain(view!.Items, item => item.Code == "kobold-mine-token");
+        Assert.Single(view.Items);
         var (_, boundError) = await test.Service.TransferAsync(test.Token, new WarehouseTransferRequest
         {
             CharacterId = test.First.Id, ItemCode = "kobold-mine-token",

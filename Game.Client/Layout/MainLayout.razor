@@ -1,5 +1,6 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Auth
+@using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject AccountBalanceState AccountBalance
@@ -25,11 +26,20 @@
                         @onclick="OpenSwitcher"
                         aria-haspopup="dialog"
                         aria-expanded="@(_isSwitcherOpen ? "true" : "false")"
-                        aria-label="切换当前操作角色">
+                        aria-label="@(ActiveCharacters.Current is { } active ? $"当前角色 {active.Name}，等级 {active.Level}，{GetExperienceText(active)}，点击切换角色" : "选择当前操作角色")">
                     <span class="top-row__character-label">当前操作角色</span>
                     @if (ActiveCharacters.Current is { } character)
                     {
-                        <strong>@character.Name <small>Lv @character.Level</small></strong>
+                        <span class="top-row__character-line">
+                            <strong>@character.Name</strong>
+                            <span class="top-row__character-level">Lv @character.Level</span>
+                            <span class="top-row__experience" title="@GetExperienceText(character)">
+                                <progress value="@(character.ExperienceToNextLevel is > 0 ? Math.Clamp(character.Experience, 0, character.ExperienceToNextLevel.Value) : 1)"
+                                          max="@(character.ExperienceToNextLevel is > 0 ? character.ExperienceToNextLevel.Value : 1)"
+                                          aria-label="@character.Name @GetExperienceText(character)"></progress>
+                                <span class="top-row__experience-value" aria-hidden="true">@(character.ExperienceToNextLevel is int required ? $"{character.Experience}/{required}" : "MAX")</span>
+                            </span>
+                        </span>
                         <span class="top-row__character-detail">HP @character.Hp / @character.MaxHp · 天赋点 @character.TalentPoints</span>
                     }
                     else
@@ -112,11 +122,15 @@
             if (path.StartsWith("shop", StringComparison.OrdinalIgnoreCase)) return "商店";
             if (path.StartsWith("supplies", StringComparison.OrdinalIgnoreCase)) return "战斗补给";
             if (path.StartsWith("warehouse", StringComparison.OrdinalIgnoreCase)) return "营地仓库";
+            if (path.StartsWith("gathering", StringComparison.OrdinalIgnoreCase)) return "采集";
             if (path.StartsWith("login", StringComparison.OrdinalIgnoreCase)) return "登录";
             if (path.StartsWith("register", StringComparison.OrdinalIgnoreCase)) return "注册";
             return "副本大厅";
         }
     }
+
+    private static string GetExperienceText(CurrentCharacterResponse character) =>
+        character.ExperienceToNextLevel is int required ? $"经验 {character.Experience} / {required}" : "等级已满";
 
     protected override void OnInitialized()
     {

@@ -6,11 +6,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService, MonsterCombatService? monsterCombatService = null)
+public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService,
+    MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null)
 {
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
-        DateTime now, List<string> logs)
+        DateTime now, List<string> logs, IReadOnlyCollection<int>? actualMonsterCharacterIds = null,
+        IReadOnlyCollection<int>? actualRunCharacterIds = null)
     {
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return (defeatedMonster, false, "DungeonNotFound");
@@ -21,7 +23,10 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var rewardProfileCode = string.IsNullOrWhiteSpace(defeatedMonster.RewardProfileCode)
             ? dungeon.Code
             : defeatedMonster.RewardProfileCode;
-        await rewardService.RecordAsync(room, rewardProfileCode, participants, eventKey, false);
+        if (await rewardService.RecordAsync(room, rewardProfileCode, participants, eventKey, false))
+            await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
+                actualMonsterCharacterIds ?? participants.Select(participant => participant.Character.Id),
+                BattleMilestoneService.MonsterKillKind, rewardProfileCode, now);
         logs.Add($"{defeatedMonster.Name} 已被击败。");
         if (monsterCombatService is not null)
             await monsterCombatService.RemoveMonsterStateAsync(room.Id, defeatedMonster.Id);
@@ -51,7 +56,10 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         SetBattleOver(room, now);
         var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
             participants.Select(participant => participant.UserId), now);
-        await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true);
+        if (await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true))
+            await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
+                actualRunCharacterIds ?? participants.Select(participant => participant.Character.Id),
+                BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
         var firstClearRewardCode = $"{dungeon.Code}-first-clear";
         if (firstClearUserIds.Count > 0 && rewardService.HasRewardProfile(firstClearRewardCode, true))
             await rewardService.RecordAsync(room, firstClearRewardCode,

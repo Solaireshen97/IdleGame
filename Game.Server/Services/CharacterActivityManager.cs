@@ -8,6 +8,7 @@ namespace Game.Server.Services;
 public static class CharacterActivityManager
 {
     public const string BattleKind = "Battle";
+    public const string GatheringKind = "Gathering";
 
     public static async Task<bool> IsBusyAsync(GameDbContext db, int characterId) =>
         await db.CharacterActivities.AnyAsync(activity => activity.CharacterId == characterId) ||
@@ -21,6 +22,16 @@ public static class CharacterActivityManager
             SourceId = room.Id,
             StartedAtUtc = now,
             EndsAtUtc = room.ExpiresAtUtc
+        });
+
+    public static void StartGathering(GameDbContext db, GatheringTask task) =>
+        db.CharacterActivities.Add(new CharacterActivity
+        {
+            CharacterId = task.CharacterId,
+            Kind = GatheringKind,
+            SourceId = task.Id,
+            StartedAtUtc = task.StartedAtUtc,
+            EndsAtUtc = task.EndsAtUtc
         });
 
     public static async Task ReleaseBattleAsync(GameDbContext db, int characterId, int roomId)
@@ -47,6 +58,8 @@ public static class CharacterActivityManager
             slot.IsTemporaryAuto = false;
             slot.PendingConsumableSlotIndex = null;
             slot.PendingSkillSlotMask = 0;
+            slot.HasParticipatedInRun = false;
+            slot.LastParticipatedMonsterId = null;
         }
         db.CharacterActivities.RemoveRange(await db.CharacterActivities
             .Where(activity => activity.Kind == BattleKind && activity.SourceId == room.Id).ToListAsync());

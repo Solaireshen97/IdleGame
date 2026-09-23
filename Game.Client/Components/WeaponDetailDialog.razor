@@ -1,0 +1,89 @@
+@using Game.Shared
+@using Game.Shared.Dtos
+@using Game.Shared.Enums
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="weapon-detail-overlay" @onclick="CloseAsync" @onclick:stopPropagation @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
+    <section class="weapon-detail-dialog weapon-detail-dialog--@Element.ToString().ToLowerInvariant()"
+             role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title" @onclick:stopPropagation>
+        <header class="weapon-detail-header">
+            <span class="weapon-detail-crest" aria-hidden="true">@GetElementGlyph(Element)</span>
+            <div class="weapon-detail-heading">
+                <span class="weapon-detail-kicker">@Category · @WeaponRules.ElementName(Element)属性</span>
+                <h2 id="weapon-detail-title">@Name</h2>
+                <p>@(string.IsNullOrWhiteSpace(Subtitle) ? $"装等 {ItemLevel}" : Subtitle)</p>
+            </div>
+            <button type="button" class="weapon-detail-close" @onclick="CloseAsync" @ref="_closeButton" aria-label="关闭武器详情">×</button>
+        </header>
+        <div class="weapon-detail-body">
+            <div class="weapon-detail-stats" aria-label="武器属性">
+                <div><span>属性</span><strong>@WeaponRules.ElementName(Element)</strong></div>
+                <div><span>攻击</span><strong>+@Attack</strong></div>
+                <div><span>生命</span><strong>+@MaxHp</strong></div>
+            </div>
+            <section class="weapon-detail-skills" aria-labelledby="weapon-detail-skills-title">
+                <h3 id="weapon-detail-skills-title">武器技能</h3>
+                @if (Skills.Count == 0)
+                {
+                    <p class="weapon-detail-empty">这把武器没有附带技能。</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var skill in Skills)
+                        {
+                            <li><strong>@skill.Name <small>Lv.@skill.Level</small></strong><span>@skill.Description</span></li>
+                        }
+                    </ul>
+                }
+            </section>
+            @if (AdditionalContent is not null)
+            {
+                <div class="weapon-detail-additional">@AdditionalContent</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Note))
+            {
+                <p class="weapon-detail-note">@Note</p>
+            }
+        </div>
+        <footer class="weapon-detail-footer">
+            @if (Actions is not null)
+            {
+                <div class="weapon-detail-actions">@Actions</div>
+            }
+            <button type="button" class="weapon-detail-back" @onclick="CloseAsync">@CloseLabel</button>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public ElementType Element { get; set; }
+    [Parameter] public int ItemLevel { get; set; }
+    [Parameter] public int Attack { get; set; }
+    [Parameter] public int MaxHp { get; set; }
+    [Parameter] public string Category { get; set; } = "WEAPON DETAIL";
+    [Parameter] public string Subtitle { get; set; } = string.Empty;
+    [Parameter] public string? Note { get; set; }
+    [Parameter] public string CloseLabel { get; set; } = "返回";
+    [Parameter] public IReadOnlyList<WeaponDropSkillPreviewResponse> Skills { get; set; } = [];
+    [Parameter] public RenderFragment? AdditionalContent { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private ElementReference _closeButton;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _closeButton.FocusAsync();
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+    private Task HandleKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+
+    private static string GetElementGlyph(ElementType element) => element switch
+    {
+        ElementType.Fire => "⚔", ElementType.Water => "♢", ElementType.Earth => "◆",
+        ElementType.Wind => "✥", ElementType.Light => "✦", ElementType.Dark => "☾", _ => "⚔"
+    };
+}

@@ -31,7 +31,7 @@
     {
         <section class="warehouse-overview" aria-label="仓库概况">
             <div><small>当前操作角色</small><strong>@_warehouse.CharacterName</strong><span>切换角色后，可从同一仓库取出物品。</span></div>
-            <div><small>可共享物品</small><strong>@_warehouse.Items.Count(item => item.CanTransfer)</strong><span>角色绑定物品不能转移。</span></div>
+            <div><small>可存取物品种类</small><strong>@_warehouse.Items.Count</strong><span>这里只展示能存入仓库的物品。</span></div>
         </section>
 
         <div class="warehouse-toolbar">
@@ -47,7 +47,7 @@
 
         @if (_warehouse.Items.Count == 0)
         {
-            <p class="warehouse-page__empty">当前没有可展示的物品。采集与生产开放后，这里也会显示对应材料。</p>
+            <p class="warehouse-page__empty">当前没有可存入仓库的物品。</p>
         }
         else
         {
@@ -57,26 +57,19 @@
                     <article class="warehouse-item">
                         <div class="warehouse-item__title">
                             <div><small>@(item.Kind == "Consumable" ? "补给" : "材料")</small><h2>@item.Name</h2></div>
-                            <span class="warehouse-item__badge @(item.CanTransfer ? "warehouse-item__badge--shared" : "")">@(item.CanTransfer ? "可共享" : "角色绑定")</span>
+                            <span class="warehouse-item__badge warehouse-item__badge--shared">可共享</span>
                         </div>
                         <p>@item.Description</p>
                         <div class="warehouse-item__balances">
                             <div><span>@_warehouse.CharacterName 的背包</span><strong>@item.CharacterQuantity</strong></div>
                             <div><span>营地仓库</span><strong>@item.WarehouseQuantity</strong></div>
                         </div>
-                        @if (item.CanTransfer)
-                        {
-                            <div class="warehouse-item__actions">
-                                <button @onclick='() => TransferAsync(item, "Deposit")'
-                                        disabled="@(_isBusy || _quantity < 1 || item.CharacterQuantity < _quantity)">存入仓库 →</button>
-                                <button @onclick='() => TransferAsync(item, "Withdraw")'
-                                        disabled="@(_isBusy || _quantity < 1 || item.WarehouseQuantity < _quantity)">← 取回背包</button>
-                            </div>
-                        }
-                        else
-                        {
-                            <small class="warehouse-item__bound">该物品保留在获得它的角色背包中。</small>
-                        }
+                        <div class="warehouse-item__actions">
+                            <button @onclick='() => TransferAsync(item, "Deposit")'
+                                    disabled="@(_isBusy || _quantity < 1 || item.CharacterQuantity < _quantity)">存入仓库 →</button>
+                            <button @onclick='() => TransferAsync(item, "Withdraw")'
+                                    disabled="@(_isBusy || _quantity < 1 || item.WarehouseQuantity < _quantity)">← 取回背包</button>
+                        </div>
                     </article>
                 }
             </section>

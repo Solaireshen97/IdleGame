@@ -6,11 +6,57 @@ using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
 using Game.Shared.Dtos.Shop;
 using Game.Shared.Dtos.Warehouse;
+using Game.Shared.Dtos.Gathering;
 
 namespace Game.Client.Services;
 
 public class ApiService(HttpClient httpClient, UserSessionService userSessionService)
 {
+    public async Task<GatheringOverviewResponse?> GetGatheringAsync()
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get, "api/gathering", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>() : null;
+    }
+
+    public async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> StartGatheringAsync(
+        int characterId, string pointCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/gathering/start", requiresAuth: true);
+        request.Content = JsonContent.Create(new StartGatheringRequest { CharacterId = characterId, PointCode = pointCode });
+        return await ReadGatheringResultAsync(await httpClient.SendAsync(request));
+    }
+
+    public async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> StopGatheringAsync(int taskId)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, $"api/gathering/{taskId}/stop", requiresAuth: true);
+        return await ReadGatheringResultAsync(await httpClient.SendAsync(request));
+    }
+
+    private async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> ReadGatheringResultAsync(
+        HttpResponseMessage response)
+    {
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.IsSuccessStatusCode)
+                return (await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>(), null);
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "ActiveCharacterChanged" => "当前角色已切换，请刷新采集页面。",
+                "CharacterBusy" => "这个角色已有进行中的战斗或采集任务。",
+                "PointLocked" => "该角色尚未完成采集点的战斗解锁条件。",
+                "LevelTooLow" => "角色等级不足。",
+                "GatheringLevelTooLow" => "采集专业等级不足。",
+                "ConcurrencyConflict" => "任务刚刚发生变化，请刷新后重试。",
+                "PointNotFound" or "TaskNotFound" => "采集点或任务不存在，请刷新页面。",
+                _ => "采集操作失败，请稍后重试。"
+            });
+        }
+    }
+
     public async Task<WarehouseResponse?> GetWarehouseAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/warehouse", requiresAuth: true);
@@ -276,6 +322,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             }
 
             var error = await response.Content.ReadAsStringAsync();
+            if (error.Trim('"') == "CharacterAlreadyInRoom")
+                error = "当前角色正在战斗或采集，请先结束原任务。";
             return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
         }
 
@@ -656,6 +704,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
+            if (errorMessage.Trim('"') == "CharacterBusy")
+                errorMessage = "角色正在采集或执行其他任务，请先停止任务。";
             if (string.IsNullOrWhiteSpace(errorMessage))
             {
                 errorMessage = "删除角色失败。";

@@ -38,7 +38,7 @@ public class RoomController(RoomService roomService, BattleService battleService
                 "Unauthorized" => Unauthorized(),
                 "UserNotFound" => NotFound("User not found."),
                 "CharacterNotFound" => NotFound("Character not found."),
-                "CharacterAlreadyInRoom" => BadRequest("Current character is already in another room."),
+                "CharacterAlreadyInRoom" => Conflict("CharacterAlreadyBusy"),
                 "CharacterLevelTooLow" => BadRequest("CharacterLevelTooLow"),
                 _ => BadRequest("Failed to create room.")
             };

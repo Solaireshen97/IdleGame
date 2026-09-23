@@ -1,5 +1,6 @@
 @using Game.Client.Services
 @using Game.Shared
+@using Game.Shared.Dtos
 @using Game.Shared.Dtos.Characters
 @using Game.Shared.Enums
 @inject ApiService ApiService
@@ -150,76 +151,99 @@
                 <button type="button" class="weapon-board__unequip" @onclick="() => EquipAsync(null)" disabled="@_isSaving">卸下此位</button>
             }
         </div>
+        <div class="weapon-board__filters" aria-label="按属性筛选武器">
+            <strong>属性筛选</strong>
+            <div class="weapon-board__filter-options" role="group" aria-label="武器属性">
+                <button type="button" class="@(_selectedElementFilter is null ? "active" : null)" aria-pressed="@(_selectedElementFilter is null)" @onclick="() => SelectElementFilter(null)">全部</button>
+                @foreach (var element in Enum.GetValues<ElementType>())
+                {
+                    <button type="button" class="element-@element.ToString().ToLowerInvariant() @(_selectedElementFilter == element ? "active" : null)"
+                            aria-pressed="@(_selectedElementFilter == element)" @onclick="() => SelectElementFilter(element)">@WeaponRules.ElementName(element)</button>
+                }
+            </div>
+            <small>显示 @FilteredWeapons.Count / @_data.Weapons.Count 把</small>
+        </div>
         <div class="weapon-board__batch" aria-label="批量处理武器">
             <div class="weapon-board__batch-summary">
                 <strong>已选择 @_selectedWeaponIds.Count 把</strong>
                 <span>出售可得 @SelectedSellGold 金币 · 分解可得 @SelectedDismantleSummary</span>
             </div>
             <div class="weapon-board__batch-actions">
-                <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选可处理</button>
+                <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选当前筛选</button>
                 <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">清空</button>
                 <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanSell))">批量出售</button>
                 <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanDismantle))">批量分解</button>
             </div>
-            <small>仅可选择未装备且未锁定的武器，单次最多处理 100 把；没有碎片收益的武器不能分解。</small>
+            <small>仅可选择当前筛选中未装备、未锁定的武器，单次最多处理 100 把；没有碎片收益的武器不能分解。</small>
         </div>
         <div class="weapon-board__inventory">
-            @foreach (var weapon in _data.Weapons)
+            @if (FilteredWeapons.Count == 0)
             {
-                var isHere = weapon.EquippedSlotIndex == _selectedSlot;
-                var wouldEmptyMain = weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex &&
-                    _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
-                var previewAttack = weapon.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + weapon.Attack;
-                var previewHp = weapon.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + weapon.MaxHp;
+                <p class="weapon-board__inventory-empty">当前属性下没有武器，切换筛选可查看其他属性。</p>
+            }
+            @foreach (var weapon in FilteredWeapons)
+            {
                 var isBatchSelected = _selectedWeaponIds.Contains(weapon.Id);
                 var canBatchProcess = CanBatchProcess(weapon);
-                <article class="weapon-option element-@weapon.Element.ToString().ToLowerInvariant() quality-@(weapon.QualityCode) @(isBatchSelected ? "weapon-option--batch-selected" : null)" @key="weapon.Id">
-                    <label class="weapon-option__select" title="@(canBatchProcess ? "加入批量处理" : weapon.EquippedSlotIndex.HasValue ? "已装备武器不能批量处理" : "请先解锁武器")">
-                        <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" />
-                        <span>选择</span>
+                <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() quality-@weapon.QualityCode @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
+                    <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : weapon.EquippedSlotIndex.HasValue ? "已装备武器不能批量处理" : "请先解锁武器")">
+                        <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" aria-label="选择 @weapon.Name 进行批量处理" />
                     </label>
-                    <div class="weapon-option__crest" aria-hidden="true">@GetSymbol(weapon.Element)</div>
-                    <div class="weapon-option__body">
-                        <span class="weapon-option__meta"><b class="weapon-quality weapon-quality--@(weapon.QualityCode)">@weapon.QualityName</b> · 装等 @weapon.ItemLevel · T@(weapon.FragmentTier) · @WeaponRules.ElementName(weapon.Element)属性 · @(weapon.EquippedSlotIndex is int worn ? worn == 1 ? "主武器" : $"副武器 {worn:00}" : "背包")</span>
-                        <h3>@weapon.Name @if (weapon.IsLocked) { <small class="weapon-option__lock">已锁定</small> }</h3>
-                        @if (weapon.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop)
-                        { <small class="weapon-option__origin">@(weapon.Origin == WeaponOrigin.Starter ? "初始赠品不可出售；强化后分解仅返还投入的50%。" : "商店武器不产基础碎片；强化后分解仅返还投入的50%。")</small> }
-                        <p>⚔ @weapon.Attack <span>✚ @weapon.MaxHp</span></p>
-                        @if (weapon.Skills.Count > 0)
-                        {
-                            <div class="weapon-option__skills weapon-option__skills--manage">
-                                @foreach (var skill in weapon.Skills)
-                                {
-                                    var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(weapon.FragmentTier) >= cost;
-                                    <div class="weapon-option__skill-row">
-                                        <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level · @(skill.IsActive ? "生效" : "未生效")</span>
-                                        <small class="weapon-option__skill-description">@skill.Description</small>
-                                        <small class="weapon-option__skill-detail">基础 Lv@(skill.BaseLevel) · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small>
-                                        <button type="button" class="weapon-option__enhance"
-                                                @onclick="() => EnhanceAsync(weapon, skill)"
-                                                disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
-                                            @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{weapon.FragmentTier} ×{nextCost}" : "强化已满")
-                                        </button>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        @if (wouldEmptyMain) { <small class="weapon-option__preview">主武器只能与已有武器交换</small> }
-                        else if (!isHere) { <small class="weapon-option__preview">装备后武器总和：攻击 @previewAttack · HP @previewHp</small> }
-                    </div>
-                    <div class="weapon-option__actions">
-                        <button type="button" @onclick="() => EquipAsync(weapon.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : weapon.EquippedSlotIndex is null ? "装备" : "交换")</button>
-                        <button type="button" class="weapon-option__secondary" @onclick="() => ToggleLockAsync(weapon)" disabled="@_isSaving">@(weapon.IsLocked ? "解锁" : "锁定")</button>
-                        @if (weapon.EquippedSlotIndex is null)
-                        {
-                            <button type="button" class="weapon-option__secondary" @onclick="() => SellAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked || !weapon.CanSell)">@(weapon.CanSell ? $"出售 · {weapon.SellGold} 金币" : "初始赠品不可出售")</button>
-                            <button type="button" class="weapon-option__danger" @onclick="() => DismantleAsync(weapon)" disabled="@(_isSaving || weapon.IsLocked || !weapon.CanDismantle)">@(weapon.CanDismantle ? $"分解 · T{weapon.FragmentTier} ×{weapon.DismantleReturnQuantity}" : "无材料可回收")</button>
-                        }
-                    </div>
+                    <button type="button" class="weapon-tile__open" @onclick="() => OpenWeaponDetails(weapon.Id)" disabled="@_isSaving"
+                            aria-haspopup="dialog" aria-label="查看 @weapon.Name，@WeaponRules.ElementName(weapon.Element)属性，装等 @weapon.ItemLevel 的详情">
+                        <span class="weapon-tile__quality">@weapon.QualityName</span>
+                        <span class="weapon-tile__crest" aria-hidden="true">@GetSymbol(weapon.Element)</span>
+                        <strong>@weapon.Name</strong>
+                        <span class="weapon-tile__stats">Lv.@weapon.ItemLevel · ⚔ @weapon.Attack</span>
+                        <span class="weapon-tile__flags">@if (weapon.EquippedSlotIndex is int slot) { <span>@(slot == 1 ? "主武器" : $"副武器 {slot:00}")</span> } @if (weapon.IsLocked) { <span>🔒</span> }</span>
+                    </button>
                 </article>
             }
         </div>
         </div>
+        @if (InspectedWeapon is { } inspected)
+        {
+            var isHere = inspected.EquippedSlotIndex == _selectedSlot;
+            var wouldEmptyMain = inspected.EquippedSlotIndex == WeaponRules.MainSlotIndex &&
+                _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
+            var previewAttack = inspected.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + inspected.Attack;
+            var previewHp = inspected.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + inspected.MaxHp;
+            <WeaponDetailDialog @key="inspected.Id" Name="@inspected.Name" Element="@inspected.Element" ItemLevel="@inspected.ItemLevel"
+                                Attack="@inspected.Attack" MaxHp="@inspected.MaxHp" Skills="@GetDetailSkills(inspected)"
+                                Category="OWNED WEAPON" Subtitle="@($"{inspected.QualityName} · 装等 {inspected.ItemLevel} · {(inspected.EquippedSlotIndex is int equipped ? equipped == 1 ? "主武器" : $"副武器 {equipped:00}" : "背包")}")"
+                                Note="@(inspected.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop ? "初始或商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
+                                CloseLabel="← 返回武器仓库" OnClose="CloseWeaponDetails">
+                <AdditionalContent>
+                    @if (inspected.Skills.Count > 0)
+                    {
+                        <section class="weapon-detail-management" aria-label="技能强化">
+                            <h3>技能强化 <small>T@inspected.FragmentTier 碎片：@GetFragmentQuantity(inspected.FragmentTier)</small></h3>
+                            @foreach (var skill in inspected.Skills)
+                            {
+                                var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(inspected.FragmentTier) >= cost;
+                                <div class="weapon-detail-management__row">
+                                    <span><strong>@skill.Name</strong><small>基础 Lv@skill.BaseLevel · 品质 +@skill.QualityBonusLevel · 强化 +@skill.EnhancementLevel / @skill.MaximumEnhancementLevel</small></span>
+                                    <button type="button" @onclick="() => EnhanceAsync(inspected, skill)" disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
+                                        @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{inspected.FragmentTier} ×{nextCost}" : "强化已满")
+                                    </button>
+                                </div>
+                            }
+                        </section>
+                    }
+                    @if (wouldEmptyMain) { <p class="weapon-detail-preview">主武器只能与已有武器交换。</p> }
+                    else if (!isHere) { <p class="weapon-detail-preview">装备后武器总和：攻击 @previewAttack · HP @previewHp</p> }
+                </AdditionalContent>
+                <Actions>
+                    <button type="button" class="weapon-detail-action weapon-detail-action--primary" @onclick="() => EquipAsync(inspected.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : inspected.EquippedSlotIndex is null ? "装备" : "交换")</button>
+                    <button type="button" class="weapon-detail-action" @onclick="() => ToggleLockAsync(inspected)" disabled="@_isSaving">@(inspected.IsLocked ? "解锁" : "锁定")</button>
+                    @if (inspected.EquippedSlotIndex is null)
+                    {
+                        <button type="button" class="weapon-detail-action" @onclick="() => SellAsync(inspected)" disabled="@(_isSaving || inspected.IsLocked || !inspected.CanSell)">@(inspected.CanSell ? $"出售 · {inspected.SellGold} 金币" : "不可出售")</button>
+                        <button type="button" class="weapon-detail-action weapon-detail-action--danger" @onclick="() => DismantleAsync(inspected)" disabled="@(_isSaving || inspected.IsLocked || !inspected.CanDismantle)">@(inspected.CanDismantle ? $"分解 · T{inspected.FragmentTier} ×{inspected.DismantleReturnQuantity}" : "无材料可回收")</button>
+                    }
+                </Actions>
+            </WeaponDetailDialog>
+        }
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
         <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。强化、出售与分解结果均由服务端结算。</p>
@@ -236,6 +260,8 @@
     private bool _isOverviewExpanded;
     private int _selectedSlot = 1;
     private string _mobileView = "grid";
+    private ElementType? _selectedElementFilter;
+    private int? _inspectedWeaponId;
     private readonly HashSet<int> _selectedWeaponIds = [];
     private string? _error;
     private string? _notice;
@@ -251,6 +277,7 @@
         {
             var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
             _data = response;
+            _inspectedWeaponId = null;
             _selectedWeaponIds.Clear();
             _error = GetError(error);
         }
@@ -265,10 +292,37 @@
     private CharacterWeaponResponse? FindEquipped(int slotIndex) =>
         _data?.Weapons.FirstOrDefault(item => item.EquippedSlotIndex == slotIndex);
 
+    private List<CharacterWeaponResponse> FilteredWeapons => _data?.Weapons
+        .Where(weapon => _selectedElementFilter is null || weapon.Element == _selectedElementFilter)
+        .ToList() ?? [];
+
+    private CharacterWeaponResponse? InspectedWeapon => _inspectedWeaponId is int id
+        ? _data?.Weapons.FirstOrDefault(weapon => weapon.Id == id)
+        : null;
+
+    private void SelectElementFilter(ElementType? element)
+    {
+        _selectedElementFilter = element;
+        _selectedWeaponIds.Clear();
+        _error = null;
+        _notice = null;
+    }
+
+    private void OpenWeaponDetails(int weaponId) => _inspectedWeaponId = weaponId;
+    private void CloseWeaponDetails() => _inspectedWeaponId = null;
+
+    private static IReadOnlyList<WeaponDropSkillPreviewResponse> GetDetailSkills(CharacterWeaponResponse weapon) =>
+        weapon.Skills.Select(skill => new WeaponDropSkillPreviewResponse
+        {
+            Name = skill.Name, Level = skill.Level,
+            Description = $"{skill.Description} · {(skill.IsActive ? "生效" : "未生效")}"
+        }).ToList();
+
     private void SelectSlot(int index)
     {
         _selectedSlot = index;
         _mobileView = "inventory";
+        _inspectedWeaponId = null;
         _error = null;
         _notice = null;
     }
@@ -285,6 +339,7 @@
             if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
             var previousHp = _data?.Hp;
             _data = response;
+            _inspectedWeaponId = null;
             _mobileView = "grid";
             _notice = previousHp is int oldHp && oldHp > response.Hp
                 ? $"武器盘已更新，当前 HP 随生命上限降至 {response.Hp}。"
@@ -297,8 +352,8 @@
 
     private int GetFragmentQuantity(int tier) => _data?.Fragments.FirstOrDefault(item => item.Tier == tier)?.Quantity ?? 0;
 
-    private List<CharacterWeaponResponse> ProcessableWeapons => _data?.Weapons
-        .Where(CanBatchProcess).Take(100).ToList() ?? [];
+    private List<CharacterWeaponResponse> ProcessableWeapons => FilteredWeapons
+        .Where(CanBatchProcess).Take(100).ToList();
 
     private List<CharacterWeaponResponse> SelectedWeapons => _data?.Weapons
         .Where(weapon => _selectedWeaponIds.Contains(weapon.Id) && CanBatchProcess(weapon)).ToList() ?? [];
@@ -384,7 +439,7 @@
     private async Task SellSelectedAsync()
     {
         var selected = SelectedWeapons;
-        if (selected.Count == 0 || selected.Any(weapon => !weapon.CanDismantle)) return;
+        if (selected.Count == 0 || selected.Any(weapon => !weapon.CanSell)) return;
         var gold = selected.Sum(weapon => weapon.SellGold);
         if (!await Js.InvokeAsync<bool>("confirm",
                 $"出售选中的 {selected.Count} 把武器？将获得 {gold} 金币，强化投入不会返还。")) return;
@@ -396,7 +451,7 @@
     private async Task DismantleSelectedAsync()
     {
         var selected = SelectedWeapons;
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 || selected.Any(weapon => !weapon.CanDismantle)) return;
         var returns = SelectedDismantleSummary;
         if (!await Js.InvokeAsync<bool>("confirm",
                 $"分解选中的 {selected.Count} 把武器？将获得 {returns}。")) return;
@@ -418,6 +473,8 @@
             var (response, error) = await action();
             if (response is null) { _error = GetError(error) ?? "武器操作失败，请稍后重试。"; return; }
             _data = response;
+            if (_inspectedWeaponId is int inspectedId && !response.Weapons.Any(weapon => weapon.Id == inspectedId))
+                _inspectedWeaponId = null;
             _selectedWeaponIds.RemoveWhere(id =>
                 !response.Weapons.Any(weapon => weapon.Id == id && CanBatchProcess(weapon)));
             _notice = notice;

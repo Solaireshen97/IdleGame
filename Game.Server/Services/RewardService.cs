@@ -13,14 +13,14 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
     public bool HasRewardProfile(string rewardCode, bool isClear) =>
         catalog.HasRewardProfile(rewardCode, isClear);
 
-    public async Task RecordAsync(Room room, string dungeonCode, IEnumerable<RewardParticipant> participants,
+    public async Task<bool> RecordAsync(Room room, string dungeonCode, IEnumerable<RewardParticipant> participants,
         string eventKey, bool isClear)
     {
         var run = await GetRunAsync(room);
         if (run.Status != "Pending" || dbContext.RewardEvents.Local.Any(entry =>
                 entry.RoomId == room.Id && entry.Sequence == room.RunSequence && entry.EventKey == eventKey) ||
             await dbContext.RewardEvents.AnyAsync(entry => entry.RoomId == room.Id &&
-                entry.Sequence == room.RunSequence && entry.EventKey == eventKey)) return;
+                entry.Sequence == room.RunSequence && entry.EventKey == eventKey)) return false;
 
         dbContext.RewardEvents.Add(new RewardEvent
         {
@@ -29,6 +29,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         foreach (var participant in participants.DistinctBy(entry => entry.Character.Id))
             dbContext.RewardEntries.AddRange(catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
                 eventKey, participant.UserId, participant.Character.Id));
+        return true;
     }
 
     public async Task SettleAsync(Room room, bool victory, DateTime now, List<string> logs)

@@ -123,20 +123,19 @@ public sealed class WarehouseService(GameDbContext db, UserService userService,
         var warehouse = await db.UserWarehouseStacks.AsNoTracking()
             .Where(stack => stack.UserId == user.Id)
             .ToDictionaryAsync(stack => stack.ItemCode, stack => stack.Quantity);
-        var items = consumables.Items.Select(item => new WarehouseItemResponse
+        var items = consumables.Items.Where(item => item.CanStoreInWarehouse).Select(item => new WarehouseItemResponse
         {
             Code = item.Code, Name = item.Name, Kind = "Consumable",
-            Description = "战斗消耗品", CanTransfer = item.CanStoreInWarehouse,
+            Description = "战斗消耗品", CanTransfer = true,
             CharacterQuantity = bag.GetValueOrDefault(item.Code),
             WarehouseQuantity = warehouse.GetValueOrDefault(item.Code)
-        }).Concat(materials.Items.Select(item => new WarehouseItemResponse
+        }).Concat(materials.Items.Where(item => item.CanStoreInWarehouse).Select(item => new WarehouseItemResponse
         {
             Code = item.Code, Name = item.Name, Kind = "Material",
-            Description = item.Description, CanTransfer = item.CanStoreInWarehouse,
+            Description = item.Description, CanTransfer = true,
             CharacterQuantity = bag.GetValueOrDefault(item.Code),
             WarehouseQuantity = warehouse.GetValueOrDefault(item.Code)
-        })).Where(item => item.CanTransfer || item.CharacterQuantity > 0 || item.WarehouseQuantity > 0)
-            .OrderBy(item => item.Kind).ThenBy(item => item.Name).ToList();
+        })).OrderBy(item => item.Kind).ThenBy(item => item.Name).ToList();
         return new WarehouseResponse
         {
             CharacterId = character.Id, CharacterName = character.Name, Items = items

@@ -33,7 +33,6 @@
 .warehouse-item__actions button { min-height: 2.6rem; border: 1px solid #d6a85e; border-radius: .5rem; color: #1b2734; background: #e4b86d; font-weight: 800; cursor: pointer; }
 .warehouse-item__actions button + button { border-color: #526a80; color: #e3eef6; background: #294258; }
 .warehouse-item__actions button:disabled { opacity: .45; cursor: not-allowed; }
-.warehouse-item__bound { margin-top: auto; color: #9daebd; }
 @container game-shell (max-width: 640px) {
     .warehouse-page { padding: .5rem 0 5rem; }
     .warehouse-page__intro a { display: none; }

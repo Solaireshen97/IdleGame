@@ -1,0 +1,33 @@
+.weapon-detail-overlay { position: fixed; z-index: 1400; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(2, 9, 17, .84); backdrop-filter: blur(7px); }
+.weapon-detail-dialog { --weapon-tone: #d9c093; display: flex; flex-direction: column; width: min(100%, 560px); max-height: min(88dvh, 780px); overflow: hidden; border: 1px solid #647f90; border-top: 3px solid var(--weapon-tone); border-radius: .9rem; background: linear-gradient(150deg, #203549, #101d2c 74%); color: #e7eef2; box-shadow: 0 26px 75px rgba(0, 0, 0, .64); }
+.weapon-detail-dialog--fire { --weapon-tone: #ee9e82; }
+.weapon-detail-dialog--water { --weapon-tone: #88d2ee; }
+.weapon-detail-dialog--wind { --weapon-tone: #89d8ad; }
+.weapon-detail-dialog--light { --weapon-tone: #f3df9d; }
+.weapon-detail-dialog--dark { --weapon-tone: #c4a5eb; }
+.weapon-detail-header { display: flex; align-items: center; gap: .75rem; padding: .9rem 1rem; border-bottom: 1px solid #41596c; }
+.weapon-detail-crest { display: grid; width: 52px; height: 52px; flex: 0 0 52px; place-items: center; border: 1px solid var(--weapon-tone); border-radius: .65rem; background: rgba(7, 19, 30, .72); color: var(--weapon-tone); font: 800 1.8rem Georgia, serif; }
+.weapon-detail-heading { min-width: 0; flex: 1; }
+.weapon-detail-kicker { color: var(--weapon-tone); font-size: .64rem; font-weight: 850; letter-spacing: .08em; }
+.weapon-detail-heading h2 { margin: .18rem 0; color: #f7e9d2; font: 700 1.2rem Georgia, serif; overflow-wrap: anywhere; }
+.weapon-detail-heading p { margin: 0; color: #acc0cb; font-size: .72rem; }
+.weapon-detail-close { width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #597184; border-radius: .55rem; background: #14283a; color: #eef2f4; font-size: 1.5rem; cursor: pointer; }
+.weapon-detail-close:hover, .weapon-detail-close:focus-visible { border-color: var(--weapon-tone); color: var(--weapon-tone); }
+.weapon-detail-body { display: grid; gap: .85rem; min-height: 0; overflow-y: auto; padding: .9rem 1rem; overscroll-behavior: contain; }
+.weapon-detail-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+.weapon-detail-stats div { display: grid; gap: .12rem; min-width: 0; padding: .58rem .65rem; border: 1px solid #405a6c; border-radius: .55rem; background: #13283a; }
+.weapon-detail-stats span { color: #93aaba; font-size: .68rem; }
+.weapon-detail-stats strong { overflow: hidden; color: #f0eee4; font-size: .98rem; text-overflow: ellipsis; }
+.weapon-detail-skills h3 { margin: 0 0 .45rem; color: #f0d394; font-size: .88rem; }
+.weapon-detail-skills ul { display: grid; gap: .42rem; margin: 0; padding: 0; list-style: none; }
+.weapon-detail-skills li { display: grid; gap: .18rem; padding: .62rem .72rem; border: 1px solid #40586d; border-radius: .55rem; background: #14283a; }
+.weapon-detail-skills strong { color: #f2e3c7; font-size: .8rem; }
+.weapon-detail-skills strong small { margin-left: .2rem; color: var(--weapon-tone); font-size: .68rem; }
+.weapon-detail-skills li > span, .weapon-detail-note, .weapon-detail-empty { color: #a9bec9; font-size: .72rem; line-height: 1.45; }
+.weapon-detail-empty { margin: 0; padding: .75rem; border: 1px dashed #4b6476; border-radius: .55rem; }
+.weapon-detail-note { margin: 0; }
+.weapon-detail-footer { display: grid; gap: .55rem; padding: .65rem 1rem max(.65rem, env(safe-area-inset-bottom)); border-top: 1px solid #41596c; }
+.weapon-detail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+.weapon-detail-back { min-height: 44px; border: 1px solid #60798a; border-radius: .55rem; background: #1b3447; color: #e8eef2; font-weight: 750; cursor: pointer; }
+.weapon-detail-back:hover, .weapon-detail-back:focus-visible { border-color: var(--weapon-tone); color: var(--weapon-tone); }
+@media (max-width: 600px) { .weapon-detail-overlay { align-items: end; padding: .35rem .35rem 0; } .weapon-detail-dialog { width: 100%; max-height: 88dvh; border-radius: .9rem .9rem 0 0; } .weapon-detail-header { padding: .75rem; } .weapon-detail-body { padding: .75rem; } .weapon-detail-footer { padding-inline: .75rem; } }

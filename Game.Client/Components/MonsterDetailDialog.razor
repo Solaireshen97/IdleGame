@@ -122,44 +122,11 @@
 
     @if (_selectedWeapon is { Weapon: { } weapon } selectedDrop)
     {
-        <div class="monster-weapon-overlay" @onclick="CloseWeapon" @onclick:stopPropagation @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
-            <section class="monster-weapon-dialog monster-weapon-dialog--@weapon.Element.ToString().ToLowerInvariant()"
-                     role="dialog" aria-modal="true" aria-labelledby="monster-weapon-title" @onclick:stopPropagation>
-                <header class="monster-detail-header">
-                    <div>
-                        <span class="monster-detail-kicker">WEAPON PREVIEW · @WeaponRules.ElementName(weapon.Element)属性</span>
-                        <h2 id="monster-weapon-title">@selectedDrop.Name</h2>
-                        <p>基础模板 · Lv.@weapon.ItemLevel</p>
-                    </div>
-                    <button type="button" class="monster-detail-close" @onclick="CloseWeapon" @ref="_weaponCloseButton" aria-label="返回掉落预览">×</button>
-                </header>
-                <div class="monster-detail-body">
-                    <div class="monster-detail-stats" aria-label="武器基础属性">
-                        <div><span>属性</span><strong>@WeaponRules.ElementName(weapon.Element)</strong></div>
-                        <div><span>攻击</span><strong>+@weapon.Attack</strong></div>
-                        <div><span>生命</span><strong>+@weapon.MaxHp</strong></div>
-                    </div>
-                    <section class="monster-detail-drops" aria-labelledby="monster-weapon-skills-title">
-                        <div class="monster-detail-section-heading"><h3 id="monster-weapon-skills-title">武器技能</h3></div>
-                        @if (weapon.Skills.Count == 0)
-                        {
-                            <p class="monster-detail-empty">这把武器没有附带技能。</p>
-                        }
-                        else
-                        {
-                            <ul class="monster-weapon-skills">
-                                @foreach (var skill in weapon.Skills)
-                                {
-                                    <li><strong>@skill.Name <small>Lv.@skill.Level</small></strong><span>@skill.Description</span></li>
-                                }
-                            </ul>
-                        }
-                    </section>
-                    <p class="monster-weapon-note">显示的是基础属性；实际掉落品质可能提高技能等级。</p>
-                    <button type="button" class="monster-weapon-back" @onclick="CloseWeapon">← 返回掉落预览</button>
-                </div>
-            </section>
-        </div>
+        <WeaponDetailDialog Name="@selectedDrop.Name" Element="@weapon.Element" ItemLevel="@weapon.ItemLevel"
+                            Attack="@weapon.Attack" MaxHp="@weapon.MaxHp" Skills="@weapon.Skills"
+                            Category="WEAPON PREVIEW" Subtitle="@($"基础模板 · 装等 {weapon.ItemLevel}")"
+                            Note="显示的是基础属性；实际掉落品质可能提高技能等级。"
+                            CloseLabel="← 返回掉落预览" OnClose="CloseWeapon" />
     }
 </div>
 
@@ -170,20 +137,13 @@
 
     private DungeonRewardPreviewResponse? _selectedWeapon;
     private ElementReference _monsterCloseButton;
-    private ElementReference _weaponCloseButton;
     private bool _focusMonster = true;
-    private bool _focusWeapon;
     private int _selectedMonsterIndex;
     private MonsterPreviewResponse? SelectedMonster => Dungeon.Monsters.ElementAtOrDefault(_selectedMonsterIndex);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focusWeapon)
-        {
-            _focusWeapon = false;
-            await _weaponCloseButton.FocusAsync();
-        }
-        else if (_focusMonster)
+        if (_focusMonster)
         {
             _focusMonster = false;
             await _monsterCloseButton.FocusAsync();
@@ -191,7 +151,7 @@
     }
 
     private void SelectMonster(int index) => _selectedMonsterIndex = index;
-    private void OpenWeapon(DungeonRewardPreviewResponse drop) { _selectedWeapon = drop; _focusWeapon = true; }
+    private void OpenWeapon(DungeonRewardPreviewResponse drop) { _selectedWeapon = drop; }
     private void CloseWeapon() { _selectedWeapon = null; _focusMonster = true; }
 
     private async Task CloseAsync()

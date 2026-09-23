@@ -1,0 +1,231 @@
+@page "/gathering"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Gathering
+@inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>采集</PageTitle>
+
+<div class="gathering-page">
+    <header class="gathering-intro">
+        <span>FIELD WORK · ELWYNN FOREST</span>
+        <h1>草药采集</h1>
+        <p>每名角色亲自完成战斗条件后，才能在对应地点采集。产物直接进入营地仓库。</p>
+    </header>
+
+    @if (_isLoading)
+    {
+        <GameStateCard Compact="true" Title="正在查看采集点" Detail="读取角色的战斗解锁和采集任务…" />
+    }
+    else if (_overview is null)
+    {
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="采集信息读取失败" Detail="请检查登录状态后重试。" />
+        <button class="gathering-refresh" @onclick="LoadAsync">重新读取</button>
+    }
+    else
+    {
+        <div class="gathering-summary">
+            <div><small>当前角色</small><strong>@_overview.CharacterName</strong><span>采集 Lv.@_overview.GatheringLevel · 进度按角色保存</span></div>
+            <div><small>已解锁地点</small><strong>@_overview.Points.Count(point => point.IsUnlocked) / @_overview.Points.Count</strong><span>不同角色需要各自完成战斗</span></div>
+        </div>
+
+        @if (_notice is not null)
+        {
+            <p class="gathering-notice" role="status">@_notice</p>
+        }
+
+        @if (_overview.ActiveTask is { } task)
+        {
+            <section class="gathering-active" aria-label="当前采集任务">
+                <div class="gathering-active__top"><span>正在采集</span><span>12 小时后完成当前轮</span></div>
+                <h2>@task.PointName</h2>
+                <p>每轮收获 @task.MaterialName。关闭网页后，服务器仍会继续结算。</p>
+                <div class="gathering-active__metrics">
+                    <div><small>已完成</small><strong>@task.CompletedCycles <em>轮</em></strong></div>
+                    <div><small>累计产出</small><strong>@task.TotalQuantity <em>株</em></strong></div>
+                    <div><small>剩余时限</small><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                </div>
+                <div class="gathering-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
+                <progress value="@CycleProgress(task)" max="100" aria-label="下一轮采集进度"></progress>
+                <button class="gathering-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止采集并结算</button>
+            </section>
+        }
+
+        <section class="gathering-points" aria-label="采集地点">
+            <div class="gathering-section-title"><span>GATHERING SITES</span><h2>采集地点</h2></div>
+            <div class="gathering-point-grid">
+                @foreach (var point in _overview.Points)
+                {
+                    var canStart = point.IsUnlocked && ActiveCharacters.Current?.Level >= point.MinimumCharacterLevel &&
+                        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null;
+                    <article class="gathering-point @(point.IsUnlocked ? "gathering-point--unlocked" : "")">
+                        <div class="gathering-point__top"><span>@point.RegionName</span><span>@(point.IsUnlocked ? "已解锁" : "未解锁")</span></div>
+                        <h3>@point.Name</h3>
+                        <p>每 @point.CycleSeconds 秒获得 @point.MaterialName × @point.OutputQuantity</p>
+                        <div class="gathering-point__stock"><span>营地仓库现有</span><strong>@point.WarehouseQuantity</strong></div>
+                        <div class="gathering-point__unlock">
+                            <span>@point.UnlockDescription</span>
+                            <strong>@point.UnlockProgress / @point.UnlockRequired</strong>
+                        </div>
+                        @if (ActiveCharacters.Current?.Level < point.MinimumCharacterLevel)
+                        {
+                            <small class="gathering-point__level">需要角色 Lv.@point.MinimumCharacterLevel</small>
+                        }
+                        @if (_overview.GatheringLevel < point.MinimumGatheringLevel)
+                        {
+                            <small class="gathering-point__level">需要采集 Lv.@point.MinimumGatheringLevel</small>
+                        }
+                        <button @onclick="() => StartAsync(point)" disabled="@(_isBusy || !canStart)">@(point.IsUnlocked ? "开始采集" : "完成战斗后解锁")</button>
+                    </article>
+                }
+            </div>
+        </section>
+
+        @if (_overview.RecentTasks.Count > 0)
+        {
+            <section class="gathering-history" aria-label="最近采集记录">
+                <div class="gathering-section-title"><span>RECENT RUNS</span><h2>最近采集</h2></div>
+                @foreach (var completed in _overview.RecentTasks)
+                {
+                    <div class="gathering-history__row"><span>@completed.PointName <small>@StatusName(completed.Status)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity</strong></div>
+                }
+            </section>
+        }
+        <a class="gathering-warehouse" href="/warehouse">查看营地仓库 →</a>
+    }
+</div>
+
+@code {
+    private GatheringOverviewResponse? _overview;
+    private readonly CancellationTokenSource _refreshCancellation = new();
+    private bool _isLoading = true;
+    private bool _isRefreshing;
+    private bool _isBusy;
+    private string? _notice;
+    private TimeSpan _serverOffset;
+    private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ActiveCharacters.RefreshAsync();
+        ActiveCharacters.Changed += OnActiveCharacterChanged;
+        if (ActiveCharacters.Current is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        await LoadAsync();
+        _ = RefreshLoopAsync(_refreshCancellation.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+                await InvokeAsync(LoadAsync);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_isRefreshing || _isBusy) return;
+        _isRefreshing = true;
+        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        try
+        {
+            var response = await ApiService.GetGatheringAsync();
+            if (expectedCharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response is not null && response.CharacterId == expectedCharacterId ? response : null;
+                if (response is not null) _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+            }
+        }
+        catch { _overview = null; }
+        finally
+        {
+            _isLoading = false;
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task StartAsync(GatheringPointResponse point)
+    {
+        if (_isBusy || _overview is null) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.StartGatheringAsync(_overview.CharacterId, point.Code);
+            if (error is not null) _notice = error;
+            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response;
+                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+                _notice = $"{point.Name} 的采集已开始。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
+        finally { _isBusy = false; }
+    }
+
+    private async Task StopAsync(int taskId)
+    {
+        if (_isBusy) return;
+        _isBusy = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.StopGatheringAsync(taskId);
+            if (error is not null) _notice = error;
+            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            {
+                _overview = response;
+                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
+                _notice = "采集已停止，已完成的小轮产物保留在营地仓库。";
+            }
+        }
+        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
+        finally { _isBusy = false; }
+    }
+
+    private double CycleProgress(GatheringTaskResponse task)
+    {
+        if (task.CycleSeconds <= 0) return 0;
+        var remaining = Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds);
+        return 100 * (1 - remaining / task.CycleSeconds);
+    }
+
+    private static string FormatDuration(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
+        return span.TotalHours >= 1 ? $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2}"
+            : $"{span.Minutes:D2}:{span.Seconds:D2}";
+    }
+
+    private static string StatusName(string status) => status switch
+    {
+        "Completed" => "到期完成",
+        "Stopped" => "手动停止",
+        "InventoryFull" => "仓库已满",
+        _ => status
+    };
+
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
+    {
+        _notice = null;
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        _refreshCancellation.Cancel();
+        _refreshCancellation.Dispose();
+        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+    }
+}

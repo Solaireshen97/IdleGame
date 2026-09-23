@@ -8,6 +8,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<User> Users => Set<User>();
     public DbSet<Character> Characters => Set<Character>();
     public DbSet<CharacterActivity> CharacterActivities => Set<CharacterActivity>();
+    public DbSet<CharacterBattleMilestone> CharacterBattleMilestones => Set<CharacterBattleMilestone>();
+    public DbSet<GatheringTask> GatheringTasks => Set<GatheringTask>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
@@ -36,6 +38,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<CharacterActivity>().HasKey(activity => activity.CharacterId);
         modelBuilder.Entity<CharacterActivity>().Property(activity => activity.CharacterId).ValueGeneratedNever();
         modelBuilder.Entity<CharacterActivity>().HasIndex(activity => new { activity.Kind, activity.SourceId });
+        modelBuilder.Entity<CharacterBattleMilestone>().HasKey(milestone => new { milestone.CharacterId, milestone.Kind, milestone.TargetCode });
+        modelBuilder.Entity<CharacterBattleMilestone>().ToTable(table => table.HasCheckConstraint("CK_CharacterBattleMilestones_Count", "Count > 0"));
+        modelBuilder.Entity<GatheringTask>().Property(task => task.Version).IsConcurrencyToken();
+        modelBuilder.Entity<GatheringTask>().HasIndex(task => new { task.CharacterId, task.Status });
+        modelBuilder.Entity<GatheringTask>().ToTable(table => table.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
         modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
         modelBuilder.Entity<RewardRun>().HasKey(run => new { run.RoomId, run.Sequence });
         modelBuilder.Entity<RewardEvent>().HasKey(entry => new { entry.RoomId, entry.Sequence, entry.EventKey });
@@ -44,6 +51,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<Character>()
             .Property(character => character.Version)
             .IsConcurrencyToken();
+        modelBuilder.Entity<Character>().Property(character => character.GatheringLevel).HasDefaultValue(1);
         modelBuilder.Entity<CharacterItemStack>()
             .Property(stack => stack.Version)
             .IsConcurrencyToken();

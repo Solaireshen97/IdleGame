@@ -308,7 +308,7 @@ else
         {
             _message = errorMessage switch
             {
-                "Current character is already in another room." => "当前角色已在其他房间中，不能再创建新房间。",
+                "CharacterAlreadyBusy" => "当前角色正在战斗或采集，请先结束原任务。",
                 "CharacterLevelTooLow" => _selectedDungeon.LockReason ?? "当前角色等级不足。",
                 _ => errorMessage ?? "创建房间失败。"
             };

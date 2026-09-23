@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -106,6 +106,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             await ResetConsumableCooldownsAsync(room.Id);
             await ResetSkillCooldownsAsync(room.Id);
             ClearRoundState(room, slots);
+            ResetRunParticipation(slots);
             room.RoundNumber = 0;
             room.RunSequence++;
             room.Status = RoomStatus.NotStarted;
@@ -349,6 +350,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         await ResetConsumableCooldownsAsync(room.Id);
         await ResetSkillCooldownsAsync(room.Id);
         ClearRoundState(room, slots);
+        ResetRunParticipation(slots);
         room.RoundNumber = 0;
         room.RunSequence++;
         room.Status = RoomStatus.NotStarted;
@@ -367,6 +369,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
         if (aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed)) return (null, "PreparationRequired");
+        foreach (var entry in aliveSlots)
+        {
+            entry.Slot.HasParticipatedInRun = true;
+            entry.Slot.LastParticipatedMonsterId = monster.Id;
+        }
         var combatParticipants = slots.OrderBy(x => x.Slot.SlotIndex)
             .Select(x => new MonsterCombatParticipant(x.Slot, x.Character)).ToList();
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -416,7 +423,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             await ApplyVictoryCooldownTalentAsync(room, characterIds, logs);
             var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
                 .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
-            var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs);
+            var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs,
+                slots.Where(slot => slot.Slot.LastParticipatedMonsterId == monster.Id).Select(slot => slot.Character.Id).ToList(),
+                slots.Where(slot => slot.Slot.HasParticipatedInRun).Select(slot => slot.Character.Id).ToList());
             if (advance.Error is not null) return (null, advance.Error);
             monster = advance.ActiveMonster;
         }
@@ -453,7 +462,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     await ApplyVictoryCooldownTalentAsync(room, characterIds, logs);
                     var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
                         .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
-                    var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs);
+                    var advance = await GetDungeonRunService().AdvanceAfterDefeatAsync(room, monster, participants, now, logs,
+                        slots.Where(slot => slot.Slot.LastParticipatedMonsterId == monster.Id).Select(slot => slot.Character.Id).ToList(),
+                        slots.Where(slot => slot.Slot.HasParticipatedInRun).Select(slot => slot.Character.Id).ToList());
                     if (advance.Error is not null) return (null, advance.Error);
                     monster = advance.ActiveMonster;
                 }
@@ -943,8 +954,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         dbContext.UserDungeonClears.Where(clear => clear.DungeonId == dungeonId).Select(clear => clear.UserId).ToListAsync();
 
     private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; entry.Slot.PendingSkillSlotMask = 0; } }
+    private static void ResetRunParticipation(IEnumerable<SlotCharacter> slots) { foreach (var entry in slots) { entry.Slot.HasParticipatedInRun = false; entry.Slot.LastParticipatedMonsterId = null; } }
     private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
-    private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService);
+    private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService, battleMilestones);
     private static BattleResult BuildResult(Room room, List<SlotCharacter> slots, Monster monster, DateTime now, List<string> logs) => new() { RoomId = room.Id, CharacterHp = slots.OrderBy(x => x.Slot.SlotIndex).FirstOrDefault()?.Character.Hp ?? 0, CharacterMaxHp = slots.OrderBy(x => x.Slot.SlotIndex).Select(x => TalentRules.EffectiveMaxHp(x.Character)).FirstOrDefault(), MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount, RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc, ServerTimeUtc = now, CanExecuteRound = room.Status == RoomStatus.Preparing && slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed) && monster.Hp > 0, IsVictory = room.Status == RoomStatus.BattleOver && monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character.Hp > 0), Logs = logs };
 
     private async Task<(Room? Room, List<SlotCharacter>? Slots, Monster? Monster, User? User, string? Error)> GetBattleContextAsync(int roomId, string? token)

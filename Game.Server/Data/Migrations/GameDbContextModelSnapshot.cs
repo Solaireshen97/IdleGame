@@ -62,6 +62,10 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Level")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("GatheringLevel")
+                        .HasDefaultValue(1)
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("MaxHp")
                         .HasColumnType("INTEGER");
 
@@ -401,6 +405,40 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterActivities");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterBattleMilestone", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("Kind").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("TargetCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Count").HasColumnType("INTEGER");
+                    b.Property<DateTime>("FirstAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("LastAtUtc").HasColumnType("TEXT");
+                    b.HasKey("CharacterId", "Kind", "TargetCode");
+                    b.ToTable("CharacterBattleMilestones", t => t.HasCheckConstraint("CK_CharacterBattleMilestones_Count", "Count > 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.GatheringTask", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("PointCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("MaterialCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("CycleSeconds").HasColumnType("INTEGER");
+                    b.Property<int>("OutputQuantity").HasColumnType("INTEGER");
+                    b.Property<string>("Status").IsRequired().HasColumnType("TEXT");
+                    b.Property<DateTime>("StartedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("EndsAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime>("NextCycleAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime?>("StoppedAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("CompletedCycles").HasColumnType("INTEGER");
+                    b.Property<int>("TotalQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "Status");
+                    b.ToTable("GatheringTasks", t => t.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Room", b =>
                 {
                     b.Property<int>("Id")
@@ -477,6 +515,12 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsConfirmed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("HasParticipatedInRun")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LastParticipatedMonsterId")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsAutoEnabled")

@@ -38,5 +38,6 @@ public sealed class ActiveCharacterState(ApiService apiService)
         left.Hp == right.Hp && left.MaxHp == right.MaxHp &&
         left.Attack == right.Attack &&
         left.Level == right.Level && left.Experience == right.Experience &&
+        left.ExperienceToNextLevel == right.ExperienceToNextLevel &&
         left.TalentPoints == right.TalentPoints;
 }

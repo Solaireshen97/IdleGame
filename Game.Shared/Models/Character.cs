@@ -19,6 +19,7 @@ public class Character
     public decimal WeaponNormalEchoPercent { get; set; }
     public decimal WeaponSkillDamagePercent { get; set; }
     public int Level { get; set; } = 1;
+    public int GatheringLevel { get; set; } = 1;
     public int Experience { get; set; }
     public int TalentPoints { get; set; }
     public int AttackTalentRank { get; set; }

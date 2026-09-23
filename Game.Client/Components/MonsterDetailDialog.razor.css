@@ -1,5 +1,4 @@
-.monster-detail-overlay,
-.monster-weapon-overlay {
+.monster-detail-overlay {
     position: fixed;
     z-index: 1300;
     inset: 0;
@@ -10,10 +9,7 @@
     backdrop-filter: blur(7px);
 }
 
-.monster-weapon-overlay { z-index: 1301; background: rgba(3, 11, 20, .88); }
-
-.monster-detail-dialog,
-.monster-weapon-dialog {
+.monster-detail-dialog {
     --element-color: #dfbe77;
     width: min(100%, 540px);
     max-height: 100%;
@@ -27,16 +23,11 @@
     color: #e7edf1;
 }
 
-.monster-detail-dialog--fire,
-.monster-weapon-dialog--fire { --element-color: #ee9e82; }
-.monster-detail-dialog--water,
-.monster-weapon-dialog--water { --element-color: #88d2ee; }
-.monster-detail-dialog--wind,
-.monster-weapon-dialog--wind { --element-color: #89d8ad; }
-.monster-detail-dialog--dark,
-.monster-weapon-dialog--dark { --element-color: #c4a5eb; }
-.monster-detail-dialog--light,
-.monster-weapon-dialog--light { --element-color: #f3df9d; }
+.monster-detail-dialog--fire { --element-color: #ee9e82; }
+.monster-detail-dialog--water { --element-color: #88d2ee; }
+.monster-detail-dialog--wind { --element-color: #89d8ad; }
+.monster-detail-dialog--dark { --element-color: #c4a5eb; }
+.monster-detail-dialog--light { --element-color: #f3df9d; }
 
 .monster-detail-header {
     display: flex;
@@ -88,17 +79,12 @@
 .monster-drop-copy small { color: #8ea5b6; font-size: .67rem; font-weight: 400; }
 .monster-drop-rate { color: #f1d18a; font-size: .76rem; font-weight: 750; white-space: nowrap; }
 .monster-drop-rate span { margin-left: .2rem; font-size: 1.1rem; }
-.monster-weapon-skills li { display: grid; gap: .25rem; padding: .7rem .8rem; border: 1px solid #40586d; border-radius: .6rem; background: #14283a; }
-.monster-weapon-skills strong { color: #f1e2c4; font-size: .82rem; }
-.monster-weapon-skills strong small { margin-left: .2rem; color: var(--element-color); font-weight: 600; }
-.monster-weapon-skills span, .monster-weapon-note { color: #abc0cb; font-size: .75rem; line-height: 1.45; }
+.monster-weapon-note { color: #abc0cb; font-size: .75rem; line-height: 1.45; }
 .monster-weapon-note { margin: 0; }
-.monster-weapon-back { min-height: 44px; border: 1px solid #60798a; border-radius: .58rem; background: #1b3447; color: #e8eef2; font-weight: 700; cursor: pointer; }
-.monster-weapon-back:hover, .monster-weapon-back:focus-visible { border-color: var(--element-color); color: var(--element-color); }
 
 @media (max-width: 600px) {
-    .monster-detail-overlay, .monster-weapon-overlay { align-items: end; padding: .45rem .45rem max(.45rem, env(safe-area-inset-bottom)); }
-    .monster-detail-dialog, .monster-weapon-dialog { max-height: min(82dvh, 720px); border-radius: .88rem; }
+    .monster-detail-overlay { align-items: end; padding: .45rem .45rem max(.45rem, env(safe-area-inset-bottom)); }
+    .monster-detail-dialog { max-height: min(82dvh, 720px); border-radius: .88rem; }
     .monster-detail-header { padding: .9rem .9rem .75rem; }
     .monster-detail-header h2 { font-size: 1.16rem; }
     .monster-detail-body { gap: .8rem; padding: .8rem .9rem 1rem; }

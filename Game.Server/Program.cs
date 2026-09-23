@@ -27,6 +27,7 @@ builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<DungeonRunService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<RewardService>();
+builder.Services.AddScoped<BattleMilestoneService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<TalentService>();
 builder.Services.AddScoped<ConsumableService>();
@@ -34,6 +35,7 @@ builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<WeaponService>();
 builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<WarehouseService>();
+builder.Services.AddScoped<GatheringService>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
@@ -47,6 +49,7 @@ builder.Services.Configure<DungeonExchangeOptions>(builder.Configuration.GetSect
 builder.Services.Configure<WorldOptions>(builder.Configuration.GetSection(WorldOptions.SectionName));
 builder.Services.Configure<CharacterSlotOptions>(builder.Configuration.GetSection(CharacterSlotOptions.SectionName));
 builder.Services.Configure<ActivityOptions>(builder.Configuration.GetSection(ActivityOptions.SectionName));
+builder.Services.Configure<GatheringOptions>(builder.Configuration.GetSection(GatheringOptions.SectionName));
 builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
@@ -56,11 +59,13 @@ builder.Services.AddSingleton<DungeonEncounterCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();
+builder.Services.AddSingleton<GatheringCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<WorldCatalog>();
 builder.Services.AddSingleton<CharacterSlotCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
+builder.Services.AddHostedService<GatheringCycleService>();
 
 builder.Services.AddCors(options =>
 {
@@ -79,6 +84,7 @@ using (var scope = app.Services.CreateScope())
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
     world.ValidateContent(weapons, scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>(),
         scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
+    _ = scope.ServiceProvider.GetRequiredService<GatheringCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world);
 }
 
