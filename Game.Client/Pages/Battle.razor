@@ -245,11 +245,11 @@ else
             @if (_roomDetail.Rewards is not null)
             {
                 <button type="button"
-                        class="battle-shortcut @(_areRewardsExpanded ? "battle-shortcut--active" : null)"
-                        @onclick="ToggleRewards"
-                        aria-expanded="@_areRewardsExpanded"
-                        aria-controls="battle-rewards">
-                    <span aria-hidden="true">✦</span> @(_areRewardsExpanded ? "收起奖励" : "本轮奖励")
+                        class="battle-shortcut"
+                        @onclick="OpenRewards"
+                        @ref="_rewardsTrigger"
+                        aria-haspopup="dialog">
+                    <span aria-hidden="true">✦</span> 本轮奖励
                 </button>
             }
             @if (ownSlots.Count > 0)
@@ -289,6 +289,41 @@ else
                                 <li @key="log.Id">@log.Text</li>
                             }
                         </ol>
+                    }
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_isRewardsOpen && _roomDetail.Rewards is { } dialogRewards)
+    {
+        <div class="battle-log-overlay" @onclick="CloseRewards">
+            <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
+                <header class="battle-log-dialog__header">
+                    <div>
+                        <span class="section-kicker">REWARD POOL</span>
+                        <h2 id="battle-reward-title">@(dialogRewards.IsCurrentRun ? "本轮奖励" : "上一轮奖励")</h2>
+                        <p>@(dialogRewards.Status == "Pending" ? "待结算" : dialogRewards.Status == "Victory" ? "通关已结算" : "战败已结算") · 第 @dialogRewards.RunSequence 轮</p>
+                    </div>
+                    <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭本轮奖励">×</button>
+                </header>
+                <div class="battle-log-dialog__content battle-reward-dialog__content">
+                    <div class="battle-reward-dialog__totals">
+                        <span><small>金币</small><strong>+@dialogRewards.Gold</strong></span>
+                        <span><small>经验</small><strong>+@dialogRewards.Experience</strong></span>
+                    </div>
+                    @if (dialogRewards.Items.Count > 0)
+                    {
+                        <ul class="battle-reward-dialog__items">
+                            @foreach (var item in dialogRewards.Items)
+                            {
+                                <li><span><small>@item.CharacterName · @item.Source</small><strong>@item.Name</strong></span><b>× @item.Quantity</b></li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="battle-reward-dialog__empty">@(dialogRewards.Status == "Defeat" ? "本轮没有可结算的击杀奖励。" : "本轮暂无物品奖励。")</p>
                     }
                 </div>
             </section>
@@ -502,7 +537,7 @@ else
             <div class="battle-loadout__panel @(_mobileLoadoutView == "skills" ? "battle-loadout__panel--selected" : null)">
             <div class="battle-skills" aria-label="职业技能">
                 <div class="battle-supplies__header">
-                    <div><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
+                    <div class="battle-loadout__section-title"><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
                     <div class="battle-skills__tools">
                         <label class="quick-skill-toggle" title="开启后，点击可用技能会直接安排到本回合">
                             <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
@@ -552,7 +587,7 @@ else
             <div class="battle-loadout__panel @(_mobileLoadoutView == "supplies" ? "battle-loadout__panel--selected" : null)">
             <div class="battle-supplies" aria-label="战斗补给">
                 <div class="battle-supplies__header">
-                    <div><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
+                    <div class="battle-loadout__section-title"><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
                     <a href="/supplies">管理补给槽 ↗</a>
                 </div>
                 <div class="battle-supplies__characters">
@@ -607,30 +642,6 @@ else
             }
         </div>
     </section>
-    }
-
-    @if (_areRewardsExpanded && _roomDetail.Rewards is { } rewards)
-    {
-        <section id="battle-rewards" class="battle-rewards" aria-label="本轮奖励" @ref="_rewardsSection">
-            <div class="battle-rewards__heading">
-                <div><span class="section-kicker">REWARD POOL</span><h2>@(rewards.IsCurrentRun ? "本轮奖励" : "上一轮奖励")</h2></div>
-                <span>@(rewards.Status == "Pending" ? "待结算" : rewards.Status == "Victory" ? "通关已结算" : "战败已结算") · 第 @rewards.RunSequence 轮</span>
-            </div>
-            <div class="battle-rewards__totals"><strong>金币 +@rewards.Gold</strong><strong>经验 +@rewards.Experience</strong></div>
-            @if (rewards.Items.Count > 0)
-            {
-                <ul>
-                    @foreach (var item in rewards.Items)
-                    {
-                        <li><span>@item.CharacterName · @item.Source</span><strong>@item.Name × @item.Quantity</strong></li>
-                    }
-                </ul>
-            }
-            else
-            {
-                <p>@(rewards.Status == "Defeat" ? "本轮没有可结算的击杀奖励。" : "本轮暂无物品奖励。")</p>
-            }
-        </section>
     }
 
     <details class="formation-panel">
@@ -706,7 +717,8 @@ else
     private DateTime _serverTimeReceivedAtUtc;
     private ElementReference _battleCommand;
     private ElementReference _loadoutSection;
-    private ElementReference _rewardsSection;
+    private ElementReference _rewardsTrigger;
+    private ElementReference _rewardsCloseButton;
     private ElementReference _logTrigger;
     private ElementReference _logCloseButton;
     private ElementReference _skillDialogCloseButton;
@@ -714,8 +726,9 @@ else
     private ElementReference _monsterTrigger;
     private ElementReference _monsterStatusDialogCloseButton;
     private bool _isLogOpen;
-    private bool _areRewardsExpanded;
-    private bool _scrollToRewardsAfterRender;
+    private bool _isRewardsOpen;
+    private bool _focusRewardsCloseButton;
+    private bool _focusRewardsTrigger;
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
     private bool _isQuickSkillCastEnabled;
@@ -791,11 +804,15 @@ else
             _focusLogTrigger = false;
             await _logTrigger.FocusAsync();
         }
-
-        if (_scrollToRewardsAfterRender)
+        else if (_focusRewardsCloseButton)
         {
-            _scrollToRewardsAfterRender = false;
-            await ScrollBelowBattleCommandAsync(_rewardsSection);
+            _focusRewardsCloseButton = false;
+            await _rewardsCloseButton.FocusAsync();
+        }
+        else if (_focusRewardsTrigger)
+        {
+            _focusRewardsTrigger = false;
+            await _rewardsTrigger.FocusAsync();
         }
     }
 
@@ -806,10 +823,16 @@ else
         await Js.InvokeVoidAsync("battleUi.scrollBelowSticky", target, _battleCommand);
     }
 
-    private void ToggleRewards()
+    private void OpenRewards()
     {
-        _areRewardsExpanded = !_areRewardsExpanded;
-        _scrollToRewardsAfterRender = _areRewardsExpanded;
+        _isRewardsOpen = true;
+        _focusRewardsCloseButton = true;
+    }
+
+    private void CloseRewards()
+    {
+        _isRewardsOpen = false;
+        _focusRewardsTrigger = true;
     }
 
     private void OpenBattleLog()
@@ -830,6 +853,7 @@ else
         if (_isSkillDialogOpen) CloseSkillDialog();
         else if (_selectedStatusCharacterId.HasValue) CloseStatusDialog();
         else if (_isMonsterStatusDialogOpen) CloseMonsterStatusDialog();
+        else if (_isRewardsOpen) CloseRewards();
         else if (_isLogOpen) CloseBattleLog();
     }
 

@@ -1341,12 +1341,6 @@ button.battle-supply:not(:disabled):hover { border-color: #d9b06d; background: #
     color: #f2d49d;
 }
 
-.battle-shortcut--active {
-    border-color: #d2aa68;
-    background: rgba(210, 170, 104, .14);
-    color: #f2d49d;
-}
-
 .battle-command .battle-countdown {
     grid-column: 1 / -1;
     margin: 0;
@@ -2065,13 +2059,13 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
         margin: .55rem 0 .65rem;
     }
 
-    .battle-controls--loadout { padding: .65rem; }
+    .battle-controls--loadout { padding: .5rem; }
     .battle-loadout__tabs {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: .32rem;
-        margin-bottom: .58rem;
-        padding: .28rem;
+        margin-bottom: .4rem;
+        padding: .2rem;
         border: 1px solid #405a6f;
         border-radius: .65rem;
         background: #0e2030;
@@ -2081,10 +2075,10 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
         grid-template-columns: auto 1fr auto;
         align-items: center;
         gap: .38rem;
-        min-height: 48px;
+        min-height: 40px;
         border: 0;
         border-radius: .48rem;
-        padding: .4rem .55rem;
+        padding: .3rem .48rem;
         color: #9fb4c2;
         background: transparent;
         text-align: left;
@@ -2097,34 +2091,64 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
     .battle-loadout__panel--selected { display: block; }
     .battle-controls--loadout .battle-supplies { margin-top: 0; border-top: 0; padding-top: 0; }
 
-    .battle-skills .battle-supplies__header { align-items: stretch; flex-direction: column; }
-    .battle-skills__tools { align-items: center; flex-direction: row; justify-content: space-between; }
+    .battle-loadout__section-title { display: none; }
+    .battle-skills .battle-supplies__header,
+    .battle-supplies .battle-supplies__header { align-items: center; justify-content: flex-end; margin-bottom: .32rem; }
+    .battle-skills__tools { align-items: center; flex-direction: row; justify-content: space-between; width: 100%; gap: .35rem; }
     .quick-skill-toggle { flex: 1; }
-    .battle-skills__character { gap: .5rem; padding: .55rem; }
+    .quick-skill-toggle { min-height: 36px; padding: .25rem .42rem; }
+    .quick-skill-toggle small { display: none; }
+    .battle-supplies__header a { min-height: 36px; }
+    .battle-skills__character { gap: .28rem; padding: .35rem .4rem; margin-bottom: .3rem; }
+    .battle-skills__character > .battle-supplies__identity span { display: none; }
+    .battle-skills__character > .battle-supplies__identity strong { font-size: .72rem; }
     .battle-skill-grid {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: clamp(.18rem, 1.2vw, .42rem);
+        gap: clamp(.14rem, .85vw, .3rem);
         overflow: visible;
         width: 100%;
-        padding: .12rem 0 .22rem;
+        padding: 0;
     }
-    .battle-skill-card { min-width: 0; min-height: 100px; padding: .36rem .12rem .3rem; }
-    .battle-skill-card__icon { width: min(52px, calc(100% - .2rem)); height: auto; flex: 0 0 auto; aspect-ratio: 1; border-width: 2px; }
-    .battle-skill-card__glyph { font-size: 1.35rem; }
+    .battle-skill-card { min-width: 0; min-height: 74px; padding: .25rem .08rem .2rem; border-radius: .5rem; }
+    .battle-skill-card__icon { width: min(42px, calc(100% - .15rem)); height: auto; flex: 0 0 auto; aspect-ratio: 1; border-width: 2px; border-radius: .55rem; }
+    .battle-skill-card__glyph { font-size: 1.1rem; }
     .battle-skill-card__slot { width: 16px; height: 16px; font-size: .55rem; }
-    .battle-skill-card__name { margin-top: .32rem; font-size: .64rem; }
-    .battle-skill-card__status { margin-top: .08rem; font-size: .52rem; }
-    .battle-skill-card__auto { inset: .22rem .08rem auto auto; padding: .1rem .18rem; font-size: .48rem; }
+    .battle-skill-card__name { margin-top: .2rem; font-size: .6rem; }
+    .battle-skill-card__status { display: none; }
+    .battle-skill-card__auto { inset: .14rem .03rem auto auto; padding: .08rem .14rem; font-size: .44rem; }
     .battle-skills > p, .battle-supplies > p { display: none; }
-    .battle-supplies__slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .battle-supply--operation { grid-column: 1 / -1; }
-    .battle-supply { min-height: 64px; padding: .45rem .5rem; }
-    .battle-supply__action { font-size: .65rem; }
+    .battle-supplies__characters { gap: .3rem; }
+    .battle-supplies__character { gap: .3rem; padding: .35rem .4rem; }
+    .battle-supplies__identity strong { font-size: .72rem; }
+    .battle-supplies__identity span { font-size: .6rem; }
+    .battle-supplies__slots { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; }
+    .battle-supply--operation { grid-column: auto; }
+    .battle-supply { min-height: 48px; padding: .3rem .35rem; gap: .3rem; }
+    .battle-supply__icon { flex-basis: 1.65rem; height: 1.65rem; }
+    .battle-supply__body strong { font-size: .66rem; }
+    .battle-supply__body small,
+    .battle-supply__action { display: none; }
+    .battle-controls__tools { margin-top: .45rem; padding-top: .45rem; }
+    .battle-controls__tools .button { min-height: 40px; }
 
     .battle-log-overlay { align-items: end; place-items: end center; padding: 0; }
     .battle-log-dialog { width: 100%; max-height: calc(82vh - env(safe-area-inset-bottom)); border-width: 1px 0 0; border-radius: 1rem 1rem 0 0; padding-bottom: env(safe-area-inset-bottom); }
 }
+
+.battle-reward-dialog { width: min(100%, 540px); }
+.battle-reward-dialog__content { padding-block: 1rem 1.25rem; }
+.battle-reward-dialog__totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.battle-reward-dialog__totals > span { display: grid; gap: .2rem; padding: .8rem; border: 1px solid #49657a; border-radius: .65rem; background: rgba(8, 22, 34, .48); }
+.battle-reward-dialog__totals small { color: #9fb3c1; font-size: .68rem; }
+.battle-reward-dialog__totals strong { color: #f0bd62; font-size: 1.15rem; }
+.battle-reward-dialog__items { list-style: none; margin: .75rem 0 0; padding: 0; }
+.battle-reward-dialog__items li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .2rem; border-bottom: 1px solid rgba(122, 161, 184, .18); }
+.battle-reward-dialog__items li > span { display: grid; gap: .12rem; min-width: 0; }
+.battle-reward-dialog__items small { overflow: hidden; color: #93a9b8; font-size: .65rem; white-space: nowrap; text-overflow: ellipsis; }
+.battle-reward-dialog__items strong { overflow-wrap: anywhere; }
+.battle-reward-dialog__items b { flex: none; color: #f2c979; }
+.battle-reward-dialog__empty { padding: 1rem; border: 1px dashed #49657a; border-radius: .65rem; text-align: center; }
 
 @media (prefers-contrast: more) {
     .battle-command,
