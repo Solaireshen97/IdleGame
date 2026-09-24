@@ -110,8 +110,29 @@ public sealed class T1WeaponContentTests
         var allOffers = configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!.Offers;
         var rewards = configuration.GetSection(RewardOptions.SectionName).Get<RewardOptions>()!;
         var soulImprints = configuration.GetSection(SoulImprintOptions.SectionName).Get<SoulImprintOptions>()!.Items;
+        var encounters = configuration.GetSection(DungeonEncounterOptions.SectionName).Get<DungeonEncounterOptions>()!;
+        var monsterCombat = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
+        var softEnrage = Assert.Single(monsterCombat.Skills, skill => skill.Code == "endgame-soft-enrage");
+        Assert.Equal((80, 22, 10),
+            (softEnrage.DamagePowerPercent, softEnrage.RoomRoundAtLeast, softEnrage.ForcedPriority));
+        var hardEnrage = Assert.Single(monsterCombat.Skills, skill => skill.Code == "endgame-hard-enrage");
+        Assert.Equal((900, 42, 100),
+            (hardEnrage.DamagePowerPercent, hardEnrage.RoomRoundAtLeast, hardEnrage.ForcedPriority));
         foreach (var dungeon in dungeons)
         {
+            var waves = encounters.Dungeons[dungeon.Code];
+            Assert.Equal(3, waves.Count);
+            var monsters = waves.SelectMany(wave => wave.Monsters).ToList();
+            Assert.Equal(5, monsters.Count);
+            Assert.Equal(new[] { 4800, 4800, 6500, 6500, 54000 }, monsters.Select(monster => monster.MaxHp));
+            Assert.Equal(new[] { 34, 34, 45, 45, 180 }, monsters.Select(monster => monster.Attack));
+            Assert.Equal(new[] { 12, 12, 13, 13, 18 }, monsters.Select(monster => monster.Defense));
+            Assert.All(monsters.Take(4), monster => Assert.False(monster.IsBoss));
+            Assert.True(monsters[^1].IsBoss);
+            var bossProfile = monsterCombat.Profiles[monsters[^1].CombatProfileCode];
+            Assert.Contains(bossProfile.Skills, skill => skill.Code == softEnrage.Code);
+            Assert.Contains(bossProfile.Skills, skill => skill.Code == hardEnrage.Code);
+
             var dungeonOffers = allOffers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
             var offers = dungeonOffers.Where(offer => offer.RewardKind == "Weapon").ToList();
             Assert.Equal(6, offers.Count);

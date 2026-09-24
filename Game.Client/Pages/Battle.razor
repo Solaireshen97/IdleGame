@@ -226,6 +226,7 @@ else
     </section>
 
     var mobileActionSlot = ownSlots.FirstOrDefault(slot => slot.CharacterId == _mobileActionCharacterId) ?? ownSlots.FirstOrDefault();
+    var mobileQueuedActionCount = mobileActionSlot is null ? 0 : GetMobileQueuedActionCount(mobileActionSlot);
 
     <section class="battle-command" aria-label="本回合操作" @ref="_battleCommand">
         <div class="battle-command__heading">
@@ -238,6 +239,22 @@ else
         <div class="battle-command__state" aria-live="polite">
             <span>当前状态</span>
             <strong>@GetStatusText()</strong>
+            @if (countdown is not null)
+            {
+                <small class="battle-command__compact-countdown">@countdown.Label · @FormatCountdown(GetRemainingSeconds(countdown.DeadlineUtc))</small>
+            }
+            @if (mobileQueuedActionCount > 0)
+            {
+                <small class="battle-command__mobile-actions" aria-live="polite">本回合已安排 @mobileQueuedActionCount 项</small>
+            }
+            @if (_roomDetail.MonsterIntent is { } mobileIntent && _roomDetail.MonsterHp > 0 &&
+                _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition &&
+                _roomDetail.NextBattleStartAtUtc is null)
+            {
+                <small class="battle-command__mobile-intent" aria-label="敌方行动预告">
+                    敌方预告 · @mobileIntent.ActionName → @mobileIntent.TargetLabel
+                </small>
+            }
         </div>
         <div class="battle-command__action">
             @if (_roomDetail.IsAllAliveMembersAuto && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver)
@@ -265,7 +282,11 @@ else
             @if (autoSlot is not null)
             {
                 <label class="battle-auto @(autoSlot.CanConfigureAuto ? "" : "battle-auto--locked")" title="@(autoSlot.IsAutoUnlockedForCurrentUser ? "自动准备开关" : "首次通关此副本后解锁 Auto")">
-                    <span><input type="checkbox" checked="@autoSlot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(autoSlot.SlotIndex, (bool)e.Value!)" disabled="@(_isBusy || !autoSlot.CanConfigureAuto)" /> Auto 自动准备</span>
+                    <span>
+                        <input type="checkbox" checked="@autoSlot.IsAutoEnabled" @onchange="e => SetSlotAutoAsync(autoSlot.SlotIndex, (bool)e.Value!)" disabled="@(_isBusy || !autoSlot.CanConfigureAuto)" />
+                        <span class="battle-auto__label-full">Auto 自动准备</span>
+                        <span class="battle-auto__label-mobile">Auto</span>
+                    </span>
                     @if (!autoSlot.IsAutoUnlockedForCurrentUser) { <small>通关后解锁</small> }
                 </label>
             }
@@ -281,35 +302,40 @@ else
                     <span aria-hidden="true">✦</span> 本轮奖励
                 </button>
             }
-            @if (ownSlots.Count > 0)
-            {
-                <button type="button" class="battle-shortcut battle-shortcut--loadout" @onclick="ScrollToLoadoutAsync"><span aria-hidden="true">✦</span> 技能与补给</button>
-            }
         </div>
         @if (mobileActionSlot is not null)
         {
-            <div class="battle-mobile-quick-actions" aria-label="移动端快速战斗操作">
+            <div class="battle-mobile-quick-actions @(mobileActionSlot.IsAlive ? null : "battle-mobile-quick-actions--down")" aria-label="移动端快速战斗操作" @ref="_mobileQuickActions">
                 <div class="battle-mobile-quick-actions__heading">
                     <div>
                         <span class="section-kicker">QUICK ACTIONS</span>
                         <strong>@mobileActionSlot.CharacterName · @mobileActionSlot.ProfessionName</strong>
-                        <small>点按技能即可安排本回合行动</small>
+                        <small>@GetMobileActionHint(mobileActionSlot, ownSlots)</small>
                     </div>
-                    <button type="button"
-                            class="battle-mobile-quick-actions__mode"
-                            @onclick='() => _mobileLoadoutView = _mobileLoadoutView == "skills" ? "supplies" : "skills"'
-                            aria-label="切换职业技能与战斗补给">
-                        <span aria-hidden="true">@(_mobileLoadoutView == "skills" ? "✚" : "✦")</span>
-                        <small>@(_mobileLoadoutView == "skills" ? "补给" : "技能")</small>
-                    </button>
+                    <div class="battle-mobile-quick-actions__tools">
+                        <label class="quick-skill-toggle quick-skill-toggle--compact" title="开启后，点按可用技能直接安排本回合">
+                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
+                            <strong>快速释放</strong>
+                        </label>
+                        <button type="button"
+                                class="battle-mobile-quick-actions__mode"
+                                @onclick="ToggleMobileLoadoutView"
+                                aria-label='@(_mobileLoadoutView == "skills" ? "查看战斗补给" : "查看职业技能")'
+                                aria-controls="mobile-action-rail">
+                            <span aria-hidden="true">@(_mobileLoadoutView == "skills" ? "✚" : "✦")</span>
+                            <small>@(_mobileLoadoutView == "skills" ? "补给" : "技能")</small>
+                        </button>
+                    </div>
                 </div>
-                <div class="battle-mobile-quick-actions__characters" role="tablist" aria-label="选择操作角色">
+                <div class="battle-mobile-quick-actions__characters" role="tablist" aria-label="选择操作角色，共 @ownSlots.Count 个" @ref="_mobileActionCharacters">
                     @foreach (var characterSlot in ownSlots)
                     {
                         <button type="button"
                                 class="battle-mobile-character-tab @(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "active" : null) @(characterSlot.IsAlive ? null : "battle-mobile-character-tab--down")"
                                 role="tab"
                                 aria-selected="@(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "true" : "false")"
+                                aria-label='@($"操作 {characterSlot.CharacterName}，槽位 {characterSlot.SlotIndex}，{(characterSlot.IsAlive ? "存活" : "已阵亡")}")'
+                                aria-controls="mobile-action-rail"
                                 @onclick="() => SelectMobileActionCharacter(characterSlot.CharacterId)">
                             <span>@characterSlot.SlotIndex</span>
                             <strong>@characterSlot.CharacterName</strong>
@@ -319,7 +345,7 @@ else
                 </div>
                 @if (_mobileLoadoutView == "skills")
                 {
-                    <div class="battle-mobile-skill-rail" aria-label="当前角色技能">
+                    <div id="mobile-action-rail" class="battle-mobile-skill-rail" role="tabpanel" aria-label="当前角色技能">
                         @if (mobileActionSlot.SoulImprint is { } mobileSoulImprint)
                         {
                             var soulSelected = mobileActionSlot.IsSoulImprintQueued;
@@ -358,17 +384,10 @@ else
                             </button>
                         }
                     </div>
-                    <div class="battle-mobile-quick-actions__hint">
-                        <span>@(_isQuickSkillCastEnabled ? "快速施放已开启 · 点按可用技能直接安排" : "点按技能先查看效果，再确认使用")</span>
-                        <label class="quick-skill-toggle quick-skill-toggle--compact">
-                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
-                            <strong>快速施放</strong>
-                        </label>
-                    </div>
                 }
                 else
                 {
-                    <div class="battle-mobile-supply-rail" aria-label="当前角色战斗补给">
+                    <div id="mobile-action-rail" class="battle-mobile-supply-rail" role="tabpanel" aria-label="当前角色战斗补给">
                         @if (mobileActionSlot.OperationPotion is { } mobilePotion)
                         {
                             <div class="battle-mobile-supply battle-mobile-supply--operation">
@@ -393,6 +412,9 @@ else
                         }
                     </div>
                 }
+                <div class="battle-mobile-quick-actions__hint" aria-live="polite">
+                    <span>@GetMobileActionFooterHint(mobileActionSlot)</span>
+                </div>
             </div>
         }
         @if (countdown is not null)
@@ -473,14 +495,14 @@ else
         var positiveEffects = statusCharacter.StatusEffects.Where(effect => effect.IsPositive).ToList();
         var negativeEffects = statusCharacter.StatusEffects.Where(effect => !effect.IsPositive).ToList();
         <div class="status-dialog-overlay" @onclick="CloseStatusDialog">
-            <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" @onclick:stopPropagation>
+            <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" aria-describedby="status-dialog-description" @onclick:stopPropagation>
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
                         <span class="status-dialog__portrait" aria-hidden="true"><img src="@ProfessionArt.ForName(statusCharacter.ProfessionName)" alt="" /></span>
                         <div>
                             <span class="section-kicker">CHARACTER STATUS · @statusCharacter.SlotIndex 号位</span>
                             <h2 id="status-dialog-title">@statusCharacter.CharacterName</h2>
-                            <p>@statusCharacter.ProfessionName · Lv @statusCharacter.CharacterLevel</p>
+                            <p id="status-dialog-description">@statusCharacter.ProfessionName · Lv @statusCharacter.CharacterLevel</p>
                         </div>
                     </div>
                     <button type="button" class="status-dialog__close" @onclick="CloseStatusDialog" @ref="_statusDialogCloseButton" aria-label="关闭角色状态详情">×</button>
@@ -542,14 +564,14 @@ else
         var positiveMonsterEffects = monsterStatus.MonsterEffects.Where(effect => effect.IsPositive).ToList();
         var negativeMonsterEffects = monsterStatus.MonsterEffects.Where(effect => !effect.IsPositive).ToList();
         <div class="status-dialog-overlay" @onclick="CloseMonsterStatusDialog">
-            <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" @onclick:stopPropagation>
+            <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" aria-describedby="monster-status-dialog-description" @onclick:stopPropagation>
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
                         <span class="status-dialog__portrait status-dialog__portrait--enemy" aria-hidden="true"><img src="@MonsterArt.ForName(monsterStatus.MonsterName)" alt="" /></span>
                         <div>
                             <span class="section-kicker">ENEMY STATUS · 第 @monsterStatus.CurrentWaveNumber 波</span>
                             <h2 id="monster-status-dialog-title">@monsterStatus.MonsterName</h2>
-                            <p>@WeaponRules.ElementName(monsterStatus.MonsterElement)属性 · 第 @monsterStatus.CurrentEnemyNumber / @monsterStatus.EnemiesInCurrentWave 位</p>
+                            <p id="monster-status-dialog-description">@WeaponRules.ElementName(monsterStatus.MonsterElement)属性 · 第 @monsterStatus.CurrentEnemyNumber / @monsterStatus.EnemiesInCurrentWave 位</p>
                         </div>
                     </div>
                     <button type="button" class="status-dialog__close" @onclick="CloseMonsterStatusDialog" @ref="_monsterStatusDialogCloseButton" aria-label="关闭怪物状态详情">×</button>
@@ -607,7 +629,7 @@ else
         var dialogSelected = IsSkillQueued(skillDialog.Character, skillDialog.Skill);
         var dialogCanUse = CanQueueSkill(skillDialog.Character, skillDialog.Skill);
         <div class="skill-dialog-overlay" @onclick="CloseSkillDialog">
-            <section class="skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title" @onclick:stopPropagation>
+            <section class="skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title" aria-describedby="skill-dialog-description" @onclick:stopPropagation>
                 <header class="skill-dialog__header">
                     <div class="skill-dialog__skill">
                         <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skillDialog.Skill)" aria-hidden="true">
@@ -619,7 +641,7 @@ else
                     <button type="button" class="skill-dialog__close" @onclick="CloseSkillDialog" @ref="_skillDialogCloseButton" aria-label="关闭技能详情">×</button>
                 </header>
                 <div class="skill-dialog__content">
-                    <p class="skill-dialog__description">@(string.IsNullOrWhiteSpace(skillDialog.Skill.Description) ? "该技能暂无详细说明。" : skillDialog.Skill.Description)</p>
+                    <p id="skill-dialog-description" class="skill-dialog__description">@(string.IsNullOrWhiteSpace(skillDialog.Skill.Description) ? "该技能暂无详细说明。" : skillDialog.Skill.Description)</p>
                     <div class="skill-dialog__facts">
                         @foreach (var effect in skillDialog.Skill.Effects)
                         {
@@ -658,127 +680,9 @@ else
         </div>
     }
 
-    @if (ownSlots.Count > 0 || IsOwner || _roomDetail.CanLeaveRoom)
+    @if (IsOwner || _roomDetail.CanLeaveRoom)
     {
-    <section id="battle-loadout" class="battle-controls battle-controls--loadout" aria-label="技能与战斗补给" @ref="_loadoutSection">
-        @if (ownSlots.Count > 0)
-        {
-            <nav class="battle-loadout__tabs" aria-label="战斗操作分类">
-                <button type="button" class="@(_mobileLoadoutView == "skills" ? "active" : null)" aria-pressed="@(_mobileLoadoutView == "skills" ? "true" : "false")" @onclick='() => _mobileLoadoutView = "skills"'>
-                    <span aria-hidden="true">✦</span><strong>职业技能</strong><small>@ownSlots.Sum(slot => slot.Skills.Count(skill => skill.SkillCode is not null))</small>
-                </button>
-                <button type="button" class="@(_mobileLoadoutView == "supplies" ? "active" : null)" aria-pressed="@(_mobileLoadoutView == "supplies" ? "true" : "false")" @onclick='() => _mobileLoadoutView = "supplies"'>
-                    <span aria-hidden="true">✚</span><strong>战斗补给</strong><small>@ownSlots.Sum(slot => slot.Consumables.Count(supply => supply.ItemCode is not null))</small>
-                </button>
-            </nav>
-
-            <div class="battle-loadout__panel @(_mobileLoadoutView == "skills" ? "battle-loadout__panel--selected" : null)">
-            <div class="battle-skills" aria-label="职业技能">
-                <div class="battle-supplies__header">
-                    <div class="battle-loadout__section-title"><span class="section-kicker">CLASS SKILLS</span><h3>职业技能</h3></div>
-                    <div class="battle-skills__tools">
-                        <label class="quick-skill-toggle" title="开启后，点击可用技能会直接安排到本回合">
-                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
-                            <span><strong>快速施放</strong><small>@(_isQuickSkillCastEnabled ? "点击技能立即安排" : "点击技能先查看详情")</small></span>
-                        </label>
-                        <a href="/talents">调整技能 ↗</a>
-                    </div>
-                </div>
-                @foreach (var characterSlot in ownSlots)
-                {
-                    <div class="battle-skills__character" @key="characterSlot.CharacterId">
-                        <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName · @characterSlot.ProfessionName</strong><span>自动技能按 1 → 5 号位依次判定</span></div>
-                        @if (characterSlot.SoulImprint is { } soulImprint)
-                        {
-                            var soulSelected = characterSlot.IsSoulImprintQueued;
-                            <button type="button"
-                                    class="battle-supply battle-supply--operation @(soulSelected ? "battle-supply--selected" : "")"
-                                    disabled="@_isBusy"
-                                    title="@GetSoulImprintHint(characterSlot, soulImprint)"
-                                    aria-pressed="@(soulSelected ? "true" : "false")"
-                                    @onclick="() => ToggleSoulImprintAsync(characterSlot, soulImprint)">
-                                <span class="battle-supply__icon" aria-hidden="true">✦</span>
-                                <span class="battle-supply__body"><strong>魂印 · @soulImprint.Name</strong><small>@GetSoulImprintStatus(soulImprint, soulSelected)</small></span>
-                                <span class="battle-supply__action">@(soulSelected ? "取消" : "释放")</span>
-                            </button>
-                        }
-                        <div class="battle-skill-grid">
-                            @foreach (var skill in characterSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
-                            {
-                                var selected = IsSkillQueued(characterSlot, skill);
-                                var available = CanQueueSkill(characterSlot, skill);
-                                <button type="button"
-                                        class="battle-skill-card battle-skill-card--@GetSkillTone(skill) @(selected ? "battle-skill-card--selected" : "") @(!available ? "battle-skill-card--unavailable" : "")"
-                                        disabled="@_isBusy"
-                                        title="@GetSkillHint(characterSlot, skill)"
-                                        aria-pressed="@(selected ? "true" : "false")"
-                                        aria-haspopup="dialog"
-                                        @onclick="() => HandleSkillClickAsync(characterSlot, skill)">
-                                    <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
-                                        <span class="battle-skill-card__flare"></span>
-                                        <img class="battle-skill-card__art" src="@SkillArt.ForCode(skill.SkillCode)" alt="" />
-                                        <span class="battle-skill-card__slot">@skill.SlotIndex</span>
-                                        @if (skill.CooldownRoundsRemaining > 0) { <span class="battle-skill-card__cooldown">@skill.CooldownRoundsRemaining</span> }
-                                        @if (selected) { <span class="battle-skill-card__check">✓</span> }
-                                    </span>
-                                    <strong class="battle-skill-card__name">@skill.SkillName</strong>
-                                    <small class="battle-skill-card__status">@GetSkillStatus(skill, selected)</small>
-                                    @if (skill.AutoUseEnabled) { <span class="battle-skill-card__auto">AUTO</span> }
-                                </button>
-                            }
-                        </div>
-                    </div>
-                }
-                <p>可手动安排多个技能；关闭“快速施放”时，点击图标可查看效果、确认使用并设置该技能的自动策略。</p>
-                @if (_skillMessage is not null) { <p class="battle-supplies__message" role="alert">@_skillMessage</p> }
-            </div>
-            </div>
-        }
-        @if (ownSlots.Count > 0)
-        {
-            <div class="battle-loadout__panel @(_mobileLoadoutView == "supplies" ? "battle-loadout__panel--selected" : null)">
-            <div class="battle-supplies" aria-label="战斗补给">
-                <div class="battle-supplies__header">
-                    <div class="battle-loadout__section-title"><span class="section-kicker">COMBAT SUPPLIES</span><h3>战斗补给</h3></div>
-                    <a href="/supplies">管理补给槽 ↗</a>
-                </div>
-                <div class="battle-supplies__characters">
-                    @foreach (var characterSlot in ownSlots)
-                    {
-                        <div class="battle-supplies__character" @key="characterSlot.CharacterId">
-                            <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName</strong><span>HP @characterSlot.CharacterHp / @characterSlot.CharacterMaxHp</span></div>
-                            <div class="battle-supplies__slots">
-                                @if (characterSlot.OperationPotion is { } operationPotion)
-                                {
-                                    <div class="battle-supply battle-supply--operation" title="作战药剂在本场首次结算时自动使用">
-                                        <span class="battle-supply__icon" aria-hidden="true">@if (operationPotion.ItemCode is { } potionCode) { <img src="@ItemArt.ForCode(potionCode)" alt="" /> } else { <text>✦</text> }</span>
-                                        <span class="battle-supply__body"><strong>@(operationPotion.ItemName ?? "空作战药剂槽")</strong><small>@(operationPotion.ItemCode is null ? "前往补给页装备" : $"库存 {operationPotion.Quantity} · {operationPotion.Description}")</small></span>
-                                        <span class="battle-supply__action">药剂</span>
-                                    </div>
-                                }
-                                @foreach (var supply in characterSlot.Consumables.OrderBy(supply => supply.SlotIndex))
-                                {
-                                    var selected = characterSlot.PendingConsumableSlotIndex == supply.SlotIndex;
-                                    <button type="button"
-                                            class="battle-supply @(selected ? "battle-supply--selected" : "")"
-                                            disabled="@(_isBusy || !CanQueueConsumable(characterSlot, supply))"
-                                            title="@GetConsumableHint(characterSlot, supply)"
-                                            aria-pressed="@(selected ? "true" : "false")"
-                                            @onclick="() => ToggleConsumableAsync(characterSlot, supply)">
-                                        <span class="battle-supply__icon" aria-hidden="true">@if (supply.ItemCode is { } supplyCode) { <img src="@ItemArt.ForCode(supplyCode)" alt="" /> } else { <text>✚</text> }</span>
-                                        <span class="battle-supply__body"><strong>@(supply.ItemName ?? $"空槽位 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
-                                        <span class="battle-supply__action">@(selected ? "取消" : "使用")</span>
-                                    </button>
-                                }
-                            </div>
-                        </div>
-                    }
-                </div>
-                <p>普通消耗品可手动排队至下一次结算，不占用攻击；作战药剂在本场首次结算时自动使用。</p>
-                @if (_consumableMessage is not null) { <p class="battle-supplies__message" role="alert">@_consumableMessage</p> }
-            </div>
-            </div>
-        }
+    <section class="battle-controls battle-controls--room-actions" aria-label="房间操作">
         <div class="battle-controls__tools">
             @if (IsOwner && _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
             {
@@ -868,7 +772,8 @@ else
     private DateTime _serverTimeUtc;
     private DateTime _serverTimeReceivedAtUtc;
     private ElementReference _battleCommand;
-    private ElementReference _loadoutSection;
+    private ElementReference _mobileQuickActions;
+    private ElementReference _mobileActionCharacters;
     private ElementReference _rewardsTrigger;
     private ElementReference _rewardsCloseButton;
     private ElementReference _logTrigger;
@@ -886,6 +791,9 @@ else
     private bool _isQuickSkillCastEnabled;
     private string _mobileLoadoutView = "skills";
     private int? _mobileActionCharacterId;
+    private bool _scrollToMobileActionCharacter;
+    private bool _alignMobileQuickActions;
+    private bool _hasRevealedShortViewport;
     private bool _isSkillDialogOpen;
     private bool _focusSkillDialogCloseButton;
     private bool _isSkillAutoSaving;
@@ -927,6 +835,25 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!_hasRevealedShortViewport &&
+            _roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter && slot.IsOccupied) == true)
+        {
+            _hasRevealedShortViewport = true;
+            await Js.InvokeVoidAsync("battleUi.revealQuickActionsOnShortViewport", _mobileQuickActions);
+        }
+
+        if (_scrollToMobileActionCharacter)
+        {
+            _scrollToMobileActionCharacter = false;
+            await Js.InvokeVoidAsync("battleUi.revealSelectedMobileCharacter", _mobileActionCharacters);
+        }
+
+        if (_alignMobileQuickActions)
+        {
+            _alignMobileQuickActions = false;
+            await Js.InvokeVoidAsync("battleUi.revealQuickActionsOnShortViewport", _mobileQuickActions);
+        }
+
         if (_focusSkillDialogCloseButton)
         {
             _focusSkillDialogCloseButton = false;
@@ -969,19 +896,53 @@ else
         }
     }
 
-    private Task ScrollToLoadoutAsync() => ScrollBelowBattleCommandAsync(_loadoutSection);
+    private void ToggleMobileLoadoutView()
+    {
+        _mobileLoadoutView = _mobileLoadoutView == "skills" ? "supplies" : "skills";
+        _alignMobileQuickActions = true;
+    }
 
     private void SelectMobileActionCharacter(int? characterId)
     {
-        if (characterId is not null)
+        if (characterId is not null && _mobileActionCharacterId != characterId)
         {
             _mobileActionCharacterId = characterId;
+            _scrollToMobileActionCharacter = true;
+            _alignMobileQuickActions = true;
         }
     }
 
-    private async Task ScrollBelowBattleCommandAsync(ElementReference target)
+    private static string GetMobileActionHint(RoomSlotResponse slot, IReadOnlyCollection<RoomSlotResponse> ownSlots)
     {
-        await Js.InvokeVoidAsync("battleUi.scrollBelowSticky", target, _battleCommand);
+        if (!slot.IsAlive)
+        {
+            return ownSlots.Any(candidate => candidate.IsAlive)
+                ? "该角色已阵亡 · 左右切换选择可操作角色"
+                : "该角色已阵亡 · 暂无可操作角色";
+        }
+
+        return ownSlots.Count > 1
+            ? "左右切换角色 · 点按技能安排本回合行动"
+            : "点按技能即可安排本回合行动";
+    }
+
+    private string GetMobileActionFooterHint(RoomSlotResponse slot)
+    {
+        var queuedCount = GetMobileQueuedActionCount(slot);
+
+        return _skillMessage ?? _consumableMessage ?? (queuedCount > 0
+            ? $"本回合已安排 {queuedCount} 项 · 再点已选项可取消"
+            : _isQuickSkillCastEnabled
+                ? "快速释放已开启 · 点按可用技能直接安排"
+            : "点按技能先查看效果，再确认使用");
+    }
+
+    private static int GetMobileQueuedActionCount(RoomSlotResponse slot)
+    {
+        var queuedCount = slot.Skills.Count(skill => skill.SkillCode is not null && IsSkillQueued(slot, skill));
+        if (slot.IsSoulImprintQueued) queuedCount++;
+        if (slot.PendingConsumableSlotIndex is not null) queuedCount++;
+        return queuedCount;
     }
 
     private void OpenRewards()
@@ -1397,6 +1358,7 @@ else
                 _roomDetail = detail;
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
+                _alignMobileQuickActions = true;
                 succeeded = true;
             }
         }
@@ -1444,6 +1406,7 @@ else
                 _roomDetail = detail;
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
+                _alignMobileQuickActions = true;
             }
         }
         catch { _skillMessage = "连接失败，请稍后重试。"; }
@@ -1495,6 +1458,7 @@ else
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
                 _consumableMessage = null;
+                _alignMobileQuickActions = true;
             }
         }
         catch
@@ -1560,6 +1524,7 @@ else
             _focusMonsterStatusDialogCloseButton = false;
         }
         _roomDetail = detail;
+        SyncMobileActionCharacter(previous, detail);
         if (!allowCombatFeedback || previous is null || detail is null || detail.RoundNumber <= 0) return;
 
         var resolvedAnotherRound = detail.RunSequence > previous.RunSequence ||
@@ -1577,6 +1542,35 @@ else
                 : Math.Max(0, previous.MonsterHp);
         var defeated = sameEnemy ? detail.MonsterHp <= 0 : detail.RunSequence == previous.RunSequence;
         ShowCombatFeedback(damage, defeated);
+    }
+
+    private void SyncMobileActionCharacter(RoomDetailResponse? previous, RoomDetailResponse? current)
+    {
+        if (current is null) return;
+
+        var selected = current.Slots.FirstOrDefault(slot => slot.CharacterId == _mobileActionCharacterId &&
+            slot.IsCurrentUserCharacter && slot.IsOccupied);
+        if (selected is null)
+        {
+            SetMobileActionCharacter(current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive)?.CharacterId
+                ?? current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied)?.CharacterId);
+            return;
+        }
+
+        var previouslyAlive = previous?.Slots.FirstOrDefault(slot => slot.CharacterId == selected.CharacterId)?.IsAlive == true;
+        if (!previouslyAlive || selected.IsAlive) return;
+
+        SetMobileActionCharacter(current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive)?.CharacterId
+            ?? selected.CharacterId);
+    }
+
+    private void SetMobileActionCharacter(int? characterId)
+    {
+        if (_mobileActionCharacterId == characterId) return;
+
+        _mobileActionCharacterId = characterId;
+        _scrollToMobileActionCharacter = true;
+        _alignMobileQuickActions = true;
     }
 
     private void ShowCombatFeedback(int damage, bool defeated)

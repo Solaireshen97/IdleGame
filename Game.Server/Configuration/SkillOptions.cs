@@ -30,6 +30,9 @@ public sealed class CombatSkillOptions
     public decimal AttackPowerPercent { get; set; } = 100;
     public decimal HealMaxHpPercent { get; set; }
     public int CooldownRounds { get; set; }
+    public decimal ConditionalDamageBonusPercent { get; set; }
+    public string? RequiredTargetStatusCode { get; set; }
+    public int? TargetHpBelowPercent { get; set; }
     public string AutoCondition { get; set; } = string.Empty;
     public List<CombatSkillEffectOptions> Effects { get; set; } = [];
 }

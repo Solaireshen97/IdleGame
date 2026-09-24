@@ -180,6 +180,20 @@ public class MonsterCombatServiceTests
     }
 
     [Fact]
+    public async Task TimedForcedSkillsBypassNormalChanceAndPreferHardEnrage()
+    {
+        await using var test = await Context.CreateAsync("timed-slime");
+
+        Assert.Equal("BasicAttack", (await test.Service.EnsureIntentAsync(test.Room, test.Monster)).ActionType);
+        test.Db.MonsterIntents.RemoveRange(test.Db.MonsterIntents);
+        test.Room.RoundNumber = 3;
+        Assert.Equal("soft-enrage", (await test.Service.EnsureIntentAsync(test.Room, test.Monster)).SkillCode);
+        test.Db.MonsterIntents.RemoveRange(test.Db.MonsterIntents);
+        test.Room.RoundNumber = 6;
+        Assert.Equal("hard-enrage", (await test.Service.EnsureIntentAsync(test.Room, test.Monster)).SkillCode);
+    }
+
+    [Fact]
     public async Task SwordGuardStanceProvidesPassiveTenPercentReduction()
     {
         await using var test = await Context.CreateAsync("basic-attacks-only");

@@ -796,31 +796,71 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 TalentRules.EffectiveMaxHp(participant.Character),
                 participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
                 participant.Character.WeaponEnmityPercent + participant.Character.TemporaryWeaponEnmityPercent);
+            var needsHuntersMark = string.Equals(skill.RequiredTargetStatusCode, "hunters-mark", StringComparison.OrdinalIgnoreCase) ||
+                ranks.GetValueOrDefault("hunter-predator") > 0;
+            var hasHuntersMark = needsHuntersMark && monsterCombatService is not null &&
+                await monsterCombatService.HasStatusAsync(room, "Monster", monster.Id, "hunters-mark");
+            var requiredStatusMet = skill.RequiredTargetStatusCode is null || monsterCombatService is not null &&
+                (string.Equals(skill.RequiredTargetStatusCode, "hunters-mark", StringComparison.OrdinalIgnoreCase)
+                    ? hasHuntersMark
+                    : await monsterCombatService.HasStatusAsync(room, "Monster", monster.Id, skill.RequiredTargetStatusCode));
+            var targetHpConditionMet = skill.TargetHpBelowPercent is null ||
+                (long)monster.Hp * 100 <= (long)monster.MaxHp * skill.TargetHpBelowPercent.Value;
+            var conditionalDamageBonus = requiredStatusMet && targetHpConditionMet
+                ? skill.ConditionalDamageBonusPercent : 0m;
+            var predatorBonus = ranks.GetValueOrDefault("hunter-predator") > 0 && hasHuntersMark ? 15m : 0m;
+
+            int ReduceDamageSkillCooldowns(int rounds, string sourceName)
+            {
+                var affected = 0;
+                foreach (var entry in cooldowns.Where(entry => entry.CharacterId == participant.Character.Id &&
+                             entry.SkillCode != skill.Code && entry.ReadyAtRound > room.RoundNumber &&
+                             !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix) &&
+                             skillCatalog.FindSkill(entry.SkillCode) is { } coolingSkill &&
+                             SkillCatalog.EffectsFor(coolingSkill).Any(coolingEffect => coolingEffect.Type == "Damage")))
+                {
+                    entry.ReadyAtRound = Math.Max(room.RoundNumber, entry.ReadyAtRound - rounds);
+                    affected++;
+                }
+                if (affected > 0)
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的 {sourceName} 使 {affected} 个伤害技能的冷却缩短 {rounds} 回合。");
+                return affected;
+            }
+
+            async Task<int> DealSkillDamageAsync(CombatSkillEffectOptions damageEffect, string sourceName)
+            {
+                if (monster.Hp <= 0) return 0;
+                var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement)
+                    ? mainElement : (ElementType?)null;
+                var critical = RollCritical(participant.Character, isSkill: true);
+                var attackModifier = monsterCombatService is null ? 0m :
+                    await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
+                var monsterReduction = monsterCombatService is null ? 0m :
+                    await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
+                var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
+                    damageEffect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + participant.Character.TemporaryWeaponAttackBonusPercent + attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
+                        HealthPercent: healthPercent,
+                        CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                        ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
+                        ReductionPercent: monsterReduction,
+                        SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho + conditionalDamageBonus + predatorBonus +
+                            (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
+                        ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent), damageEffect.AttackPowerPercent);
+                monster.Hp = Math.Max(0, monster.Hp - damage);
+                var action = string.Equals(sourceName, skill.Name, StringComparison.Ordinal)
+                    ? $"使用 {sourceName}" : $"触发 {sourceName}";
+                logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} {action} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
+                return damage;
+            }
+
             foreach (var effect in SkillCatalog.EffectsFor(skill))
             {
                 switch (effect.Type)
                 {
                     case "Damage" when monster.Hp > 0:
                     {
-                        var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement)
-                            ? mainElement : (ElementType?)null;
-                        var critical = RollCritical(participant.Character, isSkill: true);
-                        var attackModifier = monsterCombatService is null ? 0m :
-                            await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
-                        var monsterReduction = monsterCombatService is null ? 0m :
-                            await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
-                        var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
-                            effect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + participant.Character.TemporaryWeaponAttackBonusPercent + attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
-                                HealthPercent: healthPercent,
-                                CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                                ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
-                                ReductionPercent: monsterReduction,
-                                SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho +
-                                    (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
-                                ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent), effect.AttackPowerPercent);
-                        monster.Hp = Math.Max(0, monster.Hp - damage);
+                        var damage = await DealSkillDamageAsync(effect, skill.Name);
                         totalDamage += damage;
-                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                         applied = true;
                         break;
                     }
@@ -881,6 +921,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Monster", [monster.Id], true);
                         if (removed is null) break;
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，驱散了 {monster.Name} 的 {removed.Name}。");
+                        if (skill.Code == "mage-spellbreak" && ranks.GetValueOrDefault("mage-stable-channeling") > 0)
+                            ReduceDamageSkillCooldowns(1, "稳定引导");
                         applied = true;
                         break;
                     }
@@ -890,6 +932,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                             logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，打断了 {monster.Name} 的行动。");
                             if (ranks.GetValueOrDefault("sword-disruption") > 0 && skill.Code == "sword-intercept")
                                 await SetTalentStateAsync(room, participant.Character.Id, "talent-intercept-echo", 3);
+                            if (ranks.GetValueOrDefault("rogue-opportunist") > 0 && skill.Code == "rogue-gouge" && monster.Hp > 0 && monsterCombatService is not null)
+                                await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "rogue-opening", 2, logs, monster.Name);
                             applied = true;
                         }
                         break;
@@ -908,6 +952,40 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                             effect.DurationRounds, logs, targetLabel);
                         break;
                     }
+                    case "CooldownReduction":
+                        applied |= ReduceDamageSkillCooldowns(effect.Power, skill.Name) > 0;
+                        break;
+                }
+            }
+            if (monster.Hp > 0 && skill.Code == "mage-arcane-barrage" && ranks.GetValueOrDefault("mage-arcane-mastery") > 0)
+            {
+                totalDamage += await DealSkillDamageAsync(new CombatSkillEffectOptions
+                    { Type = "Damage", Target = "Monster", Power = 1, AttackPowerPercent = 40 }, "奥术掌握追加飞弹");
+                applied = true;
+            }
+            if (monster.Hp > 0 && skill.Code == "rogue-blade-flurry" && ranks.GetValueOrDefault("rogue-relentless-assault") > 0)
+            {
+                totalDamage += await DealSkillDamageAsync(new CombatSkillEffectOptions
+                    { Type = "Damage", Target = "Monster", Power = 1, AttackPowerPercent = 40 }, "夺命连攻追加攻击");
+                applied = true;
+            }
+            if (monsterCombatService is not null && monster.Hp > 0 && skill.Code == "hunter-venom-arrow" &&
+                ranks.GetValueOrDefault("hunter-relentless") > 0)
+            {
+                applied |= await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "poison", 3, logs, monster.Name);
+            }
+            if (monsterCombatService is not null && skill.Code == "hunter-field-mend" && ranks.GetValueOrDefault("hunter-hardened") > 0)
+                applied |= await monsterCombatService.ApplyStatusAsync(room, "Character", participant.Character.Id,
+                    "hunter-resilience", 1, logs, $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
+            if (monsterCombatService is not null &&
+                (skill.Code == "mage-frost-ward" && ranks.GetValueOrDefault("mage-frozen-heart") > 0 ||
+                 skill.Code == "rogue-evasion" && ranks.GetValueOrDefault("rogue-escape-artist") > 0))
+            {
+                var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", [participant.Character.Id], false);
+                if (removed is not null)
+                {
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 借助 {skill.Name} 移除了 {removed.Name}。");
+                    applied = true;
                 }
             }
             if (!applied) return false;
@@ -1013,6 +1091,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     break;
                 case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
                     if (effect.Target != "Monster" || monster.Hp > 0) return true;
+                    break;
+                case "CooldownReduction":
+                    if (await dbContext.BattleSkillCooldowns.AnyAsync(entry => entry.RoomId == room.Id &&
+                            entry.CharacterId == participant.Character.Id && entry.SkillCode != skill.Code &&
+                            !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix) &&
+                            entry.ReadyAtRound > room.RoundNumber)) return true;
                     break;
             }
         }

@@ -29,9 +29,16 @@ public sealed class SkillCatalog
         foreach (var skill in options.Value.Abilities)
         {
             var effects = EffectsFor(skill);
+            var hasDamage = effects.Any(effect => effect.Type == "Damage");
+            var hasConditionalDamage = skill.ConditionalDamageBonusPercent > 0;
             if (string.IsNullOrWhiteSpace(skill.Code) || string.IsNullOrWhiteSpace(skill.Name) || string.IsNullOrWhiteSpace(skill.Description) ||
                 !_professions.ContainsKey(skill.ProfessionCode) || effects.Count == 0 ||
                 effects.Any(effect => !IsValidEffect(effect) || effect.Type == "ApplyStatus" && monsterCombatCatalog is not null && monsterCombatCatalog.FindStatus(effect.StatusCode) is null) ||
+                skill.ConditionalDamageBonusPercent is < 0 or > 200 ||
+                skill.TargetHpBelowPercent is < 1 or > 100 ||
+                hasConditionalDamage != (skill.RequiredTargetStatusCode is not null || skill.TargetHpBelowPercent is not null) ||
+                hasConditionalDamage && !hasDamage ||
+                skill.RequiredTargetStatusCode is not null && monsterCombatCatalog is not null && monsterCombatCatalog.FindStatus(skill.RequiredTargetStatusCode) is null ||
                 AutoConditionFor(skill) is not ("Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent") ||
                 skill.CooldownRounds < 0 || !_skills.TryAdd(skill.Code, skill))
                 throw new InvalidOperationException($"Invalid skill configuration: {skill.Code}");
@@ -120,14 +127,16 @@ public sealed class SkillCatalog
 
     private static bool IsValidEffect(CombatSkillEffectOptions effect)
     {
-        if (effect.Type is not ("Damage" or "Heal" or "Guard" or "Cleanse" or "Dispel" or "Interrupt" or "ApplyStatus")) return false;
+        if (effect.Type is not ("Damage" or "Heal" or "Guard" or "Cleanse" or "Dispel" or "Interrupt" or "ApplyStatus" or "CooldownReduction")) return false;
         var validTarget = effect.Type switch { "Damage" or "Dispel" or "Interrupt" => effect.Target == "Monster",
             "Heal" => effect.Target is "LowestHpAlly" or "AllAlive" or "Self", "Guard" => effect.Target is "FrontAlly" or "Self",
-            "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self", "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly", _ => false };
+            "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self", "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly",
+            "CooldownReduction" => effect.Target == "Self", _ => false };
         if (!validTarget || effect.Power < 0 || effect.AttackPowerPercent is < 0 or > 1000 || effect.HealMaxHpPercent is < 0 or > 100) return false;
         if (effect.Type == "Damage" && effect.Power == 0 && effect.AttackPowerPercent == 0) return false;
         if (effect.Type == "Heal" && effect.Power == 0 && effect.HealMaxHpPercent == 0) return false;
         if (effect.Type == "Guard" && effect.Power is <= 0 or > 100) return false;
+        if (effect.Type == "CooldownReduction" && effect.Power is <= 0 or > 10) return false;
         return effect.Type != "ApplyStatus" || !string.IsNullOrWhiteSpace(effect.StatusCode) && effect.DurationRounds > 0;
     }
 }

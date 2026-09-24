@@ -98,6 +98,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             definition.IsPositive == isPositive && definition.IsDispellable);
     }
 
+    public async Task<bool> HasStatusAsync(Room room, string targetType, int targetId, string statusCode)
+    {
+        var effects = await GetActiveEffectsAsync(room, targetType, [targetId]);
+        return effects.Any(effect => string.Equals(effect.EffectCode, statusCode, StringComparison.OrdinalIgnoreCase));
+    }
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -281,8 +287,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     private async Task<MonsterSkillOptions?> SelectSkillAsync(Room room, Monster monster)
     {
         var profile = catalog.FindProfile(monster.CombatProfileCode);
-        if (profile is null || profile.Skills.Count == 0 || profile.SkillUseChancePercent <= 0 ||
-            (random ?? Random.Shared).Next(1, 101) > profile.SkillUseChancePercent) return null;
+        if (profile is null || profile.Skills.Count == 0) return null;
         var cooldowns = await dbContext.BattleMonsterSkillCooldowns.Where(entry =>
             entry.RoomId == room.Id && entry.MonsterId == monster.Id).ToListAsync();
         foreach (var local in dbContext.BattleMonsterSkillCooldowns.Local.Where(entry =>
@@ -292,9 +297,17 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             .Where(candidate => candidate.Skill is not null &&
                 (candidate.Skill.SelfHpBelowPercent is null ||
                  (long)monster.Hp * 100 <= (long)monster.MaxHp * candidate.Skill.SelfHpBelowPercent) &&
+                (candidate.Skill.RoomRoundAtLeast is null || room.RoundNumber >= candidate.Skill.RoomRoundAtLeast) &&
                 cooldowns.All(cooldown => !string.Equals(cooldown.SkillCode, candidate.Skill.Code, StringComparison.OrdinalIgnoreCase) ||
                     cooldown.ReadyAtRound <= room.RoundNumber)).ToList();
         if (eligible.Count == 0) return null;
+        var forced = eligible.Where(candidate => candidate.Skill!.ForcedPriority > 0)
+            .OrderByDescending(candidate => candidate.Skill!.ForcedPriority)
+            .ThenByDescending(candidate => candidate.Skill!.RoomRoundAtLeast)
+            .FirstOrDefault();
+        if (forced.Skill is not null) return forced.Skill;
+        if (profile.SkillUseChancePercent <= 0 ||
+            (random ?? Random.Shared).Next(1, 101) > profile.SkillUseChancePercent) return null;
         var roll = (random ?? Random.Shared).Next(eligible.Sum(candidate => candidate.Entry.Weight));
         foreach (var candidate in eligible)
         {

@@ -8,10 +8,10 @@
   },
   "assumptions": [
     "Resource sufficiency after 82h of fixed farming plus 2h reserved exploration; not earliest completion time.",
-    "Uses measured mean Lv7 hunt/featured dungeon/Lv10 elite times, preset field or week equipment and 100% victory for those targets.",
+    "Uses measured mean Lv7 hunt/featured dungeon/Lv10 elite times for all ten promotion routes with preset week equipment; observed victories were 539/540.",
     "Assumes four ordinary target sources take the representative Lv7 fight time and share its drop rate; real lower-level sources differ.",
     "Farm one featured dungeon currency, clear reward one token plus account first-clear two; spend all tokens on that exchange direction.",
-    "Quality distribution comes from production. Green-or-better counts any point allocation, not optimal rolls; combat week presets put the green point in skill one.",
+    "Quality distribution comes from production. Green-or-better raises enhancement capacity; the combat week presets use green weapons and fixed legal enhancement levels.",
     "Does not evolve equipment or level during the route, model first-clear manual input, cross-region travel, potion shortages, or failed deep attempts.",
     "Fragments are available before intermediate enhancement/swap losses; ten skills +2 and ten +1 cost 120 at current prices.",
     "This can reject resource-starved targets, but cannot establish that a new account needs exactly 84h or is guaranteed to finish by then."
@@ -21,133 +21,27 @@
       "element": "Earth",
       "profession": "knight",
       "count": {
-        "hunts": 888,
-        "dungeons": 144,
-        "elites": 105
+        "hunts": 949,
+        "dungeons": 131,
+        "elites": 114
       },
-      "exchangeCount": 12,
+      "exchangeCount": 11,
       "cyclesMinutes": {
-        "hunt": 2.7,
-        "dungeon": 12.5,
-        "elite": 6.8
+        "hunt": 2.5277777777777777,
+        "dungeon": 13.64997252888889,
+        "elite": 6.305555555555555
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 128,
-          "p50": 142,
-          "p90": 155
+          "p10": 138,
+          "p50": 152,
+          "p90": 165
         },
         "bossDrops": {
-          "p10": 20,
-          "p50": 26,
-          "p90": 32
-        },
-        "eliteDrops": {
-          "p10": 16,
-          "p50": 21,
-          "p90": 26
-        },
-        "greenOrdinary": {
-          "p10": 8,
-          "p50": 8,
-          "p90": 8
-        },
-        "fragments": {
-          "p10": 224,
-          "p50": 246,
-          "p90": 268
-        },
-        "bossBlue": {
-          "p10": 2,
-          "p50": 4,
-          "p90": 6
-        },
-        "exchangeBlue": {
-          "p10": 0,
-          "p50": 2,
-          "p90": 4
-        }
-      }
-    },
-    {
-      "element": "Earth",
-      "profession": "cleric",
-      "count": {
-        "hunts": 666,
-        "dungeons": 107,
-        "elites": 73
-      },
-      "exchangeCount": 9,
-      "cyclesMinutes": {
-        "hunt": 3.6,
-        "dungeon": 16.7,
-        "elite": 9.8
-      },
-      "resourceReadyFraction": 1,
-      "metrics": {
-        "huntDrops": {
-          "p10": 94,
-          "p50": 106,
-          "p90": 119
-        },
-        "bossDrops": {
-          "p10": 14,
-          "p50": 19,
-          "p90": 24
-        },
-        "eliteDrops": {
-          "p10": 10,
-          "p50": 15,
-          "p90": 19
-        },
-        "greenOrdinary": {
-          "p10": 8,
-          "p50": 8,
-          "p90": 8
-        },
-        "fragments": {
-          "p10": 161,
-          "p50": 178,
-          "p90": 196
-        },
-        "bossBlue": {
-          "p10": 1,
-          "p50": 3,
-          "p90": 5
-        },
-        "exchangeBlue": {
-          "p10": 0,
-          "p50": 1,
-          "p90": 3
-        }
-      }
-    },
-    {
-      "element": "Dark",
-      "profession": "knight",
-      "count": {
-        "hunts": 960,
-        "dungeons": 119,
-        "elites": 112
-      },
-      "exchangeCount": 10,
-      "cyclesMinutes": {
-        "hunt": 2.5,
-        "dungeon": 15.1,
-        "elite": 6.4
-      },
-      "resourceReadyFraction": 1,
-      "metrics": {
-        "huntDrops": {
-          "p10": 139,
-          "p50": 153,
-          "p90": 168
-        },
-        "bossDrops": {
-          "p10": 16,
-          "p50": 22,
-          "p90": 27
+          "p10": 18,
+          "p50": 24,
+          "p90": 30
         },
         "eliteDrops": {
           "p10": 17,
@@ -160,9 +54,9 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 227,
-          "p50": 247,
-          "p90": 270
+          "p10": 232,
+          "p50": 253,
+          "p90": 275
         },
         "bossBlue": {
           "p10": 1,
@@ -171,36 +65,89 @@
         },
         "exchangeBlue": {
           "p10": 0,
-          "p50": 1,
+          "p50": 2,
           "p90": 3
         }
       }
     },
     {
-      "element": "Dark",
-      "profession": "cleric",
+      "element": "Earth",
+      "profession": "warrior",
       "count": {
-        "hunts": 685,
-        "dungeons": 91,
-        "elites": 83
+        "hunts": 1289,
+        "dungeons": 162,
+        "elites": 127
       },
-      "exchangeCount": 7,
+      "exchangeCount": 13,
       "cyclesMinutes": {
-        "hunt": 3.5,
-        "dungeon": 19.6,
-        "elite": 8.6
+        "hunt": 1.8611111111111112,
+        "dungeon": 11.094416069444444,
+        "elite": 5.638888888888888
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 97,
-          "p50": 109,
-          "p90": 122
+          "p10": 190,
+          "p50": 206,
+          "p90": 223
         },
         "bossDrops": {
-          "p10": 12,
-          "p50": 16,
-          "p90": 21
+          "p10": 23,
+          "p50": 29,
+          "p90": 36
+        },
+        "eliteDrops": {
+          "p10": 20,
+          "p50": 25,
+          "p90": 31
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 304,
+          "p50": 327,
+          "p90": 350
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Earth",
+      "profession": "priest",
+      "count": {
+        "hunts": 778,
+        "dungeons": 111,
+        "elites": 84
+      },
+      "exchangeCount": 9,
+      "cyclesMinutes": {
+        "hunt": 3.0833333333333335,
+        "dungeon": 16.205526903888888,
+        "elite": 8.527777777777779
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 112,
+          "p50": 124,
+          "p90": 137
+        },
+        "bossDrops": {
+          "p10": 15,
+          "p50": 20,
+          "p90": 25
         },
         "eliteDrops": {
           "p10": 12,
@@ -213,52 +160,52 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 158,
-          "p50": 175,
-          "p90": 194
+          "p10": 183,
+          "p50": 202,
+          "p90": 221
         },
         "bossBlue": {
           "p10": 1,
-          "p50": 2,
-          "p90": 4
+          "p50": 3,
+          "p90": 5
         },
         "exchangeBlue": {
           "p10": 0,
           "p50": 1,
-          "p90": 2
+          "p90": 3
         }
       }
     },
     {
-      "element": "Fire",
-      "profession": "knight",
+      "element": "Earth",
+      "profession": "inquisitor",
       "count": {
-        "hunts": 1043,
-        "dungeons": 139,
-        "elites": 130
+        "hunts": 1152,
+        "dungeons": 137,
+        "elites": 122
       },
       "exchangeCount": 11,
       "cyclesMinutes": {
-        "hunt": 2.3,
-        "dungeon": 12.9,
-        "elite": 5.5
+        "hunt": 2.0833333333333335,
+        "dungeon": 13.094413548333334,
+        "elite": 5.861111111111112
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 152,
-          "p50": 167,
-          "p90": 182
+          "p10": 168,
+          "p50": 184,
+          "p90": 201
         },
         "bossDrops": {
           "p10": 19,
-          "p50": 25,
-          "p90": 31
+          "p50": 24,
+          "p90": 30
         },
         "eliteDrops": {
-          "p10": 20,
-          "p50": 26,
-          "p90": 32
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
         },
         "greenOrdinary": {
           "p10": 8,
@@ -266,9 +213,115 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 255,
-          "p50": 277,
-          "p90": 299
+          "p10": 268,
+          "p50": 290,
+          "p90": 313
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Earth",
+      "profession": "elementalist",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 160,
+        "elites": 141
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 11.205525665,
+        "elite": 5.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 321,
+          "p50": 345,
+          "p90": 370
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Earth",
+      "profession": "arcanist",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 141,
+        "elites": 128
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 12.761079927777779,
+        "elite": 5.611111111111112
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 20,
+          "p50": 25,
+          "p90": 32
+        },
+        "eliteDrops": {
+          "p10": 20,
+          "p50": 25,
+          "p90": 31
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 306,
+          "p50": 329,
+          "p90": 353
         },
         "bossBlue": {
           "p10": 1,
@@ -283,141 +336,35 @@
       }
     },
     {
-      "element": "Fire",
-      "profession": "cleric",
+      "element": "Earth",
+      "profession": "marksman",
       "count": {
-        "hunts": 750,
-        "dungeons": 106,
-        "elites": 101
+        "hunts": 1570,
+        "dungeons": 167,
+        "elites": 148
       },
-      "exchangeCount": 9,
+      "exchangeCount": 14,
       "cyclesMinutes": {
-        "hunt": 3.2,
-        "dungeon": 16.9,
-        "elite": 7.1
+        "hunt": 1.527777777777778,
+        "dungeon": 10.761082055555555,
+        "elite": 4.861111111111112
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 107,
-          "p50": 120,
-          "p90": 133
-        },
-        "bossDrops": {
-          "p10": 14,
-          "p50": 19,
-          "p90": 24
-        },
-        "eliteDrops": {
-          "p10": 15,
-          "p50": 20,
-          "p90": 25
-        },
-        "greenOrdinary": {
-          "p10": 8,
-          "p50": 8,
-          "p90": 8
-        },
-        "fragments": {
-          "p10": 183,
-          "p50": 203,
-          "p90": 222
-        },
-        "bossBlue": {
-          "p10": 1,
-          "p50": 3,
-          "p90": 5
-        },
-        "exchangeBlue": {
-          "p10": 0,
-          "p50": 1,
-          "p90": 3
-        }
-      }
-    },
-    {
-      "element": "Water",
-      "profession": "knight",
-      "count": {
-        "hunts": 857,
-        "dungeons": 136,
-        "elites": 133
-      },
-      "exchangeCount": 11,
-      "cyclesMinutes": {
-        "hunt": 2.8,
-        "dungeon": 13.2,
-        "elite": 5.4
-      },
-      "resourceReadyFraction": 1,
-      "metrics": {
-        "huntDrops": {
-          "p10": 124,
-          "p50": 137,
-          "p90": 150
-        },
-        "bossDrops": {
-          "p10": 19,
-          "p50": 25,
-          "p90": 30
-        },
-        "eliteDrops": {
-          "p10": 21,
-          "p50": 26,
-          "p90": 33
-        },
-        "greenOrdinary": {
-          "p10": 8,
-          "p50": 8,
-          "p90": 8
-        },
-        "fragments": {
-          "p10": 225,
-          "p50": 248,
+          "p10": 233,
+          "p50": 251,
           "p90": 270
         },
-        "bossBlue": {
-          "p10": 1,
-          "p50": 3,
-          "p90": 6
-        },
-        "exchangeBlue": {
-          "p10": 0,
-          "p50": 1,
-          "p90": 3
-        }
-      }
-    },
-    {
-      "element": "Water",
-      "profession": "cleric",
-      "count": {
-        "hunts": 648,
-        "dungeons": 101,
-        "elites": 97
-      },
-      "exchangeCount": 8,
-      "cyclesMinutes": {
-        "hunt": 3.7,
-        "dungeon": 17.8,
-        "elite": 7.4
-      },
-      "resourceReadyFraction": 1,
-      "metrics": {
-        "huntDrops": {
-          "p10": 92,
-          "p50": 103,
-          "p90": 116
-        },
         "bossDrops": {
-          "p10": 13,
-          "p50": 18,
-          "p90": 23
+          "p10": 24,
+          "p50": 30,
+          "p90": 36
         },
         "eliteDrops": {
-          "p10": 14,
-          "p50": 19,
-          "p90": 24
+          "p10": 24,
+          "p50": 30,
+          "p90": 36
         },
         "greenOrdinary": {
           "p10": 8,
@@ -425,42 +372,42 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 162,
-          "p50": 181,
-          "p90": 199
+          "p10": 359,
+          "p50": 384,
+          "p90": 409
         },
         "bossBlue": {
-          "p10": 1,
-          "p50": 3,
-          "p90": 5
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
         },
         "exchangeBlue": {
-          "p10": 0,
-          "p50": 1,
-          "p90": 3
+          "p10": 1,
+          "p50": 2,
+          "p90": 4
         }
       }
     },
     {
-      "element": "Wind",
-      "profession": "knight",
+      "element": "Earth",
+      "profession": "beastmaster",
       "count": {
-        "hunts": 1263,
-        "dungeons": 156,
+        "hunts": 1371,
+        "dungeons": 155,
         "elites": 135
       },
       "exchangeCount": 13,
       "cyclesMinutes": {
-        "hunt": 1.9,
-        "dungeon": 11.5,
-        "elite": 5.3
+        "hunt": 1.75,
+        "dungeon": 11.53885112611111,
+        "elite": 5.305555555555555
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 186,
-          "p50": 202,
-          "p90": 219
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
         },
         "bossDrops": {
           "p10": 22,
@@ -478,9 +425,1917 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 300,
-          "p50": 324,
-          "p90": 348
+          "p10": 317,
+          "p50": 341,
+          "p90": 364
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Earth",
+      "profession": "assassin",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 157,
+        "elites": 141
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 11.42774806888889,
+        "elite": 5.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 320,
+          "p50": 344,
+          "p90": 368
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Earth",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1216,
+        "dungeons": 135,
+        "elites": 114
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.972222222222222,
+        "dungeon": 13.316637382777778,
+        "elite": 6.305555555555555
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 178,
+          "p50": 195,
+          "p90": 211
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 17,
+          "p50": 23,
+          "p90": 28
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 274,
+          "p50": 297,
+          "p90": 320
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "knight",
+      "count": {
+        "hunts": 909,
+        "dungeons": 117,
+        "elites": 138
+      },
+      "exchangeCount": 9,
+      "cyclesMinutes": {
+        "hunt": 2.638888888888889,
+        "dungeon": 15.316636003333336,
+        "elite": 5.194444444444445
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 131,
+          "p50": 145,
+          "p90": 159
+        },
+        "bossDrops": {
+          "p10": 16,
+          "p50": 21,
+          "p90": 27
+        },
+        "eliteDrops": {
+          "p10": 22,
+          "p50": 27,
+          "p90": 34
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 225,
+          "p50": 247,
+          "p90": 270
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 5
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "warrior",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 144,
+        "elites": 148
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 12.427739899444447,
+        "elite": 4.861111111111112
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 20,
+          "p50": 26,
+          "p90": 32
+        },
+        "eliteDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 36
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 316,
+          "p50": 340,
+          "p90": 364
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "priest",
+      "count": {
+        "hunts": 838,
+        "dungeons": 94,
+        "elites": 101
+      },
+      "exchangeCount": 8,
+      "cyclesMinutes": {
+        "hunt": 2.861111111111111,
+        "dungeon": 19.094415531666666,
+        "elite": 7.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 121,
+          "p50": 134,
+          "p90": 147
+        },
+        "bossDrops": {
+          "p10": 12,
+          "p50": 17,
+          "p90": 22
+        },
+        "eliteDrops": {
+          "p10": 15,
+          "p50": 20,
+          "p90": 25
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 190,
+          "p50": 211,
+          "p90": 231
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 2,
+          "p90": 5
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "inquisitor",
+      "count": {
+        "hunts": 1152,
+        "dungeons": 112,
+        "elites": 135
+      },
+      "exchangeCount": 9,
+      "cyclesMinutes": {
+        "hunt": 2.0833333333333335,
+        "dungeon": 15.98330390777778,
+        "elite": 5.305555555555555
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 168,
+          "p50": 184,
+          "p90": 201
+        },
+        "bossDrops": {
+          "p10": 15,
+          "p50": 20,
+          "p90": 25
+        },
+        "eliteDrops": {
+          "p10": 21,
+          "p50": 27,
+          "p90": 33
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 261,
+          "p50": 282,
+          "p90": 306
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 5
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "elementalist",
+      "count": {
+        "hunts": 1694,
+        "dungeons": 136,
+        "elites": 171
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.4166666666666667,
+        "dungeon": 13.205523055000002,
+        "elite": 4.194444444444445
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 27,
+          "p50": 34,
+          "p90": 41
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 371,
+          "p50": 395,
+          "p90": 423
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "arcanist",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 135,
+        "elites": 141
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 13.316631540000001,
+        "elite": 5.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 35
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 323,
+          "p50": 347,
+          "p90": 372
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "marksman",
+      "count": {
+        "hunts": 1570,
+        "dungeons": 142,
+        "elites": 176
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.527777777777778,
+        "dungeon": 12.64996310388889,
+        "elite": 4.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 233,
+          "p50": 251,
+          "p90": 270
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 25,
+          "p90": 31
+        },
+        "eliteDrops": {
+          "p10": 29,
+          "p50": 35,
+          "p90": 42
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 357,
+          "p50": 383,
+          "p90": 408
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "beastmaster",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 134,
+        "elites": 151
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 13.427747774999998,
+        "elite": 4.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 24,
+          "p50": 30,
+          "p90": 37
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 312,
+          "p50": 336,
+          "p90": 360
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "assassin",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 132,
+        "elites": 159
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 13.538860119999999,
+        "elite": 4.527777777777778
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 18,
+          "p50": 23,
+          "p90": 29
+        },
+        "eliteDrops": {
+          "p10": 26,
+          "p50": 32,
+          "p90": 39
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 329,
+          "p50": 353,
+          "p90": 379
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Dark",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 121,
+        "elites": 141
+      },
+      "exchangeCount": 10,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 14.761079316666669,
+        "elite": 5.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 16,
+          "p50": 22,
+          "p90": 27
+        },
+        "eliteDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 302,
+          "p50": 325,
+          "p90": 349
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "knight",
+      "count": {
+        "hunts": 1152,
+        "dungeons": 129,
+        "elites": 144
+      },
+      "exchangeCount": 10,
+      "cyclesMinutes": {
+        "hunt": 2.0833333333333335,
+        "dungeon": 13.87217011611111,
+        "elite": 4.972222222222222
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 168,
+          "p50": 184,
+          "p90": 201
+        },
+        "bossDrops": {
+          "p10": 18,
+          "p50": 23,
+          "p90": 29
+        },
+        "eliteDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 35
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 272,
+          "p50": 294,
+          "p90": 317
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "warrior",
+      "count": {
+        "hunts": 1838,
+        "dungeons": 157,
+        "elites": 176
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.3055555555555556,
+        "dungeon": 11.427749215555554,
+        "elite": 4.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 274,
+          "p50": 294,
+          "p90": 314
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 28,
+          "p50": 35,
+          "p90": 42
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 407,
+          "p50": 432,
+          "p90": 461
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "priest",
+      "count": {
+        "hunts": 1093,
+        "dungeons": 108,
+        "elites": 116
+      },
+      "exchangeCount": 9,
+      "cyclesMinutes": {
+        "hunt": 2.194444444444444,
+        "dungeon": 16.649970678888888,
+        "elite": 6.194444444444445
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 159,
+          "p50": 175,
+          "p90": 190
+        },
+        "bossDrops": {
+          "p10": 14,
+          "p50": 19,
+          "p90": 25
+        },
+        "eliteDrops": {
+          "p10": 18,
+          "p50": 23,
+          "p90": 29
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 243,
+          "p50": 264,
+          "p90": 286
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 5
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "inquisitor",
+      "count": {
+        "hunts": 1694,
+        "dungeons": 137,
+        "elites": 159
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.4166666666666667,
+        "dungeon": 13.094410936666666,
+        "elite": 4.527777777777778
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 31
+        },
+        "eliteDrops": {
+          "p10": 25,
+          "p50": 32,
+          "p90": 38
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 367,
+          "p50": 391,
+          "p90": 418
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "elementalist",
+      "count": {
+        "hunts": 2215,
+        "dungeons": 159,
+        "elites": 197
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.0833333333333333,
+        "dungeon": 11.316638322777779,
+        "elite": 3.638888888888889
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 333,
+          "p50": 354,
+          "p90": 377
+        },
+        "bossDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 32,
+          "p50": 39,
+          "p90": 47
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 473,
+          "p50": 503,
+          "p90": 532
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "arcanist",
+      "count": {
+        "hunts": 1570,
+        "dungeons": 137,
+        "elites": 163
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.527777777777778,
+        "dungeon": 13.094413537777777,
+        "elite": 4.416666666666667
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 233,
+          "p50": 251,
+          "p90": 270
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 26,
+          "p50": 32,
+          "p90": 39
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 348,
+          "p50": 374,
+          "p90": 399
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "marksman",
+      "count": {
+        "hunts": 2787,
+        "dungeons": 170,
+        "elites": 210
+      },
+      "exchangeCount": 14,
+      "cyclesMinutes": {
+        "hunt": 0.861111111111111,
+        "dungeon": 10.538856668333333,
+        "elite": 3.4166666666666665
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 421,
+          "p50": 446,
+          "p90": 471
+        },
+        "bossDrops": {
+          "p10": 24,
+          "p50": 30,
+          "p90": 37
+        },
+        "eliteDrops": {
+          "p10": 35,
+          "p50": 42,
+          "p90": 49
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 574,
+          "p50": 605,
+          "p90": 638
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 8
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "beastmaster",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 148,
+        "elites": 176
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 12.094416313333335,
+        "elite": 4.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 21,
+          "p50": 26,
+          "p90": 33
+        },
+        "eliteDrops": {
+          "p10": 29,
+          "p50": 35,
+          "p90": 42
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 343,
+          "p50": 368,
+          "p90": 394
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "assassin",
+      "count": {
+        "hunts": 2009,
+        "dungeons": 154,
+        "elites": 181
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.1944444444444444,
+        "dungeon": 11.64996702111111,
+        "elite": 3.9722222222222223
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 301,
+          "p50": 321,
+          "p90": 342
+        },
+        "bossDrops": {
+          "p10": 21,
+          "p50": 28,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 30,
+          "p50": 36,
+          "p90": 43
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 433,
+          "p50": 462,
+          "p90": 490
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Fire",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 135,
+        "elites": 155
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 13.316637738888888,
+        "elite": 4.638888888888888
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 25,
+          "p50": 31,
+          "p90": 38
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 328,
+          "p50": 353,
+          "p90": 378
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "knight",
+      "count": {
+        "hunts": 993,
+        "dungeons": 127,
+        "elites": 132
+      },
+      "exchangeCount": 10,
+      "cyclesMinutes": {
+        "hunt": 2.4166666666666665,
+        "dungeon": 14.094417571666668,
+        "elite": 5.416666666666667
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 144,
+          "p50": 159,
+          "p90": 173
+        },
+        "bossDrops": {
+          "p10": 18,
+          "p50": 23,
+          "p90": 29
+        },
+        "eliteDrops": {
+          "p10": 21,
+          "p50": 26,
+          "p90": 32
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 242,
+          "p50": 263,
+          "p90": 285
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "warrior",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 160,
+        "elites": 167
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 11.205526521111109,
+        "elite": 4.305555555555555
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 27,
+          "p50": 33,
+          "p90": 40
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 346,
+          "p50": 370,
+          "p90": 397
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "priest",
+      "count": {
+        "hunts": 909,
+        "dungeons": 105,
+        "elites": 112
+      },
+      "exchangeCount": 8,
+      "cyclesMinutes": {
+        "hunt": 2.638888888888889,
+        "dungeon": 16.983304148333335,
+        "elite": 6.416666666666667
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 131,
+          "p50": 145,
+          "p90": 159
+        },
+        "bossDrops": {
+          "p10": 14,
+          "p50": 19,
+          "p90": 24
+        },
+        "eliteDrops": {
+          "p10": 17,
+          "p50": 22,
+          "p90": 28
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 209,
+          "p50": 230,
+          "p90": 251
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 5
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 2
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "inquisitor",
+      "count": {
+        "hunts": 1216,
+        "dungeons": 129,
+        "elites": 163
+      },
+      "exchangeCount": 10,
+      "cyclesMinutes": {
+        "hunt": 1.972222222222222,
+        "dungeon": 13.87219501388889,
+        "elite": 4.416666666666667
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 178,
+          "p50": 195,
+          "p90": 211
+        },
+        "bossDrops": {
+          "p10": 18,
+          "p50": 23,
+          "p90": 29
+        },
+        "eliteDrops": {
+          "p10": 26,
+          "p50": 33,
+          "p90": 39
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 289,
+          "p50": 312,
+          "p90": 336
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "elementalist",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 157,
+        "elites": 210
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 11.427750460555556,
+        "elite": 3.4166666666666665
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 35,
+          "p50": 42,
+          "p90": 50
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 360,
+          "p50": 386,
+          "p90": 413
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "arcanist",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 138,
+        "elites": 197
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 12.983305816666666,
+        "elite": 3.638888888888889
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 25,
+          "p90": 31
+        },
+        "eliteDrops": {
+          "p10": 32,
+          "p50": 39,
+          "p90": 47
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 331,
+          "p50": 355,
+          "p90": 381
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "marksman",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 157,
+        "elites": 210
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 11.427745599444446,
+        "elite": 3.4166666666666665
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 28,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 35,
+          "p50": 42,
+          "p90": 50
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 360,
+          "p50": 386,
+          "p90": 413
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "beastmaster",
+      "count": {
+        "hunts": 1289,
+        "dungeons": 147,
+        "elites": 186
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.8611111111111112,
+        "dungeon": 12.205524983333333,
+        "elite": 3.861111111111111
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 190,
+          "p50": 206,
+          "p90": 223
+        },
+        "bossDrops": {
+          "p10": 21,
+          "p50": 26,
+          "p90": 32
+        },
+        "eliteDrops": {
+          "p10": 30,
+          "p50": 37,
+          "p90": 44
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 319,
+          "p50": 343,
+          "p90": 368
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "assassin",
+      "count": {
+        "hunts": 1371,
+        "dungeons": 153,
+        "elites": 192
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.75,
+        "dungeon": 11.761083919444443,
+        "elite": 3.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 202,
+          "p50": 219,
+          "p90": 237
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 27,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 31,
+          "p50": 38,
+          "p90": 46
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 336,
+          "p50": 361,
+          "p90": 386
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Water",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1289,
+        "dungeons": 134,
+        "elites": 171
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.8611111111111112,
+        "dungeon": 13.427750203333336,
+        "elite": 4.194444444444445
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 190,
+          "p50": 206,
+          "p90": 223
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 27,
+          "p50": 34,
+          "p90": 41
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 307,
+          "p50": 330,
+          "p90": 355
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "knight",
+      "count": {
+        "hunts": 1216,
+        "dungeons": 148,
+        "elites": 151
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.972222222222222,
+        "dungeon": 12.09441652111111,
+        "elite": 4.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 178,
+          "p50": 195,
+          "p90": 211
+        },
+        "bossDrops": {
+          "p10": 21,
+          "p50": 27,
+          "p90": 32
+        },
+        "eliteDrops": {
+          "p10": 24,
+          "p50": 30,
+          "p90": 37
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 295,
+          "p50": 318,
+          "p90": 341
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "warrior",
+      "count": {
+        "hunts": 2215,
+        "dungeons": 182,
+        "elites": 192
+      },
+      "exchangeCount": 15,
+      "cyclesMinutes": {
+        "hunt": 1.0833333333333333,
+        "dungeon": 9.872191759444444,
+        "elite": 3.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 333,
+          "p50": 354,
+          "p90": 377
+        },
+        "bossDrops": {
+          "p10": 26,
+          "p50": 33,
+          "p90": 40
+        },
+        "eliteDrops": {
+          "p10": 31,
+          "p50": 38,
+          "p90": 46
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 483,
+          "p50": 513,
+          "p90": 543
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 5,
+          "p90": 8
+        },
+        "exchangeBlue": {
+          "p10": 1,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "priest",
+      "count": {
+        "hunts": 1216,
+        "dungeons": 127,
+        "elites": 125
+      },
+      "exchangeCount": 10,
+      "cyclesMinutes": {
+        "hunt": 1.972222222222222,
+        "dungeon": 14.094415458333334,
+        "elite": 5.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 178,
+          "p50": 195,
+          "p90": 211
+        },
+        "bossDrops": {
+          "p10": 17,
+          "p50": 23,
+          "p90": 28
+        },
+        "eliteDrops": {
+          "p10": 19,
+          "p50": 25,
+          "p90": 31
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 274,
+          "p50": 296,
+          "p90": 320
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "inquisitor",
+      "count": {
+        "hunts": 2215,
+        "dungeons": 162,
+        "elites": 186
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.0833333333333333,
+        "dungeon": 11.094417355,
+        "elite": 3.861111111111111
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 333,
+          "p50": 354,
+          "p90": 377
+        },
+        "bossDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 30,
+          "p50": 37,
+          "p90": 44
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 469,
+          "p50": 499,
+          "p90": 529
         },
         "bossBlue": {
           "p10": 2,
@@ -496,34 +2351,34 @@
     },
     {
       "element": "Wind",
-      "profession": "cleric",
+      "profession": "elementalist",
       "count": {
-        "hunts": 774,
-        "dungeons": 121,
-        "elites": 100
+        "hunts": 2787,
+        "dungeons": 178,
+        "elites": 210
       },
-      "exchangeCount": 10,
+      "exchangeCount": 15,
       "cyclesMinutes": {
-        "hunt": 3.1,
-        "dungeon": 14.8,
-        "elite": 7.2
+        "hunt": 0.861111111111111,
+        "dungeon": 10.09441656777778,
+        "elite": 3.4166666666666665
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 111,
-          "p50": 123,
-          "p90": 137
+          "p10": 421,
+          "p50": 446,
+          "p90": 471
         },
         "bossDrops": {
-          "p10": 16,
-          "p50": 22,
-          "p90": 27
+          "p10": 25,
+          "p50": 32,
+          "p90": 39
         },
         "eliteDrops": {
-          "p10": 15,
-          "p50": 20,
-          "p90": 26
+          "p10": 35,
+          "p50": 42,
+          "p90": 50
         },
         "greenOrdinary": {
           "p10": 8,
@@ -531,52 +2386,52 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 194,
-          "p50": 214,
-          "p90": 234
+          "p10": 579,
+          "p50": 609,
+          "p90": 643
         },
         "bossBlue": {
-          "p10": 1,
-          "p50": 3,
-          "p90": 6
+          "p10": 2,
+          "p50": 5,
+          "p90": 8
         },
         "exchangeBlue": {
-          "p10": 0,
-          "p50": 1,
-          "p90": 3
+          "p10": 1,
+          "p50": 2,
+          "p90": 4
         }
       }
     },
     {
-      "element": "Light",
-      "profession": "knight",
+      "element": "Wind",
+      "profession": "arcanist",
       "count": {
-        "hunts": 1846,
-        "dungeons": 155,
-        "elites": 144
+        "hunts": 1694,
+        "dungeons": 160,
+        "elites": 210
       },
       "exchangeCount": 13,
       "cyclesMinutes": {
-        "hunt": 1.3,
-        "dungeon": 11.6,
-        "elite": 5
+        "hunt": 1.4166666666666667,
+        "dungeon": 11.205525264444447,
+        "elite": 3.4166666666666665
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 275,
-          "p50": 295,
-          "p90": 316
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
         },
         "bossDrops": {
-          "p10": 22,
-          "p50": 28,
-          "p90": 34
-        },
-        "eliteDrops": {
           "p10": 23,
           "p50": 29,
           "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 34,
+          "p50": 42,
+          "p90": 49
         },
         "greenOrdinary": {
           "p10": 8,
@@ -584,9 +2439,221 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 395,
-          "p50": 420,
-          "p90": 448
+          "p10": 398,
+          "p50": 423,
+          "p90": 452
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "marksman",
+      "count": {
+        "hunts": 3200,
+        "dungeons": 184,
+        "elites": 210
+      },
+      "exchangeCount": 15,
+      "cyclesMinutes": {
+        "hunt": 0.75,
+        "dungeon": 9.761078283333335,
+        "elite": 3.4166666666666665
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 486,
+          "p50": 511,
+          "p90": 540
+        },
+        "bossDrops": {
+          "p10": 27,
+          "p50": 33,
+          "p90": 40
+        },
+        "eliteDrops": {
+          "p10": 34,
+          "p50": 42,
+          "p90": 49
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 643,
+          "p50": 677,
+          "p90": 712
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 5,
+          "p90": 8
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "beastmaster",
+      "count": {
+        "hunts": 1694,
+        "dungeons": 165,
+        "elites": 204
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.4166666666666667,
+        "dungeon": 10.872192378333333,
+        "elite": 3.5277777777777777
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
+        },
+        "bossDrops": {
+          "p10": 24,
+          "p50": 29,
+          "p90": 36
+        },
+        "eliteDrops": {
+          "p10": 33,
+          "p50": 41,
+          "p90": 48
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 397,
+          "p50": 423,
+          "p90": 451
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "assassin",
+      "count": {
+        "hunts": 2215,
+        "dungeons": 176,
+        "elites": 204
+      },
+      "exchangeCount": 14,
+      "cyclesMinutes": {
+        "hunt": 1.0833333333333333,
+        "dungeon": 10.205526452777777,
+        "elite": 3.5277777777777777
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 333,
+          "p50": 354,
+          "p90": 377
+        },
+        "bossDrops": {
+          "p10": 25,
+          "p50": 32,
+          "p90": 38
+        },
+        "eliteDrops": {
+          "p10": 33,
+          "p50": 41,
+          "p90": 48
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 483,
+          "p50": 514,
+          "p90": 544
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 1,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Wind",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1838,
+        "dungeons": 160,
+        "elites": 176
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.3055555555555556,
+        "dungeon": 11.205522015555555,
+        "elite": 4.083333333333333
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 274,
+          "p50": 294,
+          "p90": 314
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 28,
+          "p50": 35,
+          "p90": 42
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 408,
+          "p50": 433,
+          "p90": 462
         },
         "bossBlue": {
           "p10": 2,
@@ -602,34 +2669,34 @@
     },
     {
       "element": "Light",
-      "profession": "cleric",
+      "profession": "knight",
       "count": {
-        "hunts": 827,
-        "dungeons": 109,
-        "elites": 101
+        "hunts": 1152,
+        "dungeons": 123,
+        "elites": 125
       },
-      "exchangeCount": 9,
+      "exchangeCount": 10,
       "cyclesMinutes": {
-        "hunt": 2.9,
-        "dungeon": 16.4,
-        "elite": 7.1
+        "hunt": 2.0833333333333335,
+        "dungeon": 14.53885963,
+        "elite": 5.75
       },
       "resourceReadyFraction": 1,
       "metrics": {
         "huntDrops": {
-          "p10": 119,
-          "p50": 132,
-          "p90": 146
+          "p10": 168,
+          "p50": 184,
+          "p90": 201
         },
         "bossDrops": {
-          "p10": 15,
-          "p50": 19,
-          "p90": 25
+          "p10": 17,
+          "p50": 22,
+          "p90": 27
         },
         "eliteDrops": {
-          "p10": 15,
-          "p50": 20,
-          "p90": 25
+          "p10": 19,
+          "p50": 25,
+          "p90": 31
         },
         "greenOrdinary": {
           "p10": 8,
@@ -637,9 +2704,115 @@
           "p90": 8
         },
         "fragments": {
-          "p10": 196,
-          "p50": 216,
-          "p90": 236
+          "p10": 263,
+          "p50": 284,
+          "p90": 307
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 1,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "warrior",
+      "count": {
+        "hunts": 1838,
+        "dungeons": 163,
+        "elites": 171
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.3055555555555556,
+        "dungeon": 10.983303470000001,
+        "elite": 4.194444444444445
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 274,
+          "p50": 294,
+          "p90": 314
+        },
+        "bossDrops": {
+          "p10": 23,
+          "p50": 29,
+          "p90": 36
+        },
+        "eliteDrops": {
+          "p10": 28,
+          "p50": 34,
+          "p90": 41
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 407,
+          "p50": 432,
+          "p90": 461
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "priest",
+      "count": {
+        "hunts": 1093,
+        "dungeons": 104,
+        "elites": 104
+      },
+      "exchangeCount": 8,
+      "cyclesMinutes": {
+        "hunt": 2.194444444444444,
+        "dungeon": 17.205528148333332,
+        "elite": 6.861111111111112
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 159,
+          "p50": 175,
+          "p90": 190
+        },
+        "bossDrops": {
+          "p10": 14,
+          "p50": 19,
+          "p90": 24
+        },
+        "eliteDrops": {
+          "p10": 16,
+          "p50": 21,
+          "p90": 26
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 235,
+          "p50": 255,
+          "p90": 277
         },
         "bossBlue": {
           "p10": 1,
@@ -649,6 +2822,377 @@
         "exchangeBlue": {
           "p10": 0,
           "p50": 1,
+          "p90": 2
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "inquisitor",
+      "count": {
+        "hunts": 1570,
+        "dungeons": 136,
+        "elites": 155
+      },
+      "exchangeCount": 11,
+      "cyclesMinutes": {
+        "hunt": 1.527777777777778,
+        "dungeon": 13.205528347777777,
+        "elite": 4.638888888888888
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 233,
+          "p50": 251,
+          "p90": 270
+        },
+        "bossDrops": {
+          "p10": 19,
+          "p50": 24,
+          "p90": 30
+        },
+        "eliteDrops": {
+          "p10": 25,
+          "p50": 31,
+          "p90": 37
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 345,
+          "p50": 370,
+          "p90": 395
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 3,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "elementalist",
+      "count": {
+        "hunts": 3200,
+        "dungeons": 153,
+        "elites": 217
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 0.75,
+        "dungeon": 11.76108071,
+        "elite": 3.305555555555556
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 486,
+          "p50": 511,
+          "p90": 540
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 27,
+          "p90": 34
+        },
+        "eliteDrops": {
+          "p10": 35,
+          "p50": 43,
+          "p90": 51
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 630,
+          "p50": 662,
+          "p90": 697
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "arcanist",
+      "count": {
+        "hunts": 1694,
+        "dungeons": 144,
+        "elites": 204
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.4166666666666667,
+        "dungeon": 12.427749604444443,
+        "elite": 3.5277777777777777
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
+        },
+        "bossDrops": {
+          "p10": 20,
+          "p50": 26,
+          "p90": 32
+        },
+        "eliteDrops": {
+          "p10": 33,
+          "p50": 41,
+          "p90": 48
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 388,
+          "p50": 413,
+          "p90": 441
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 3
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "marksman",
+      "count": {
+        "hunts": 3756,
+        "dungeons": 165,
+        "elites": 210
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 0.638888888888889,
+        "dungeon": 10.872193905,
+        "elite": 3.4166666666666665
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 572,
+          "p50": 600,
+          "p90": 631
+        },
+        "bossDrops": {
+          "p10": 24,
+          "p50": 30,
+          "p90": 36
+        },
+        "eliteDrops": {
+          "p10": 35,
+          "p50": 42,
+          "p90": 49
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 721,
+          "p50": 757,
+          "p90": 792
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "beastmaster",
+      "count": {
+        "hunts": 1694,
+        "dungeons": 150,
+        "elites": 192
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.4166666666666667,
+        "dungeon": 11.98330010388889,
+        "elite": 3.75
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 252,
+          "p50": 271,
+          "p90": 290
+        },
+        "bossDrops": {
+          "p10": 21,
+          "p50": 27,
+          "p90": 33
+        },
+        "eliteDrops": {
+          "p10": 31,
+          "p50": 38,
+          "p90": 46
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 386,
+          "p50": 410,
+          "p90": 439
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "assassin",
+      "count": {
+        "hunts": 2009,
+        "dungeons": 159,
+        "elites": 186
+      },
+      "exchangeCount": 13,
+      "cyclesMinutes": {
+        "hunt": 1.1944444444444444,
+        "dungeon": 11.31663205777778,
+        "elite": 3.861111111111111
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 301,
+          "p50": 321,
+          "p90": 342
+        },
+        "bossDrops": {
+          "p10": 22,
+          "p50": 29,
+          "p90": 35
+        },
+        "eliteDrops": {
+          "p10": 31,
+          "p50": 37,
+          "p90": 44
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 437,
+          "p50": 465,
+          "p90": 494
+        },
+        "bossBlue": {
+          "p10": 2,
+          "p50": 4,
+          "p90": 7
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
+          "p90": 4
+        }
+      }
+    },
+    {
+      "element": "Light",
+      "profession": "trickster",
+      "count": {
+        "hunts": 1464,
+        "dungeons": 142,
+        "elites": 155
+      },
+      "exchangeCount": 12,
+      "cyclesMinutes": {
+        "hunt": 1.6388888888888888,
+        "dungeon": 12.649969384444445,
+        "elite": 4.638888888888888
+      },
+      "resourceReadyFraction": 1,
+      "metrics": {
+        "huntDrops": {
+          "p10": 216,
+          "p50": 234,
+          "p90": 252
+        },
+        "bossDrops": {
+          "p10": 20,
+          "p50": 25,
+          "p90": 31
+        },
+        "eliteDrops": {
+          "p10": 25,
+          "p50": 31,
+          "p90": 38
+        },
+        "greenOrdinary": {
+          "p10": 8,
+          "p50": 8,
+          "p90": 8
+        },
+        "fragments": {
+          "p10": 333,
+          "p50": 357,
+          "p90": 383
+        },
+        "bossBlue": {
+          "p10": 1,
+          "p50": 4,
+          "p90": 6
+        },
+        "exchangeBlue": {
+          "p10": 0,
+          "p50": 2,
           "p90": 3
         }
       }

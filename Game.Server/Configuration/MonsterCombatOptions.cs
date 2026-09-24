@@ -31,6 +31,8 @@ public sealed class MonsterSkillOptions
     public int DamagePowerPercent { get; set; }
     public int CooldownRounds { get; set; }
     public int? SelfHpBelowPercent { get; set; }
+    public int? RoomRoundAtLeast { get; set; }
+    public int ForcedPriority { get; set; }
     public bool IsInterruptible { get; set; } = true;
     public string DangerLevel { get; set; } = "Normal";
     public List<MonsterStatusApplicationOptions> Statuses { get; set; } = [];

@@ -2,6 +2,8 @@
 
 日期：2026-09-22。目标按单角色、每天12小时、首周约84小时形成可玩配装设计。这里记录已实现的规则与实际验证；早期设计稿中的时间目标不应当作实测值。
 
+> 2026-09-24：下文原“深层与组队”数字是第一版历史样本。六个终局副本现已按组队挑战重新校准，当前单人、双人、三人与五人边界以 `t1-endgame-acceptance.md` 为准。
+
 ## 内容范围
 
 | 来源 | 模板数量 | 基础技能等级 | 作用 |
@@ -85,12 +87,12 @@
 
 ## 首周资源测算与限制
 
-`tools/t1-economy-projection.mjs` 将实测循环均值与正式掉率连接，每职业/元素2000次随机抽样。参考分配为普通讨伐40小时、一个正式副本30小时、精英12小时、探索及首次深层尝试预留2小时。
+`tools/t1-economy-projection.mjs` 将十条转职路线的首周参考配装实测循环与正式掉率连接，每个转职/元素组合进行2000次随机抽样，共60组。参考分配为普通讨伐40小时、一个正式副本30小时、精英12小时、探索及首次终局尝试预留2小时。
 
 - 保留八把目标绿色以上普通武器、一把Boss、一把兑换、一把精英，分解其余武器；不计强化返还与失败掉落。
-- 可用碎片中位数约175～420；当前十项主技能+2、十项副技能+1共需120片，全+3需680片。
-- 对应兑换约7～13把，蓝色以上Boss武器中位数2～4把，仍不保证指定极品品质分配。
-- 在该固定路线和供应的战力假设下，各组2000次均达到资源条件。**这不是从注册到84小时的全程挂机模拟，也不是实际完成概率100%。**
+- 可用碎片中位数约202～757；当前十项主技能+2、十项副技能+1共需120片，全+3需680片。
+- 对应兑换约8～15把，蓝色以上Boss武器中位数2～5把，仍不保证指定极品品质分配。
+- 在该固定路线和首周参考配装的战力假设下，60组各2000次均达到资源条件。**这不是从注册到84小时的全程挂机模拟，也不是实际完成概率100%。**
 
 尤其不能据此证明玩家必须花满一周：该模型不逐步更新战力、没有模拟换装材料损耗、早期手动首通与低等级目标的实际循环，并假设四种目标普通武器有相同代表循环。熟练路线、光/风爆发、组队会提前成型。当前版本以“首周能玩到主要内容，之后刷品质与强化提高效率”为目标；更精确的天数需要试玩或真实进度遥测再校准，不引入强制日历等待。
 
@@ -111,13 +113,13 @@
 ```powershell
 dotnet build IdleGame.sln --no-restore
 dotnet test Game.Server.Tests/Game.Server.Tests.csproj --no-restore
-dotnet run --project tools/Game.BalanceSimulator -- --runs 5 --stages field,week,graduate --output docs/t1-combat-final.json
+dotnet run --project tools/Game.BalanceSimulator -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles knight,warrior,priest,inquisitor,elementalist,arcanist,marksman,beastmaster,assassin,trickster --stages week --targets normal,dungeon,elite --output docs/t1-profession-balance-final.json
 dotnet run --project tools/Game.BalanceSimulator -- --runs 5 --stages starter,shop --targets normal --output docs/t1-combat-entry.json
-dotnet run --project tools/Game.BalanceSimulator -- --runs 5 --elements Fire,Water,Wind --roles knight --stages week --targets dungeon,depths --party 5 --output docs/t1-combat-party.json
+dotnet run --project tools/Game.BalanceSimulator -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 5 --output docs/t1-endgame-party-final.json
 node tools/t1-economy-projection.mjs
 ```
 
-- 服务端、客户端构建与客户端发布通过，208项测试通过。增量最终构建0警告；服务端完整重编译仍有既有可空引用警告。
+- 服务端、客户端与校准器构建通过，317项测试通过；最终构建0警告、0错误。
 - 自动测试覆盖八效果、曲线边界、真实伤害/回复与药水预览、双击/追击死亡截断、冷却、奖励幂等、来源回收、模板/快照升级及旧库迁移。
 - 隔离HTTP环境验证：120金币购买两把武器变40金币；装备得到52攻击/130生命且当前生命不增加；第一次讨伐真实结算得到保底武器与中文日志。
 - 高阶UI夹具提供十把配置武器后通过真实接口装备，八效果全部显示。品质+2保留，强化+2实际扣10片，分解返还1+5=6片；出售另一武器增加12金币。

@@ -38,6 +38,18 @@ internal static class MonsterCombatTestFactory
             {
                 Code = "harden", Name = "黏液硬化", Description = "获得减伤。", TargetType = "Self",
                 CooldownRounds = 3, Statuses = [new() { StatusCode = "slime-shell", DurationRounds = 2 }]
+            },
+            new()
+            {
+                Code = "soft-enrage", Name = "软狂暴", Description = "战斗拖延后强化自身。", TargetType = "Self",
+                CooldownRounds = 2, RoomRoundAtLeast = 3, ForcedPriority = 10,
+                Statuses = [new() { StatusCode = "slime-shell", DurationRounds = 2 }]
+            },
+            new()
+            {
+                Code = "hard-enrage", Name = "硬狂暴", Description = "战斗严重拖延后攻击全体。", TargetType = "AllAlive",
+                DamagePowerPercent = 300, CooldownRounds = 2, RoomRoundAtLeast = 6, ForcedPriority = 100,
+                IsInterruptible = false, DangerLevel = "Deadly"
             }
         ],
         Profiles = new Dictionary<string, MonsterCombatProfileOptions>(StringComparer.OrdinalIgnoreCase)
@@ -45,7 +57,12 @@ internal static class MonsterCombatTestFactory
             ["acid-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "acid", Weight = 1 }] },
             ["rapid-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "rapid", Weight = 1 }] },
             ["toxic-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "toxic", Weight = 1 }] },
-            ["hardened-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "harden", Weight = 1 }] }
+            ["hardened-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "harden", Weight = 1 }] },
+            ["timed-slime"] = new()
+            {
+                SkillUseChancePercent = 0,
+                Skills = [new() { Code = "soft-enrage", Weight = 1 }, new() { Code = "hard-enrage", Weight = 1 }]
+            }
         }
     }));
 }

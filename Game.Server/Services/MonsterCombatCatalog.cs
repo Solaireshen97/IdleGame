@@ -28,6 +28,7 @@ public sealed class MonsterCombatCatalog
                 string.IsNullOrWhiteSpace(skill.Description) || skill.TargetType is not ("Self" or "Front" or "AllAlive") ||
                 skill.DamagePowerPercent < 0 || skill.CooldownRounds < 0 ||
                 skill.SelfHpBelowPercent is < 1 or > 100 ||
+                skill.RoomRoundAtLeast is < 1 or > 250 || skill.ForcedPriority is < 0 or > 100 ||
                 skill.DangerLevel is not ("Normal" or "Dangerous" or "Deadly") ||
                 skill.DamagePowerPercent == 0 && skill.Statuses.Count == 0 ||
                 skill.Statuses.Any(status => status.DurationRounds <= 0 || !_statuses.ContainsKey(status.StatusCode)) ||

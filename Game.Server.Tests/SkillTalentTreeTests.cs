@@ -91,7 +91,7 @@ public sealed class SkillTalentTreeTests
     }
 
     [Fact]
-    public async Task MageCanMixBurstDispelAndDamageSuppression()
+    public async Task MageCanMixBurstArmorBreakDispelAndDamageSuppression()
     {
         await using var test = await FormalTreeContext.CreateAsync("mage", level: 10, points: 9);
         foreach (var code in new[] { "mage-arcane-insight", "mage-flow", "mage-frost-discipline",
@@ -101,15 +101,18 @@ public sealed class SkillTalentTreeTests
 
         var response = (await test.Service.GetAsync("token", 1)).Response!;
         Assert.Equal(0, response.TalentPoints);
-        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-arcane-barrage" && skill.Effects.Count == 3);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-arcane-barrage" &&
+            skill.Effects.Count(effect => effect.Type == "Damage") == 3 &&
+            skill.Effects.Any(effect => effect.StatusCode == "armor-break" && effect.DurationRounds == 2));
         Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-spellbreak" &&
-            skill.AutoCondition == "MonsterHasBuff" && skill.Effects.Any(effect => effect.Type == "Dispel"));
+            skill.AutoCondition == "MonsterHasBuff" &&
+            skill.Effects.Any(effect => effect.Type == "Dispel"));
         Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-arcane-suppression" &&
             skill.Effects.Any(effect => effect.StatusCode == "arcane-suppression"));
     }
 
     [Fact]
-    public async Task HunterCanMixMarkPoisonAndRapidShots()
+    public async Task HunterCanMixMarkPoisonAndBackupInterrupts()
     {
         await using var test = await FormalTreeContext.CreateAsync("hunter", level: 10, points: 9);
         foreach (var code in new[] { "hunter-keen-eye", "hunter-steady-hand", "hunter-fieldcraft",
@@ -123,7 +126,9 @@ public sealed class SkillTalentTreeTests
             skill.Effects.Any(effect => effect.StatusCode == "hunters-mark"));
         Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-venom-arrow" &&
             skill.Effects.Any(effect => effect.StatusCode == "poison"));
-        Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-rapid-volley" && skill.Effects.Count == 2);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-rapid-volley" &&
+            skill.AutoCondition == "InterruptibleIntent" && skill.Effects.Count(effect => effect.Type == "Damage") == 2 &&
+            skill.Effects.Any(effect => effect.Type == "Interrupt"));
     }
 
     [Fact]
@@ -146,7 +151,7 @@ public sealed class SkillTalentTreeTests
     }
 
     [Fact]
-    public void ProductionConfigExposesFiveBaseProfessions()
+    public void ProductionConfigExposesFiveBaseProfessionsAndTenPromotionPaths()
     {
         var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
@@ -157,30 +162,65 @@ public sealed class SkillTalentTreeTests
 
         Assert.Equal(new[] { "acolyte", "hunter", "mage", "rogue", "swordsman" },
             catalog.BaseProfessions.Select(profession => profession.Code).Order());
+        Assert.Equal(10, catalog.Professions.Count(profession => profession.IsPromotion));
+        Assert.All(catalog.BaseProfessions,
+            profession => Assert.Equal(2, catalog.PromotionsFor(profession.Code).Count));
+    }
+
+    [Fact]
+    public void ProductionConfigGivesEveryNewPromotionAndCapstoneAConcreteIdentityMechanic()
+    {
+        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var monsterCatalog = new MonsterCombatCatalog(Options.Create(
+            config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
+        var catalog = new SkillCatalog(Options.Create(
+            config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+
+        var priest = catalog.FindSkill("priest-group-heal")!;
+        Assert.Contains(SkillCatalog.EffectsFor(priest), effect => effect.Type == "Cleanse");
+        var arcanist = catalog.FindSkill("arcanist-overcharge")!;
+        Assert.Contains(SkillCatalog.EffectsFor(arcanist), effect => effect.Type == "CooldownReduction" && effect.Power == 1);
+        var marksman = catalog.FindSkill("marksman-sniper-shot")!;
+        Assert.Equal("hunters-mark", marksman.RequiredTargetStatusCode);
+        Assert.Equal(25, marksman.ConditionalDamageBonusPercent);
+        var beastmaster = catalog.FindSkill("beastmaster-coordinated-assault")!;
+        Assert.Contains(SkillCatalog.EffectsFor(beastmaster), effect => effect.Type == "Guard" && effect.Target == "FrontAlly");
+        var assassin = catalog.FindSkill("assassin-deathblow")!;
+        Assert.Equal(35, assassin.TargetHpBelowPercent);
+        Assert.Equal(30, assassin.ConditionalDamageBonusPercent);
+
+        var mechanicalCapstones = new[]
+        {
+            "mage-arcane-mastery", "mage-stable-channeling", "mage-frozen-heart",
+            "hunter-predator", "hunter-relentless", "hunter-hardened",
+            "rogue-relentless-assault", "rogue-opportunist", "rogue-escape-artist"
+        };
+        Assert.All(mechanicalCapstones, code =>
+        {
+            var node = catalog.FindTalentNode(code)!;
+            Assert.Null(node.EffectCode);
+            Assert.Equal(0, node.ValuePerRank);
+        });
+        Assert.NotNull(monsterCatalog.FindStatus("hunter-resilience"));
+        Assert.NotNull(monsterCatalog.FindStatus("rogue-opening"));
     }
 
     [Theory]
-    [InlineData("mage")]
-    [InlineData("hunter")]
-    public async Task ProfessionWithoutConfiguredPromotionDoesNotAdvertisePromotion(string professionCode)
+    [InlineData("swordsman", "knight", "warrior")]
+    [InlineData("acolyte", "inquisitor", "priest")]
+    [InlineData("mage", "arcanist", "elementalist")]
+    [InlineData("hunter", "beastmaster", "marksman")]
+    [InlineData("rogue", "assassin", "trickster")]
+    public async Task EveryBaseProfessionAdvertisesTwoPromotionPathsAtLevelTen(
+        string professionCode, string firstPromotion, string secondPromotion)
     {
         await using var test = await FormalTreeContext.CreateAsync(professionCode, level: 10, points: 9);
 
         var response = (await test.Service.GetAsync("token", 1)).Response!;
 
-        Assert.False(response.CanPromote);
-        Assert.Empty(response.PromotionOptions);
-    }
-
-    [Fact]
-    public async Task RogueAdvertisesBothPromotionPathsAtLevelTen()
-    {
-        await using var test = await FormalTreeContext.CreateAsync("rogue", level: 10, points: 9);
-
-        var response = (await test.Service.GetAsync("token", 1)).Response!;
-
         Assert.True(response.CanPromote);
-        Assert.Equal(new[] { "assassin", "trickster" }, response.PromotionOptions.Select(option => option.Code).Order());
+        Assert.Equal(new[] { firstPromotion, secondPromotion }, response.PromotionOptions.Select(option => option.Code).Order());
         Assert.All(response.PromotionOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.GrantedSkillName)));
     }
 
@@ -188,6 +228,11 @@ public sealed class SkillTalentTreeTests
     [InlineData("swordsman", "knight", "knight-guard")]
     [InlineData("swordsman", "warrior", "warrior-fury")]
     [InlineData("acolyte", "priest", "priest-group-heal")]
+    [InlineData("acolyte", "inquisitor", "inquisitor-condemn")]
+    [InlineData("mage", "elementalist", "elementalist-pyroblast")]
+    [InlineData("mage", "arcanist", "arcanist-overcharge")]
+    [InlineData("hunter", "marksman", "marksman-sniper-shot")]
+    [InlineData("hunter", "beastmaster", "beastmaster-coordinated-assault")]
     [InlineData("rogue", "assassin", "assassin-deathblow")]
     [InlineData("rogue", "trickster", "trickster-smoke-bomb")]
     public async Task LevelTenPromotionIsFreeAndGrantsBaseSkill(string baseCode, string advancedCode, string skillCode)
