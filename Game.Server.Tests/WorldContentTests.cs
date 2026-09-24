@@ -106,18 +106,20 @@ public sealed class WorldContentTests
         content.World.ValidateContent(content.Weapons, content.Encounters, content.Rewards, content.Exchanges);
         Assert.Equal(6, content.World.Regions.Count);
         Assert.Equal(6, content.World.Regions.Select(region => region.FeaturedElement).Distinct().Count());
-        Assert.Equal(7, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
-        Assert.Equal(42, content.Exchanges.Offers.Select(offer => offer.WeaponCode).Distinct().Count());
-        Assert.Equal(42, content.Exchanges.Offers.Select(offer => content.Weapons.FindItem(offer.WeaponCode)!.Name).Distinct().Count());
+        Assert.Equal(12, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
+        var weaponOffers = content.Exchanges.Offers.Where(offer => offer.RewardKind == "Weapon").ToList();
+        Assert.Equal(72, weaponOffers.Select(offer => offer.EffectiveRewardCode).Distinct().Count());
+        Assert.Equal(72, weaponOffers.Select(offer => content.Weapons.FindItem(offer.EffectiveRewardCode)!.Name).Distinct().Count());
 
         foreach (var region in content.World.Regions)
         {
             var dungeons = content.World.Dungeons.Where(dungeon => dungeon.RegionCode == region.Code).ToList();
             Assert.Equal((1, 10), (region.MinimumLevel, region.MaximumLevel));
             Assert.Equal(Enumerable.Range(1, 10), dungeons.Select(dungeon => dungeon.MinimumLevel).Distinct().Order());
-            Assert.Equal(region.Code == "elwynn" ? 11 : 10, dungeons.Count);
+            Assert.Equal(11, dungeons.Count);
             Assert.Equal(7, dungeons.Count(dungeon => dungeon.DungeonKind == "Hunt"));
             Assert.Equal(2, dungeons.Count(dungeon => dungeon.DungeonKind == "Elite"));
+            Assert.Equal(2, dungeons.Count(dungeon => dungeon.DungeonKind == "Dungeon"));
             Assert.All(dungeons, dungeon => Assert.True(dungeon.IsVisible));
             var dungeon = Assert.Single(dungeons, dungeon => dungeon.Code == region.FeaturedDungeonCode);
             Assert.Equal((8, 10), (dungeon.MinimumLevel, dungeon.RecommendedLevel));
@@ -138,11 +140,15 @@ public sealed class WorldContentTests
             Assert.Single(content.RewardOptions.MonsterKills, pair => pair.Value.Drops.Any(drop => drop.Code == region.FeaturedWeaponCode));
             Assert.DoesNotContain(content.RewardOptions.DungeonClears.Values, bundle => bundle.Drops.Any(drop => drop.Code == region.FeaturedWeaponCode));
 
-            var offers = content.Exchanges.Offers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
+            var allOffers = content.Exchanges.Offers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
+            var offers = allOffers.Where(offer => offer.RewardKind == "Weapon").ToList();
             Assert.Equal(6, offers.Count);
-            Assert.Equal(6, offers.Select(offer => content.Weapons.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
+            Assert.Equal(6, offers.Select(offer => content.Weapons.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
             Assert.All(offers, offer => Assert.Equal(12, offer.Cost));
-            Assert.DoesNotContain(offers, offer => offer.WeaponCode == region.FeaturedWeaponCode);
+            Assert.DoesNotContain(offers, offer => offer.EffectiveRewardCode == region.FeaturedWeaponCode);
+            var fragmentOffer = Assert.Single(allOffers, offer => offer.RewardKind == "Material");
+            Assert.Equal((1, "weapon-fragment-t1", 3),
+                (fragmentOffer.Cost, fragmentOffer.EffectiveRewardCode, fragmentOffer.RewardQuantity));
             var token = Assert.Single(offers.Select(offer => offer.CurrencyCode).Distinct());
             var repeatDrop = Assert.Single(content.RewardOptions.DungeonClears[dungeon.Code].Drops, drop => drop.Kind == "Material");
             var firstDrop = Assert.Single(content.RewardOptions.DungeonClears[$"{dungeon.Code}-first-clear"].Drops, drop => drop.Kind == "Material");
@@ -202,7 +208,8 @@ public sealed class WorldContentTests
         var runService = new DungeonRunService(db, rewards);
         var monsters = await db.Monsters.Where(monster => monster.RoomId == room.Id)
             .OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).ToListAsync();
-        var offer = content.Exchanges.Offers.First(offer => offer.DungeonCode == dungeonCode);
+        var offer = content.Exchanges.Offers.First(offer =>
+            offer.DungeonCode == dungeonCode && offer.RewardKind == "Weapon");
         for (var run = 1; run <= 2; run++)
         {
             if (run > 1) { room.RunSequence++; await runService.ResetEncounterAsync(room); }
@@ -234,7 +241,7 @@ public sealed class WorldContentTests
         await db.SaveChangesAsync();
         var shop = new ShopService(db, users,
             new ShopCatalog(content.Bind<ShopOptions>(ShopOptions.SectionName), content.Consumables, content.Weapons),
-            content.Consumables, content.Weapons, content.Materials, content.Exchanges);
+            content.Consumables, content.Weapons, content.Materials, content.Exchanges, content.SoulImprints);
         var request = new ExchangeDungeonWeaponRequest { CharacterId = character.Id, OfferCode = offer.Code };
         var insufficient = await shop.ExchangeAsync("owner-token", request);
         Assert.Equal("InsufficientDungeonCurrency", insufficient.Error);
@@ -245,7 +252,8 @@ public sealed class WorldContentTests
         Assert.Null(exchanged.Error);
         Assert.Equal(0, correctToken.Quantity);
         Assert.Equal(99, (await db.CharacterItemStacks.SingleAsync(stack => stack.ItemCode == otherToken)).Quantity);
-        Assert.Contains(await db.CharacterWeapons.ToListAsync(), weapon => weapon.WeaponCode == offer.WeaponCode && weapon.CharacterId == character.Id);
+        Assert.Contains(await db.CharacterWeapons.ToListAsync(), weapon =>
+            weapon.WeaponCode == offer.EffectiveRewardCode && weapon.CharacterId == character.Id);
     }
 
     [Fact]
@@ -262,7 +270,7 @@ public sealed class WorldContentTests
         var world = WorldCatalog.LoadDefault();
         await DbInitializer.InitializeAsync(db, world: world);
         await DbInitializer.InitializeAsync(db, world: world);
-        Assert.Equal(64, await db.Dungeons.CountAsync());
+        Assert.Equal(69, await db.Dungeons.CountAsync());
         Assert.Equal(55, (await db.Dungeons.SingleAsync(dungeon => dungeon.Code == "kobold-mine")).Id);
         Assert.Equal("elwynn", (await db.Dungeons.FindAsync(55))!.RegionCode);
         Assert.Equal(55, (await db.Rooms.SingleAsync()).DungeonId);
@@ -281,6 +289,7 @@ public sealed class WorldContentTests
         public ConsumableCatalog Consumables { get; }
         public WeaponCatalog Weapons { get; }
         public MaterialCatalog Materials { get; }
+        public SoulImprintCatalog SoulImprints { get; }
         public RewardOptions RewardOptions { get; }
         public RewardCatalog Rewards { get; }
         public MonsterCombatCatalog Combat { get; }
@@ -292,11 +301,13 @@ public sealed class WorldContentTests
             Consumables = new ConsumableCatalog(Bind<ConsumableOptions>(ConsumableOptions.SectionName));
             Weapons = new WeaponCatalog(Bind<WeaponOptions>(WeaponOptions.SectionName));
             Materials = new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName));
+            SoulImprints = new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName));
             RewardOptions = Bind<RewardOptions>(Configuration.RewardOptions.SectionName).Value;
-            Rewards = new RewardCatalog(Options.Create(RewardOptions), Consumables, Weapons, Materials);
+            Rewards = new RewardCatalog(Options.Create(RewardOptions), Consumables, Weapons, Materials, SoulImprints);
             Combat = new MonsterCombatCatalog(Bind<MonsterCombatOptions>(MonsterCombatOptions.SectionName));
             Encounters = new DungeonEncounterCatalog(Bind<DungeonEncounterOptions>(DungeonEncounterOptions.SectionName), Combat, Rewards);
-            Exchanges = new DungeonExchangeCatalog(Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName), Materials, Weapons);
+            Exchanges = new DungeonExchangeCatalog(Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName),
+                Materials, Weapons, SoulImprints);
         }
     }
 }

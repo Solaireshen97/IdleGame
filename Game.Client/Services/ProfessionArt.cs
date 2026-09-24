@@ -9,6 +9,11 @@ public static class ProfessionArt
         "knight" => "/art/professions/knight.png",
         "warrior" => "/art/professions/warrior.png",
         "priest" => "/art/professions/priest.png",
+        "mage" => "/art/professions/acolyte.png",
+        "hunter" => "/art/professions/swordsman.png",
+        "rogue" => "/art/professions/swordsman.png",
+        "assassin" => "/art/professions/warrior.png",
+        "trickster" => "/art/professions/acolyte.png",
         _ => "/art/professions/swordsman.png"
     };
 
@@ -19,6 +24,11 @@ public static class ProfessionArt
         "骑士" => ForCode("knight"),
         "战士" => ForCode("warrior"),
         "牧师" => ForCode("priest"),
+        "法师" => ForCode("mage"),
+        "猎人" => ForCode("hunter"),
+        "盗贼" => ForCode("rogue"),
+        "刺客" => ForCode("assassin"),
+        "诡术师" => ForCode("trickster"),
         _ => ForCode("swordsman")
     };
 }

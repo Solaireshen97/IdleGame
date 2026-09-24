@@ -90,10 +90,106 @@ public sealed class SkillTalentTreeTests
         Assert.Contains(response.Response.TalentNodes, node => node.Code == "acolyte-afterglow" && !node.CanUnlock);
     }
 
+    [Fact]
+    public async Task MageCanMixBurstDispelAndDamageSuppression()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("mage", level: 10, points: 9);
+        foreach (var code in new[] { "mage-arcane-insight", "mage-flow", "mage-frost-discipline",
+                     "mage-arcane-training", "mage-arcane-training", "mage-spellbreak-talent",
+                     "mage-barrage-talent", "mage-suppression-talent", "mage-countermagic" })
+            Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
+
+        var response = (await test.Service.GetAsync("token", 1)).Response!;
+        Assert.Equal(0, response.TalentPoints);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-arcane-barrage" && skill.Effects.Count == 3);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-spellbreak" &&
+            skill.AutoCondition == "MonsterHasBuff" && skill.Effects.Any(effect => effect.Type == "Dispel"));
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-arcane-suppression" &&
+            skill.Effects.Any(effect => effect.StatusCode == "arcane-suppression"));
+    }
+
+    [Fact]
+    public async Task HunterCanMixMarkPoisonAndRapidShots()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("hunter", level: 10, points: 9);
+        foreach (var code in new[] { "hunter-keen-eye", "hunter-steady-hand", "hunter-fieldcraft",
+                     "hunter-bow-training", "hunter-bow-training", "hunter-venom-talent",
+                     "hunter-mark-talent", "hunter-volley-talent", "hunter-toxin-training" })
+            Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
+
+        var response = (await test.Service.GetAsync("token", 1)).Response!;
+        Assert.Equal(0, response.TalentPoints);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-marked-shot" &&
+            skill.Effects.Any(effect => effect.StatusCode == "hunters-mark"));
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-venom-arrow" &&
+            skill.Effects.Any(effect => effect.StatusCode == "poison"));
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "hunter-rapid-volley" && skill.Effects.Count == 2);
+    }
+
+    [Fact]
+    public async Task RogueCanMixFlurryPoisonAndInterrupts()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("rogue", level: 10, points: 9);
+        foreach (var code in new[] { "rogue-killer-instinct", "rogue-light-fingers", "rogue-footwork",
+                     "rogue-blade-training", "rogue-blade-training", "rogue-poison-talent",
+                     "rogue-flurry-talent", "rogue-gouge-talent", "rogue-dirty-fighting" })
+            Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
+
+        var response = (await test.Service.GetAsync("token", 1)).Response!;
+        Assert.Equal(0, response.TalentPoints);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "rogue-blade-flurry" && skill.Effects.Count == 2);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "rogue-poisoned-blade" &&
+            skill.Effects.Any(effect => effect.StatusCode == "poison" && effect.DurationRounds == 3));
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "rogue-gouge" &&
+            skill.AutoCondition == "InterruptibleIntent" && skill.Effects.Any(effect => effect.Type == "Interrupt"));
+        Assert.Equal(12, test.Character.TalentSkillDamagePercent);
+    }
+
+    [Fact]
+    public void ProductionConfigExposesFiveBaseProfessions()
+    {
+        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var monsterCatalog = new MonsterCombatCatalog(Options.Create(
+            config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
+        var catalog = new SkillCatalog(Options.Create(
+            config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+
+        Assert.Equal(new[] { "acolyte", "hunter", "mage", "rogue", "swordsman" },
+            catalog.BaseProfessions.Select(profession => profession.Code).Order());
+    }
+
+    [Theory]
+    [InlineData("mage")]
+    [InlineData("hunter")]
+    public async Task ProfessionWithoutConfiguredPromotionDoesNotAdvertisePromotion(string professionCode)
+    {
+        await using var test = await FormalTreeContext.CreateAsync(professionCode, level: 10, points: 9);
+
+        var response = (await test.Service.GetAsync("token", 1)).Response!;
+
+        Assert.False(response.CanPromote);
+        Assert.Empty(response.PromotionOptions);
+    }
+
+    [Fact]
+    public async Task RogueAdvertisesBothPromotionPathsAtLevelTen()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("rogue", level: 10, points: 9);
+
+        var response = (await test.Service.GetAsync("token", 1)).Response!;
+
+        Assert.True(response.CanPromote);
+        Assert.Equal(new[] { "assassin", "trickster" }, response.PromotionOptions.Select(option => option.Code).Order());
+        Assert.All(response.PromotionOptions, option => Assert.False(string.IsNullOrWhiteSpace(option.GrantedSkillName)));
+    }
+
     [Theory]
     [InlineData("swordsman", "knight", "knight-guard")]
     [InlineData("swordsman", "warrior", "warrior-fury")]
     [InlineData("acolyte", "priest", "priest-group-heal")]
+    [InlineData("rogue", "assassin", "assassin-deathblow")]
+    [InlineData("rogue", "trickster", "trickster-smoke-bomb")]
     public async Task LevelTenPromotionIsFreeAndGrantsBaseSkill(string baseCode, string advancedCode, string skillCode)
     {
         await using var test = await FormalTreeContext.CreateAsync(baseCode, level: 10, points: 9);

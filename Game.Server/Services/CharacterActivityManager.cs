@@ -69,6 +69,7 @@ public static class CharacterActivityManager
             slot.IsTemporaryAuto = false;
             slot.PendingConsumableSlotIndex = null;
             slot.PendingSkillSlotMask = 0;
+            slot.IsSoulImprintQueued = false;
             slot.HasParticipatedInRun = false;
             slot.LastParticipatedMonsterId = null;
         }

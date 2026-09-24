@@ -140,6 +140,12 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 }
                 logs.Add($"{character.Name} 获得 {displayName} × {weapon.Quantity}。");
             }
+            foreach (var soulImprint in group.Where(entry => entry.Kind == "SoulImprint"))
+            {
+                for (var i = 0; i < soulImprint.Quantity; i++)
+                    dbContext.CharacterSoulImprints.Add(catalog.MaterializeSoulImprint(soulImprint.Code, character.Id));
+                logs.Add($"{character.Name} 获得魂印「{catalog.Describe(soulImprint)}」× {soulImprint.Quantity}。");
+            }
         }
         run.Status = victory ? "Victory" : "Defeat";
         run.SettledAtUtc = now;

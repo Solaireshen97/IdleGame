@@ -82,6 +82,8 @@
                 <div class="talents-page__panel @(_mobileSection == "skills" ? "talents-page__panel--selected" : null)" id="skill-loadout" role="tabpanel" aria-labelledby="skills-section-tab">
                     <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
                                          CharacterId="@character.CharacterId" />
+                    <CharacterSoulImprintBoard @key='("soul-imprints", character.CharacterId)'
+                                               CharacterId="@character.CharacterId" />
                 </div>
                 <section class="talents-page__next">
                     <span class="talents-page__next-icon" aria-hidden="true">✦</span>

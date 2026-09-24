@@ -14,6 +14,7 @@ public class RoomSlot
     public bool IsTemporaryAuto { get; set; }
     public int? PendingConsumableSlotIndex { get; set; }
     public int PendingSkillSlotMask { get; set; }
+    public bool IsSoulImprintQueued { get; set; }
     public bool HasParticipatedInRun { get; set; }
     public int? LastParticipatedMonsterId { get; set; }
 }

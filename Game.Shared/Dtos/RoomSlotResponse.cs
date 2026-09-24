@@ -8,6 +8,8 @@ public class RoomSlotResponse
     public int? CharacterId { get; set; }
     public int? PendingConsumableSlotIndex { get; set; }
     public int PendingSkillSlotMask { get; set; }
+    public bool IsSoulImprintQueued { get; set; }
+    public RoomSoulImprintResponse? SoulImprint { get; set; }
     public List<RoomSkillSlotResponse> Skills { get; set; } = [];
     public List<RoomConsumableSlotResponse> Consumables { get; set; } = [];
     public RoomOperationPotionResponse? OperationPotion { get; set; }
@@ -35,6 +37,23 @@ public class RoomSlotResponse
     public bool IsAutoUnlockedForCurrentUser { get; set; }
     public bool CanConfigureAuto { get; set; }
     public List<BattleStatusEffectResponse> StatusEffects { get; set; } = [];
+}
+
+public sealed class RoomSoulImprintResponse
+{
+    public int Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public ElementType Element { get; set; }
+    public SoulImprintEffectType EffectType { get; set; }
+    public int PowerPercent { get; set; }
+    public int SecondaryPowerPercent { get; set; }
+    public int DurationRounds { get; set; }
+    public int InitialCooldownRounds { get; set; }
+    public int CooldownRounds { get; set; }
+    public int CooldownRoundsRemaining { get; set; }
+    public bool AutoUseEnabled { get; set; }
 }
 
 public class RoomSkillSlotResponse

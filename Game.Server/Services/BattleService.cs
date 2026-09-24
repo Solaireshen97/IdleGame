@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null)
 {
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
@@ -366,6 +366,34 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         return await SaveAsync();
     }
 
+    public async Task<(bool Success, string? Error)> QueueSoulImprintAsync(QueueSoulImprintRequest request, string? token)
+    {
+        var (room, slots, monster, user, error) = await GetBattleContextAsync(request.RoomId, token);
+        if (error is not null) return (false, error);
+        if (room!.Status == RoomStatus.BattleOver || monster!.Hp <= 0) return (false, "BattleOver");
+        var participant = slots!.SingleOrDefault(entry => entry.Character.Id == request.CharacterId);
+        if (participant is null || participant.Slot.UserId != user!.Id) return (false, "NotCharacterOwner");
+        if (participant.Character.Hp <= 0) return (false, "CharacterDead");
+        if (request.IsQueued)
+        {
+            if (soulImprintCatalog is null) return (false, "SoulImprintNotEquipped");
+            var equipped = await dbContext.CharacterSoulImprints.SingleOrDefaultAsync(entry =>
+                entry.CharacterId == request.CharacterId && entry.EquippedSlotIndex == SoulImprintRules.SlotIndex);
+            var definition = soulImprintCatalog.Find(equipped?.SoulImprintCode);
+            if (definition is null) return (false, "SoulImprintNotEquipped");
+            var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
+                entry.RoomId == room.Id && entry.CharacterId == request.CharacterId &&
+                entry.SkillCode == SoulImprintRules.CooldownCode(definition.Code));
+            var readyAtRound = cooldown?.ReadyAtRound ?? definition.InitialCooldownRounds;
+            if (readyAtRound > room.RoundNumber) return (false, "SoulImprintCooldown");
+            if (!await CanSoulImprintApplyAsync(room, monster, definition, participant, slots))
+                return (false, "NoValidSoulImprintTarget");
+        }
+        participant.Slot.IsSoulImprintQueued = request.IsQueued;
+        room.Version++;
+        return await SaveAsync();
+    }
+
     public async Task<(BattleResult? Result, string? Error)> ExecuteRoundAsync(int roomId, string? token)
     {
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
@@ -446,6 +474,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 echo += skillCatalog.FindTalentNode("sword-counteroffense")?.ValuePerRank ?? 75;
             pendingTalentEcho[entry.Character.Id] = echo;
         }
+        await ApplySoulImprintsAsync(room, aliveSlots, monster, operationBonuses, logs);
         var roundDefense = await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationBonuses, logs);
         var monsterReduction = monsterCombatService is null ? 0m :
             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
@@ -569,6 +598,159 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         return await SaveResultAsync(room, slots, monster, now, logs, resetLog);
     }
 
+    private async Task ApplySoulImprintsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
+        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
+    {
+        if (soulImprintCatalog is null || aliveSlots.Count == 0 || monster.Hp <= 0) return;
+        var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
+        var equipped = await dbContext.CharacterSoulImprints.Where(entry =>
+            characterIds.Contains(entry.CharacterId) && entry.EquippedSlotIndex == SoulImprintRules.SlotIndex).ToListAsync();
+        if (equipped.Count == 0) return;
+        var cooldownCodes = equipped.Select(entry => SoulImprintRules.CooldownCode(entry.SoulImprintCode)).ToList();
+        var cooldowns = await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == room.Id &&
+            characterIds.Contains(entry.CharacterId) && cooldownCodes.Contains(entry.SkillCode)).ToListAsync();
+
+        foreach (var participant in aliveSlots.OrderBy(entry => entry.Slot.SlotIndex))
+        {
+            if (monster.Hp <= 0) break;
+            var imprint = equipped.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id);
+            var definition = soulImprintCatalog.Find(imprint?.SoulImprintCode);
+            if (imprint is null || definition is null) continue;
+            var automatic = !participant.Slot.IsSoulImprintQueued && imprint.AutoUseEnabled;
+            if (!participant.Slot.IsSoulImprintQueued && !automatic) continue;
+            var cooldownCode = SoulImprintRules.CooldownCode(definition.Code);
+            var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id &&
+                entry.SkillCode == cooldownCode);
+            var readyAtRound = cooldown?.ReadyAtRound ?? definition.InitialCooldownRounds;
+            if (readyAtRound > room.RoundNumber ||
+                !await CanSoulImprintApplyAsync(room, monster, definition, participant, aliveSlots)) continue;
+
+            async Task<int> DealSoulDamageAsync()
+            {
+                var statusAttack = monsterCombatService is null ? 0m :
+                    await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
+                var monsterReduction = monsterCombatService is null ? 0m :
+                    await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
+                var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
+                    TalentRules.EffectiveMaxHp(participant.Character),
+                    participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
+                    participant.Character.WeaponEnmityPercent + participant.Character.TemporaryWeaponEnmityPercent);
+                var critical = RollCritical(participant.Character, isSkill: true);
+                var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
+                    factors: new DamageFactors(
+                        AttackPercent: participant.Character.WeaponAttackBonusPercent +
+                            participant.Character.TemporaryWeaponAttackBonusPercent + statusAttack +
+                            operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
+                        HealthPercent: healthPercent,
+                        CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
+                        ElementPercent: ElementMatchup.PlayerAttackPercent(definition.Element, monster.Element),
+                        ReductionPercent: monsterReduction,
+                        SkillDamagePercent: participant.Character.WeaponSkillDamagePercent +
+                            participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent,
+                        ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent),
+                    attackPowerPercent: definition.PowerPercent);
+                monster.Hp = Math.Max(0, monster.Hp - damage);
+                logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 释放魂印「{definition.Name}」攻击 {monster.Name}，造成 {damage} 点{WeaponRules.ElementName(definition.Element)}属性伤害{(critical ? "（暴击）" : "")}。");
+                return damage;
+            }
+
+            switch (definition.EffectType)
+            {
+                case SoulImprintEffectType.DamageArmorBreak:
+                    await DealSoulDamageAsync();
+                    if (monster.Hp > 0 && monsterCombatService is not null)
+                        await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "armor-break",
+                            definition.DurationRounds, logs, monster.Name);
+                    break;
+                case SoulImprintEffectType.DamageEcho:
+                {
+                    var damage = await DealSoulDamageAsync();
+                    var echo = Math.Min(monster.Hp, (int)decimal.Floor(damage * definition.SecondaryPowerPercent / 100m));
+                    if (echo > 0)
+                    {
+                        monster.Hp -= echo;
+                        logs.Add($"魂印毒蚀对 {monster.Name} 追加 {echo} 点无视防御伤害。");
+                    }
+                    break;
+                }
+                case SoulImprintEffectType.Interrupt:
+                    await DealSoulDamageAsync();
+                    if (monster.Hp > 0 && monsterCombatService is not null &&
+                        await monsterCombatService.InterruptCurrentIntentAsync(room, monster))
+                        logs.Add($"魂印「{definition.Name}」打断了 {monster.Name} 的行动。");
+                    break;
+                case SoulImprintEffectType.CooldownReduction:
+                {
+                    var reduction = Math.Max(1, definition.SecondaryPowerPercent);
+                    var affected = await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == room.Id &&
+                        entry.CharacterId == participant.Character.Id &&
+                        !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix) &&
+                        entry.ReadyAtRound > room.RoundNumber).ToListAsync();
+                    foreach (var skillCooldown in affected)
+                        skillCooldown.ReadyAtRound = Math.Max(room.RoundNumber, skillCooldown.ReadyAtRound - reduction);
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 释放魂印「{definition.Name}」，{affected.Count} 个职业技能的剩余冷却缩短 {reduction} 回合。");
+                    break;
+                }
+                case SoulImprintEffectType.HealCleanse:
+                    foreach (var target in aliveSlots.Where(entry => entry.Character.Hp > 0))
+                    {
+                        var maxHp = TalentRules.EffectiveMaxHp(target.Character);
+                        var heal = Math.Min(maxHp - target.Character.Hp,
+                            (int)decimal.Floor(maxHp * definition.PowerPercent / 100m));
+                        if (heal > 0)
+                        {
+                            target.Character.Hp += heal;
+                            logs.Add($"魂印「{definition.Name}」为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {heal} 点生命值。");
+                        }
+                        if (monsterCombatService is not null)
+                        {
+                            var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character",
+                                [target.Character.Id], false);
+                            if (removed is not null)
+                                logs.Add($"魂印「{definition.Name}」移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {removed.Name}。");
+                        }
+                    }
+                    break;
+                case SoulImprintEffectType.GuardCounter:
+                    if (monsterCombatService is not null)
+                        await monsterCombatService.ApplyStatusAsync(room, "Character", participant.Character.Id,
+                            "soul-frost-guard", 0, logs, $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
+                    await DealSoulDamageAsync();
+                    break;
+            }
+
+            if (cooldown is null)
+            {
+                cooldown = new BattleSkillCooldown
+                {
+                    RoomId = room.Id, CharacterId = participant.Character.Id, SkillCode = cooldownCode
+                };
+                cooldowns.Add(cooldown);
+                dbContext.BattleSkillCooldowns.Add(cooldown);
+            }
+            cooldown.ReadyAtRound = checked(room.RoundNumber + definition.CooldownRounds + 1);
+        }
+    }
+
+    private async Task<bool> CanSoulImprintApplyAsync(Room room, Monster monster,
+        SoulImprintDefinitionOptions definition, SlotCharacter participant, IReadOnlyCollection<SlotCharacter> aliveSlots)
+    {
+        if (monster.Hp <= 0) return false;
+        return definition.EffectType switch
+        {
+            SoulImprintEffectType.Interrupt => monsterCombatService is not null &&
+                await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster),
+            SoulImprintEffectType.HealCleanse => aliveSlots.Any(entry => entry.Character.Hp > 0 &&
+                entry.Character.Hp < TalentRules.EffectiveMaxHp(entry.Character)) || monsterCombatService is not null &&
+                await monsterCombatService.HasRemovableStatusAsync(room, "Character",
+                    aliveSlots.Select(entry => entry.Character.Id).ToList(), false),
+            SoulImprintEffectType.CooldownReduction => await dbContext.BattleSkillCooldowns.AnyAsync(entry =>
+                entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id &&
+                !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix) && entry.ReadyAtRound > room.RoundNumber),
+            _ => true
+        };
+    }
+
     private async Task<PlayerRoundDefense> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
         IReadOnlyDictionary<int, ElementType> mainWeaponElements,
         IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
@@ -668,7 +850,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     }
                     case "Guard":
                     {
-                        var target = skill.Code == "sword-parry" ? participant : aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
+                        var target = effect.Target == "Self" || skill.Code == "sword-parry"
+                            ? participant
+                            : aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
                         if (target is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
                         if (automatic && guardPercent > 0 && guardTargetCharacterId == target.Character.Id) break;
                         var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
@@ -860,6 +1044,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         IReadOnlyList<SlotCharacter> alive)
     {
         var effects = SkillCatalog.EffectsFor(skill);
+        if (effects.Any(effect => effect.Type == "Guard" && effect.Target == "Self")) return participant;
         if (effects.Any(effect => effect.Type == "Guard")) return alive.FirstOrDefault();
         if (effects.Any(effect => effect.Type == "Heal" && effect.Target == "Self")) return participant;
         return FindLowestHpTarget(alive);
@@ -1122,7 +1307,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
     private async Task ResetSkillCooldownsAsync(int roomId)
     {
-        foreach (var cooldown in await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync())
+        var cooldowns = await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync();
+        dbContext.BattleSkillCooldowns.RemoveRange(cooldowns.Where(entry =>
+            entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix)));
+        foreach (var cooldown in cooldowns.Where(entry =>
+                     !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix)))
             cooldown.ReadyAtRound = 0;
     }
 
@@ -1218,7 +1407,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             .Select(milestone => milestone.CharacterId).ToListAsync();
     }
 
-    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; entry.Slot.PendingSkillSlotMask = 0; } }
+    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; entry.Slot.PendingSkillSlotMask = 0; entry.Slot.IsSoulImprintQueued = false; } }
     private static void ResetRunParticipation(IEnumerable<SlotCharacter> slots) { foreach (var entry in slots) { entry.Slot.HasParticipatedInRun = false; entry.Slot.LastParticipatedMonsterId = null; } }
     private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
     private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService, battleMilestones);

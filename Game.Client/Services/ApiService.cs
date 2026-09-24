@@ -206,7 +206,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
     }
 
-    public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonWeaponAsync(
+    public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonRewardAsync(
         int characterId, string offerCode)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/exchange", requiresAuth: true);
@@ -590,6 +590,18 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await HandleRoomDetailResponseAsync(response, "安排技能失败。");
     }
 
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSoulImprintAsync(
+        int roomId, int characterId, bool isQueued)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/soul-imprint", requiresAuth: true);
+        request.Content = JsonContent.Create(new QueueSoulImprintRequest
+        {
+            RoomId = roomId, CharacterId = characterId, IsQueued = isQueued
+        });
+        using var response = await httpClient.SendAsync(request);
+        return await HandleRoomDetailResponseAsync(response, "安排魂印失败。");
+    }
+
     private async Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SendSkillRequestAsync(
         HttpMethod method, string url, object? configuration = null)
     {
@@ -655,6 +667,57 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             return (null, string.IsNullOrWhiteSpace(error) ? "武器操作失败。" : error);
         }
         return (await response.Content.ReadFromJsonAsync<CharacterWeaponsResponse>(), null);
+    }
+
+    public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> GetCharacterSoulImprintsAsync(
+        int characterId) =>
+        SendSoulImprintRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/soul-imprints");
+
+    public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetEquippedSoulImprintAsync(
+        int characterId, int? soulImprintId) =>
+        SendSoulImprintRequestAsync(HttpMethod.Put,
+            $"api/user/characters/{characterId}/soul-imprints/equipped",
+            new SetSoulImprintRequest { SoulImprintId = soulImprintId });
+
+    public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetSoulImprintLockAsync(
+        int characterId, int soulImprintId, bool isLocked) =>
+        SendSoulImprintRequestAsync(HttpMethod.Put,
+            $"api/user/characters/{characterId}/soul-imprints/{soulImprintId}/lock",
+            new SetSoulImprintLockRequest { IsLocked = isLocked });
+
+    public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetSoulImprintAutoAsync(
+        int characterId, int soulImprintId, bool autoUseEnabled) =>
+        SendSoulImprintRequestAsync(HttpMethod.Put,
+            $"api/user/characters/{characterId}/soul-imprints/{soulImprintId}/auto",
+            new SetSoulImprintAutoRequest { AutoUseEnabled = autoUseEnabled });
+
+    public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> DismantleSoulImprintsAsync(
+        int characterId, params int[] soulImprintIds) =>
+        SendSoulImprintRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/soul-imprints/dismantle",
+            new SoulImprintBatchRequest { SoulImprintIds = soulImprintIds.ToList() });
+
+    private async Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SendSoulImprintRequestAsync(
+        HttpMethod method, string url, object? configuration = null)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        if (configuration is not null) request.Content = JsonContent.Create(configuration);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
+            return (null, error switch
+            {
+                "LoadoutLocked" => "战斗已经开始，当前不能修改魂印。",
+                "SoulImprintEquipped" => "请先卸下魂印再进行分解。",
+                "SoulImprintLocked" => "已锁定的魂印不能分解。",
+                "SoulImprintNotOwned" => "该魂印已不在当前角色背包中。",
+                "ConcurrencyConflict" => "魂印状态刚刚发生变化，请刷新后重试。",
+                _ => "魂印操作失败，请稍后重试。"
+            });
+        }
+        return (await response.Content.ReadFromJsonAsync<CharacterSoulImprintsResponse>(), null);
     }
 
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SetConsumableSlotAsync(

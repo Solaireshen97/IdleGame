@@ -152,7 +152,9 @@ public sealed class T1WeaponEconomyTests
         test.Db.Rooms.Add(room);
         await test.Db.SaveChangesAsync();
         var rewards = new RewardService(test.Db, new RewardCatalog(test.Bind<RewardOptions>(RewardOptions.SectionName),
-            test.Consumables, test.Weapons, test.Materials), ProgressionTestFactory.Create());
+            test.Consumables, test.Weapons, test.Materials,
+            new SoulImprintCatalog(test.Bind<SoulImprintOptions>(SoulImprintOptions.SectionName))),
+            ProgressionTestFactory.Create());
 
         // Two characters owned by the same account receive exactly one tutorial weapon in total.
         for (var run = 1; run <= 2; run++)
@@ -199,11 +201,13 @@ public sealed class T1WeaponEconomyTests
             Weapons = new WeaponCatalog(Bind<WeaponOptions>(WeaponOptions.SectionName));
             Consumables = new ConsumableCatalog(Bind<ConsumableOptions>(ConsumableOptions.SectionName));
             Materials = new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName));
+            var soulImprints = new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName));
             var skills = SkillTestFactory.Create();
             Users = new UserService(Db, ProgressionTestFactory.Create(), skills, Weapons);
             Armory = new WeaponService(Db, Users, skills, Weapons);
             Shop = new ShopService(Db, Users, new ShopCatalog(Bind<ShopOptions>(ShopOptions.SectionName), Consumables, Weapons),
-                Consumables, Weapons, Materials, new DungeonExchangeCatalog(Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName), Materials, Weapons));
+                Consumables, Weapons, Materials, new DungeonExchangeCatalog(
+                    Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName), Materials, Weapons, soulImprints), soulImprints);
         }
 
         public static async Task<EconomyContext> CreateAsync()

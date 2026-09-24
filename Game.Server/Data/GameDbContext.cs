@@ -29,6 +29,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
     public DbSet<CharacterWeapon> CharacterWeapons => Set<CharacterWeapon>();
     public DbSet<CharacterWeaponSkill> CharacterWeaponSkills => Set<CharacterWeaponSkill>();
+    public DbSet<CharacterSoulImprint> CharacterSoulImprints => Set<CharacterSoulImprint>();
     public DbSet<RewardRun> RewardRuns => Set<RewardRun>();
     public DbSet<RewardEvent> RewardEvents => Set<RewardEvent>();
     public DbSet<RewardEntry> RewardEntries => Set<RewardEntry>();
@@ -177,6 +178,18 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel = 0 AND EnhancementLevel BETWEEN 0 AND 6 AND Level = BaseLevel + EnhancementLevel");
                 table.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
             });
+        modelBuilder.Entity<CharacterSoulImprint>()
+            .Property(item => item.Version)
+            .IsConcurrencyToken();
+        modelBuilder.Entity<CharacterSoulImprint>()
+            .HasIndex(item => new { item.CharacterId, item.EquippedSlotIndex })
+            .IsUnique()
+            .HasFilter("EquippedSlotIndex IS NOT NULL");
+        modelBuilder.Entity<CharacterSoulImprint>()
+            .HasIndex(item => new { item.CharacterId, item.SoulImprintCode });
+        modelBuilder.Entity<CharacterSoulImprint>()
+            .ToTable(table => table.HasCheckConstraint("CK_CharacterSoulImprints_Slot",
+                "EquippedSlotIndex IS NULL OR EquippedSlotIndex = 1"));
 
         modelBuilder.Entity<Room>()
             .Property(room => room.Version)

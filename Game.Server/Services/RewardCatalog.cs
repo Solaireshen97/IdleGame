@@ -15,15 +15,17 @@ public sealed class RewardCatalog
     private readonly ConsumableCatalog _consumables;
     private readonly WeaponCatalog _weapons;
     private readonly MaterialCatalog? _materials;
+    private readonly SoulImprintCatalog? _soulImprints;
     private readonly bool _grantFirstHuntWeapon;
     private readonly Random _random;
 
     public RewardCatalog(IOptions<RewardOptions> options, ConsumableCatalog consumables, WeaponCatalog weapons,
-        MaterialCatalog? materials = null, Random? random = null)
+        MaterialCatalog? materials = null, SoulImprintCatalog? soulImprints = null, Random? random = null)
     {
         _consumables = consumables;
         _weapons = weapons;
         _materials = materials;
+        _soulImprints = soulImprints;
         _grantFirstHuntWeapon = options.Value.GrantFirstHuntWeapon;
         _random = random ?? Random.Shared;
         _kills = Validate(options.Value.MonsterKills);
@@ -37,12 +39,13 @@ public sealed class RewardCatalog
         {
             if (string.IsNullOrWhiteSpace(code) || bundle is null || bundle.Gold < 0 || bundle.Experience < 0 ||
                 bundle.Drops.Any(drop => drop.Quantity <= 0 || drop.ChancePercent is < 0 or > 100 ||
-                    drop.Kind is not ("Consumable" or "Weapon" or "Material") ||
+                    drop.Kind is not ("Consumable" or "Weapon" or "Material" or "SoulImprint") ||
                     drop.Kind switch
                     {
                         "Consumable" => _consumables.FindItem(drop.Code) is null,
                         "Weapon" => _weapons.FindItem(drop.Code) is null,
                         "Material" => _materials?.FindItem(drop.Code) is null,
+                        "SoulImprint" => _soulImprints?.Find(drop.Code) is null,
                         _ => true
                     }))
                 throw new InvalidOperationException($"Invalid rewards for dungeon: {code}");
@@ -95,6 +98,7 @@ public sealed class RewardCatalog
                 "Consumable" => _consumables.FindItem(drop.Code)?.Name ?? drop.Code,
                 "Weapon" => _weapons.FindItem(drop.Code)?.Name ?? drop.Code,
                 "Material" => _materials?.FindItem(drop.Code)?.Name ?? drop.Code,
+                "SoulImprint" => _soulImprints?.Find(drop.Code)?.Name ?? drop.Code,
                 _ => drop.Code
             },
             drop.Quantity,
@@ -126,6 +130,7 @@ public sealed class RewardCatalog
         "Consumable" => _consumables.FindItem(entry.Code)?.Name ?? entry.Code,
         "Material" => _materials?.FindItem(entry.Code)?.Name ?? entry.Code,
         "Weapon" => DeserializeWeapon(entry)?.DisplayName ?? _weapons.FindItem(entry.Code)?.Name ?? entry.Code,
+        "SoulImprint" => _soulImprints?.Find(entry.Code)?.Name ?? entry.Code,
         _ => entry.Code
     };
 
@@ -136,6 +141,10 @@ public sealed class RewardCatalog
 
     public CharacterWeapon MaterializeWeapon(WeaponRewardSnapshot snapshot, int characterId) =>
         _weapons.MaterializeReward(snapshot, characterId);
+
+    public CharacterSoulImprint MaterializeSoulImprint(string code, int characterId) =>
+        _soulImprints?.Materialize(code, characterId)
+        ?? throw new InvalidOperationException($"Unknown soul imprint reward: {code}");
 
     public WeaponRewardSnapshot? FirstHuntWeapon(string dungeonCode)
     {

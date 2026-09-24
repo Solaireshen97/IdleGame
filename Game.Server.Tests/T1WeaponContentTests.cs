@@ -84,27 +84,66 @@ public sealed class T1WeaponContentTests
         });
     }
 
+    [Theory]
+    [InlineData("mage", "apprentice-wand", ElementType.Water)]
+    [InlineData("hunter", "scout-longbow", ElementType.Wind)]
+    [InlineData("rogue", "novice-dagger", ElementType.Dark)]
+    public void NewBaseProfessionsReceiveDedicatedStarterWeapons(string professionCode, string weaponCode,
+        ElementType element)
+    {
+        var weapon = Assert.Single(T1WeaponEffectTests.ProductionCatalog()
+            .CreateStarterWeapons(7, professionCode));
+        Assert.Equal(weaponCode, weapon.WeaponCode);
+        Assert.Equal(element, weapon.Element);
+        Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
+        Assert.Equal(WeaponOrigin.Starter, weapon.Origin);
+    }
+
     [Fact]
-    public void FinalTierHasOneLevelTenDungeonAndSixElementExchangeOptionsPlusDistinctBossDrop()
+    public void FinalTierHasSixLevelTenDungeonsAndEachHasSixElementWeaponsWithoutExtraBossWeapon()
     {
         var configuration = Configuration();
         var catalog = T1WeaponEffectTests.ProductionCatalog();
-        var dungeon = WorldCatalog.LoadDefault().Dungeons.Single(item => item.Code == "kobold-mine-depths");
-        Assert.Equal((10, 10, "Dungeon"), (dungeon.MinimumLevel, dungeon.RecommendedLevel, dungeon.DungeonKind));
-        var offers = configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!.Offers
-            .Where(offer => offer.DungeonCode == dungeon.Code).ToList();
-        Assert.Equal(6, offers.Select(offer => catalog.FindItem(offer.WeaponCode)!.Element).Distinct().Count());
-        Assert.All(offers, offer => Assert.Equal((18, "deep-mine-token"), (offer.Cost, offer.CurrencyCode)));
+        var dungeons = WorldCatalog.LoadDefault().Dungeons.Where(item => item.DungeonKind == "Dungeon" &&
+            item.MinimumLevel == 10 && item.RecommendedLevel == 10).ToList();
+        Assert.Equal(6, dungeons.Count);
+        var allOffers = configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!.Offers;
         var rewards = configuration.GetSection(RewardOptions.SectionName).Get<RewardOptions>()!;
-        var bossDrop = Assert.Single(rewards.MonsterKills["kobold-mine-depths-boss"].Drops, drop => drop.Kind == "Weapon");
-        Assert.DoesNotContain(offers, offer => offer.WeaponCode == bossDrop.Code);
-        var gear = offers.Select(offer => catalog.FindItem(offer.WeaponCode)!).Append(catalog.FindItem(bossDrop.Code)!);
-        Assert.All(gear, item =>
+        var soulImprints = configuration.GetSection(SoulImprintOptions.SectionName).Get<SoulImprintOptions>()!.Items;
+        foreach (var dungeon in dungeons)
         {
-            Assert.Equal(1, item.ItemLevel);
-            Assert.Equal(new[] { 4, 3 }, item.Skills.Select(skill => skill.Level));
-            Assert.InRange(item.Attack + item.MaxHp / 2.5m, 48, 50);
-        });
+            var dungeonOffers = allOffers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
+            var offers = dungeonOffers.Where(offer => offer.RewardKind == "Weapon").ToList();
+            Assert.Equal(6, offers.Count);
+            Assert.Equal(6, offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
+            Assert.All(offers, offer => Assert.Equal(18, offer.Cost));
+            var fragmentOffer = Assert.Single(dungeonOffers, offer => offer.RewardKind == "Material");
+            Assert.Equal((1, "weapon-fragment-t1", 5),
+                (fragmentOffer.Cost, fragmentOffer.EffectiveRewardCode, fragmentOffer.RewardQuantity));
+            var soulDefinition = Assert.Single(soulImprints, imprint => imprint.DungeonCode == dungeon.Code);
+            var soulOffer = Assert.Single(dungeonOffers, offer => offer.RewardKind == "SoulImprint");
+            Assert.Equal((100, soulDefinition.Code), (soulOffer.Cost, soulOffer.EffectiveRewardCode));
+            var soulDrop = Assert.Single(rewards.DungeonClears[dungeon.Code].Drops,
+                drop => drop.Kind == "SoulImprint");
+            Assert.Equal((soulDefinition.Code, 1, 1m),
+                (soulDrop.Code, soulDrop.Quantity, soulDrop.ChancePercent));
+            var weaponDrops = rewards.DungeonClears[dungeon.Code].Drops
+                .Where(drop => drop.Kind == "Weapon").ToList();
+            Assert.Equal(6, weaponDrops.Count);
+            Assert.Equal(offers.Select(offer => offer.EffectiveRewardCode).Order(),
+                weaponDrops.Select(drop => drop.Code).Order());
+            Assert.All(weaponDrops, drop => Assert.Equal((1, 3m), (drop.Quantity, drop.ChancePercent)));
+            Assert.DoesNotContain(rewards.MonsterKills[$"{dungeon.Code}-boss"].Drops, drop => drop.Kind == "Weapon");
+            Assert.All(offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!), item =>
+            {
+                Assert.Equal(1, item.ItemLevel);
+                Assert.Equal(new[] { 4, 3 }, item.Skills.Select(skill => skill.Level));
+                Assert.InRange(item.Attack + item.MaxHp / 2.5m, 47, 51);
+            });
+        }
+        Assert.Equal(36, dungeons.SelectMany(dungeon => allOffers.Where(offer =>
+            offer.DungeonCode == dungeon.Code && offer.RewardKind == "Weapon"))
+            .Select(offer => offer.EffectiveRewardCode).Distinct().Count());
     }
 
     [Fact]

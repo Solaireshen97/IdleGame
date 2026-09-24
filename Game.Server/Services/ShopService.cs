@@ -9,7 +9,8 @@ namespace Game.Server.Services;
 
 public sealed class ShopService(GameDbContext dbContext, UserService userService, ShopCatalog shopCatalog,
     ConsumableCatalog consumables, WeaponCatalog weapons, MaterialCatalog materials,
-    DungeonExchangeCatalog dungeonExchanges, CharacterSlotCatalog? characterSlotCatalog = null)
+    DungeonExchangeCatalog dungeonExchanges, SoulImprintCatalog? soulImprints = null,
+    CharacterSlotCatalog? characterSlotCatalog = null)
 {
     private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
 
@@ -85,11 +86,49 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             stack.CharacterId == character.Id && stack.ItemCode == offer.CurrencyCode);
         if (currency is null || currency.Quantity < offer.Cost) return (null, "InsufficientDungeonCurrency");
 
-        var snapshot = weapons.CreateDropSnapshot(offer.WeaponCode) with { Origin = WeaponOrigin.Exchange };
+        var rewardCode = offer.EffectiveRewardCode;
+        WeaponRewardSnapshot? weaponSnapshot = null;
+        CharacterItemStack? materialStack = null;
+        CharacterSoulImprint? soulImprint = null;
+        if (string.Equals(offer.RewardKind, "Weapon", StringComparison.OrdinalIgnoreCase))
+        {
+            weaponSnapshot = weapons.CreateDropSnapshot(rewardCode) with { Origin = WeaponOrigin.Exchange };
+        }
+        else if (string.Equals(offer.RewardKind, "Material", StringComparison.OrdinalIgnoreCase))
+        {
+            materialStack = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(stack =>
+                stack.CharacterId == character.Id && stack.ItemCode == rewardCode);
+            if (materialStack is not null && materialStack.Quantity > int.MaxValue - offer.RewardQuantity)
+                return (null, "InventoryLimitReached");
+        }
+        else
+        {
+            soulImprint = soulImprints!.Materialize(rewardCode, character.Id);
+        }
+
         currency.Quantity -= offer.Cost;
         currency.Version++;
         character.Version++;
-        dbContext.CharacterWeapons.Add(snapshot.ToCharacterWeapon(character.Id));
+        if (weaponSnapshot is not null)
+        {
+            dbContext.CharacterWeapons.Add(weaponSnapshot.ToCharacterWeapon(character.Id));
+        }
+        else if (soulImprint is not null)
+        {
+            dbContext.CharacterSoulImprints.Add(soulImprint);
+        }
+        else if (materialStack is null)
+        {
+            dbContext.CharacterItemStacks.Add(new CharacterItemStack
+            {
+                CharacterId = character.Id, ItemCode = rewardCode, Quantity = offer.RewardQuantity
+            });
+        }
+        else
+        {
+            materialStack.Quantity += offer.RewardQuantity;
+            materialStack.Version++;
+        }
         try
         {
             await dbContext.SaveChangesAsync();
@@ -99,10 +138,14 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             return (null, "ConcurrencyConflict");
         }
 
+        var rewardName = weaponSnapshot?.DisplayName ?? soulImprints?.Find(rewardCode)?.Name ??
+            materials.FindItem(rewardCode)!.Name;
         return (new DungeonExchangeResultResponse
         {
             Shop = await BuildResponseAsync(user!, character),
-            WeaponDisplayName = snapshot.DisplayName
+            RewardDisplayName = rewardName,
+            RewardQuantity = offer.RewardQuantity,
+            WeaponDisplayName = weaponSnapshot?.DisplayName ?? string.Empty
         }, null);
     }
 
@@ -136,6 +179,10 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         var stocks = await dbContext.CharacterItemStacks.Where(item => item.CharacterId == character.Id).ToListAsync();
         var ownedWeapons = await dbContext.CharacterWeapons.Where(item => item.CharacterId == character.Id)
             .GroupBy(item => item.WeaponCode)
+            .Select(group => new { Code = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Code, item => item.Count);
+        var ownedSoulImprints = await dbContext.CharacterSoulImprints.Where(item => item.CharacterId == character.Id)
+            .GroupBy(item => item.SoulImprintCode)
             .Select(group => new { Code = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.Code, item => item.Count);
         var characterCount = await dbContext.Characters.CountAsync(item => item.UserId == user.Id);
@@ -172,15 +219,30 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             }).ToList(),
             DungeonExchangeOffers = dungeonExchanges.Offers.Select(offer =>
             {
-                var weapon = weapons.FindItem(offer.WeaponCode)!;
+                var rewardCode = offer.EffectiveRewardCode;
+                var isWeapon = string.Equals(offer.RewardKind, "Weapon", StringComparison.OrdinalIgnoreCase);
+                var weapon = isWeapon ? weapons.FindItem(rewardCode) : null;
+                var soulImprint = string.Equals(offer.RewardKind, "SoulImprint", StringComparison.OrdinalIgnoreCase)
+                    ? soulImprints?.Find(rewardCode) : null;
+                var material = isWeapon || soulImprint is not null ? null : materials.FindItem(rewardCode);
                 var currency = materials.FindItem(offer.CurrencyCode)!;
                 return new DungeonExchangeOfferResponse
                 {
                     Code = offer.Code, DungeonCode = offer.DungeonCode, DungeonName = offer.DungeonName,
                     CurrencyCode = offer.CurrencyCode, CurrencyName = currency.Name, Cost = offer.Cost,
-                    WeaponCode = weapon.Code, WeaponName = weapon.Name, Element = weapon.Element,
-                    Attack = weapon.Attack, MaxHp = weapon.MaxHp,
-                    OwnedQuantity = ownedWeapons.GetValueOrDefault(weapon.Code),
+                    RewardKind = offer.RewardKind, RewardCode = rewardCode,
+                    RewardName = weapon?.Name ?? soulImprint?.Name ?? material!.Name,
+                    RewardDescription = soulImprint?.Description ?? material?.Description ?? string.Empty,
+                    RewardQuantity = offer.RewardQuantity,
+                    WeaponCode = weapon?.Code ?? string.Empty, WeaponName = weapon?.Name ?? string.Empty,
+                    Element = weapon?.Element, Attack = weapon?.Attack, MaxHp = weapon?.MaxHp,
+                    InitialCooldownRounds = soulImprint?.InitialCooldownRounds,
+                    CooldownRounds = soulImprint?.CooldownRounds,
+                    OwnedQuantity = weapon is not null
+                        ? ownedWeapons.GetValueOrDefault(weapon.Code)
+                        : soulImprint is not null
+                            ? ownedSoulImprints.GetValueOrDefault(soulImprint.Code)
+                        : stocks.FirstOrDefault(stack => stack.ItemCode == rewardCode)?.Quantity ?? 0,
                     WeaponSkills = BuildWeaponSkills(weapon)
                 };
             }).ToList()

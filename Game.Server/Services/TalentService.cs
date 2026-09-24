@@ -72,6 +72,7 @@ public class TalentService(GameDbContext dbContext, UserService userService, Ski
         if (roomSlot is not null)
         {
             roomSlot.PendingSkillSlotMask = 0;
+            roomSlot.IsSoulImprintQueued = false;
             var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
             if (room is not null) room.Version++;
         }

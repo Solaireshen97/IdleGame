@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null)
 {
     private const int SlotCount = 5;
     private TimeSpan MaximumActivityDuration => TimeSpan.FromHours(activityOptions?.Value.MaximumHours is > 0 and <= 168 ? activityOptions.Value.MaximumHours : 12);
@@ -237,6 +237,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
         slot.PendingSkillSlotMask = 0;
+        slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
         room.Version++;
@@ -276,6 +277,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (existingSlot is null) CharacterActivityManager.StartBattle(dbContext, character.Id, room, DateTime.UtcNow);
         target.PendingConsumableSlotIndex = null;
         target.PendingSkillSlotMask = 0;
+        target.IsSoulImprintQueued = false;
         room!.Version++;
         try { await dbContext.SaveChangesAsync(); }
         catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
@@ -304,6 +306,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
         slot.PendingSkillSlotMask = 0;
+        slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
         room.Version++;
@@ -433,6 +436,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync();
         var skillCooldowns = await dbContext.BattleSkillCooldowns
             .Where(entry => entry.RoomId == room.Id && currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync();
+        var equippedSoulImprints = soulImprintCatalog is null ? [] : await dbContext.CharacterSoulImprints
+            .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId) &&
+                entry.EquippedSlotIndex == SoulImprintRules.SlotIndex).ToListAsync();
         var purchasedSkillNodes = (await dbContext.CharacterSkillTalents
             .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync())
             .GroupBy(entry => entry.CharacterId)
@@ -462,7 +468,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var cumulativeCharacterIds = cumulativeEntries.Select(entry => entry.CharacterId).Distinct().ToList();
         var cumulativeCharacters = await dbContext.Characters.Where(character => cumulativeCharacterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id, character => character.Name);
-        var cumulativeItems = cumulativeEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon")
+        var cumulativeItems = cumulativeEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
             .Select(entry => new RoomRewardItemResponse
             {
                 CharacterName = cumulativeCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
@@ -471,6 +477,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 {
                     "Consumable" => consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code,
                     "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
+                    "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
                     _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
                 }
             })
@@ -528,14 +535,19 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 Status = rewardRun.Status, SettledAtUtc = rewardRun.SettledAtUtc,
                 Gold = rewardEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity),
                 Experience = rewardEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity),
-                Items = rewardEntries.Where(entry => entry.Kind is "Consumable" or "Weapon")
+                Items = rewardEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
                     .Select(entry => new RoomRewardItemResponse
                     {
                         CharacterName = rewardCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
                         Kind = entry.Kind, Quantity = entry.Quantity,
                         Source = entry.EventKey == "clear" ? "通关" : "击杀",
-                        Name = entry.Kind == "Consumable" ? consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code
-                            : RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
+                        Name = entry.Kind switch
+                        {
+                            "Consumable" => consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code,
+                            "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
+                            "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
+                            _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
+                        }
                     }).ToList()
             },
             Slots = slots.Select(slot =>
@@ -614,6 +626,31 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                         };
                     }).ToList()
                     : [];
+                RoomSoulImprintResponse? ownSoulImprint = null;
+                if (ownCharacterId is int soulCharacterId && soulImprintCatalog is not null)
+                {
+                    var equipped = equippedSoulImprints.SingleOrDefault(entry => entry.CharacterId == soulCharacterId);
+                    var definition = soulImprintCatalog.Find(equipped?.SoulImprintCode);
+                    if (equipped is not null && definition is not null)
+                    {
+                        var cooldownCode = SoulImprintRules.CooldownCode(definition.Code);
+                        var cooldown = skillCooldowns.FirstOrDefault(entry => entry.CharacterId == soulCharacterId &&
+                            entry.SkillCode == cooldownCode);
+                        var readyAtRound = cooldown?.ReadyAtRound ?? definition.InitialCooldownRounds;
+                        ownSoulImprint = new RoomSoulImprintResponse
+                        {
+                            Id = equipped.Id, Code = definition.Code, Name = definition.Name,
+                            Description = definition.Description, Element = definition.Element,
+                            EffectType = definition.EffectType, PowerPercent = definition.PowerPercent,
+                            SecondaryPowerPercent = definition.SecondaryPowerPercent,
+                            DurationRounds = definition.DurationRounds,
+                            InitialCooldownRounds = definition.InitialCooldownRounds,
+                            CooldownRounds = definition.CooldownRounds,
+                            CooldownRoundsRemaining = Math.Max(0, readyAtRound - room.RoundNumber),
+                            AutoUseEnabled = equipped.AutoUseEnabled
+                        };
+                    }
+                }
                 var characterElement = slot.CharacterId is int characterId && mainWeaponElements.TryGetValue(characterId, out var element)
                     ? element : (ElementType?)null;
                 var canConfigureAuto = slot.UserId == currentUserId && slot.CharacterId.HasValue &&
@@ -655,7 +692,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 }
                 var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds);
                 var isOffline = RoomAutoPolicy.IsOffline(room, slot, now);
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = canConfigureAuto, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = canConfigureAuto, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }

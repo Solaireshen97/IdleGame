@@ -225,6 +225,8 @@ else
         <div class="battle-stage__footer"><span><strong>进度</strong> 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @_roomDetail.SlotCount</span><span><strong>规则</strong> @(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则临时 Auto" : "无准备超时")</span></div>
     </section>
 
+    var mobileActionSlot = ownSlots.FirstOrDefault(slot => slot.CharacterId == _mobileActionCharacterId) ?? ownSlots.FirstOrDefault();
+
     <section class="battle-command" aria-label="本回合操作" @ref="_battleCommand">
         <div class="battle-command__heading">
             <span class="section-kicker">YOUR TURN</span>
@@ -281,9 +283,118 @@ else
             }
             @if (ownSlots.Count > 0)
             {
-                <button type="button" class="battle-shortcut" @onclick="ScrollToLoadoutAsync"><span aria-hidden="true">✦</span> 技能与补给</button>
+                <button type="button" class="battle-shortcut battle-shortcut--loadout" @onclick="ScrollToLoadoutAsync"><span aria-hidden="true">✦</span> 技能与补给</button>
             }
         </div>
+        @if (mobileActionSlot is not null)
+        {
+            <div class="battle-mobile-quick-actions" aria-label="移动端快速战斗操作">
+                <div class="battle-mobile-quick-actions__heading">
+                    <div>
+                        <span class="section-kicker">QUICK ACTIONS</span>
+                        <strong>@mobileActionSlot.CharacterName · @mobileActionSlot.ProfessionName</strong>
+                        <small>点按技能即可安排本回合行动</small>
+                    </div>
+                    <button type="button"
+                            class="battle-mobile-quick-actions__mode"
+                            @onclick='() => _mobileLoadoutView = _mobileLoadoutView == "skills" ? "supplies" : "skills"'
+                            aria-label="切换职业技能与战斗补给">
+                        <span aria-hidden="true">@(_mobileLoadoutView == "skills" ? "✚" : "✦")</span>
+                        <small>@(_mobileLoadoutView == "skills" ? "补给" : "技能")</small>
+                    </button>
+                </div>
+                <div class="battle-mobile-quick-actions__characters" role="tablist" aria-label="选择操作角色">
+                    @foreach (var characterSlot in ownSlots)
+                    {
+                        <button type="button"
+                                class="battle-mobile-character-tab @(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "active" : null) @(characterSlot.IsAlive ? null : "battle-mobile-character-tab--down")"
+                                role="tab"
+                                aria-selected="@(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "true" : "false")"
+                                @onclick="() => SelectMobileActionCharacter(characterSlot.CharacterId)">
+                            <span>@characterSlot.SlotIndex</span>
+                            <strong>@characterSlot.CharacterName</strong>
+                            <small>@(characterSlot.IsAlive ? $"HP {Math.Round(100d * (characterSlot.CharacterHp ?? 0) / Math.Max(1, characterSlot.CharacterMaxHp ?? 1))}%" : "已阵亡")</small>
+                        </button>
+                    }
+                </div>
+                @if (_mobileLoadoutView == "skills")
+                {
+                    <div class="battle-mobile-skill-rail" aria-label="当前角色技能">
+                        @if (mobileActionSlot.SoulImprint is { } mobileSoulImprint)
+                        {
+                            var soulSelected = mobileActionSlot.IsSoulImprintQueued;
+                            <button type="button"
+                                    class="battle-mobile-skill battle-mobile-skill--soul @(soulSelected ? "battle-mobile-skill--selected" : null)"
+                                    disabled="@(_isBusy || !CanQueueSoulImprint(mobileActionSlot, mobileSoulImprint))"
+                                    aria-pressed="@(soulSelected ? "true" : "false")"
+                                    title="@GetSoulImprintHint(mobileActionSlot, mobileSoulImprint)"
+                                    @onclick="() => ToggleSoulImprintAsync(mobileActionSlot, mobileSoulImprint)">
+                                <span class="battle-mobile-skill__icon" aria-hidden="true">✦</span>
+                                <strong>魂印</strong>
+                                <small>@(soulSelected ? "已安排" : mobileSoulImprint.CooldownRoundsRemaining > 0 ? $"蓄力 {mobileSoulImprint.CooldownRoundsRemaining}" : "释放")</small>
+                            </button>
+                        }
+                        @foreach (var skill in mobileActionSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
+                        {
+                            var selected = IsSkillQueued(mobileActionSlot, skill);
+                            var available = CanQueueSkill(mobileActionSlot, skill);
+                            <button type="button"
+                                    class="battle-skill-card battle-mobile-skill battle-skill-card--@GetSkillTone(skill) @(selected ? "battle-skill-card--selected" : "") @(!available ? "battle-skill-card--unavailable" : "")"
+                                    disabled="@_isBusy"
+                                    title="@GetSkillHint(mobileActionSlot, skill)"
+                                    aria-pressed="@(selected ? "true" : "false")"
+                                    aria-haspopup="dialog"
+                                    @onclick="() => HandleSkillClickAsync(mobileActionSlot, skill)">
+                                <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
+                                    <span class="battle-skill-card__flare"></span>
+                                    <img class="battle-skill-card__art" src="@SkillArt.ForCode(skill.SkillCode)" alt="" />
+                                    <span class="battle-skill-card__slot">@skill.SlotIndex</span>
+                                    @if (skill.CooldownRoundsRemaining > 0) { <span class="battle-skill-card__cooldown">@skill.CooldownRoundsRemaining</span> }
+                                    @if (selected) { <span class="battle-skill-card__check">✓</span> }
+                                </span>
+                                <strong class="battle-skill-card__name">@skill.SkillName</strong>
+                                <small class="battle-skill-card__status">@GetSkillStatus(skill, selected)</small>
+                                @if (skill.AutoUseEnabled) { <span class="battle-skill-card__auto">AUTO</span> }
+                            </button>
+                        }
+                    </div>
+                    <div class="battle-mobile-quick-actions__hint">
+                        <span>@(_isQuickSkillCastEnabled ? "快速施放已开启 · 点按可用技能直接安排" : "点按技能先查看效果，再确认使用")</span>
+                        <label class="quick-skill-toggle quick-skill-toggle--compact">
+                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
+                            <strong>快速施放</strong>
+                        </label>
+                    </div>
+                }
+                else
+                {
+                    <div class="battle-mobile-supply-rail" aria-label="当前角色战斗补给">
+                        @if (mobileActionSlot.OperationPotion is { } mobilePotion)
+                        {
+                            <div class="battle-mobile-supply battle-mobile-supply--operation">
+                                <span class="battle-mobile-supply__icon" aria-hidden="true">✦</span>
+                                <span><strong>@(mobilePotion.ItemName ?? "作战药剂")</strong><small>首次结算自动使用</small></span>
+                            </div>
+                        }
+                        @foreach (var supply in mobileActionSlot.Consumables.OrderBy(supply => supply.SlotIndex))
+                        {
+                            var selected = mobileActionSlot.PendingConsumableSlotIndex == supply.SlotIndex;
+                            <button type="button"
+                                    class="battle-mobile-supply @(selected ? "battle-mobile-supply--selected" : null)"
+                                    disabled="@(_isBusy || !CanQueueConsumable(mobileActionSlot, supply))"
+                                    aria-pressed="@(selected ? "true" : "false")"
+                                    title="@GetConsumableHint(mobileActionSlot, supply)"
+                                    @onclick="() => ToggleConsumableAsync(mobileActionSlot, supply)">
+                                <span class="battle-mobile-supply__icon" aria-hidden="true">
+                                    @if (supply.ItemCode is { } supplyCode) { <img src="@ItemArt.ForCode(supplyCode)" alt="" /> } else { <text>✚</text> }
+                                </span>
+                                <span><strong>@(supply.ItemName ?? $"空槽 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
         @if (countdown is not null)
         {
             var remainingSeconds = GetRemainingSeconds(countdown.DeadlineUtc);
@@ -577,6 +688,20 @@ else
                 {
                     <div class="battle-skills__character" @key="characterSlot.CharacterId">
                         <div class="battle-supplies__identity"><strong>@characterSlot.CharacterName · @characterSlot.ProfessionName</strong><span>自动技能按 1 → 5 号位依次判定</span></div>
+                        @if (characterSlot.SoulImprint is { } soulImprint)
+                        {
+                            var soulSelected = characterSlot.IsSoulImprintQueued;
+                            <button type="button"
+                                    class="battle-supply battle-supply--operation @(soulSelected ? "battle-supply--selected" : "")"
+                                    disabled="@_isBusy"
+                                    title="@GetSoulImprintHint(characterSlot, soulImprint)"
+                                    aria-pressed="@(soulSelected ? "true" : "false")"
+                                    @onclick="() => ToggleSoulImprintAsync(characterSlot, soulImprint)">
+                                <span class="battle-supply__icon" aria-hidden="true">✦</span>
+                                <span class="battle-supply__body"><strong>魂印 · @soulImprint.Name</strong><small>@GetSoulImprintStatus(soulImprint, soulSelected)</small></span>
+                                <span class="battle-supply__action">@(soulSelected ? "取消" : "释放")</span>
+                            </button>
+                        }
                         <div class="battle-skill-grid">
                             @foreach (var skill in characterSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
                             {
@@ -760,6 +885,7 @@ else
     private bool _focusLogTrigger;
     private bool _isQuickSkillCastEnabled;
     private string _mobileLoadoutView = "skills";
+    private int? _mobileActionCharacterId;
     private bool _isSkillDialogOpen;
     private bool _focusSkillDialogCloseButton;
     private bool _isSkillAutoSaving;
@@ -844,6 +970,14 @@ else
     }
 
     private Task ScrollToLoadoutAsync() => ScrollBelowBattleCommandAsync(_loadoutSection);
+
+    private void SelectMobileActionCharacter(int? characterId)
+    {
+        if (characterId is not null)
+        {
+            _mobileActionCharacterId = characterId;
+        }
+    }
 
     private async Task ScrollBelowBattleCommandAsync(ElementReference target)
     {
@@ -1100,6 +1234,39 @@ else
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && skill.SkillCode is not null &&
         (IsSkillQueued(character, skill) || skill.CooldownRoundsRemaining == 0 && HasApplicableSkillEffect(character, skill));
 
+    private bool CanQueueSoulImprint(RoomSlotResponse character, RoomSoulImprintResponse soulImprint) =>
+        _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive &&
+        (character.IsSoulImprintQueued || soulImprint.CooldownRoundsRemaining == 0 && SoulImprintHasTarget(character, soulImprint));
+
+    private bool SoulImprintHasTarget(RoomSlotResponse character, RoomSoulImprintResponse soulImprint) => soulImprint.EffectType switch
+    {
+        Game.Shared.Enums.SoulImprintEffectType.Interrupt =>
+            _roomDetail?.MonsterIntent is { ActionType: "Skill", IsInterruptible: true, IsInterrupted: false },
+        Game.Shared.Enums.SoulImprintEffectType.CooldownReduction =>
+            character.Skills.Any(skill => skill.SkillCode is not null && skill.CooldownRoundsRemaining > 0),
+        Game.Shared.Enums.SoulImprintEffectType.HealCleanse =>
+            _roomDetail?.Slots.Any(slot => slot.IsAlive &&
+                (slot.CharacterHp < slot.CharacterMaxHp || slot.StatusEffects.Any(effect => !effect.IsPositive))) == true,
+        _ => true
+    };
+
+    private string GetSoulImprintHint(RoomSlotResponse character, RoomSoulImprintResponse soulImprint)
+    {
+        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return "战斗已结束";
+        if (!character.IsAlive) return "角色已阵亡";
+        if (character.IsSoulImprintQueued) return "点击取消本回合释放";
+        if (soulImprint.CooldownRoundsRemaining > 0) return $"魂印蓄力中，还需 {soulImprint.CooldownRoundsRemaining} 回合";
+        if (!CanQueueSoulImprint(character, soulImprint)) return "当前没有有效目标";
+        return soulImprint.Description;
+    }
+
+    private static string GetSoulImprintStatus(RoomSoulImprintResponse soulImprint, bool selected)
+    {
+        if (selected) return "已安排本回合释放";
+        if (soulImprint.CooldownRoundsRemaining > 0) return $"蓄力 {soulImprint.CooldownRoundsRemaining} 回合";
+        return soulImprint.AutoUseEnabled ? "可释放 · AUTO" : "可以释放";
+    }
+
     private string GetSkillHint(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
         if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return "战斗已结束";
@@ -1248,6 +1415,40 @@ else
         "ConcurrencyConflict" => "战斗状态已变化，请重试。",
         _ => "安排技能失败，请稍后重试。"
     };
+
+    private async Task ToggleSoulImprintAsync(RoomSlotResponse character, RoomSoulImprintResponse soulImprint)
+    {
+        if (_isBusy || character.CharacterId is null || !CanQueueSoulImprint(character, soulImprint)) return;
+        _isBusy = true;
+        _skillMessage = null;
+        try
+        {
+            var (detail, error) = await ApiService.QueueSoulImprintAsync(RoomId, character.CharacterId.Value,
+                !character.IsSoulImprintQueued);
+            if (detail is null)
+            {
+                _skillMessage = error?.Trim().Trim('"') switch
+                {
+                    "SoulImprintCooldown" => "魂印仍在蓄力中。",
+                    "NoValidSoulImprintTarget" => "当前没有符合魂印能力的目标。",
+                    "SoulImprintNotEquipped" => "魂印装备已变化，请刷新页面。",
+                    "CharacterDead" => "角色已阵亡。",
+                    "BattleOver" => "战斗已结束。",
+                    "ConcurrencyConflict" => "战斗状态已变化，请重试。",
+                    _ => "安排魂印失败，请稍后重试。"
+                };
+                await RefreshRoomDetailAsync();
+            }
+            else
+            {
+                _roomDetail = detail;
+                _serverTimeUtc = detail.ServerTimeUtc;
+                _serverTimeReceivedAtUtc = DateTime.UtcNow;
+            }
+        }
+        catch { _skillMessage = "连接失败，请稍后重试。"; }
+        finally { _isBusy = false; }
+    }
 
     private string GetConsumableHint(RoomSlotResponse character, RoomConsumableSlotResponse supply)
     {

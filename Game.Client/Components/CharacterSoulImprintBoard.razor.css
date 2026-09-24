@@ -1,0 +1,16 @@
+.soul-board { margin-top: 1rem; padding: 1rem; border: 1px solid #3e566c; border-radius: .85rem; background: #142638; color: #e9f1f8; }
+.soul-board__header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: .85rem; }
+.soul-board__header span, .soul-board__slot small { color: #e4b45f; font-size: .66rem; font-weight: 800; letter-spacing: .14em; }
+.soul-board__header h2 { margin: .15rem 0; font: 700 1.45rem Georgia, serif; }.soul-board__header p { margin: 0; color: #aebfcd; font-size: .8rem; }
+.soul-board__header > strong { padding: .45rem .7rem; border: 1px solid #685b42; border-radius: 999px; color: #f0cc84; font-size: .75rem; white-space: nowrap; }
+.soul-board__slot { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .8rem; padding: .8rem; border: 1px solid #b68a45; border-radius: .7rem; background: rgba(182,138,69,.1); }
+.soul-board__slot--empty { border-style: dashed; border-color: #4c6174; background: #102131; }.soul-board__sigil { display: grid; place-items: center; width: 2.7rem; height: 2.7rem; border-radius: .6rem; color: #ffd17b; background: #24394b; font-size: 1.4rem; }
+.soul-board__slot strong { display: block; margin: .08rem 0; }.soul-board__slot p { margin: 0; color: #9fb1bf; font-size: .72rem; }
+.soul-board button { min-height: 40px; padding: .35rem .7rem; border: 1px solid #536b80; border-radius: .48rem; color: #dbe7ef; background: #172b3e; cursor: pointer; }.soul-board button:disabled { opacity: .45; cursor: not-allowed; }
+.soul-board__grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: .7rem; margin-top: .8rem; }
+.soul-card { padding: .8rem; border: 1px solid #3c5469; border-radius: .7rem; background: #172a3c; }.soul-card--equipped { border-color: #d0a052; box-shadow: inset 0 0 0 1px rgba(208,160,82,.25); }
+.soul-card__title { display: flex; align-items: center; gap: .65rem; }.soul-card__title > span { color: #f1c36c; font-size: 1.5rem; }.soul-card small { color: #9fb2c1; font-size: .64rem; }.soul-card h3 { margin: .08rem 0 0; font-size: 1rem; }.soul-card > p { min-height: 2.3rem; margin: .65rem 0; color: #b3c2ce; font-size: .75rem; }
+.soul-card dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .35rem; margin: 0; }.soul-card dl div { padding: .4rem; border-radius: .4rem; background: #102131; }.soul-card dt { color: #8095a7; font-size: .6rem; }.soul-card dd { margin: .08rem 0 0; font-size: .7rem; }
+.soul-card__actions { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: .35rem; margin-top: .65rem; }.soul-card__actions .soul-card__equip { border-color: #c99b51; color: #f5d69a; }.soul-card__actions .soul-card__danger { border-color: #994c50; color: #f1a7aa; }
+.soul-board__empty { display: grid; gap: .25rem; padding: 1.3rem; border: 1px dashed #4c6174; border-radius: .7rem; text-align: center; }.soul-board__empty span,.soul-board__notice { color: #a8bbc9; font-size: .76rem; }.soul-board__notice { margin: .7rem 0 0; }
+@container game-shell (max-width:640.98px) { .soul-board { padding: .65rem; }.soul-board__header > strong { display:none; }.soul-board__grid { grid-template-columns:1fr; }.soul-board__slot { grid-template-columns:auto minmax(0,1fr); }.soul-board__slot button { grid-column:1/-1; }.soul-card > p { min-height:0; } }

@@ -172,6 +172,55 @@ public class ShopServiceTests
         Assert.Equal("InsufficientDungeonCurrency", rejectedError);
     }
 
+    [Fact]
+    public async Task DungeonExchangeConsumesOneTokenAndAddsConfiguredFragments()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = test.Character.Id, ItemCode = "kobold-mine-token", Quantity = 2
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (first, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = test.Character.Id, OfferCode = "kobold-fragments"
+        });
+        var (second, secondError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = test.Character.Id, OfferCode = "kobold-fragments"
+        });
+
+        Assert.Null(error);
+        Assert.Null(secondError);
+        Assert.Equal("T1 武器碎片", first!.RewardDisplayName);
+        Assert.Equal(3, first.RewardQuantity);
+        Assert.Equal(6, second!.Shop.Materials.Single(material => material.Code == "weapon-fragment-t1").Quantity);
+        Assert.Equal(0, second.Shop.Materials.Single(material => material.Code == "kobold-mine-token").Quantity);
+        Assert.Empty(await test.Db.CharacterWeapons.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DungeonExchangeConsumesOneHundredTokensAndCreatesSoulImprint()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = test.Character.Id, ItemCode = "kobold-mine-token", Quantity = 100
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
+        {
+            CharacterId = test.Character.Id, OfferCode = "kobold-soul"
+        });
+
+        Assert.Null(error);
+        Assert.Equal("深岩震核", result!.RewardDisplayName);
+        Assert.Equal(0, result.Shop.Materials.Single(item => item.Code == "kobold-mine-token").Quantity);
+        Assert.Equal("deep-core", (await test.Db.CharacterSoulImprints.SingleAsync()).SoulImprintCode);
+    }
+
     private sealed class ShopTestContext : IAsyncDisposable
     {
         private readonly string _path;
@@ -238,10 +287,17 @@ public class ShopServiceTests
             }), consumables, weapons);
             var materials = new MaterialCatalog(Options.Create(new MaterialOptions
             {
-                Items = [new MaterialItemOptions
-                {
-                    Code = "kobold-mine-token", Name = "矿洞徽记", Description = "测试副本材料。"
-                }]
+                Items =
+                [
+                    new MaterialItemOptions
+                    {
+                        Code = "kobold-mine-token", Name = "矿洞徽记", Description = "测试副本材料。"
+                    },
+                    new MaterialItemOptions
+                    {
+                        Code = "weapon-fragment-t1", Name = "T1 武器碎片", Description = "测试强化材料。"
+                    }
+                ]
             }));
             var exchanges = new DungeonExchangeCatalog(Options.Create(new DungeonExchangeOptions
             {
@@ -249,11 +305,33 @@ public class ShopServiceTests
                 {
                     Code = "kobold-fire", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
                     CurrencyCode = "kobold-mine-token", Cost = 6, WeaponCode = "cinder-knife"
+                }, new DungeonExchangeOfferOptions
+                {
+                    Code = "kobold-fragments", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    CurrencyCode = "kobold-mine-token", Cost = 1, RewardKind = "Material",
+                    RewardCode = "weapon-fragment-t1", RewardQuantity = 3
+                }, new DungeonExchangeOfferOptions
+                {
+                    Code = "kobold-soul", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    CurrencyCode = "kobold-mine-token", Cost = 100, RewardKind = "SoulImprint",
+                    RewardCode = "deep-core"
                 }]
-            }), materials, weapons);
+            }), materials, weapons, CreateSoulImprints());
             return new ShopService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
-                catalog, consumables, weapons, materials, exchanges);
+                catalog, consumables, weapons, materials, exchanges, CreateSoulImprints());
         }
+
+        private static SoulImprintCatalog CreateSoulImprints() => new(Options.Create(new SoulImprintOptions
+        {
+            Items = [new SoulImprintDefinitionOptions
+            {
+                Code = "deep-core", Name = "深岩震核", Description = "测试魂印。",
+                DungeonCode = "kobold-mine", Tier = 1, Element = ElementType.Earth,
+                EffectType = SoulImprintEffectType.DamageArmorBreak, PowerPercent = 180,
+                SecondaryPowerPercent = 20, DurationRounds = 3, InitialCooldownRounds = 3,
+                CooldownRounds = 8, DismantleFragments = 25
+            }]
+        }));
 
         public GameDbContext CreateDbContext() => new(_options);
 

@@ -236,6 +236,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             if (roomSlot is not null)
             {
                 roomSlot.PendingSkillSlotMask = 0;
+                roomSlot.IsSoulImprintQueued = false;
                 if (await dbContext.Rooms.FindAsync(roomSlot.RoomId) is { } room) room.Version++;
             }
         }
@@ -305,6 +306,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
     {
         var profession = catalog.FindProfession(character.ProfessionCode)!;
         var advanced = catalog.FindProfession(character.AdvancedProfessionCode);
+        var promotionOptions = catalog.PromotionsFor(profession.Code);
         var purchasedNodes = await GetPurchasedNodeRanksAsync(character.Id);
         var talentNodes = catalog.TalentNodesForProfession(profession.Code);
         var treePointsSpent = talentNodes.Sum(node => purchasedNodes.GetValueOrDefault(node.Code));
@@ -319,8 +321,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             AdvancedProfessionName = advanced?.Name,
             Level = character.Level,
             TalentPoints = character.TalentPoints,
-            CanPromote = character.Level >= SkillRules.PromotionLevel && advanced is null,
-            PromotionOptions = catalog.PromotionsFor(profession.Code).Select(item => new ProfessionResponse
+            CanPromote = character.Level >= SkillRules.PromotionLevel && advanced is null && promotionOptions.Count > 0,
+            PromotionOptions = promotionOptions.Select(item => new ProfessionResponse
             {
                 Code = item.Code, Name = item.Name, Description = item.Description,
                 GrantedSkillName = item.StartingSkills.Select(code => catalog.FindSkill(code)?.Name).FirstOrDefault()

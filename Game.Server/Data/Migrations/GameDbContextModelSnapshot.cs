@@ -132,6 +132,26 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterItemStacks", t => t.HasCheckConstraint("CK_CharacterItemStacks_Quantity", "Quantity >= 0"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterSoulImprint", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER")
+                        .HasAnnotation("Sqlite:Autoincrement", true);
+                    b.Property<DateTime>("AcquiredAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int?>("EquippedSlotIndex").HasColumnType("INTEGER");
+                    b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<bool>("IsLocked").HasColumnType("INTEGER");
+                    b.Property<string>("SoulImprintCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "EquippedSlotIndex").IsUnique().HasFilter("EquippedSlotIndex IS NOT NULL");
+                    b.HasIndex("CharacterId", "SoulImprintCode");
+                    b.ToTable("CharacterSoulImprints", t =>
+                    {
+                        t.HasCheckConstraint("CK_CharacterSoulImprints_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex = 1");
+                    });
+                });
+
             modelBuilder.Entity("Game.Shared.Models.CharacterWeapon", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -636,6 +656,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTemporaryAuto")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsSoulImprintQueued")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("PendingConsumableSlotIndex")

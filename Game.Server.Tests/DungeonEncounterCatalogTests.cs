@@ -32,7 +32,10 @@ public class DungeonEncounterCatalogTests
         var materialOptions = new MaterialOptions();
         configuration.GetSection(MaterialOptions.SectionName).Bind(materialOptions);
         var materials = new MaterialCatalog(Options.Create(materialOptions));
-        var rewards = new RewardCatalog(Options.Create(rewardOptions), consumables, weapons, materials);
+        var soulOptions = new SoulImprintOptions();
+        configuration.GetSection(SoulImprintOptions.SectionName).Bind(soulOptions);
+        var soulImprints = new SoulImprintCatalog(Options.Create(soulOptions));
+        var rewards = new RewardCatalog(Options.Create(rewardOptions), consumables, weapons, materials, soulImprints);
         var combat = new MonsterCombatCatalog(Options.Create(combatOptions));
         var encounters = new DungeonEncounterCatalog(Options.Create(encounterOptions), combat, rewards);
         var mine = new Dungeon { Code = "kobold-mine" };

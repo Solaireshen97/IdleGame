@@ -152,6 +152,26 @@ public class BattleController(BattleService battleService, RoomService roomServi
         return detail is null ? NotFound() : Ok(detail);
     }
 
+    [HttpPost("soul-imprint")]
+    public async Task<IActionResult> QueueSoulImprint([FromBody] QueueSoulImprintRequest request)
+    {
+        var token = GetBearerToken();
+        var (success, error) = await battleService.QueueSoulImprintAsync(request, token);
+        if (!success)
+        {
+            return error switch
+            {
+                "Unauthorized" => Unauthorized(),
+                "NotFound" or "UserNotFound" or "MonsterNotFound" => NotFound(error),
+                "NotInRoom" or "NotCharacterOwner" => StatusCode(403, error),
+                "BattleOver" or "SoulImprintCooldown" or "ConcurrencyConflict" => Conflict(error),
+                _ => BadRequest(error)
+            };
+        }
+        var detail = await roomService.GetRoomDetailAsync(request.RoomId, token);
+        return detail is null ? NotFound() : Ok(detail);
+    }
+
     private string? GetBearerToken()
     {
         const string prefix = "Bearer ";

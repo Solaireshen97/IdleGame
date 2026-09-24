@@ -56,11 +56,18 @@ public sealed class DungeonExchangeOfferResponse
     public string CurrencyCode { get; set; } = string.Empty;
     public string CurrencyName { get; set; } = string.Empty;
     public int Cost { get; set; }
+    public string RewardKind { get; set; } = string.Empty;
+    public string RewardCode { get; set; } = string.Empty;
+    public string RewardName { get; set; } = string.Empty;
+    public int RewardQuantity { get; set; }
     public string WeaponCode { get; set; } = string.Empty;
     public string WeaponName { get; set; } = string.Empty;
-    public ElementType Element { get; set; }
-    public int Attack { get; set; }
-    public int MaxHp { get; set; }
+    public ElementType? Element { get; set; }
+    public int? Attack { get; set; }
+    public int? MaxHp { get; set; }
+    public string RewardDescription { get; set; } = string.Empty;
+    public int? InitialCooldownRounds { get; set; }
+    public int? CooldownRounds { get; set; }
     public int OwnedQuantity { get; set; }
     public List<ShopWeaponSkillResponse> WeaponSkills { get; set; } = [];
 }
@@ -68,5 +75,9 @@ public sealed class DungeonExchangeOfferResponse
 public sealed class DungeonExchangeResultResponse
 {
     public ShopResponse Shop { get; set; } = new();
+    public string RewardDisplayName { get; set; } = string.Empty;
+    public int RewardQuantity { get; set; }
+
+    // Kept for older clients while weapon exchanges migrate to the generic result fields.
     public string WeaponDisplayName { get; set; } = string.Empty;
 }

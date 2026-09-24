@@ -34,6 +34,7 @@ builder.Services.AddScoped<TalentService>();
 builder.Services.AddScoped<ConsumableService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<WeaponService>();
+builder.Services.AddScoped<SoulImprintService>();
 builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<GatheringService>();
 builder.Services.AddScoped<ProductionService>();
@@ -42,6 +43,7 @@ builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
 builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(WeaponOptions.SectionName));
+builder.Services.Configure<SoulImprintOptions>(builder.Configuration.GetSection(SoulImprintOptions.SectionName));
 builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
 builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
@@ -58,6 +60,7 @@ builder.Services.AddSingleton<ProgressionService>();
 builder.Services.AddSingleton<ConsumableCatalog>();
 builder.Services.AddSingleton<SkillCatalog>();
 builder.Services.AddSingleton<WeaponCatalog>();
+builder.Services.AddSingleton<SoulImprintCatalog>();
 builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
@@ -89,6 +92,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
     var world = scope.ServiceProvider.GetRequiredService<WorldCatalog>();
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
+    _ = scope.ServiceProvider.GetRequiredService<SoulImprintCatalog>();
     world.ValidateContent(weapons, scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>(),
         scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
     _ = scope.ServiceProvider.GetRequiredService<GatheringCatalog>();

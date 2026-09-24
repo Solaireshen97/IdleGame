@@ -122,7 +122,7 @@ public sealed class SkillCatalog
     {
         if (effect.Type is not ("Damage" or "Heal" or "Guard" or "Cleanse" or "Dispel" or "Interrupt" or "ApplyStatus")) return false;
         var validTarget = effect.Type switch { "Damage" or "Dispel" or "Interrupt" => effect.Target == "Monster",
-            "Heal" => effect.Target is "LowestHpAlly" or "AllAlive" or "Self", "Guard" => effect.Target == "FrontAlly",
+            "Heal" => effect.Target is "LowestHpAlly" or "AllAlive" or "Self", "Guard" => effect.Target is "FrontAlly" or "Self",
             "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self", "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly", _ => false };
         if (!validTarget || effect.Power < 0 || effect.AttackPowerPercent is < 0 or > 1000 || effect.HealMaxHpPercent is < 0 or > 100) return false;
         if (effect.Type == "Damage" && effect.Power == 0 && effect.AttackPowerPercent == 0) return false;

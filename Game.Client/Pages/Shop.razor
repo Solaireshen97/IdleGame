@@ -102,19 +102,37 @@
                 var balance = GetMaterialQuantity(firstOffer.CurrencyCode);
                 <section class="exchange-section">
                     <header><div><span class="section-kicker">DUNGEON EXCHANGE</span><h2>@dungeon.Key.DungeonName</h2></div><strong>◆ @firstOffer.CurrencyName × @balance</strong></header>
-                    <p>兑换武器的属性与配置固定，获得时仍会按照正常规则生成品质。</p>
+                    <p>武器兑换会正常生成品质；材料兑换的数量固定并直接存入当前角色背包。</p>
                     <div class="shop-grid">
                     @foreach (var offer in dungeon)
                     {
                         <article class="shop-item exchange-item" @key="offer.Code">
-                            <div class="shop-item__top"><span class="shop-item__symbol" aria-hidden="true"><img src="@WeaponArt.ForCode(offer.WeaponCode)" alt="" loading="lazy" /></span><span class="shop-item__kind">@WeaponRules.ElementName(offer.Element) · EXCHANGE</span></div>
-                            <h2>@offer.WeaponName</h2>
-                            <p>@WeaponRules.ElementName(offer.Element)属性 · 攻击 +@offer.Attack · HP +@offer.MaxHp</p>
-                            <div class="shop-item__skills">
-                                @foreach (var skill in offer.WeaponSkills)
-                                { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
+                            <div class="shop-item__top">
+                                <span class="shop-item__symbol" aria-hidden="true"><img src="@(offer.RewardKind == "Weapon" ? WeaponArt.ForCode(offer.WeaponCode) : ItemArt.ForCode(offer.RewardCode))" alt="" loading="lazy" /></span>
+                                <span class="shop-item__kind">@(offer.RewardKind == "Weapon" && offer.Element is { } element ? $"{WeaponRules.ElementName(element)} · WEAPON" : offer.RewardKind == "SoulImprint" ? "SOUL IMPRINT" : "MATERIAL")</span>
                             </div>
-                            <div class="shop-item__foot"><span class="shop-item__owned">持有 <b>@offer.OwnedQuantity</b></span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost · 兑换</button></div></div>
+                            <h2>@offer.RewardName</h2>
+                            @if (offer.RewardKind == "Weapon" && offer.Element is { } weaponElement)
+                            {
+                                <p>@WeaponRules.ElementName(weaponElement)属性 · 攻击 +@offer.Attack · HP +@offer.MaxHp</p>
+                                <div class="shop-item__skills">
+                                    @foreach (var skill in offer.WeaponSkills)
+                                    { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
+                                </div>
+                            }
+                            else if (offer.RewardKind == "SoulImprint")
+                            {
+                                <p>@offer.RewardDescription</p>
+                                <div class="shop-item__skills">
+                                    <span>初始冷却 @offer.InitialCooldownRounds 回合</span>
+                                    <span>使用冷却 @offer.CooldownRounds 回合</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <p>每次兑换获得 @offer.RewardQuantity 个，直接存入当前角色背包。</p>
+                            }
+                            <div class="shop-item__foot"><span class="shop-item__owned">持有 <b>@offer.OwnedQuantity</b></span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost → ×@offer.RewardQuantity</button></div></div>
                         </article>
                     }
                     </div>
@@ -272,7 +290,7 @@
         _message = null;
         try
         {
-            var (response, error) = await ApiService.ExchangeDungeonWeaponAsync(_shop.CharacterId, offer.Code);
+            var (response, error) = await ApiService.ExchangeDungeonRewardAsync(_shop.CharacterId, offer.Code);
             if (response is null)
             {
                 _message = error ?? "兑换失败。";
@@ -284,7 +302,7 @@
                 return;
             }
             _shop = response.Shop;
-            _message = $"已为 {_shop.CharacterName} 兑换 {response.WeaponDisplayName}。";
+            _message = $"已为 {_shop.CharacterName} 兑换 {response.RewardDisplayName} × {response.RewardQuantity}。";
         }
         catch { _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
         finally { _busy = false; }

@@ -311,6 +311,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterSoulImprints.RemoveRange(await dbContext.CharacterSoulImprints.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterWeapons.RemoveRange(await dbContext.CharacterWeapons.Where(weapon => weapon.CharacterId == characterId).ToListAsync());
         dbContext.Characters.Remove(character);
         await dbContext.SaveChangesAsync();

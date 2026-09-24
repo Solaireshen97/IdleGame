@@ -1,0 +1,151 @@
+@using Game.Shared
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Enums
+@inject Game.Client.Services.ApiService ApiService
+@inject IJSRuntime Js
+
+<section class="soul-board" aria-label="魂印配置">
+    <header class="soul-board__header">
+        <div><span>SOUL IMPRINT</span><h2>魂印</h2><p>装备一枚首领魂印，在战斗中获得一个额外主动能力。</p></div>
+        @if (_response is not null)
+        {
+            <strong>@_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Name × @_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Quantity</strong>
+        }
+    </header>
+
+    @if (_loading)
+    {
+        <GameStateCard Compact="true" Title="正在读取魂印" Detail="同步当前角色的魂印背包与装备状态…" />
+    }
+    else if (_response is null)
+    {
+        <GameStateCard Compact="true" Tone="error" Icon="!" Title="魂印读取失败" Detail="@(_notice ?? "请稍后重试。")">
+            <Actions><button type="button" @onclick="LoadAsync">重新读取</button></Actions>
+        </GameStateCard>
+    }
+    else if (_response.SoulImprints.Count == 0)
+    {
+        <div class="soul-board__empty"><b>尚未获得魂印</b><span>挑战 10 级精英副本，或使用 100 枚对应徽记兑换。</span></div>
+    }
+    else
+    {
+        var equipped = _response.SoulImprints.SingleOrDefault(item => item.IsEquipped);
+        <div class="soul-board__slot @(equipped is null ? "soul-board__slot--empty" : null)">
+            <span class="soul-board__sigil">@(equipped is null ? "◇" : ElementSymbol(equipped.Element))</span>
+            <div><small>当前装备</small><strong>@(equipped?.Name ?? "未装备")</strong><p>@(equipped?.Description ?? "选择一枚魂印后，它会出现在战斗操作区。")</p></div>
+            @if (equipped is not null)
+            {
+                <button type="button" @onclick="() => SetEquippedAsync(null)" disabled="@_busy">卸下</button>
+            }
+        </div>
+
+        <div class="soul-board__grid">
+            @foreach (var item in _response.SoulImprints)
+            {
+                <article class="soul-card @(item.IsEquipped ? "soul-card--equipped" : null)" @key="item.Id">
+                    <div class="soul-card__title"><span>@ElementSymbol(item.Element)</span><div><small>T@(item.Tier) · @WeaponRules.ElementName(item.Element)属性</small><h3>@item.Name</h3></div></div>
+                    <p>@item.Description</p>
+                    <dl>
+                        <div><dt>能力</dt><dd>@EffectName(item.EffectType)</dd></div>
+                        <div><dt>初始冷却</dt><dd>@item.InitialCooldownRounds 回合</dd></div>
+                        <div><dt>使用冷却</dt><dd>@item.CooldownRounds 回合</dd></div>
+                        <div><dt>分解</dt><dd>T@(item.Tier) 碎片 × @item.DismantleFragments</dd></div>
+                    </dl>
+                    <div class="soul-card__actions">
+                        <button type="button" class="soul-card__equip" @onclick="() => SetEquippedAsync(item.Id)" disabled="@(_busy || item.IsEquipped)">@(item.IsEquipped ? "已装备" : "装备")</button>
+                        <button type="button" @onclick="() => SetAutoAsync(item)" disabled="@_busy">Auto @(item.AutoUseEnabled ? "开" : "关")</button>
+                        <button type="button" @onclick="() => SetLockAsync(item)" disabled="@_busy">@(item.IsLocked ? "解锁" : "锁定")</button>
+                        <button type="button" class="soul-card__danger" @onclick="() => DismantleAsync(item)" disabled="@(_busy || item.IsEquipped || item.IsLocked)">分解</button>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
+    @if (_notice is not null && _response is not null)
+    {
+        <p class="soul-board__notice" role="status">@_notice</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public int CharacterId { get; set; }
+    private CharacterSoulImprintsResponse? _response;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _notice;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await ApiService.GetCharacterSoulImprintsAsync(CharacterId);
+            _response = response;
+            _notice = error;
+        }
+        catch { _response = null; _notice = "连接中断，请稍后重试。"; }
+        finally { _loading = false; }
+    }
+
+    private Task SetEquippedAsync(int? id) => ChangeAsync(() => ApiService.SetEquippedSoulImprintAsync(CharacterId, id),
+        id.HasValue ? "魂印已装备。" : "魂印已卸下。");
+
+    private Task SetLockAsync(CharacterSoulImprintResponse item) => ChangeAsync(
+        () => ApiService.SetSoulImprintLockAsync(CharacterId, item.Id, !item.IsLocked),
+        item.IsLocked ? "魂印已解锁。" : "魂印已锁定。");
+
+    private Task SetAutoAsync(CharacterSoulImprintResponse item) => ChangeAsync(
+        () => ApiService.SetSoulImprintAutoAsync(CharacterId, item.Id, !item.AutoUseEnabled),
+        item.AutoUseEnabled ? "魂印 Auto 已关闭。" : "魂印 Auto 已开启。");
+
+    private async Task DismantleAsync(CharacterSoulImprintResponse item)
+    {
+        if (!await Js.InvokeAsync<bool>("confirm", $"分解「{item.Name}」？将获得 T{item.Tier} 武器碎片 × {item.DismantleFragments}。")) return;
+        await ChangeAsync(() => ApiService.DismantleSoulImprintsAsync(CharacterId, item.Id),
+            $"已分解「{item.Name}」。");
+    }
+
+    private async Task ChangeAsync(
+        Func<Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)>> action, string success)
+    {
+        if (_busy) return;
+        _busy = true;
+        _notice = null;
+        try
+        {
+            var (response, error) = await action();
+            if (response is not null) { _response = response; _notice = success; }
+            else { _notice = error ?? "魂印操作失败。"; await LoadAfterErrorAsync(_notice); }
+        }
+        catch { _notice = "连接中断，请刷新后核对魂印状态。"; }
+        finally { _busy = false; }
+    }
+
+    private async Task LoadAfterErrorAsync(string? notice)
+    {
+        var (response, _) = await ApiService.GetCharacterSoulImprintsAsync(CharacterId);
+        if (response is not null) _response = response;
+        _notice = notice;
+    }
+
+    private static string ElementSymbol(ElementType element) => element switch
+    {
+        ElementType.Fire => "✹", ElementType.Water => "◇", ElementType.Earth => "◆",
+        ElementType.Wind => "✤", ElementType.Light => "✦", ElementType.Dark => "✧", _ => "◇"
+    };
+
+    private static string EffectName(SoulImprintEffectType effect) => effect switch
+    {
+        SoulImprintEffectType.DamageArmorBreak => "伤害并削弱护甲",
+        SoulImprintEffectType.DamageEcho => "伤害并附加追击",
+        SoulImprintEffectType.CooldownReduction => "缩短技能冷却",
+        SoulImprintEffectType.Interrupt => "打断首领技能",
+        SoulImprintEffectType.HealCleanse => "治疗并净化",
+        SoulImprintEffectType.GuardCounter => "减伤并反击",
+        _ => "未知能力"
+    };
+}
