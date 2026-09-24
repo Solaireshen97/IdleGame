@@ -1,4 +1,5 @@
 @using Game.Shared
+@using Game.Client.Services
 @using Game.Shared.Dtos
 @using Microsoft.AspNetCore.Components.Web
 
@@ -37,7 +38,7 @@
                                         @if (drop.Weapon is not null)
                                         {
                                             <button type="button" class="monster-drop monster-drop--weapon" @onclick="() => OpenWeapon(drop)" aria-haspopup="dialog" aria-label="查看武器 @drop.Name 的属性">
-                                                <span class="monster-drop-icon" aria-hidden="true">⚔</span>
+                                                <span class="monster-drop-icon" aria-hidden="true"><img src="@WeaponArt.ForName(drop.Name)" alt="" loading="lazy" /></span>
                                                 <span class="monster-drop-copy"><strong>@drop.Name <small>× @drop.Quantity</small></strong><small>武器 · 点击查看属性</small></span>
                                                 <span class="monster-drop-rate">@drop.ChancePercent.ToString("0.##")% <span aria-hidden="true">›</span></span>
                                             </button>
@@ -69,7 +70,7 @@
                                     @if (drop.Weapon is not null)
                                     {
                                         <button type="button" class="monster-drop monster-drop--weapon" @onclick="() => OpenWeapon(drop)" aria-haspopup="dialog" aria-label="查看武器 @drop.Name 的属性">
-                                            <span class="monster-drop-icon" aria-hidden="true">⚔</span>
+                                            <span class="monster-drop-icon" aria-hidden="true"><img src="@WeaponArt.ForName(drop.Name)" alt="" loading="lazy" /></span>
                                             <span class="monster-drop-copy"><strong>@drop.Name <small>× @drop.Quantity</small></strong><small>@drop.Source · 点击查看属性</small></span>
                                             <span class="monster-drop-rate">@drop.ChancePercent.ToString("0.##")% <span aria-hidden="true">›</span></span>
                                         </button>

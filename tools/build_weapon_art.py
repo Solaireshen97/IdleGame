@@ -1,0 +1,154 @@
+"""Build compact transparent weapon sprites from the generated pixel-art masters.
+
+The twelve source images are stored in assets/weapon-art/masters. The game's
+weapon catalog is the source of truth for the 99 exported item-code filenames.
+"""
+
+from __future__ import annotations
+
+import colorsys
+import json
+import re
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MASTERS = ROOT / "assets" / "weapon-art" / "masters"
+OUTPUT = ROOT / "Game.Client" / "wwwroot" / "art" / "weapons"
+CATALOG = ROOT / "Game.Server" / "appsettings.json"
+MANIFEST = ROOT / "assets" / "weapon-art" / "manifest.json"
+CLIENT_MAP = ROOT / "Game.Client" / "Services" / "WeaponArt.cs"
+PREVIEW = ROOT / "assets" / "weapon-art" / "preview.png"
+
+ELEMENT_HUES = {"Fire": 0.045, "Water": 0.54, "Earth": 0.105,
+                "Wind": 0.39, "Light": 0.14, "Dark": 0.76}
+
+
+def weapon_shape(name: str, code: str) -> str:
+    if "弩" in name:
+        return "crossbow"
+    if "弓" in name:
+        return "bow"
+    if "镐" in name:
+        return "pickaxe"
+    if "斧" in name:
+        return "axe"
+    if any(word in name for word in ("矛", "枪")):
+        return "spear"
+    if "knife" in code or any(word in name for word in ("匕", "小刀", "短刀", "短刃", "钩", "之牙", "裂牙")):
+        return "dagger"
+    if any(word in name for word in ("木棒", "骨棒", "木棍", "柄棍", "木槌", "骨槌", "獠牙木棒")):
+        return "club"
+    if any(word in name for word in ("锤", "重槌", "石槌")):
+        return "hammer"
+    if any(word in name for word in ("权杖", "祈祷杖", "图腾杖", "祭杖")):
+        return "scepter"
+    if "杖" in name:
+        return "staff"
+    if any(word in name for word in ("弯刀", "长刀", "砍刀")):
+        return "saber"
+    if any(word in name for word in ("剑", "刃", "刀")):
+        return "sword"
+    raise ValueError(f"No visual shape for {name}")
+
+
+def prepare_master(shape: str) -> Image.Image:
+    image = Image.open(MASTERS / f"{shape}.png").convert("RGBA")
+    alpha = image.getchannel("A")
+    bounds = alpha.point(lambda a: 255 if a >= 32 else 0).getbbox()
+    if bounds is None:
+        raise ValueError(f"Empty generated master: {shape}")
+    image = image.crop(bounds)
+    width, height = image.size
+    scale = min(56 / width, 56 / height)
+    image = image.resize((max(1, round(width * scale)), max(1, round(height * scale))), Image.Resampling.BOX)
+    canvas = Image.new("RGBA", (64, 64))
+    canvas.alpha_composite(image, ((64 - image.width) // 2, (64 - image.height) // 2))
+    return canvas
+
+
+def tint_sprite(master: Image.Image, element: str, ordinal: int) -> Image.Image:
+    """Tint bright metal highlights and add a tiny code-stable gem accent."""
+    hue = ELEMENT_HUES[element]
+    pixels = master.load()
+    result = Image.new("RGBA", master.size)
+    out = result.load()
+    for y in range(64):
+        for x in range(64):
+            r, g, b, a = pixels[x, y]
+            if a < 24:
+                continue
+            h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            # Retain the material design while giving each element a readable hue.
+            if v > 0.34:
+                mix = 0.23 if s < 0.25 else 0.13
+                target = colorsys.hsv_to_rgb(hue, max(s, 0.45), v)
+                r = round(r * (1 - mix) + target[0] * 255 * mix)
+                g = round(g * (1 - mix) + target[1] * 255 * mix)
+                b = round(b * (1 - mix) + target[2] * 255 * mix)
+            out[x, y] = (r, g, b, 255 if a >= 128 else 0)
+    # A small elemental glint varies with catalog position, without obscuring the silhouette.
+    accent = tuple(round(channel * 255) for channel in colorsys.hsv_to_rgb(hue, 0.65, 1)) + (255,)
+    draw = ImageDraw.Draw(result)
+    positions = ((49, 14), (48, 18), (51, 21), (46, 12), (52, 17))
+    x, y = positions[ordinal % len(positions)]
+    draw.point((x, y), fill=accent)
+    if ordinal % 3 == 0:
+        draw.point((x - 1, y + 1), fill=accent[:3] + (160,))
+    return result.resize((192, 192), Image.Resampling.NEAREST)
+
+
+def main() -> None:
+    items = json.loads(CATALOG.read_text(encoding="utf-8"))["Weapons"]["Items"]
+    masters = {shape: prepare_master(shape) for shape in (
+        "sword", "dagger", "staff", "scepter", "saber", "bow",
+        "hammer", "axe", "spear", "crossbow", "pickaxe", "club")}
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    manifest = []
+    for ordinal, item in enumerate(items):
+        code, name, element = item["Code"], item["Name"], item["Element"]
+        if not re.fullmatch(r"[a-z0-9-]+", code):
+            raise ValueError(f"Unsafe weapon code: {code}")
+        shape = weapon_shape(name, code)
+        image = tint_sprite(masters[shape], element, ordinal)
+        image.save(OUTPUT / f"{code}.png", optimize=True)
+        manifest.append({"code": code, "name": name, "element": element, "shape": shape})
+    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    lines = [
+        "// Generated by tools/build_weapon_art.py from the weapon catalog.",
+        "namespace Game.Client.Services;",
+        "",
+        "public static class WeaponArt",
+        "{",
+        "    private static readonly Dictionary<string, string> CodesByName = new(StringComparer.Ordinal)",
+        "    {",
+    ]
+    for item in manifest:
+        lines.append(f'        ["{item["name"]}"] = "{item["code"]}",')
+    lines += [
+        "    };",
+        "",
+        '    public static string ForCode(string code) => $"/art/weapons/{code}.png";',
+        "",
+        "    public static string ForName(string name) => CodesByName.TryGetValue(name, out var code)",
+        '        ? ForCode(code) : ForCode("ember-blade");',
+        "}",
+    ]
+    CLIENT_MAP.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    sheet = Image.new("RGB", (4 * 180, 3 * 190), "#102130")
+    draw = ImageDraw.Draw(sheet)
+    for index, shape in enumerate(masters):
+        x, y = (index % 4) * 180, (index // 4) * 190
+        draw.rounded_rectangle((x + 5, y + 5, x + 175, y + 184), radius=12,
+                               fill="#1d3445", outline="#526b78", width=2)
+        sprite = masters[shape].resize((144, 144), Image.Resampling.NEAREST)
+        sheet.paste(sprite, (x + 18, y + 14), sprite)
+        draw.text((x + 15, y + 161), shape.upper(), font=ImageFont.load_default(), fill="#f0cd86")
+    sheet.save(PREVIEW, optimize=True)
+    print(f"Exported {len(manifest)} weapon icons to {OUTPUT}")
+
+
+if __name__ == "__main__":
+    main()

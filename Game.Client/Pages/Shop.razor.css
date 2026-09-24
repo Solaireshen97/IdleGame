@@ -24,6 +24,7 @@
 .shop-item { display: flex; flex-direction: column; min-height: 235px; padding: 20px; border: 1px solid #40556c; border-radius: 14px; background: linear-gradient(145deg, #1d3043, #172637); }
 .shop-item__top { display: flex; align-items: center; justify-content: space-between; }
 .shop-item__symbol { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: #3d4851; color: #f4c875; font-size: 1.4rem; }
+.shop-item__symbol img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .shop-item__kind { color: #b9c9d8; font-size: .68rem; font-weight: 800; letter-spacing: .14em; }
 .shop-item h2 { margin: 14px 0 6px; font-size: 1.3rem; }
 .shop-item p { margin: 0; color: #b9c9d8; font-size: .9rem; }

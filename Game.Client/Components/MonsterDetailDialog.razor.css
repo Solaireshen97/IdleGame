@@ -74,6 +74,7 @@
 .monster-drop--weapon { cursor: pointer; }
 .monster-drop--weapon:hover, .monster-drop--weapon:focus-visible { border-color: var(--element-color); background: #1b3447; }
 .monster-drop-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .5rem; background: rgba(225, 177, 94, .14); color: #e9c786; font-size: 1rem; }
+.monster-drop-icon img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .monster-drop-copy { display: grid; gap: .1rem; min-width: 0; }
 .monster-drop-copy strong { overflow-wrap: anywhere; font-size: .8rem; }
 .monster-drop-copy small { color: #8ea5b6; font-size: .67rem; font-weight: 400; }

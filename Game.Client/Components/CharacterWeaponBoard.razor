@@ -108,7 +108,7 @@
                 <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
                         @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1 ? "true" : "false")" disabled="@_isSaving">
                     <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
-                    <span class="weapon-card__crest" aria-hidden="true">@(main is null ? "+" : GetSymbol(main.Element))</span>
+                    <span class="weapon-card__crest" aria-hidden="true">@if (main is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(main.WeaponCode)" alt="" /> }</span>
                     <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
                     <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
                     @if (main is not null)
@@ -125,7 +125,7 @@
                         <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
                                 @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex ? "true" : "false")" disabled="@_isSaving">
                             <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
-                            <span class="weapon-card__crest" aria-hidden="true">@(weapon is null ? "+" : GetSymbol(weapon.Element))</span>
+                            <span class="weapon-card__crest" aria-hidden="true">@if (weapon is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /> }</span>
                             <span class="weapon-card__name">@(weapon?.Name ?? "空栏位")</span>
                             <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
                             @if (weapon is not null)
@@ -200,7 +200,7 @@
                             <span class="weapon-tile__equipped">装备中</span>
                         }
                         <span class="weapon-tile__quality">@weapon.QualityName</span>
-                        <span class="weapon-tile__crest" aria-hidden="true">@GetSymbol(weapon.Element)</span>
+                        <span class="weapon-tile__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /></span>
                         <strong>@weapon.Name</strong>
                         <span class="weapon-tile__stats">Lv.@weapon.ItemLevel · ⚔ @weapon.Attack</span>
                         <span class="weapon-tile__flags">@if (weapon.EquippedSlotIndex is int slot) { <span>@(slot == 1 ? "主武器" : $"副武器 {slot:00}")</span> } @if (weapon.IsLocked) { <span>🔒</span> }</span>
@@ -288,7 +288,7 @@
                                         @key="material.Id" @onclick="() => _qualityMaterialId = material.Id" disabled="@(_isSaving || blockedReason is not null)" aria-pressed="@(_qualityMaterialId == material.Id)"
                                         aria-label="@material.QualityName @material.Name，装等 @material.ItemLevel，攻击 @material.Attack，生命 @material.MaxHp，@(blockedReason ?? "可作为素材")">
                                     <span class="weapon-quality-option__top"><b>@material.QualityName · @WeaponRules.ElementName(material.Element)</b><small>#@material.Id</small></span>
-                                    <span class="weapon-quality-option__crest" aria-hidden="true">@GetSymbol(material.Element)</span>
+                                    <span class="weapon-quality-option__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(material.WeaponCode)" alt="" loading="lazy" /></span>
                                     <strong>@material.Name</strong>
                                     <span class="weapon-quality-option__stats">装等 @material.ItemLevel · ⚔ @material.Attack · ✚ @material.MaxHp</span>
                                     <span class="weapon-quality-option__skills">@(material.Skills.Count == 0 ? "无武器技能" : string.Join(" · ", material.Skills.Select(skill => $"{skill.Name} Lv{skill.Level}")))</span>
@@ -644,12 +644,6 @@
         catch { _error = "连接失败，请稍后重试。"; }
         finally { _isSaving = false; }
     }
-
-    private static string GetSymbol(ElementType element) => element switch
-    {
-        ElementType.Fire => "⚔", ElementType.Water => "♢", ElementType.Earth => "◆",
-        ElementType.Wind => "✥", ElementType.Light => "✦", ElementType.Dark => "☾", _ => "⚔"
-    };
 
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch
     {

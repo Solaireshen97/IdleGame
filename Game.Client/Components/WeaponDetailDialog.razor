@@ -1,13 +1,14 @@
 @using Game.Shared
 @using Game.Shared.Dtos
 @using Game.Shared.Enums
+@using Game.Client.Services
 @using Microsoft.AspNetCore.Components.Web
 
 <div class="weapon-detail-overlay" @onclick="CloseAsync" @onclick:stopPropagation @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
     <section class="weapon-detail-dialog weapon-detail-dialog--@Element.ToString().ToLowerInvariant()"
              role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title" @onclick:stopPropagation>
         <header class="weapon-detail-header">
-            <span class="weapon-detail-crest" aria-hidden="true">@GetElementGlyph(Element)</span>
+            <span class="weapon-detail-crest" aria-hidden="true"><img src="@WeaponArt.ForName(Name)" alt="" /></span>
             <div class="weapon-detail-heading">
                 <span class="weapon-detail-kicker">@Category · @WeaponRules.ElementName(Element)属性</span>
                 <h2 id="weapon-detail-title">@Name</h2>
@@ -81,9 +82,4 @@
     private Task CloseAsync() => OnClose.InvokeAsync();
     private Task HandleKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
 
-    private static string GetElementGlyph(ElementType element) => element switch
-    {
-        ElementType.Fire => "⚔", ElementType.Water => "♢", ElementType.Earth => "◆",
-        ElementType.Wind => "✥", ElementType.Light => "✦", ElementType.Dark => "☾", _ => "⚔"
-    };
 }
