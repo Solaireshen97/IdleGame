@@ -56,11 +56,11 @@
         <section class="activity-options" aria-label="采集地点">
             <div class="activity-section-title"><div><span>GATHERING SITES</span><h2>采集地点</h2></div><small>点击地点查看详情</small></div>
             <div class="activity-option-grid">
-                @foreach (var point in _overview.Points)
+                @foreach (var point in OrderedPoints())
                 {
                     <button type="button" class="activity-option @(point.IsRare ? "activity-option--rare" : null) @(!point.IsUnlocked ? "activity-option--locked" : null)"
                             @key="point.Code" @onclick="() => OpenPoint(point.Code)" aria-haspopup="dialog" aria-label="查看 @point.Name 的采集详情">
-                        <span class="activity-option__top"><span>@(point.IsRare ? "稀有采集" : point.RegionName)</span><b>@(point.IsUnlocked ? point.IsRare ? $"机会 {point.AvailableOpportunities}" : "已解锁" : "未解锁")</b></span>
+                        <span class="activity-option__top"><span>@(point.IsRare ? $"稀有 · {point.RegionName}" : $"{point.RegionName} · 采集 Lv.{point.MinimumGatheringLevel}")</span><b>@(point.IsUnlocked ? point.IsRare ? $"机会 {point.AvailableOpportunities}" : "已解锁" : "未解锁")</b></span>
                         <span class="activity-option__item"><img src="@ItemArt.ForCode(point.MaterialCode)" alt="" loading="lazy" /><span><strong>@point.Name</strong><span class="activity-option__output">@point.MaterialName × @point.OutputQuantity <small>/ @point.CycleSeconds 秒</small></span></span></span>
                         <span class="activity-option__foot">背包 @point.CharacterQuantity <span aria-hidden="true">详情 ›</span></span>
                     </button>
@@ -110,6 +110,14 @@
     private TimeSpan _serverOffset;
     private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
     private GatheringPointResponse? SelectedPoint => _overview?.Points.FirstOrDefault(point => point.Code == _selectedPointCode);
+    private IEnumerable<GatheringPointResponse> OrderedPoints() => (_overview?.Points ?? [])
+        .OrderByDescending(point => point.IsUnlocked)
+        .ThenBy(point => point.MinimumGatheringLevel)
+        .ThenBy(point => point.MinimumCharacterLevel)
+        .ThenBy(point => point.RegionName == "各地通用" ? 0 : 1)
+        .ThenBy(point => point.RegionName, StringComparer.Ordinal)
+        .ThenBy(point => point.IsRare)
+        .ThenBy(point => point.Name, StringComparer.Ordinal);
 
     protected override async Task OnInitializedAsync()
     {

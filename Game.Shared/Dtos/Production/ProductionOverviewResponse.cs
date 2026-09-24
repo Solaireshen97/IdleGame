@@ -17,6 +17,7 @@ public sealed class ProductionRecipeResponse
     public string Name { get; set; } = string.Empty;
     public string OutputCode { get; set; } = string.Empty;
     public string OutputName { get; set; } = string.Empty;
+    public string OutputDescription { get; set; } = string.Empty;
     public int OutputQuantity { get; set; }
     public int CharacterQuantity { get; set; }
     public int CycleSeconds { get; set; }

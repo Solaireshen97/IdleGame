@@ -76,7 +76,7 @@
                             <button type="button" class="talent-tree-map__node @NodeClass(node) @(_selectedNodeCode == node.Code ? "talent-tree-map__node--selected" : null)"
                                     style="grid-row:@node.Tier;grid-column:@node.Column" @key="node.Code" @onclick="() => SelectNode(node.Code)"
                                     aria-pressed="@(_selectedNodeCode == node.Code)" aria-label="@node.Name，@BranchName(node.BranchCode)，@node.Rank / @node.MaxRank 级，@Requirement(node)">
-                                <span class="talent-tree-map__icon"><span aria-hidden="true">@NodeGlyph(node)</span><b>@node.Rank/@node.MaxRank</b></span>
+                                <span class="talent-tree-map__icon"><span aria-hidden="true">@if (SkillArt.ForCode(node.SkillCode) is { } skillArt) { <img src="@skillArt" alt="" loading="lazy" /> } else { @NodeGlyph(node) }</span><b>@node.Rank/@node.MaxRank</b></span>
                                 <strong>@node.Name</strong>
                             </button>
                         }
@@ -88,7 +88,7 @@
                     <section class="talent-tree-detail @(_detailOpen ? "talent-tree-detail--open" : null)" role="@(_detailOpen ? "dialog" : "region")" aria-modal="@(_detailOpen ? "true" : null)" aria-label="@selected.Name 详情"
                              tabindex="-1" @ref="_detailElement" @onkeydown="HandleDetailKeyDown" @onkeydown:stopPropagation>
                         <header class="talent-tree-detail__header">
-                            <span class="talent-tree-detail__icon" aria-hidden="true">@NodeGlyph(selected)</span>
+                            <span class="talent-tree-detail__icon" aria-hidden="true">@if (SkillArt.ForCode(selected.SkillCode) is { } selectedSkillArt) { <img src="@selectedSkillArt" alt="" /> } else { @NodeGlyph(selected) }</span>
                             <div><small>@BranchName(selected.BranchCode) · 第 @selected.Tier 层</small><h3>@selected.Name</h3><span>等级 @selected.Rank / @selected.MaxRank</span></div>
                             <button type="button" class="talent-tree-detail__close" @onclick="CloseNodeDetails" aria-label="关闭天赋详情">×</button>
                         </header>

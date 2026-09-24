@@ -41,7 +41,7 @@
                         aria-label="@($"{slot.SlotIndex} 号槽位：{activeSkill?.Name ?? "空槽位"}")"
                         @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
                     <span class="skill-board__slot-index">@slot.SlotIndex.ToString("00")</span>
-                    <span class="skill-board__icon skill-board__icon--@GetEffectTone(activeSkill)" aria-hidden="true">@GetSkillIcon(activeSkill)</span>
+                    <span class="skill-board__icon skill-board__icon--@GetEffectTone(activeSkill)" aria-hidden="true">@if (activeSkill is null) { <text>+</text> } else { <img src="@SkillArt.ForCode(activeSkill.Code)" alt="" /> }</span>
                     <strong>@(activeSkill?.Name ?? "空槽")</strong>
                     @if (activeSkill is not null)
                     {
@@ -59,7 +59,7 @@
                     var equippedSlot = _skills.Slots.FirstOrDefault(slot => string.Equals(slot.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase));
                     <button type="button" class="skill-board__learned-item @(equippedSlot is not null ? "equipped" : null)"
                             disabled="@_isSaving" @onclick="() => ChooseSkillAsync(skill.Code)">
-                        <span class="skill-board__icon skill-board__icon--@GetEffectTone(skill)" aria-hidden="true">@GetSkillIcon(skill)</span>
+                        <span class="skill-board__icon skill-board__icon--@GetEffectTone(skill)" aria-hidden="true"><img src="@SkillArt.ForCode(skill.Code)" alt="" loading="lazy" /></span>
                         <span class="skill-board__learned-copy"><strong>@skill.Name</strong><small>@skill.Description</small></span>
                         <span class="skill-board__learned-meta">CD @skill.CooldownRounds · @(equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</span>
                     </button>
@@ -246,12 +246,6 @@
         "MonsterHasBuff" => "怪物存在可驱散增益时",
         "InterruptibleIntent" => "怪物预告可打断技能时",
         _ => "冷却结束后"
-    };
-
-    private static string GetSkillIcon(LearnedSkillResponse? skill) => skill?.EffectType switch
-    {
-        "Damage" => "✦", "Heal" => "+", "Guard" => "◆", "Cleanse" => "◇",
-        "Dispel" => "✧", "Interrupt" => "⚡", "ApplyStatus" => "◉", _ => "+"
     };
 
     private static string GetEffectTone(LearnedSkillResponse? skill) => skill?.EffectType switch

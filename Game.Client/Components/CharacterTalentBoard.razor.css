@@ -158,6 +158,7 @@
 .talent-tree-map__node.talent-node--locked { opacity: .68; }
 .talent-tree-map__node.talent-node--active, .talent-tree-map__node.talent-node--complete { background: transparent; }
 .talent-tree-map__icon { position: relative; display: grid; place-items: center; width: 58px; height: 58px; border: 3px solid #68788a; border-radius: .55rem; color: #b8c8d1; background: radial-gradient(circle at 50% 35%, #31536a, #182b3b 72%); box-shadow: inset 0 0 0 2px #081622, 0 4px 10px #050c18a8; font-size: 1.8rem; line-height: 1; }
+.talent-tree-map__icon img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .talent-node--available .talent-tree-map__icon { border-color: #ecc477; color: #ffe4a6; box-shadow: inset 0 0 0 2px #513c20, 0 0 15px #d7a85e80; }
 .talent-node--active .talent-tree-map__icon, .talent-node--complete .talent-tree-map__icon { border-color: #79c9ad; color: #d8ffe9; background: radial-gradient(circle at 50% 35%, #386f64, #183b3b 75%); }
 .talent-tree-map__icon b { position: absolute; right: -8px; bottom: -8px; min-width: 28px; border: 1px solid #a9b9bf; border-radius: .32rem; padding: .12rem .2rem; color: #f1e6d2; background: #10212f; font-size: .64rem; font-variant-numeric: tabular-nums; }
@@ -167,6 +168,7 @@
 .talent-tree-detail { position: sticky; top: .5rem; min-width: 0; border: 1px solid #607789; border-radius: .8rem; background: linear-gradient(150deg, #22394c, #142535); box-shadow: 0 14px 28px #030b193d; overflow: hidden; }
 .talent-tree-detail__header { display: flex; align-items: center; gap: .65rem; padding: .85rem; border-bottom: 1px solid #425b6d; }
 .talent-tree-detail__icon { flex: 0 0 46px; height: 46px; display: grid; place-items: center; border: 2px solid #d6b270; border-radius: .5rem; color: #f3d89b; background: #1c3041; font-size: 1.5rem; }
+.talent-tree-detail__icon img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .talent-tree-detail__header > div { min-width: 0; flex: 1; }
 .talent-tree-detail__header small { color: #e2bd79; font-size: .65rem; font-weight: 800; }
 .talent-tree-detail__header h3 { margin: .1rem 0; color: #f0e7d8; font-size: 1.05rem; }

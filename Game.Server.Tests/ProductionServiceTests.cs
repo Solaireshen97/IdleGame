@@ -122,7 +122,10 @@ public sealed class ProductionServiceTests
         await using var test = await ProductionTestContext.CreateAsync(5, 2);
         var (firstView, firstError) = await test.Service.GetAsync(test.Token);
         Assert.Null(firstError);
-        Assert.True(Assert.Single(firstView!.Recipes).IsUnlocked);
+        var recipe = Assert.Single(firstView!.Recipes);
+        Assert.True(recipe.IsUnlocked);
+        Assert.Equal("小型治疗药水", recipe.OutputName);
+        Assert.Contains("恢复 20 HP", recipe.OutputDescription);
 
         var (started, startError) = await test.Service.StartAsync(test.Token,
             new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });

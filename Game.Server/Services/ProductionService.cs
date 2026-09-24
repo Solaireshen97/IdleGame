@@ -247,6 +247,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         var recipes = catalog.Recipes.Select(recipe =>
         {
             var source = world.Dungeons.Single(dungeon => dungeon.Code == recipe.UnlockTargetCode);
+            var output = consumables.FindItem(recipe.OutputCode)!;
             var unlockTargets = recipe.AlternativeUnlockTargetCodes.Prepend(recipe.UnlockTargetCode).ToHashSet();
             var count = milestones.Where(item => item.Kind == recipe.UnlockKind &&
                 unlockTargets.Contains(item.TargetCode)).Select(item => item.Count).DefaultIfEmpty(0).Max();
@@ -254,7 +255,8 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
             {
                 Code = recipe.Code, Name = recipe.Name,
                 OutputCode = recipe.OutputCode,
-                OutputName = consumables.FindItem(recipe.OutputCode)!.Name,
+                OutputName = output.Name,
+                OutputDescription = ConsumableCatalog.Description(output, character.Level),
                 OutputQuantity = recipe.OutputQuantity,
                 CharacterQuantity = bag.GetValueOrDefault(recipe.OutputCode),
                 CycleSeconds = Math.Max(1, recipe.CycleSeconds - cycleReduction),

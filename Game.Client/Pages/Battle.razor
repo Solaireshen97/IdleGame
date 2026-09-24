@@ -79,7 +79,7 @@ else
             <span class="battle-feed__open">打开完整战报 <span aria-hidden="true">↗</span></span>
         </button>
 
-        @if (_roomDetail.MonsterIntent is { } intent && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && _roomDetail.NextBattleStartAtUtc is null)
+        @if (_roomDetail.MonsterIntent is { } intent && _roomDetail.MonsterHp > 0 && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && _roomDetail.NextBattleStartAtUtc is null)
         {
             <section class="monster-intent monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
                 <div class="monster-intent__icon" aria-hidden="true">!</div>
@@ -97,6 +97,33 @@ else
                         </small>
                     }
                 </div>
+            </section>
+        }
+        else
+        {
+            var intentTitle = _roomDetail.NextBattleStartAtUtc is not null
+                ? "讨伐已完成"
+                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                    ? "目标已击破"
+                    : "等待敌方行动";
+            var intentDetail = _roomDetail.NextBattleStartAtUtc is not null
+                ? "等待副本重新开始"
+                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                    ? "等待下一名敌人进入战场"
+                    : "行动预告将在准备后显示";
+            var intentState = _roomDetail.NextBattleStartAtUtc is not null
+                ? "即将重开"
+                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                    ? "切换中"
+                    : "未锁定";
+            <section class="monster-intent monster-intent--waiting" aria-label="敌方行动预告状态" aria-live="polite">
+                <div class="monster-intent__icon" aria-hidden="true">◇</div>
+                <div class="monster-intent__body">
+                    <span>ENEMY INTENT · 敌方行动预告</span>
+                    <strong>@intentTitle</strong>
+                    <small>@intentDetail</small>
+                </div>
+                <div class="monster-intent__target"><span>状态</span><strong>@intentState</strong></div>
             </section>
         }
 
@@ -297,7 +324,7 @@ else
 
     @if (_isRewardsOpen && _roomDetail.Rewards is { } dialogRewards)
     {
-        <div class="battle-log-overlay" @onclick="CloseRewards">
+        <div class="battle-log-overlay battle-reward-overlay" @onclick="CloseRewards">
             <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
                 <header class="battle-log-dialog__header">
                     <div>
@@ -474,7 +501,7 @@ else
                     <div class="skill-dialog__skill">
                         <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skillDialog.Skill)" aria-hidden="true">
                             <span class="battle-skill-card__flare"></span>
-                            <span class="battle-skill-card__glyph">@GetSkillGlyph(skillDialog.Skill)</span>
+                            <img class="battle-skill-card__art" src="@SkillArt.ForCode(skillDialog.Skill.SkillCode)" alt="" />
                         </span>
                         <div><span class="section-kicker">SKILL @skillDialog.Skill.SlotIndex</span><h2 id="skill-dialog-title">@skillDialog.Skill.SkillName</h2><p>@skillDialog.Character.CharacterName · @skillDialog.Character.ProfessionName</p></div>
                     </div>
@@ -564,7 +591,7 @@ else
                                         @onclick="() => HandleSkillClickAsync(characterSlot, skill)">
                                     <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
                                         <span class="battle-skill-card__flare"></span>
-                                        <span class="battle-skill-card__glyph">@GetSkillGlyph(skill)</span>
+                                        <img class="battle-skill-card__art" src="@SkillArt.ForCode(skill.SkillCode)" alt="" />
                                         <span class="battle-skill-card__slot">@skill.SlotIndex</span>
                                         @if (skill.CooldownRoundsRemaining > 0) { <span class="battle-skill-card__cooldown">@skill.CooldownRoundsRemaining</span> }
                                         @if (selected) { <span class="battle-skill-card__check">✓</span> }
@@ -1106,16 +1133,6 @@ else
         return "damage";
     }
 
-    private static string GetSkillGlyph(RoomSkillSlotResponse skill)
-    {
-        if (skill.Effects.Any(effect => effect.Type == "Heal")) return "✚";
-        if (skill.Effects.Any(effect => effect.Type == "Guard")) return "◆";
-        if (skill.Effects.Any(effect => effect.Type == "Cleanse")) return "✦";
-        if (skill.Effects.Any(effect => effect.Type == "Dispel")) return "◉";
-        if (skill.Effects.Any(effect => effect.Type == "Interrupt")) return "ϟ";
-        return "⚔";
-    }
-
     private static string GetSkillAutoConditionText(RoomSkillSlotResponse skill) => skill.AutoCondition switch
     {
         "LowestHpBelowThreshold" => $"有队友生命值不高于 {skill.AutoHpThresholdPercent}% 时自动使用",
@@ -1421,7 +1438,9 @@ else
 
     private static string FormatElementModifier(int percent) => percent > 0 ? $"+{percent}%" : $"{percent}%";
     private bool IsMonsterIntentTarget(RoomSlotResponse slot) =>
-        _roomDetail?.MonsterIntent is { IsInterrupted: false, TargetCharacterId: int targetId } && slot.CharacterId == targetId;
+        _roomDetail is { MonsterHp: > 0, NextBattleStartAtUtc: null } &&
+        _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition &&
+        _roomDetail.MonsterIntent is { IsInterrupted: false, TargetCharacterId: int targetId } && slot.CharacterId == targetId;
 
     private string GetActionHint()
     {

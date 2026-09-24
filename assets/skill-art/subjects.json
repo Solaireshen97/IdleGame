@@ -1,0 +1,62 @@
+[
+  {
+    "code": "sword-slash",
+    "subject": "a steel longsword sweeping through one bold diagonal orange-gold slash arc",
+    "palette": "steel blue, warm orange and ivory"
+  },
+  {
+    "code": "sword-parry",
+    "subject": "a raised steel sword deflecting an incoming blade, with a bright impact spark at the crossing point",
+    "palette": "steel blue, cool cyan and warm gold"
+  },
+  {
+    "code": "sword-double-slash",
+    "subject": "two crisp crossing sword slash trails forming an X around a small steel blade",
+    "palette": "steel blue, amber and scarlet"
+  },
+  {
+    "code": "sword-intercept",
+    "subject": "a swift sword cutting through an incoming red attack streak, broken fragments and one decisive impact flash",
+    "palette": "steel blue, red-orange and ivory"
+  },
+  {
+    "code": "acolyte-holy-bolt",
+    "subject": "a compact golden holy-light orb flying forward with a pointed white-gold comet tail and four radiant rays",
+    "palette": "warm gold, ivory and pale cyan"
+  },
+  {
+    "code": "acolyte-heal",
+    "subject": "a luminous emerald heart cupped by two small ivory-gold rays, with a bright healing sparkle",
+    "palette": "emerald green, ivory and warm gold"
+  },
+  {
+    "code": "acolyte-silence",
+    "subject": "a small golden ritual bell tightly sealed by crossing violet bands, with its clapper visibly bound",
+    "palette": "deep violet, muted gold and ivory"
+  },
+  {
+    "code": "acolyte-purify",
+    "subject": "a clear blue crystal droplet being cleansed by a white-gold four-point sparkle and a tiny broken dark stain",
+    "palette": "aqua blue, ivory, warm gold and a touch of violet"
+  },
+  {
+    "code": "acolyte-radiant-flare",
+    "subject": "a fierce white-gold sunburst with a brilliant central eye-shaped flare and sharp radiant rays",
+    "palette": "white, warm gold and orange"
+  },
+  {
+    "code": "knight-guard",
+    "subject": "a sturdy blue-steel kite shield with a gold rim, backed by a pale protective halo",
+    "palette": "royal blue, steel, ivory and warm gold"
+  },
+  {
+    "code": "warrior-fury",
+    "subject": "a clenched iron gauntlet engulfed by an aggressive crimson flame aura with jagged rising sparks",
+    "palette": "crimson red, ember orange, dark steel and gold"
+  },
+  {
+    "code": "priest-group-heal",
+    "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
+    "palette": "emerald green, ivory, pale cyan and warm gold"
+  }
+]

@@ -73,6 +73,13 @@
 .activity-dialog__close { width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #617b8c; border-radius: .5rem; color: #e9f1f4; background: #172e40; font-size: 1.4rem; cursor: pointer; }
 .activity-dialog__body { display: grid; gap: .7rem; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .8rem .95rem; }
 .activity-dialog__body > p { margin: 0; color: #b6cbd0; font-size: .74rem; line-height: 1.45; }
+.activity-dialog__product { display: flex; align-items: center; gap: .7rem; border: 1px solid color-mix(in srgb, var(--activity-accent), #455f70 55%); border-radius: .6rem; padding: .65rem .7rem; background: radial-gradient(circle at 8% 0, var(--activity-glow), transparent 58%), #152a3b; }
+.activity-dialog__product-icon { display: grid; width: 52px; height: 52px; flex: 0 0 52px; place-items: center; border: 1px solid var(--activity-accent); border-radius: .55rem; background: #0e202e; }
+.activity-dialog__product-icon img { width: 46px; height: 46px; object-fit: contain; image-rendering: pixelated; }
+.activity-dialog__product > div { display: grid; gap: .12rem; min-width: 0; }
+.activity-dialog__product small { color: #e8c080; font-size: .65rem; font-weight: 800; }
+.activity-dialog__product strong { color: #f4ead9; font-size: .9rem; }
+.activity-dialog__product p { margin: .14rem 0 0; color: #c4d7de; font-size: .7rem; line-height: 1.4; overflow-wrap: anywhere; }
 .activity-dialog__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: .42rem; }
 .activity-dialog__stats > div { display: grid; gap: .15rem; border: 1px solid #445e70; border-radius: .5rem; padding: .55rem .62rem; background: #13283a; }
 .activity-dialog__stats span { color: #a7bdc8; font-size: .65rem; }

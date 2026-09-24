@@ -20,6 +20,7 @@
 .skill-board__slot-card .skill-board__auto-badge { color: #75d5b8; }
 
 .skill-board__icon { display: grid; place-items: center; width: 2.7rem; height: 2.7rem; border: 1px solid #516c82; border-radius: .65rem; background: linear-gradient(145deg, #24445c, #12293d); color: #d9efff; font-size: 1.25rem; font-weight: 900; box-shadow: inset 0 0 0 2px rgba(255,255,255,.035); }
+.skill-board__icon img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .skill-board__icon--damage, .skill-board__icon--interrupt { border-color: #b97860; background: linear-gradient(145deg, #633728, #251d27); color: #ffb181; }
 .skill-board__icon--guard { border-color: #6c92b6; background: linear-gradient(145deg, #2f5273, #14283e); color: #aeddff; }
 .skill-board__icon--heal, .skill-board__icon--cleanse { border-color: #5a9d8d; background: linear-gradient(145deg, #246052, #122f32); color: #9eefd1; }
