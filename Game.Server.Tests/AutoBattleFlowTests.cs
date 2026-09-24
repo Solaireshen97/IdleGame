@@ -4,6 +4,8 @@ using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Game.Server.Tests;
@@ -39,6 +41,62 @@ public sealed class AutoBattleFlowTests
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
         Assert.Contains(result.Logs, log => log.Contains("使用 盾击"));
         Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("使用 盾击"));
+    }
+
+    [Fact]
+    public async Task HostedRoomCycleAdvancesTwoOfflinePlayersWithoutBrowserRequests()
+    {
+        await using var test = await AutoBattleTestContext.CreateAsync(isAutoEnabled: false);
+        test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Room.IsPreparationTimeoutEnabled = false;
+        var ownerSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 1);
+        ownerSlot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Db.AddRange(
+            new User { Id = 2, UserName = "guest", PasswordHash = "x", ActiveCharacterId = 2 },
+            new Character { Id = 2, UserId = 2, Name = "Guest", Hp = 100, MaxHp = 100, Attack = 10 },
+            new RoomSlot { RoomId = 1, SlotIndex = 2, UserId = 2, CharacterId = 2,
+                LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2) });
+        await test.Db.SaveChangesAsync();
+
+        var connectionString = test.Db.Database.GetConnectionString()!;
+        var services = new ServiceCollection();
+        services.AddDbContext<GameDbContext>(options => options.UseSqlite(connectionString));
+        services.AddScoped(provider =>
+        {
+            var db = provider.GetRequiredService<GameDbContext>();
+            var progression = ProgressionTestFactory.Create();
+            var skills = SkillTestFactory.Create();
+            return new BattleService(db, new UserService(db, progression, skills),
+                ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(db, progression),
+                battleLogStore: test.LogStore);
+        });
+        await using var provider = services.BuildServiceProvider();
+        using var worker = new RoomCycleService(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<RoomCycleService>.Instance);
+
+        await worker.StartAsync(CancellationToken.None);
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            var roundNumber = 0;
+            while (DateTime.UtcNow < deadline)
+            {
+                await using var check = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
+                    .UseSqlite(connectionString).Options);
+                roundNumber = await check.Rooms.AsNoTracking().Where(room => room.Id == 1)
+                    .Select(room => room.RoundNumber).SingleAsync();
+                if (roundNumber > 0) break;
+                await Task.Delay(50);
+            }
+
+            Assert.Equal(1, roundNumber);
+            Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("1号位") && log.Text.Contains("普通攻击"));
+            Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("2号位") && log.Text.Contains("普通攻击"));
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
     }
 
     private sealed class AutoBattleTestContext : IAsyncDisposable
