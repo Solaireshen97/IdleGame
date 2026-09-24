@@ -29,6 +29,7 @@
 .consumables-board__slot-card > b { position: absolute; top: .4rem; right: .45rem; color: #f0bd68; font-size: .625rem; }
 
 .inventory-item__icon { display: grid; place-items: center; width: 2.7rem; height: 2.7rem; border: 1px solid #5a9d8d; border-radius: .62rem; background: linear-gradient(145deg, #246052, #122f32); color: #9eefd1; font-size: 1.2rem; font-weight: 900; box-shadow: inset 0 0 0 2px rgba(255,255,255,.035); }
+.inventory-item__icon img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .consumables-board__slot-card--empty .inventory-item__icon { border-color: #516c82; border-style: dashed; background: #172a3b; color: #7890a1; }
 
 .consumables-board__editor-backdrop { position: fixed; z-index: 1300; inset-block: 0; left: 50%; display: flex; align-items: flex-end; width: min(100vw, 640px); transform: translateX(-50%); padding-top: max(1rem, env(safe-area-inset-top)); background: rgba(3, 10, 17, .76); backdrop-filter: blur(5px); }

@@ -20,5 +20,6 @@ public sealed class GatheringPointOptions
     public int MinimumGatheringLevel { get; set; } = 1;
     public string UnlockKind { get; set; } = string.Empty;
     public string UnlockTargetCode { get; set; } = string.Empty;
+    public List<string> AlternativeUnlockTargetCodes { get; set; } = [];
     public int RequiredCount { get; set; } = 1;
 }

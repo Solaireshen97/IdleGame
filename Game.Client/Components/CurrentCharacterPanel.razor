@@ -64,7 +64,7 @@ else
                                        value="@profession.Code"
                                        checked="@(_newProfessionCode == profession.Code)"
                                        @onchange="@(_ => SelectProfession(profession.Code))" />
-                                <span class="profession-option__glyph" aria-hidden="true">@GetProfessionGlyph(profession.Code)</span>
+                                <span class="profession-option__glyph" aria-hidden="true"><img src="@ProfessionArt.ForCode(profession.Code)" alt="" /></span>
                                 <span class="profession-option__content">
                                     <strong>@profession.Name</strong>
                                     <span>@profession.Description</span>
@@ -408,13 +408,6 @@ else
         CharacterOperation.Delete => "删除中...",
         CharacterOperation.Select => "切换中...",
         _ => "处理中..."
-    };
-
-    private static string GetProfessionGlyph(string professionCode) => professionCode switch
-    {
-        "swordsman" => "⚔",
-        "acolyte" => "✦",
-        _ => "◆"
     };
 
     private static string? GetFriendlyErrorMessage(string? errorMessage)

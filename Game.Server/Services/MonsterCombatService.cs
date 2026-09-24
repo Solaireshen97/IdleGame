@@ -26,6 +26,10 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         }
 
         var selectedSkill = await SelectSkillAsync(room, monster);
+        var silenced = selectedSkill?.IsInterruptible == true &&
+            (await GetActiveEffectsAsync(room, "Monster", [monster.Id])).Any(effect =>
+                catalog.FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
+                effect.AppliedRound < room.RoundNumber);
         var targetType = selectedSkill?.TargetType ?? "Front";
         var intent = new MonsterIntent
         {
@@ -35,6 +39,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             MonsterId = monster.Id,
             ActionType = selectedSkill is null ? "BasicAttack" : "Skill",
             SkillCode = selectedSkill?.Code,
+            IsInterrupted = silenced,
             TargetType = targetType,
             TargetCharacterId = targetType == "Front" ? await FindFrontCharacterIdAsync(room.Id) : null,
             CreatedAtUtc = DateTime.UtcNow
@@ -147,7 +152,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         if (intent.IsInterrupted)
         {
             if (skill is not null) await StartCooldownAsync(room, monster, skill);
-            logs.Add($"{monster.Name} 的 {skill?.Name ?? "行动"} 已被打断，本回合行动取消。");
+            var wasSilenced = (await GetActiveEffectsAsync(room, "Monster", [monster.Id])).Any(effect =>
+                catalog.FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
+                effect.AppliedRound < room.RoundNumber);
+            logs.Add(wasSilenced
+                ? $"{monster.Name} 受到沉默影响，{skill?.Name ?? "行动"} 被自动打断，本回合行动取消。"
+                : $"{monster.Name} 的 {skill?.Name ?? "行动"} 已被打断，本回合行动取消。");
             return;
         }
         if (skill is null)

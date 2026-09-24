@@ -58,6 +58,7 @@ public sealed class SkillTalentNodeOptions
     public int Column { get; set; }
     public int RequiredLevel { get; set; } = 1;
     public string BranchCode { get; set; } = "shared";
+    public int RequiredTreePoints { get; set; }
     public string? ExclusiveGroup { get; set; }
     public string? EffectCode { get; set; }
     public decimal ValuePerRank { get; set; }

@@ -31,6 +31,7 @@ public class SkillTalentNodeResponse
     public int Column { get; set; }
     public int RequiredLevel { get; set; }
     public string BranchCode { get; set; } = string.Empty;
+    public int RequiredTreePoints { get; set; }
     public string? ExclusiveGroup { get; set; }
     public string? EffectCode { get; set; }
     public decimal ValuePerRank { get; set; }

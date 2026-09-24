@@ -48,7 +48,8 @@ public sealed class SkillCatalog
             if (string.IsNullOrWhiteSpace(node.Code) || string.IsNullOrWhiteSpace(node.Name) || string.IsNullOrWhiteSpace(node.Description) ||
                 !_professions.TryGetValue(node.ProfessionCode, out var profession) || profession.IsPromotion || !validSkill ||
                 node.Cost != 1 || node.MaxRank is < 1 or > 3 || node.Tier < 1 || node.Column is < 1 or > 3 ||
-                node.RequiredLevel is < 1 or > SkillRules.PromotionLevel || string.IsNullOrWhiteSpace(node.BranchCode) || !_talentNodes.TryAdd(node.Code, node))
+                node.RequiredLevel is < 1 or > SkillRules.PromotionLevel || node.RequiredTreePoints is < 0 or > 20 ||
+                string.IsNullOrWhiteSpace(node.BranchCode) || !_talentNodes.TryAdd(node.Code, node))
                 throw new InvalidOperationException($"Invalid talent configuration: {node.Code}");
         }
         foreach (var node in _talentNodes.Values)

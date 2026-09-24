@@ -42,7 +42,14 @@ public sealed class WorldContentTests
         Assert.Equal("minor-healing-potion", recipe.OutputCode);
         Assert.Equal(10, recipe.CycleSeconds);
         Assert.Equal("northshire-wolves", recipe.UnlockTargetCode);
+        Assert.Equal(5, recipe.AlternativeUnlockTargetCodes.Count);
         Assert.Equal(("peacebloom", 2), (Assert.Single(recipe.Ingredients).Code, recipe.Ingredients[0].Quantity));
+        Assert.Single(production.Recipes, item => item.OutputCode == "minor-healing-potion");
+        var whetstone = Assert.Single(production.Recipes, item => item.OutputCode == "whetstone-oil");
+        var travel = Assert.Single(production.Recipes, item => item.OutputCode == "travel-healing-potion");
+        Assert.Equal("peacebloom", Assert.Single(whetstone.Ingredients).Code);
+        Assert.Equal(("peacebloom", 2),
+            (Assert.Single(travel.Ingredients).Code, travel.Ingredients[0].Quantity));
         var operationPotion = production.Recipes.Single(item => item.Code == "northshire-battle-draught");
         Assert.Equal(("peacebloom", 3), (Assert.Single(operationPotion.Ingredients).Code, operationPotion.Ingredients[0].Quantity));
     }
@@ -55,11 +62,16 @@ public sealed class WorldContentTests
             content.World, content.Materials);
         var rarePoints = gathering.Points.Where(point => point.IsRare).ToList();
         Assert.Equal(6, rarePoints.Count);
-        Assert.Equal(24, gathering.Points.Count);
+        Assert.Equal(19, gathering.Points.Count);
+        var common = Assert.Single(gathering.Points, point => point.MaterialCode == "peacebloom");
+        Assert.Equal(GatheringCatalog.GlobalRegionCode, common.RegionCode);
+        Assert.Equal(5, common.AlternativeUnlockTargetCodes.Count);
+        Assert.All(new[] { "tirisfal-gravemoss", "durotar-aloe", "dun-morogh-frostdew",
+            "mulgore-sage", "eversong-goldleaf" }, code => Assert.NotNull(content.Materials.FindItem(code)));
         foreach (var region in content.World.Regions)
         {
             var points = gathering.Points.Where(point => point.RegionCode == region.Code).ToList();
-            Assert.Equal(4, points.Count);
+            Assert.Equal(3, points.Count);
             Assert.Single(points, point => point.IsRare);
             Assert.Single(points, point => point.UnlockKind == "DungeonClear" && point.OutputQuantity == 2);
             Assert.All(points, point => Assert.Equal(20, point.CycleSeconds));
@@ -74,7 +86,7 @@ public sealed class WorldContentTests
         var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
             content.World, content.Materials, content.Consumables);
         var gatheredMaterials = gathering.Points.Select(point => point.MaterialCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(32, production.Recipes.Count);
+        Assert.Equal(17, production.Recipes.Count);
         Assert.All(production.Recipes.Where(recipe => recipe.Code != "elwynn-assault-legacy-batch"), recipe =>
             Assert.All(recipe.Ingredients, ingredient => Assert.Contains(ingredient.Code, gatheredMaterials)));
         foreach (var rare in rarePoints)

@@ -12,7 +12,8 @@ internal static class MonsterCombatTestFactory
         [
             new() { Code = "armor-break", Name = "破甲", Description = "受到伤害提高。", EffectType = "ReductionPercent", ValuePerStack = -20 },
             new() { Code = "poison", Name = "中毒", Description = "回合末受到伤害。", EffectType = "DamageOverTime", ValuePerStack = 4, MaxStacks = 3, Stacking = "AddStack" },
-            new() { Code = "slime-shell", Name = "黏液硬化", Description = "受到伤害降低。", EffectType = "ReductionPercent", ValuePerStack = 20, IsPositive = true }
+            new() { Code = "slime-shell", Name = "黏液硬化", Description = "受到伤害降低。", EffectType = "ReductionPercent", ValuePerStack = 20, IsPositive = true },
+            new() { Code = "acolyte-silence", Name = "沉默", Description = "下一回合可打断技能自动失效。", EffectType = "SilenceNextIntent", ValuePerStack = 1, IsDispellable = false }
         ],
         Skills =
         [
@@ -21,6 +22,11 @@ internal static class MonsterCombatTestFactory
                 Code = "acid", Name = "腐蚀喷射", Description = "攻击并施加破甲。", TargetType = "Front",
                 DamagePowerPercent = 120, CooldownRounds = 2,
                 Statuses = [new() { StatusCode = "armor-break", DurationRounds = 2 }]
+            },
+            new()
+            {
+                Code = "rapid", Name = "迅捷喷射", Description = "每回合攻击。", TargetType = "Front",
+                DamagePowerPercent = 120, CooldownRounds = 0
             },
             new()
             {
@@ -37,6 +43,7 @@ internal static class MonsterCombatTestFactory
         Profiles = new Dictionary<string, MonsterCombatProfileOptions>(StringComparer.OrdinalIgnoreCase)
         {
             ["acid-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "acid", Weight = 1 }] },
+            ["rapid-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "rapid", Weight = 1 }] },
             ["toxic-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "toxic", Weight = 1 }] },
             ["hardened-slime"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "harden", Weight = 1 }] }
         }

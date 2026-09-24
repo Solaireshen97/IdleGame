@@ -22,7 +22,7 @@
                 {
                     <section class="monster-detail-drops" aria-label="@monster.Name 的掉落">
                         <div class="monster-detail-section-heading">
-                            <h3><span class="monster-detail-element monster-detail-element--@monster.Element.ToString().ToLowerInvariant()">@WeaponRules.ElementName(monster.Element)属性</span> @monster.Name</h3>
+                            <h3><img class="monster-detail-heading-art" src="@MonsterArt.ForName(monster.Name)" alt="" loading="lazy" /><span class="monster-detail-element monster-detail-element--@monster.Element.ToString().ToLowerInvariant()">@WeaponRules.ElementName(monster.Element)属性</span> @monster.Name</h3>
                             <small>第 @monster.WaveNumber 波 · @(monster.IsBoss ? "首领" : "普通敌人")</small>
                         </div>
                         @if (monster.Drops.Count == 0)
@@ -46,7 +46,7 @@
                                         else
                                         {
                                             <div class="monster-drop">
-                                                <span class="monster-drop-icon" aria-hidden="true">✦</span>
+                                                <span class="monster-drop-icon" aria-hidden="true">@if (ItemArt.ForCode(drop.Code) is { } dropArt) { <img src="@dropArt" alt="" loading="lazy" /> } else { <text>✦</text> }</span>
                                                 <span class="monster-drop-copy"><strong>@drop.Name <small>× @drop.Quantity</small></strong><small>@DropKindName(drop.Kind)</small></span>
                                                 <span class="monster-drop-rate">@drop.ChancePercent.ToString("0.##")%</span>
                                             </div>
@@ -78,7 +78,7 @@
                                     else
                                     {
                                         <div class="monster-drop">
-                                            <span class="monster-drop-icon" aria-hidden="true">✦</span>
+                                            <span class="monster-drop-icon" aria-hidden="true">@if (ItemArt.ForCode(drop.Code) is { } dropArt) { <img src="@dropArt" alt="" loading="lazy" /> } else { <text>✦</text> }</span>
                                             <span class="monster-drop-copy"><strong>@drop.Name <small>× @drop.Quantity</small></strong><small>@drop.Source · @DropKindName(drop.Kind)</small></span>
                                             <span class="monster-drop-rate">@drop.ChancePercent.ToString("0.##")%</span>
                                         </div>
@@ -99,11 +99,12 @@
                         var optionIndex = index;
                         <button type="button" class="monster-selector__item @(index == _selectedMonsterIndex ? "monster-selector__item--active" : "")"
                                 aria-pressed="@(index == _selectedMonsterIndex)" @onclick="() => SelectMonster(optionIndex)">
-                            <small>第 @option.WaveNumber 波</small><strong>@option.Name</strong>
+                            <img src="@MonsterArt.ForName(option.Name)" alt="" loading="lazy" /><span><small>第 @option.WaveNumber 波</small><strong>@option.Name</strong></span>
                         </button>
                     }
                 </div>
                 <div class="monster-detail-identity">
+                    <img class="monster-detail-identity-art" src="@MonsterArt.ForName(monster.Name)" alt="" />
                     <span class="monster-detail-element">@WeaponRules.ElementName(monster.Element)属性</span>
                     <div><strong>@monster.Name</strong><small>@(monster.IsBoss ? "首领" : "普通敌人") · 第 @monster.WaveNumber 波 / 第 @monster.Position 位</small></div>
                 </div>

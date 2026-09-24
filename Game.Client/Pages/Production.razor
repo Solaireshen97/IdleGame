@@ -58,8 +58,7 @@
                     <button type="button" class="activity-option @(!recipe.IsUnlocked ? "activity-option--locked" : null)" @key="recipe.Code"
                             @onclick="() => OpenRecipe(recipe.Code)" aria-haspopup="dialog" aria-label="查看 @recipe.Name 的炼金配方">
                         <span class="activity-option__top"><span>炼金 · @recipe.CycleSeconds 秒</span><b>@(recipe.IsUnlocked ? IngredientsReady(recipe) ? "可生产" : "缺材料" : "未解锁")</b></span>
-                        <strong>@recipe.Name</strong>
-                        <span class="activity-option__output">@recipe.OutputName × @recipe.OutputQuantity <small>/ 轮</small></span>
+                        <span class="activity-option__item"><img src="@ItemArt.ForCode(recipe.OutputCode)" alt="" loading="lazy" /><span><strong>@recipe.Name</strong><span class="activity-option__output">@recipe.OutputName × @recipe.OutputQuantity <small>/ 轮</small></span></span></span>
                         <span class="activity-option__foot">可做 @AvailableCycles(recipe) 轮 <span aria-hidden="true">详情 ›</span></span>
                     </button>
                 }
@@ -80,11 +79,11 @@
         {
             <div class="activity-dialog-overlay" @onclick="CloseRecipe" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
                 <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="production-dialog-title" @onclick:stopPropagation>
-                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true">⚗</span><div><small>炼金配方 · 每 @selected.CycleSeconds 秒</small><h2 id="production-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="CloseRecipe" @ref="_dialogCloseButton" aria-label="关闭配方详情">×</button></header>
+                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true"><img src="@ItemArt.ForCode(selected.OutputCode)" alt="" /></span><div><small>炼金配方 · 每 @selected.CycleSeconds 秒</small><h2 id="production-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="CloseRecipe" @ref="_dialogCloseButton" aria-label="关闭配方详情">×</button></header>
                     <div class="activity-dialog__body">
                         <p>每轮产出 @selected.OutputName × @selected.OutputQuantity；结算时消耗当前角色背包原料。</p>
                         <div class="activity-dialog__stats"><div><span>当前材料可做</span><strong>@AvailableCycles(selected) 轮</strong></div><div><span>预计产出</span><strong>@((long)AvailableCycles(selected) * selected.OutputQuantity) 件</strong></div><div><span>背包成品</span><strong>@selected.CharacterQuantity</strong></div></div>
-                        <div class="activity-dialog__ingredients"><strong>每轮消耗</strong>@foreach (var ingredient in selected.Ingredients) { <div><span>@ingredient.Name × @ingredient.Quantity</span><b class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "activity-dialog__short" : null)">背包 @ingredient.CharacterQuantity</b></div> }</div>
+                        <div class="activity-dialog__ingredients"><strong>每轮消耗</strong>@foreach (var ingredient in selected.Ingredients) { <div><span class="activity-dialog__ingredient-name">@if (ItemArt.ForCode(ingredient.Code) is { } ingredientArt) { <img src="@ingredientArt" alt="" loading="lazy" /> }@ingredient.Name × @ingredient.Quantity</span><b class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "activity-dialog__short" : null)">背包 @ingredient.CharacterQuantity</b></div> }</div>
                         <div class="activity-dialog__requirements"><strong>@(selected.IsUnlocked ? "已满足战斗条件" : "尚未解锁")</strong><span>@selected.UnlockDescription · @selected.UnlockProgress / @selected.UnlockRequired</span>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <span>需要角色 Lv.@selected.MinimumCharacterLevel</span> }@if (_overview.AlchemyLevel < selected.MinimumAlchemyLevel) { <span>需要炼金 Lv.@selected.MinimumAlchemyLevel</span> }</div>
                         @if (_notice is not null) { <p class="activity-notice" role="status">@_notice</p> }
                     </div>

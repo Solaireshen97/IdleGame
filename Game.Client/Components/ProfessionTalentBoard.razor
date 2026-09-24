@@ -1,4 +1,5 @@
 @using Game.Shared.Dtos.Professions
+@using Microsoft.AspNetCore.Components.Web
 
 <section class="profession-board" aria-label="@($"{Progress.ProfessionName}天赋")">
     <header class="profession-board__header">
@@ -24,24 +25,62 @@
         <p class="profession-board__locked" role="status">当前角色正在@(Progress.ProfessionCode == "Gathering" ? "采集" : "炼金")，结束任务后才能修改这一专业的天赋。</p>
     }
 
-    <div class="profession-board__nodes">
-        @foreach (var node in Progress.Nodes)
-        {
-            <article class="profession-board__node @(node.Rank > 0 ? "profession-board__node--active" : "")">
-                <div class="profession-board__node-head"><small>第 @node.Tier 层</small><strong>@node.Rank / @node.MaxRank</strong></div>
-                <h3>@node.Name</h3>
-                <p>@node.Description</p>
-                <div class="profession-board__rank" aria-label="@($"{node.Name} {node.Rank} 级")">
-                    @for (var rank = 0; rank < node.MaxRank; rank++)
+    <div class="profession-tree-legend" aria-label="节点状态说明"><span><i class="profession-tree-legend__available"></i> 可加点</span><span><i class="profession-tree-legend__learned"></i> 已学习</span><span><i class="profession-tree-legend__locked"></i> 未解锁</span></div>
+
+    <div class="profession-tree-layout">
+        <div class="profession-tree-map" aria-label="@Progress.ProfessionName 天赋树，点击节点查看详情" style="--tree-tiers:@TreeTierCount">
+            <svg class="profession-tree-map__links" viewBox="0 0 300 @(TreeTierCount * 100)" preserveAspectRatio="none" aria-hidden="true">
+                @foreach (var node in Progress.Nodes)
+                {
+                    var parent = FindParent(node);
+                    if (parent is not null)
                     {
-                        <span class="@(rank < node.Rank ? "profession-board__rank--filled" : "")"></span>
+                        <path class="@(parent.Rank >= node.PrerequisiteRank ? "profession-tree-map__link--active" : null)" d="@ConnectionPath(parent, node)" />
                     }
+                }
+            </svg>
+            <div class="profession-tree-map__grid">
+                @foreach (var tier in Progress.Nodes.GroupBy(node => node.Tier).OrderBy(group => group.Key))
+                {
+                    <span class="profession-tree-map__level" style="grid-row:@tier.Key">专业 Lv.@tier.Min(node => node.MinimumLevel)</span>
+                }
+                @foreach (var node in Progress.Nodes)
+                {
+                    <button type="button" class="profession-tree-map__node @NodeClass(node) @(_selectedNodeCode == node.Code ? "profession-tree-map__node--selected" : null)"
+                            style="grid-row:@node.Tier;grid-column:@ColumnForNode(node)" @key="node.Code" @onclick="() => SelectNode(node.Code)"
+                            aria-pressed="@(_selectedNodeCode == node.Code)" aria-label="@node.Name，@node.Rank / @node.MaxRank 级，@(node.LockReason ?? "可加点")">
+                        <span class="profession-tree-map__icon"><span aria-hidden="true">@NodeGlyph(node)</span><b>@node.Rank/@node.MaxRank</b></span>
+                        <strong>@node.Name</strong>
+                    </button>
+                }
+            </div>
+        </div>
+        @if (SelectedNode is { } selected)
+        {
+            <div class="profession-tree-detail-shade @(_detailOpen ? "profession-tree-detail-shade--open" : null)" @onclick="CloseNodeDetails"></div>
+            <section class="profession-tree-detail @(_detailOpen ? "profession-tree-detail--open" : null)" role="@(_detailOpen ? "dialog" : "region")" aria-modal="@(_detailOpen ? "true" : null)" aria-label="@selected.Name 详情"
+                     tabindex="-1" @ref="_detailElement" @onkeydown="HandleDetailKeyDown" @onkeydown:stopPropagation>
+                <header class="profession-tree-detail__header">
+                    <span class="profession-tree-detail__icon" aria-hidden="true">@NodeGlyph(selected)</span>
+                    <div><small>第 @selected.Tier 层 · 专业 Lv.@selected.MinimumLevel</small><h3>@selected.Name</h3><span>等级 @selected.Rank / @selected.MaxRank</span></div>
+                    <button type="button" class="profession-tree-detail__close" @onclick="CloseNodeDetails" aria-label="关闭天赋详情">×</button>
+                </header>
+                <div class="profession-tree-detail__body">
+                    <p>@selected.Description</p>
+                    <div class="profession-tree-detail__pips" aria-label="已投入 @selected.Rank / @selected.MaxRank 点">
+                        @for (var rank = 0; rank < selected.MaxRank; rank++)
+                        {
+                            <span class="@(rank < selected.Rank ? "profession-tree-detail__pip--active" : null)"></span>
+                        }
+                    </div>
+                    @if (selected.PrerequisiteName is not null)
+                    {
+                        <small>前置：@selected.PrerequisiteName @selected.PrerequisiteRank 级</small>
+                    }
+                    <small class="profession-tree-detail__requirement">@(selected.LockReason ?? "可以投入 1 点")</small>
                 </div>
-                <div class="profession-board__node-foot">
-                    <small>@(node.LockReason ?? (node.PrerequisiteName is null ? $"需要 Lv.{node.MinimumLevel}" : $"前置：{node.PrerequisiteName} {node.PrerequisiteRank} 级"))</small>
-                    <button type="button" @onclick="() => OnSpend.InvokeAsync(node.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !node.CanPurchase)">加点 +</button>
-                </div>
-            </article>
+                <button type="button" class="profession-tree-detail__spend" @onclick="() => OnSpend.InvokeAsync(selected.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !selected.CanPurchase)">@(selected.Rank >= selected.MaxRank ? "已满级" : selected.CanPurchase ? "投入 1 点" : "暂不可加点")</button>
+            </section>
         }
     </div>
     @if (Progress.Nodes.Any(node => node.Rank > 0))
@@ -55,4 +94,56 @@
     [Parameter] public EventCallback<string> OnSpend { get; set; }
     [Parameter] public EventCallback OnReset { get; set; }
     [Parameter] public bool IsBusy { get; set; }
+
+    private string? _selectedNodeCode;
+    private bool _detailOpen;
+    private bool _focusDetail;
+    private ElementReference _detailElement;
+    private int TreeTierCount => Progress.Nodes.Count > 0 ? Progress.Nodes.Max(node => node.Tier) : 1;
+    private ProfessionTalentNodeResponse? SelectedNode => Progress.Nodes.FirstOrDefault(node => node.Code == _selectedNodeCode);
+
+    protected override void OnParametersSet()
+    {
+        if (!Progress.Nodes.Any(node => node.Code == _selectedNodeCode))
+        {
+            _selectedNodeCode = Progress.Nodes.FirstOrDefault(node => node.CanPurchase)?.Code ?? Progress.Nodes.FirstOrDefault()?.Code;
+            _detailOpen = false;
+            _focusDetail = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusDetail)
+        {
+            _focusDetail = false;
+            await _detailElement.FocusAsync();
+        }
+    }
+
+    private void SelectNode(string code) { _selectedNodeCode = code; _detailOpen = true; _focusDetail = true; }
+    private void CloseNodeDetails() { _detailOpen = false; _focusDetail = false; }
+    private void HandleDetailKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseNodeDetails(); }
+    private static string NodeClass(ProfessionTalentNodeResponse node) => node.Rank >= node.MaxRank ? "profession-tree-map__node--complete" : node.CanPurchase ? "profession-tree-map__node--available" : node.Rank > 0 ? "profession-tree-map__node--active" : "profession-tree-map__node--locked";
+    private static string NodeGlyph(ProfessionTalentNodeResponse node) => node.Tier switch { 1 => "✦", 2 => "✥", _ => "◆" };
+    private ProfessionTalentNodeResponse? FindParent(ProfessionTalentNodeResponse node) => Progress.Nodes.FirstOrDefault(candidate =>
+        node.PrerequisiteCode is not null ? candidate.Code == node.PrerequisiteCode :
+        node.PrerequisiteName is not null && candidate.Name == node.PrerequisiteName);
+    private int ColumnForNode(ProfessionTalentNodeResponse node)
+    {
+        var parent = FindParent(node);
+        if (parent is null) return 2;
+        var siblings = Progress.Nodes.Where(candidate => FindParent(candidate)?.Code == parent.Code).OrderBy(candidate => candidate.Tier).ThenBy(candidate => candidate.Code).ToList();
+        if (siblings.Count == 1) return ColumnForNode(parent);
+        return Math.Clamp(ColumnForNode(parent) + (siblings.IndexOf(node) == 0 ? -1 : 1), 1, 3);
+    }
+    private string ConnectionPath(ProfessionTalentNodeResponse parent, ProfessionTalentNodeResponse child)
+    {
+        var fromX = (ColumnForNode(parent) - 1) * 100 + 50;
+        var toX = (ColumnForNode(child) - 1) * 100 + 50;
+        var fromY = (parent.Tier - 1) * 100 + 73;
+        var toY = (child.Tier - 1) * 100 + 27;
+        var middleY = (fromY + toY) / 2;
+        return $"M {fromX} {fromY} V {middleY} H {toX} V {toY}";
+    }
 }

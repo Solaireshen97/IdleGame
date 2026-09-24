@@ -59,7 +59,7 @@
                     </nav>
                     @if (_activeTalentTree == "battle")
                     {
-                        <CharacterTalentBoard @key='("base", character.CharacterId, _talentRevision)'
+                        <CharacterTalentBoard @key='("base", character.CharacterId)'
                                               CharacterId="@character.CharacterId"
                                               OnChanged="RefreshCurrentAsync" />
                     }

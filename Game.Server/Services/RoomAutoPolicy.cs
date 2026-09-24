@@ -12,9 +12,8 @@ internal static class RoomAutoPolicy
         return lastSeen.HasValue && now >= lastSeen.Value.AddSeconds(BattleRules.PresenceTimeoutSeconds);
     }
 
-    public static bool IsAuto(Room room, RoomSlot slot, IReadOnlyCollection<int> clearedCharacterIds, DateTime now) =>
+    public static bool IsAuto(Room room, RoomSlot slot, IReadOnlyCollection<int> clearedCharacterIds) =>
         slot.CharacterId.HasValue &&
-        (IsOffline(room, slot, now) ||
-         clearedCharacterIds.Contains(slot.CharacterId.Value) &&
-         (slot.IsAutoEnabled || slot.UserId == room.OwnerUserId && !slot.IsMainControl));
+        clearedCharacterIds.Contains(slot.CharacterId.Value) &&
+        (slot.IsAutoEnabled || slot.UserId == room.OwnerUserId && !slot.IsMainControl);
 }

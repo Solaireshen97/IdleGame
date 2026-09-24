@@ -146,7 +146,7 @@ public sealed class ProductionServiceTests
         test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
         {
             CharacterId = test.Second.Id, Kind = BattleMilestoneService.MonsterKillKind,
-            TargetCode = "northshire-wolves", Count = 1,
+            TargetCode = "tirisfal-dusk-bat", Count = 1,
             FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow
         });
         await test.Db.SaveChangesAsync();
@@ -376,6 +376,7 @@ public sealed class ProductionServiceTests
                     CycleSeconds = 10, OutputQuantity = 1,
                     UnlockKind = BattleMilestoneService.MonsterKillKind,
                     UnlockTargetCode = "northshire-wolves",
+                    AlternativeUnlockTargetCodes = ["tirisfal-dusk-bat"],
                     Ingredients = [new ProductionIngredientOptions { Code = HerbCode, Quantity = 2 }]
                 }]
             }), world, materials, consumables);

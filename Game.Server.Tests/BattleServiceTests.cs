@@ -1,3 +1,4 @@
+using Game.Server.Configuration;
 using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared;
@@ -5,6 +6,8 @@ using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Game.Server.Tests;
@@ -149,7 +152,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task SyncRoomAsync_RepeatsVictoryAfterThirtySecondsAndRestoresPartyHp()
+    public async Task SyncRoomAsync_RepeatBattleRespawnsAfterFiveSecondsAndKeepsManualCooldown()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 35, characterAttack: 100);
         test.Room.IsRepeatBattle = true;
@@ -162,13 +165,18 @@ public class BattleServiceTests
         Assert.Equal(RoomStatus.BattleOver, waiting!.RoomStatus);
         Assert.Equal(0, test.Monster.Hp);
         Assert.Equal(35, test.Character.Hp);
+        var beforeRespawn = await test.GetRoomDetailAsync();
+        Assert.Equal(BattleRules.RepeatBattleDelaySeconds,
+            (beforeRespawn!.NextBattleStartAtUtc!.Value - test.Room.BattleEndedAtUtc!.Value).TotalSeconds);
 
-        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
         await test.Db.SaveChangesAsync();
         var (restarted, error) = await test.Service.SyncRoomAsync(1);
 
         Assert.Null(error);
-        Assert.Equal(RoomStatus.NotStarted, restarted!.RoomStatus);
+        Assert.Equal(RoomStatus.Cooldown, restarted!.RoomStatus);
+        Assert.Equal(BattleRules.RoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.InRange((restarted.NextRoundAvailableAtUtc!.Value - restarted.ServerTimeUtc).TotalSeconds, 4, 6);
         Assert.Equal(test.Monster.MaxHp, test.Monster.Hp);
         Assert.Equal(test.Character.MaxHp, test.Character.Hp);
         Assert.Null(test.Room.BattleEndedAtUtc);
@@ -197,7 +205,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task SyncRoomAsync_RepeatBattleImmediatelyUsesUnlockedAutoAfterRestart()
+    public async Task SyncRoomAsync_RepeatBattleRespawnsBeforeAutoCooldownEnds()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 100);
         test.Room.IsRepeatBattle = true;
@@ -205,20 +213,60 @@ public class BattleServiceTests
         mainSlot.IsAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
-        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
         await test.Db.SaveChangesAsync();
 
+        var (waiting, waitingError) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(waitingError);
+        Assert.Equal(RoomStatus.Cooldown, waiting!.RoomStatus);
+        Assert.Equal(test.Monster.MaxHp, test.Monster.Hp);
+        Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.InRange((waiting.NextRoundAvailableAtUtc!.Value - waiting.ServerTimeUtc).TotalSeconds, 14, 16);
+        Assert.Equal(0, test.Room.RoundNumber);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
         var (result, error) = await test.Service.SyncRoomAsync(1);
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.BattleOver, result!.RoomStatus);
         Assert.Equal(0, test.Monster.Hp);
         Assert.Equal(test.Character.MaxHp, test.Character.Hp);
-        Assert.Contains(result.Logs, log => log.Contains("下一场副本战斗"));
+        Assert.Contains(waiting.Logs, log => log.Contains("下一场副本战斗"));
         Assert.True(test.Room.BattleEndedAtUtc > DateTime.UtcNow.AddSeconds(-5));
         Assert.Equal(2, test.Character.Level);
         Assert.Equal(1, test.Character.TalentPoints);
         Assert.Equal(0, test.Character.Experience);
+    }
+
+    [Fact]
+    public async Task RepeatBattleDoesNotStartNewRunWhenRoomExpiresAfterRespawn()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
+        test.Room.IsRepeatBattle = true;
+        test.Room.ExpiresAtUtc = DateTime.UtcNow.AddMinutes(1);
+        (await test.Db.RoomSlots.SingleAsync()).IsAutoEnabled = true;
+        await test.Db.SaveChangesAsync();
+        await test.Service.StartPreparationAsync(test.Room.Id, test.Token);
+        test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
+        await test.Db.SaveChangesAsync();
+
+        var (waiting, waitError) = await test.Service.SyncRoomAsync(test.Room.Id);
+        Assert.Null(waitError);
+        Assert.Equal(RoomStatus.Cooldown, waiting!.RoomStatus);
+        Assert.Equal(2, test.Room.RunSequence);
+
+        test.Room.ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var (closed, closeError) = await test.Service.SyncRoomAsync(test.Room.Id);
+
+        Assert.Null(closeError);
+        Assert.Equal(RoomStatus.BattleOver, closed!.RoomStatus);
+        Assert.NotNull(test.Room.ClosedAtUtc);
+        Assert.Equal(0, test.Room.RoundNumber);
+        Assert.Single(await test.Db.RewardRuns.ToListAsync());
     }
 
     [Fact]
@@ -848,7 +896,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task ManualSkillsCanBothFireAfterAttackAndBeforeMonsterCounterattack()
+    public async Task ManualSkillsFireBeforeNormalAttackAndMonsterCounterattack()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1);
         await test.AddSkillAsync(test.Character, 1, "knight-strike", autoUse: false);
@@ -870,11 +918,72 @@ public class BattleServiceTests
         Assert.Equal(54, test.Character.Hp);
         var strike = round.Logs.FindIndex(log => log.Contains("使用 盾击"));
         var guard = round.Logs.FindIndex(log => log.Contains("使用 守护"));
+        var normalAttack = round.Logs.FindIndex(log => log.Contains("Knight 普通攻击"));
         var counterattack = round.Logs.FindIndex(log => log.Contains("Slime 普通攻击"));
-        Assert.True(strike > 0 && guard > strike && counterattack > guard);
+        Assert.True(strike >= 0 && guard > strike && normalAttack > guard && counterattack > normalAttack);
         Assert.Equal(new[] { 3, 4 }, (await test.Db.BattleSkillCooldowns.OrderBy(entry => entry.SkillCode).ToListAsync())
             .Select(entry => entry.ReadyAtRound).OrderBy(round => round));
         Assert.Equal(0, (await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == 1)).PendingSkillSlotMask);
+    }
+
+    [Fact]
+    public async Task SkillDebuffIncreasesNormalAttackDamageInTheSameRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterDefense: 0);
+        test.Character.ProfessionCode = "knight";
+        test.Monster.Hp = test.Monster.MaxHp = 200;
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "knight-break", autoUse: true);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var monsterCombat = new MonsterCombatService(test.Db, MonsterCombatTestFactory.CreateCatalog());
+        var skills = SkillTestFactory.CreateResponses();
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+
+        var (round, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.NotNull(round);
+        var skillIndex = round.Logs.FindIndex(log => log.Contains("使用 破甲斩 攻击"));
+        var debuffIndex = round.Logs.FindIndex(log => log.Contains("获得 破甲"));
+        var normalIndex = round.Logs.FindIndex(log => log.Contains("Knight 普通攻击"));
+        Assert.True(skillIndex >= 0 && debuffIndex > skillIndex && normalIndex > debuffIndex);
+        Assert.Contains("造成 24 点伤害", round.Logs[normalIndex]);
+        Assert.Equal("armor-break", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
+    }
+
+    [Fact]
+    public async Task PreviousRoundTalentEchoAppliesAndSkillRefreshesItForTheNextRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
+        test.Character.Level = 2;
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
+            { CharacterId = test.Character.Id, NodeCode = "sword-rhythm", PointsSpent = 1 });
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "sword-slash", autoUse: true);
+        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
+        var progression = ProgressionTestFactory.Create();
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
+
+        var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(firstError);
+        Assert.DoesNotContain(first!.Logs, log => log.Contains("普攻追击"));
+        Assert.Equal(0, (await test.Db.BattleStatusEffects.SingleAsync()).AppliedRound);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        (await test.Db.BattleSkillCooldowns.SingleAsync()).ReadyAtRound = test.Room.RoundNumber;
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(secondError);
+        Assert.Contains(second!.Logs, log => log.Contains("普攻追击"));
+        Assert.Equal(1, (await test.Db.BattleStatusEffects.SingleAsync()).AppliedRound);
     }
 
     [Fact]
@@ -1313,7 +1422,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_AllMembersAuto_StartsRoundAndUsesThirtySecondCooldown()
+    public async Task SyncAsync_AllMembersAuto_StartsRoundAndUsesTwentySecondCooldown()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
         var otherSlot = await test.AddOtherMemberAsync();
@@ -1325,19 +1434,22 @@ public class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
-        Assert.InRange((result.NextRoundAvailableAtUtc!.Value - result.ServerTimeUtc).TotalSeconds, 29, 31);
+        Assert.InRange((result.NextRoundAvailableAtUtc!.Value - result.ServerTimeUtc).TotalSeconds, 19, 21);
     }
 
     [Fact]
-    public async Task OfflinePartyAutoAdvancesAndReturningPlayerResumesManualTiming()
+    public async Task OfflinePartyWithEnabledAutoAdvancesAndDisablingResumesManualTiming()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
         await test.AddOtherMemberAsync();
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
-        test.Room.IsPreparationTimeoutEnabled = false;
         var slots = await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync();
-        foreach (var slot in slots) slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        foreach (var slot in slots)
+        {
+            slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+            slot.IsAutoEnabled = true;
+        }
         await test.Db.SaveChangesAsync();
 
         var (autoRound, autoError) = await test.Service.SyncRoomAsync(1);
@@ -1346,13 +1458,15 @@ public class BattleServiceTests
         Assert.Equal(1, test.Room.RoundNumber);
         Assert.Equal(RoomStatus.Cooldown, autoRound!.RoomStatus);
         Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
-        Assert.False(slots[0].IsAutoEnabled);
-        Assert.False(slots[1].IsAutoEnabled);
+        Assert.All(slots, slot => Assert.True(slot.IsAutoEnabled));
         Assert.Contains(autoRound.Logs, log => log.Contains("1号位") && log.Contains("普通攻击"));
         Assert.Contains(autoRound.Logs, log => log.Contains("2号位") && log.Contains("普通攻击"));
 
-        var (returned, returnError) = await test.Service.SyncAsync(1, test.Token);
+        var (returned, returnError) = await test.Service.SetSlotAutoAsync(1,
+            new Game.Shared.Dtos.SetSlotAutoRequest { SlotIndex = 1, IsAutoEnabled = false }, test.Token);
         Assert.Null(returnError);
+        Assert.False(slots[0].IsAutoEnabled);
+        Assert.True(slots[1].IsAutoEnabled);
         Assert.Equal(BattleRules.RoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
         Assert.InRange((returned!.NextRoundAvailableAtUtc!.Value - returned.ServerTimeUtc).TotalSeconds, 9, 11);
         var detail = await test.GetRoomDetailAsync();
@@ -1372,6 +1486,27 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task OfflineManualCharacterUsesTimeoutAndManualCooldownWithoutAutoUnlock()
+    {
+        await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
+        test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        (await test.Db.RoomSlots.SingleAsync()).LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones.ToListAsync());
+        await test.Db.SaveChangesAsync();
+
+        var (round, error) = await test.Service.SyncRoomAsync(1);
+
+        Assert.Null(error);
+        Assert.Equal(RoomStatus.Cooldown, round!.RoomStatus);
+        Assert.Equal(BattleRules.RoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
+        Assert.Contains(round.Logs, log => log.Contains("准备超时"));
+        var detail = await test.GetRoomDetailAsync();
+        Assert.True(detail!.Slots[0].IsOffline);
+        Assert.False(detail.Slots[0].IsOfflineAuto);
+    }
+
+    [Fact]
     public async Task PreparingRoomContinuesWhenLastOnlineMemberGoesOffline()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
@@ -1382,7 +1517,11 @@ public class BattleServiceTests
         test.Room.IsPreparationTimeoutEnabled = false;
         var slots = await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync();
         slots.Single(slot => slot.SlotIndex == 1).IsConfirmed = true;
-        foreach (var slot in slots) slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        foreach (var slot in slots)
+        {
+            slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+            slot.IsAutoEnabled = true;
+        }
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.SyncRoomAsync(1);
@@ -1405,7 +1544,10 @@ public class BattleServiceTests
         test.Room.IsPreparationTimeoutEnabled = false;
         test.Monster.Hp = test.Monster.MaxHp = 10;
         foreach (var slot in await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync())
+        {
             slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
+            slot.IsAutoEnabled = true;
+        }
         await test.Db.SaveChangesAsync();
 
         var (first, firstError) = await test.Service.SyncRoomAsync(1);
@@ -1419,8 +1561,14 @@ public class BattleServiceTests
         await test.Db.SaveChangesAsync();
         var (second, secondError) = await test.Service.SyncRoomAsync(1);
         Assert.Null(secondError);
-        Assert.Equal(RoomStatus.BattleOver, second!.RoomStatus);
+        Assert.Equal(RoomStatus.Cooldown, second!.RoomStatus);
         Assert.Equal(2, test.Room.RunSequence);
+        Assert.InRange((second.NextRoundAvailableAtUtc!.Value - second.ServerTimeUtc).TotalSeconds, 13, 15);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var (third, thirdError) = await test.Service.SyncRoomAsync(1);
+        Assert.Null(thirdError);
+        Assert.Equal(RoomStatus.BattleOver, third!.RoomStatus);
         Assert.Equal(2, await test.Db.RewardEntries.Where(entry => entry.Sequence == 2 && entry.Kind == "Gold")
             .Select(entry => entry.CharacterId).Distinct().CountAsync());
         Assert.Equal(2, await test.Db.RewardRuns.CountAsync(run => run.Status == "Victory"));
@@ -1912,14 +2060,20 @@ public class BattleServiceTests
         Assert.Equal("Pending", (await test.Db.RewardRuns.SingleAsync()).Status);
         Assert.Single(await test.Db.RewardEvents.ToListAsync());
 
-        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddMilliseconds(-100);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
         var (ready, readyError) = await test.Service.SyncRoomAsync(1);
         Assert.Null(readyError);
-        Assert.Equal(RoomStatus.NotStarted, ready!.RoomStatus);
+        Assert.Equal(RoomStatus.Cooldown, ready!.RoomStatus);
+        Assert.InRange((ready.NextRoundAvailableAtUtc!.Value - ready.ServerTimeUtc).TotalSeconds, 4, 6);
 
-        var (victory, victoryError) = await test.Service.StartPreparationAsync(1, test.Token);
+        var (prepared, prepareError) = await test.Service.StartPreparationAsync(1, test.Token);
+        Assert.Null(prepareError);
+        Assert.Equal(RoomStatus.Cooldown, prepared!.RoomStatus);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        await test.Db.SaveChangesAsync();
+        var (victory, victoryError) = await test.Service.SyncRoomAsync(1);
 
         Assert.Null(victoryError);
         Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
@@ -1929,7 +2083,7 @@ public class BattleServiceTests
     }
 
     [Fact]
-    public async Task MultiWaveAutoWaitsForFullRoundIntervalAfterEnemyRefresh()
+    public async Task MultiWaveAutoWaitsOnlyForRemainingCooldownAfterEnemyRefresh()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 75, characterAttack: 100, monsterAttack: 1);
         test.Monster.RoomId = test.Room.Id;
@@ -1953,7 +2107,7 @@ public class BattleServiceTests
         var nextMonster = await test.Db.Monsters.SingleAsync(monster => monster.Id == test.Room.MonsterId);
         Assert.Equal(60, nextMonster.Hp);
 
-        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddMilliseconds(-100);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
         var (waiting, waitingError) = await test.Service.SyncRoomAsync(1);
@@ -1961,7 +2115,7 @@ public class BattleServiceTests
         Assert.Null(waitingError);
         Assert.Equal(RoomStatus.Cooldown, waiting!.RoomStatus);
         Assert.Equal(BattleRules.AutoRoundCooldownSeconds, test.Room.RoundCooldownDurationSeconds);
-        Assert.True(test.Room.NextRoundAvailableAtUtc > DateTime.UtcNow.AddSeconds(20));
+        Assert.InRange((waiting.NextRoundAvailableAtUtc!.Value - waiting.ServerTimeUtc).TotalSeconds, 14, 16);
         Assert.Equal(1, test.Room.RoundNumber);
         Assert.Equal(60, nextMonster.Hp);
 
@@ -2046,6 +2200,54 @@ public class BattleServiceTests
         Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
         Assert.Single(await test.Db.BattleMonsterSkillCooldowns.ToListAsync());
         Assert.Equal("BasicAttack", (await test.Db.MonsterIntents.SingleAsync()).ActionType);
+    }
+
+    [Fact]
+    public async Task AcolyteSilenceInterruptsNowAndTheNextInterruptibleIntent()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, monsterDefense: 99);
+        test.Character.ProfessionCode = "acolyte";
+        test.Character.Level = 10;
+        test.Monster.CombatProfileCode = "rapid-slime";
+        test.Monster.Hp = test.Monster.MaxHp = 500;
+        test.Db.CharacterSkillTalents.AddRange(
+            new CharacterSkillTalent { CharacterId = test.Character.Id, NodeCode = "acolyte-echo", PointsSpent = 1 },
+            new CharacterSkillTalent { CharacterId = test.Character.Id, NodeCode = "acolyte-silence-talent", PointsSpent = 1 });
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "acolyte-silence", autoUse: true);
+
+        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var monsterOptions = config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
+        monsterOptions.Skills.Add(new MonsterSkillOptions
+            { Code = "rapid", Name = "迅捷喷射", Description = "每回合攻击。", DamagePowerPercent = 120 });
+        monsterOptions.Profiles["rapid-slime"] = new MonsterCombatProfileOptions
+            { SkillUseChancePercent = 100, Skills = [new MonsterProfileSkillOptions { Code = "rapid" }] };
+        var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
+        var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
+        var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+        var progression = ProgressionTestFactory.Create();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
+            ConsumableTestFactory.Create(), skills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        await test.Db.SaveChangesAsync();
+
+        var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(firstError);
+        Assert.Contains(first!.Logs, log => log.Contains("沉默祷言") && log.Contains("打断"));
+        Assert.Equal("acolyte-silence", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
+        Assert.True((await test.Db.MonsterIntents.SingleAsync()).IsInterrupted);
+
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(secondError);
+        Assert.Contains(second!.Logs, log => log.Contains("沉默影响"));
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Empty(await test.Db.BattleStatusEffects.Where(effect => effect.EffectCode == "acolyte-silence").ToListAsync());
     }
 
     [Fact]

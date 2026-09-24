@@ -20,7 +20,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         if (error is not null) return (null, error);
         var now = DateTime.UtcNow;
         if (room!.IsRepeatBattle && room.ExpiresAtUtc is DateTime deadline && now >= deadline &&
-            room.Status == RoomStatus.NotStarted && room.RoundNumber == 0)
+            (room.Status is RoomStatus.NotStarted or RoomStatus.Cooldown) && room.RoundNumber == 0)
         {
             await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, now);
             await SaveResultAsync(room, slots!, monster!, now, ["任务已达到时限，无法开始新一轮战斗。"]);
@@ -94,7 +94,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var now = DateTime.UtcNow;
         if (room.ClosedAtUtc.HasValue) return (null, "RoomClosed");
         if (room.IsRepeatBattle && room.ExpiresAtUtc is DateTime deadline && now >= deadline &&
-            (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0))
+            (room.Status == RoomStatus.BattleOver ||
+             (room.Status is RoomStatus.NotStarted or RoomStatus.Cooldown) && room.RoundNumber == 0))
         {
             await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, now);
             return await SaveResultAsync(room, slots, monster, now, ["任务已达到时限，本轮结束后停止重复战斗。"]);
@@ -103,6 +104,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         if (room.Status == RoomStatus.BattleOver && room.IsRepeatBattle && monster.Hp <= 0 &&
             room.BattleEndedAtUtc is DateTime endedAt && now >= endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds))
         {
+            var respawnAt = endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds);
             monster = await GetDungeonRunService().ResetEncounterAsync(room);
             foreach (var entry in slots)
             {
@@ -116,10 +118,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             ResetRunParticipation(slots);
             room.RoundNumber = 0;
             room.RunSequence++;
-            room.Status = RoomStatus.NotStarted;
-            room.NextRoundAvailableAtUtc = null;
-            room.RoundCooldownDurationSeconds = null;
-            room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
+            room.Status = RoomStatus.WaveTransition;
+            room.NextRoundAvailableAtUtc = respawnAt;
+            room.RoundCooldownDurationSeconds = BattleRules.RepeatBattleDelaySeconds;
+            room.PreparationStartedAtUtc = null;
             room.BattleEndedAtUtc = null;
             if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
             restartedBattle = true;
@@ -150,12 +152,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         if (room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now)
         {
             var transitionDeadline = room.NextRoundAvailableAtUtc.Value;
-            room.Status = allAliveMembersAuto ? RoomStatus.Cooldown : RoomStatus.NotStarted;
-            room.NextRoundAvailableAtUtc = allAliveMembersAuto
-                ? transitionDeadline.AddSeconds(BattleRules.AutoRoundCooldownSeconds - BattleRules.WaveTransitionSeconds)
-                : null;
-            room.RoundCooldownDurationSeconds = allAliveMembersAuto ? BattleRules.AutoRoundCooldownSeconds : null;
-            room.PreparationStartedAtUtc = !allAliveMembersAuto && room.IsPreparationTimeoutEnabled ? now : null;
+            room.Status = RoomStatus.Cooldown;
+            room.NextRoundAvailableAtUtc = transitionDeadline.AddSeconds(
+                (allAliveMembersAuto ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds) -
+                BattleRules.WaveTransitionSeconds);
+            room.RoundCooldownDurationSeconds = allAliveMembersAuto
+                ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds;
+            room.PreparationStartedAtUtc = null;
             stateChanged = true;
             transitionCompleted = true;
         }
@@ -432,14 +435,24 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
             .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);
+        var pendingTalentEcho = new Dictionary<int, decimal>();
+        foreach (var entry in aliveSlots)
+        {
+            var echo = 0m;
+            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-sword-rhythm", requireEarlierRound: true)) echo += 25;
+            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-intercept-echo", requireEarlierRound: true))
+                echo += skillCatalog.FindTalentNode("sword-disruption")?.ValuePerRank ?? 50;
+            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-guard-echo", requireEarlierRound: false))
+                echo += skillCatalog.FindTalentNode("sword-counteroffense")?.ValuePerRank ?? 75;
+            pendingTalentEcho[entry.Character.Id] = echo;
+        }
+        var roundDefense = await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationBonuses, logs);
         var monsterReduction = monsterCombatService is null ? 0m :
             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
         foreach (var entry in aliveSlots)
         {
-            var talentEcho = 0m;
-            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-sword-rhythm", requireEarlierRound: true)) talentEcho += 25;
-            if (await ConsumeTalentStateAsync(room, entry.Character.Id, "talent-guard-echo", requireEarlierRound: false))
-                talentEcho += skillCatalog.FindTalentNode("sword-counteroffense")?.ValuePerRank ?? 75;
+            if (monster.Hp <= 0) break;
+            var talentEcho = pendingTalentEcho[entry.Character.Id];
             var element = mainWeaponElements.TryGetValue(entry.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
             var statusAttack = monsterCombatService is null ? 0m :
                 await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "AttackPercent");
@@ -471,9 +484,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             }
             if (monster.Hp <= 0) break;
         }
-        var roundDefense = monster.Hp > 0
-            ? await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationBonuses, logs)
-            : default;
         var monsterDefeated = monster.Hp <= 0;
         if (monsterDefeated)
         {
@@ -694,6 +704,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         if (await monsterCombatService.InterruptCurrentIntentAsync(room, monster))
                         {
                             logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，打断了 {monster.Name} 的行动。");
+                            if (ranks.GetValueOrDefault("sword-disruption") > 0 && skill.Code == "sword-intercept")
+                                await SetTalentStateAsync(room, participant.Character.Id, "talent-intercept-echo", 3);
                             applied = true;
                         }
                         break;
@@ -784,6 +796,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CombatSkillOptions skill,
         SlotCharacter participant, IReadOnlyList<SlotCharacter> slots)
     {
+        if (SkillCatalog.AutoConditionFor(skill) == "InterruptibleIntent" &&
+            SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Interrupt"))
+            return monsterCombatService is not null &&
+                await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster);
         var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
         foreach (var effect in SkillCatalog.EffectsFor(skill))
         {
@@ -1116,6 +1132,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             item.RunSequence == room.RunSequence && item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code)
             ?? await dbContext.BattleStatusEffects.SingleOrDefaultAsync(item => item.RoomId == room.Id &&
                 item.RunSequence == room.RunSequence && item.TargetType == "Character" && item.TargetId == characterId && item.EffectCode == code);
+        if (state is not null && dbContext.Entry(state).State == EntityState.Deleted)
+            dbContext.Entry(state).State = EntityState.Modified;
         if (state is null)
         {
             state = new BattleStatusEffect { RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
@@ -1188,7 +1206,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
     }
     private static bool IsSlotAuto(Room room, SlotCharacter entry, List<int> clearedCharacterIds) =>
-        RoomAutoPolicy.IsAuto(room, entry.Slot, clearedCharacterIds, DateTime.UtcNow);
+        RoomAutoPolicy.IsAuto(room, entry.Slot, clearedCharacterIds);
 
     private async Task<List<int>> GetClearedCharacterIdsAsync(int dungeonId)
     {

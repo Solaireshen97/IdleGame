@@ -163,7 +163,7 @@ public sealed class GatheringServiceTests
         test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
         {
             CharacterId = test.Second.Id, Kind = BattleMilestoneService.MonsterKillKind,
-            TargetCode = "northshire-wolves", Count = 1,
+            TargetCode = "tirisfal-dusk-bat", Count = 1,
             FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow
         });
         await test.Db.SaveChangesAsync();
@@ -436,7 +436,8 @@ public sealed class GatheringServiceTests
                         Code = "elwynn-peacebloom", Name = "北郡宁神花", RegionCode = "elwynn",
                         MaterialCode = "peacebloom", CycleSeconds = cycleSeconds, OutputQuantity = 1,
                         UnlockKind = BattleMilestoneService.MonsterKillKind,
-                        UnlockTargetCode = "northshire-wolves"
+                        UnlockTargetCode = "northshire-wolves",
+                        AlternativeUnlockTargetCodes = ["tirisfal-dusk-bat"]
                     },
                     new GatheringPointOptions
                     {

@@ -133,7 +133,7 @@
                     var total = item.Price * quantity;
                     <article class="shop-item" @key="item.Code">
                         <div class="shop-item__top">
-                            <span class="shop-item__symbol" aria-hidden="true">@if (item.Kind == "Weapon") { <img src="@WeaponArt.ForCode(item.Code)" alt="" loading="lazy" /> } else { @(item.AttackPercent.HasValue ? "✦" : "✚") }</span>
+                            <span class="shop-item__symbol" aria-hidden="true">@if (item.Kind == "Weapon") { <img src="@WeaponArt.ForCode(item.Code)" alt="" loading="lazy" /> } else { <img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /> }</span>
                             <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : item.AttackPercent.HasValue ? "OPERATION POTION" : "CONSUMABLE")</span>
                         </div>
                         <h2>@item.Name</h2>

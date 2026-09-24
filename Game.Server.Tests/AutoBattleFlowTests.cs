@@ -44,11 +44,11 @@ public sealed class AutoBattleFlowTests
     }
 
     [Fact]
-    public async Task HostedRoomCycleAdvancesTwoOfflinePlayersWithoutBrowserRequests()
+    public async Task HostedRoomCycleAdvancesOfflineManualPlayersViaPreparationTimeout()
     {
         await using var test = await AutoBattleTestContext.CreateAsync(isAutoEnabled: false);
         test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
-        test.Room.IsPreparationTimeoutEnabled = false;
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
         var ownerSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 1);
         ownerSlot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
         test.Db.AddRange(
@@ -90,8 +90,13 @@ public sealed class AutoBattleFlowTests
             }
 
             Assert.Equal(1, roundNumber);
+            Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("准备超时"));
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("1号位") && log.Text.Contains("普通攻击"));
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("2号位") && log.Text.Contains("普通攻击"));
+            await using var state = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
+                .UseSqlite(connectionString).Options);
+            Assert.Equal(Game.Shared.BattleRules.RoundCooldownSeconds,
+                (await state.Rooms.SingleAsync(room => room.Id == 1)).RoundCooldownDurationSeconds);
         }
         finally
         {

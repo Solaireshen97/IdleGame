@@ -29,9 +29,10 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         if (point is null) return (null, "PointNotFound");
         if (character.Level < point.MinimumCharacterLevel) return (null, "LevelTooLow");
         if (character.GatheringLevel < point.MinimumGatheringLevel) return (null, "GatheringLevelTooLow");
+        var unlockTargets = point.AlternativeUnlockTargetCodes.Prepend(point.UnlockTargetCode).ToList();
         var progress = await db.CharacterBattleMilestones.AsNoTracking().Where(item =>
             item.CharacterId == character.Id && item.Kind == point.UnlockKind &&
-            item.TargetCode == point.UnlockTargetCode).Select(item => (int?)item.Count).SingleOrDefaultAsync() ?? 0;
+            unlockTargets.Contains(item.TargetCode)).Select(item => (int?)item.Count).MaxAsync() ?? 0;
         if (progress < point.RequiredCount) return (null, "PointLocked");
         if (await CharacterActivityManager.IsBusyAsync(db, character.Id)) return (null, "CharacterBusy");
         if (point.IsRare && !await db.CharacterGatheringOpportunities.AnyAsync(item =>
@@ -249,21 +250,25 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         var points = catalog.Points.Select(point =>
         {
             var target = world.Dungeons.Single(dungeon => dungeon.Code == point.UnlockTargetCode);
-            var count = milestones.FirstOrDefault(item => item.Kind == point.UnlockKind &&
-                item.TargetCode == point.UnlockTargetCode)?.Count ?? 0;
+            var unlockTargets = point.AlternativeUnlockTargetCodes.Prepend(point.UnlockTargetCode).ToHashSet();
+            var count = milestones.Where(item => item.Kind == point.UnlockKind &&
+                unlockTargets.Contains(item.TargetCode)).Select(item => item.Count).DefaultIfEmpty(0).Max();
             return new GatheringPointResponse
             {
                 Code = point.Code, Name = point.Name,
                 IsRare = point.IsRare,
                 AvailableOpportunities = opportunities.GetValueOrDefault(point.Code),
-                RegionName = world.Regions.Single(region => region.Code == point.RegionCode).Name,
+                RegionName = point.RegionCode == GatheringCatalog.GlobalRegionCode ? "各地通用" :
+                    world.Regions.Single(region => region.Code == point.RegionCode).Name,
                 MaterialCode = point.MaterialCode,
                 MaterialName = materials.FindItem(point.MaterialCode)!.Name,
                 CharacterQuantity = stacks.GetValueOrDefault(point.MaterialCode),
                 OutputQuantity = point.OutputQuantity, CycleSeconds = Math.Max(1, point.CycleSeconds - cycleReduction),
                 MinimumCharacterLevel = point.MinimumCharacterLevel,
                 MinimumGatheringLevel = point.MinimumGatheringLevel,
-                UnlockDescription = point.UnlockKind == BattleMilestoneService.MonsterKillKind
+                UnlockDescription = point.AlternativeUnlockTargetCodes.Count > 0
+                    ? $"击败以下任一怪物 {point.RequiredCount} 次：{string.Join("、", world.Dungeons.Where(dungeon => unlockTargets.Contains(dungeon.Code)).Select(dungeon => dungeon.MonsterName))}"
+                    : point.UnlockKind == BattleMilestoneService.MonsterKillKind
                     ? $"击败 {target.MonsterName} {point.RequiredCount} 次"
                     : $"通关 {target.Name} {point.RequiredCount} 次",
                 UnlockProgress = Math.Min(count, point.RequiredCount),
@@ -276,7 +281,8 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             var point = catalog.FindPoint(task.PointCode);
             return new GatheringTaskResponse
             {
-                Id = task.Id, PointCode = task.PointCode, PointName = point?.Name ?? task.PointCode,
+                Id = task.Id, PointCode = task.PointCode,
+                PointName = point?.Name ?? materials.FindItem(task.MaterialCode)?.Name ?? task.PointCode,
                 IsRare = task.IsRare,
                 MaterialName = materials.FindItem(task.MaterialCode)?.Name ?? task.MaterialCode,
                 Status = task.Status, StartedAtUtc = task.StartedAtUtc, EndsAtUtc = task.EndsAtUtc,

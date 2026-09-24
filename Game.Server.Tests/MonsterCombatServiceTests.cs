@@ -108,6 +108,59 @@ public class MonsterCombatServiceTests
     }
 
     [Fact]
+    public async Task SilenceCancelsOnlyTheFollowingRoundsInterruptibleSkill()
+    {
+        await using var test = await Context.CreateAsync("rapid-slime");
+        Assert.True(await test.Service.InterruptCurrentIntentAsync(test.Room, test.Monster));
+        await test.Service.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id,
+            "acolyte-silence", 1, [], test.Monster.Name);
+        await test.Db.SaveChangesAsync();
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], []);
+        await test.Db.SaveChangesAsync();
+
+        test.Room.RoundNumber = 1;
+        var next = await test.Service.EnsureIntentAsync(test.Room, test.Monster);
+        Assert.Equal("rapid", next.SkillCode);
+        Assert.True(next.IsInterrupted);
+        var logs = new List<string>();
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, logs);
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], logs);
+        await test.Db.SaveChangesAsync();
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Contains(logs, log => log.Contains("沉默影响"));
+
+        test.Room.RoundNumber = 2;
+        Assert.False((await test.Service.EnsureIntentAsync(test.Room, test.Monster)).IsInterrupted);
+    }
+
+    [Fact]
+    public async Task SilenceDoesNotCancelUninterruptibleSkillsOrBasicAttacks()
+    {
+        await using var test = await Context.CreateAsync("toxic-slime");
+        await test.Service.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id,
+            "acolyte-silence", 1, [], test.Monster.Name);
+        await test.Db.SaveChangesAsync();
+        test.Room.RoundNumber = 1;
+        var intent = await test.Service.EnsureIntentAsync(test.Room, test.Monster);
+        Assert.Equal("toxic", intent.SkillCode);
+        Assert.False(intent.IsInterrupted);
+
+        await using var basic = await Context.CreateAsync("basic-attacks-only");
+        await basic.Service.ApplyStatusAsync(basic.Room, "Monster", basic.Monster.Id,
+            "acolyte-silence", 1, [], basic.Monster.Name);
+        await basic.Db.SaveChangesAsync();
+        basic.Room.RoundNumber = 1;
+        var basicIntent = await basic.Service.EnsureIntentAsync(basic.Room, basic.Monster);
+        Assert.Equal("BasicAttack", basicIntent.ActionType);
+        Assert.False(basicIntent.IsInterrupted);
+    }
+
+    [Fact]
     public async Task DispelledStatusCanBeReappliedLaterInTheSameRound()
     {
         await using var test = await Context.CreateAsync("hardened-slime");

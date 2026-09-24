@@ -21,6 +21,7 @@ public sealed class ProfessionTalentNodeResponse
     public int Rank { get; set; }
     public int MaxRank { get; set; }
     public int MinimumLevel { get; set; }
+    public string? PrerequisiteCode { get; set; }
     public string? PrerequisiteName { get; set; }
     public int PrerequisiteRank { get; set; }
     public bool CanPurchase { get; set; }

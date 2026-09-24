@@ -169,9 +169,12 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             return (null, "InvalidSkillTalent");
         if (await IsLoadoutLockedAsync(characterId)) return (null, "LoadoutLocked");
         var purchasedNodes = await GetPurchasedNodeRanksAsync(characterId);
+        var treePointsSpent = catalog.TalentNodesForProfession(character.ProfessionCode)
+            .Sum(talent => purchasedNodes.GetValueOrDefault(talent.Code));
         var rank = purchasedNodes.GetValueOrDefault(node.Code);
         if (rank >= node.MaxRank) return (null, "SkillTalentMaxRank");
         if (character.Level < node.RequiredLevel + rank) return (null, "SkillTalentLevelRequired");
+        if (treePointsSpent < node.RequiredTreePoints) return (null, "SkillTalentTreePointsRequired");
         if (node.Prerequisites.Any(code => catalog.FindTalentNode(code) is not { } parent ||
                 purchasedNodes.GetValueOrDefault(code) < parent.MaxRank))
             return (null, "SkillTalentPrerequisiteRequired");
@@ -303,6 +306,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         var profession = catalog.FindProfession(character.ProfessionCode)!;
         var advanced = catalog.FindProfession(character.AdvancedProfessionCode);
         var purchasedNodes = await GetPurchasedNodeRanksAsync(character.Id);
+        var talentNodes = catalog.TalentNodesForProfession(profession.Code);
+        var treePointsSpent = talentNodes.Sum(node => purchasedNodes.GetValueOrDefault(node.Code));
         var equipped = await dbContext.CharacterSkillSlots
             .Where(slot => slot.CharacterId == character.Id).ToDictionaryAsync(slot => slot.SlotIndex);
         return new CharacterSkillsResponse
@@ -338,13 +343,13 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                     DurationRounds = effect.DurationRounds
                 }).ToList()
             }).ToList(),
-            TalentNodes = catalog.TalentNodesForProfession(profession.Code).Select(node =>
+            TalentNodes = talentNodes.Select(node =>
             {
                 var skill = catalog.FindSkill(node.SkillCode);
                 var rank = purchasedNodes.GetValueOrDefault(node.Code);
                 var prerequisitesMet = node.Prerequisites.All(code => catalog.FindTalentNode(code) is { } parent &&
                     purchasedNodes.GetValueOrDefault(code) >= parent.MaxRank);
-                var branchOpen = node.ExclusiveGroup is null || !catalog.TalentNodesForProfession(profession.Code).Any(other =>
+                var branchOpen = node.ExclusiveGroup is null || !talentNodes.Any(other =>
                     !string.Equals(other.Code, node.Code, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(other.ExclusiveGroup, node.ExclusiveGroup, StringComparison.OrdinalIgnoreCase) &&
                     purchasedNodes.GetValueOrDefault(other.Code) > 0);
@@ -364,6 +369,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                     Column = node.Column,
                     RequiredLevel = node.RequiredLevel,
                     BranchCode = node.BranchCode,
+                    RequiredTreePoints = node.RequiredTreePoints,
                     ExclusiveGroup = node.ExclusiveGroup,
                     EffectCode = node.EffectCode,
                     ValuePerRank = node.ValuePerRank,
@@ -371,7 +377,9 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                     IsUnlocked = unlocked,
                     IsMaxRank = rank >= node.MaxRank,
                     ArePrerequisitesMet = prerequisitesMet,
-                    CanUnlock = rank < node.MaxRank && character.Level >= node.RequiredLevel + rank && prerequisitesMet && branchOpen && character.TalentPoints >= node.Cost
+                    CanUnlock = rank < node.MaxRank && character.Level >= node.RequiredLevel + rank &&
+                        treePointsSpent >= node.RequiredTreePoints &&
+                        prerequisitesMet && branchOpen && character.TalentPoints >= node.Cost
                 };
             }).ToList(),
             Slots = Enumerable.Range(1, SkillRules.SlotCount).Select(index =>

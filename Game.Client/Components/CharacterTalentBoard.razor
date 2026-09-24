@@ -1,5 +1,6 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Characters
+@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 
 <section class="talent-board" aria-labelledby="talent-title">
@@ -25,6 +26,7 @@
     {
         <div class="talent-board__summary">
             <div class="talent-board__points"><span>Lv @_skills.Level</span><strong>@_skills.TalentPoints</strong><small>可用天赋点</small></div>
+            <span class="talent-board__portrait" aria-hidden="true"><img src="@ProfessionArt.ForCode(_skills.AdvancedProfessionCode ?? _skills.ProfessionCode)" alt="" /></span>
             <div class="talent-board__identity">
                 <small>当前职业</small><strong>@(_skills.AdvancedProfessionName ?? _skills.ProfessionName)</strong>
                 <span>每次升级获得 1 点，基础与进阶职业共用。</span>
@@ -48,41 +50,74 @@
         }
         else
         {
-            <div class="talent-tree" aria-label="@_skills.ProfessionName 天赋树">
-                @foreach (var tier in _skills.TalentNodes.GroupBy(node => node.Tier).OrderBy(group => group.Key))
-                {
-                    <div class="talent-tree__tier" @key="tier.Key">
-                        <span class="talent-tree__level">Lv @tier.Min(node => node.RequiredLevel)</span>
-                        <div class="talent-tree__row">
-                            @foreach (var node in tier.OrderBy(node => node.Column))
+            <div class="talent-tree-legend" aria-label="节点状态说明"><span><i class="talent-tree-legend__available"></i> 可加点</span><span><i class="talent-tree-legend__learned"></i> 已学习</span><span><i class="talent-tree-legend__locked"></i> 未解锁</span></div>
+            <div class="talent-tree-layout">
+                <div class="talent-tree-map" aria-label="@_skills.ProfessionName 天赋树，点击节点查看详情" style="--tree-tiers:@TreeTierCount">
+                    <svg class="talent-tree-map__links" viewBox="0 0 300 @(TreeTierCount * 100)" preserveAspectRatio="none" aria-hidden="true">
+                        @foreach (var node in _skills.TalentNodes)
+                        {
+                            @foreach (var prerequisite in node.Prerequisites)
                             {
-                                <article class="talent-node @NodeClass(node)" style="grid-column: @node.Column" @key="node.Code">
-                                    <div class="talent-node__top">
-                                        <span>@BranchName(node.BranchCode)</span>
-                                        <strong>@node.Rank / @node.MaxRank</strong>
-                                    </div>
-                                    <h3>@node.Name</h3>
-                                    <p>@node.Description</p>
-                                    @if (!string.IsNullOrWhiteSpace(node.SkillName))
-                                    {
-                                        <div class="talent-skill__reward"><strong>解锁技能 · @node.SkillName</strong><small>@node.SkillDescription</small></div>
-                                    }
-                                    <div class="talent-node__pips">
-                                        @for (var index = 0; index < node.MaxRank; index++)
-                                        {
-                                            <span class="@(index < node.Rank ? "talent-node__pip--active" : null)"></span>
-                                        }
-                                    </div>
-                                    <div class="talent-node__bottom">
-                                        <span>@Requirement(node)</span>
-                                        <button type="button" disabled="@(_isSubmitting || !node.CanUnlock)" @onclick="() => AllocateAsync(node.Code)">
-                                            @(node.IsMaxRank ? "已满级" : node.CanUnlock ? "投入 1 点" : "未满足")
-                                        </button>
-                                    </div>
-                                </article>
+                                var parent = _skills.TalentNodes.FirstOrDefault(candidate => candidate.Code == prerequisite);
+                                if (parent is not null)
+                                {
+                                    <path class="@(parent.IsMaxRank ? "talent-tree-map__link--active" : null)" d="@ConnectionPath(parent, node)" />
+                                }
                             }
-                        </div>
+                        }
+                    </svg>
+                    <div class="talent-tree-map__grid">
+                        @foreach (var tier in _skills.TalentNodes.GroupBy(node => node.Tier).OrderBy(group => group.Key))
+                        {
+                            <span class="talent-tree-map__level" style="grid-row:@tier.Key">Lv @tier.Min(node => node.RequiredLevel)</span>
+                        }
+                        @foreach (var node in _skills.TalentNodes.OrderBy(node => node.Tier).ThenBy(node => node.Column))
+                        {
+                            <button type="button" class="talent-tree-map__node @NodeClass(node) @(_selectedNodeCode == node.Code ? "talent-tree-map__node--selected" : null)"
+                                    style="grid-row:@node.Tier;grid-column:@node.Column" @key="node.Code" @onclick="() => SelectNode(node.Code)"
+                                    aria-pressed="@(_selectedNodeCode == node.Code)" aria-label="@node.Name，@BranchName(node.BranchCode)，@node.Rank / @node.MaxRank 级，@Requirement(node)">
+                                <span class="talent-tree-map__icon"><span aria-hidden="true">@NodeGlyph(node)</span><b>@node.Rank/@node.MaxRank</b></span>
+                                <strong>@node.Name</strong>
+                            </button>
+                        }
                     </div>
+                </div>
+                @if (SelectedNode is { } selected)
+                {
+                    <div class="talent-tree-detail-shade @(_detailOpen ? "talent-tree-detail-shade--open" : null)" @onclick="CloseNodeDetails"></div>
+                    <section class="talent-tree-detail @(_detailOpen ? "talent-tree-detail--open" : null)" role="@(_detailOpen ? "dialog" : "region")" aria-modal="@(_detailOpen ? "true" : null)" aria-label="@selected.Name 详情"
+                             tabindex="-1" @ref="_detailElement" @onkeydown="HandleDetailKeyDown" @onkeydown:stopPropagation>
+                        <header class="talent-tree-detail__header">
+                            <span class="talent-tree-detail__icon" aria-hidden="true">@NodeGlyph(selected)</span>
+                            <div><small>@BranchName(selected.BranchCode) · 第 @selected.Tier 层</small><h3>@selected.Name</h3><span>等级 @selected.Rank / @selected.MaxRank</span></div>
+                            <button type="button" class="talent-tree-detail__close" @onclick="CloseNodeDetails" aria-label="关闭天赋详情">×</button>
+                        </header>
+                        <div class="talent-tree-detail__body">
+                            <p>@selected.Description</p>
+                            @if (!string.IsNullOrWhiteSpace(selected.SkillName))
+                            {
+                                <div class="talent-skill__reward"><strong>解锁技能 · @selected.SkillName</strong><small>@selected.SkillDescription</small></div>
+                            }
+                            <div class="talent-tree-detail__pips" aria-label="已投入 @selected.Rank / @selected.MaxRank 点">
+                                @for (var index = 0; index < selected.MaxRank; index++)
+                                {
+                                    <span class="@(index < selected.Rank ? "talent-tree-detail__pip--active" : null)"></span>
+                                }
+                            </div>
+                            @if (selected.Prerequisites.Count > 0)
+                            {
+                                <small class="talent-tree-detail__prerequisite">前置：@PrerequisiteNames(selected)</small>
+                            }
+                            @if (selected.RequiredTreePoints > 0)
+                            {
+                                <small class="talent-tree-detail__prerequisite">基础树需投入 @selected.RequiredTreePoints 点</small>
+                            }
+                            <small class="talent-tree-detail__requirement">@Requirement(selected)</small>
+                        </div>
+                        <button type="button" class="talent-tree-detail__spend" disabled="@(_isSubmitting || !selected.CanUnlock)" @onclick="() => AllocateAsync(selected.Code)">
+                            @(selected.IsMaxRank ? "已满级" : selected.CanUnlock ? "投入 1 点" : "暂不可加点")
+                        </button>
+                    </section>
                 }
             </div>
         }
@@ -95,6 +130,7 @@
                     @foreach (var option in _skills.PromotionOptions)
                     {
                         <button type="button" disabled="@_isSubmitting" @onclick="() => PromoteAsync(option.Code)">
+                            <img class="promotion-panel__portrait" src="@ProfessionArt.ForCode(option.Code)" alt="" />
                             <strong>@option.Name</strong><span>@option.Description</span><small>获得技能：@option.GrantedSkillName</small>
                         </button>
                     }
@@ -125,16 +161,36 @@
     private bool _isLoading = true;
     private bool _isSubmitting;
     private string _activeTree = "base";
+    private string? _selectedNodeCode;
+    private bool _detailOpen;
+    private bool _focusDetail;
+    private ElementReference _detailElement;
+    private int TreeTierCount => _skills?.TalentNodes.Count > 0 ? _skills.TalentNodes.Max(node => node.Tier) : 1;
+    private SkillTalentNodeResponse? SelectedNode => _skills?.TalentNodes.FirstOrDefault(node => node.Code == _selectedNodeCode);
     private string? BaseTabClass => _activeTree == "base" ? "active" : null;
     private string? AdvancedTabClass => _activeTree == "advanced" ? "active" : null;
     private void ShowBaseTree() => _activeTree = "base";
     private void ShowAdvancedTree() => _activeTree = "advanced";
 
     protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusDetail)
+        {
+            _focusDetail = false;
+            await _detailElement.FocusAsync();
+        }
+    }
     private async Task LoadAsync()
     {
         _isLoading = true; _error = null;
-        try { var (skills, error) = await ApiService.GetCharacterSkillsAsync(CharacterId); _skills = skills; _error = GetError(error); }
+        try
+        {
+            var (skills, error) = await ApiService.GetCharacterSkillsAsync(CharacterId);
+            _skills = skills;
+            _error = GetError(error);
+            _selectedNodeCode = skills?.TalentNodes.FirstOrDefault(node => node.CanUnlock)?.Code ?? skills?.TalentNodes.FirstOrDefault()?.Code;
+        }
         catch { _skills = null; _error = "连接失败，请稍后重试。"; }
         finally { _isLoading = false; }
     }
@@ -150,26 +206,51 @@
             var (response, error) = await action();
             if (error is not null) { _error = GetError(error); return; }
             _skills = response;
+            if (_skills is not null && !_skills.TalentNodes.Any(node => node.Code == _selectedNodeCode))
+                _selectedNodeCode = _skills.TalentNodes.FirstOrDefault(node => node.CanUnlock)?.Code ?? _skills.TalentNodes.FirstOrDefault()?.Code;
             if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
         }
         catch { _error = "连接失败，请稍后重试。"; }
         finally { _isSubmitting = false; }
     }
     private static string NodeClass(SkillTalentNodeResponse node) => node.IsMaxRank ? "talent-node--complete" : node.CanUnlock ? "talent-node--available" : node.Rank > 0 ? "talent-node--active" : "talent-node--locked";
+    private void SelectNode(string code) { _selectedNodeCode = code; _detailOpen = true; _focusDetail = true; }
+    private void CloseNodeDetails() { _detailOpen = false; _focusDetail = false; }
+    private void HandleDetailKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseNodeDetails(); }
+    private string PrerequisiteNames(SkillTalentNodeResponse node) => string.Join("、", node.Prerequisites.Select(code => _skills?.TalentNodes.FirstOrDefault(candidate => candidate.Code == code)?.Name ?? code));
+    private static string NodeGlyph(SkillTalentNodeResponse node) => node.BranchCode switch
+    {
+        "assault" => "⚔", "guard" => "⬡", "judgment" => "✥", "mercy" => "✚", _ => "✦"
+    };
+    private static string ConnectionPath(SkillTalentNodeResponse parent, SkillTalentNodeResponse child)
+    {
+        var fromX = (parent.Column - 1) * 100 + 50;
+        var toX = (child.Column - 1) * 100 + 50;
+        var fromY = (parent.Tier - 1) * 100 + 73;
+        var toY = (child.Tier - 1) * 100 + 27;
+        var middleY = (fromY + toY) / 2;
+        return $"M {fromX} {fromY} V {middleY} H {toX} V {toY}";
+    }
     private string Requirement(SkillTalentNodeResponse node)
     {
         if (node.IsMaxRank) return "已完成";
         if (_skills!.Level < node.RequiredLevel + node.Rank) return $"需要 Lv {node.RequiredLevel + node.Rank}";
-        if (!node.ArePrerequisitesMet) return "需要完成上一节点";
+        if (_skills.TalentNodes.Sum(talent => talent.Rank) < node.RequiredTreePoints)
+            return $"需要在基础树已投入 {node.RequiredTreePoints} 点";
+        if (!node.ArePrerequisitesMet) return "需要完成前置节点";
+        if (node.ExclusiveGroup is not null && _skills.TalentNodes.Any(other =>
+                other.Code != node.Code && other.ExclusiveGroup == node.ExclusiveGroup && other.Rank > 0))
+            return "与已选择的天赋互斥";
         if (_skills.TalentPoints < node.Cost) return "天赋点不足";
         return node.ExclusiveGroup is null ? "可以投入" : "选择后锁定另一分支";
     }
-    private static string BranchName(string code) => code switch { "shared" => "基础", "assault" => "猛攻", "guard" => "稳守", "judgment" => "惩戒", "mercy" => "慈悲", _ => code };
+    private static string BranchName(string code) => code switch { "shared" => "基础", "assault" => "猛攻", "guard" => "稳守", "tempo" => "战术", "judgment" => "惩戒", "mercy" => "慈悲", _ => code };
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch
     {
         null or "" => null,
         "InsufficientTalentPoints" => "天赋点不足。",
         "SkillTalentPrerequisiteRequired" => "请先完成上一层节点。",
+        "SkillTalentTreePointsRequired" => "基础树已投入的天赋点不足。",
         "SkillTalentLevelRequired" => "角色等级尚未达到要求。",
         "SkillTalentBranchLocked" => "已经选择了互斥的另一条路线。",
         "SkillTalentMaxRank" => "该节点已满级。",

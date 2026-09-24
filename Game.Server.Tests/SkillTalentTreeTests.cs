@@ -14,34 +14,46 @@ namespace Game.Server.Tests;
 public sealed class SkillTalentTreeTests
 {
     [Fact]
-    public async Task SwordTreeUsesLevelGatesSharedPointsAndExclusiveBranches()
+    public async Task SwordTreeAllowsCrossBranchChoicesAndKeepsOnlyStancesExclusive()
     {
         await using var test = await FormalTreeContext.CreateAsync("swordsman", level: 10, points: 9);
-        foreach (var code in new[] { "sword-rhythm", "sword-edge", "sword-vitality", "sword-assault-stance" })
+        Assert.Equal("SkillTalentTreePointsRequired",
+            (await test.Service.UnlockTalentNodeAsync("token", 1, "sword-assault-stance")).Error);
+        foreach (var code in new[] { "sword-edge", "sword-rhythm", "sword-vitality", "sword-assault-stance" })
             Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
 
         var (blocked, branchError) = await test.Service.UnlockTalentNodeAsync("token", 1, "sword-guard-stance");
         Assert.Null(blocked);
         Assert.Equal("SkillTalentBranchLocked", branchError);
 
-        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "sword-combat-training")).Error);
-        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "sword-combat-training")).Error);
-        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "sword-pursuit")).Error);
-        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "sword-precision")).Error);
-        var (finished, finalError) = await test.Service.UnlockTalentNodeAsync("token", 1, "sword-precision");
+        foreach (var code in new[] { "sword-combat-training", "sword-combat-training", "sword-intercept-talent",
+                     "sword-recovery-training" })
+            Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
+        var (finished, finalError) = await test.Service.UnlockTalentNodeAsync("token", 1, "sword-disruption");
         Assert.Null(finalError);
         Assert.Equal(0, finished!.TalentPoints);
         Assert.Equal(9, (await test.Db.CharacterSkillTalents.ToListAsync()).Sum(node => node.PointsSpent));
         Assert.Contains(finished.LearnedSkills, skill => skill.Code == "sword-double-slash");
+        var intercept = Assert.Single(finished.LearnedSkills, skill => skill.Code == "sword-intercept");
+        Assert.Equal(2, intercept.CooldownRounds);
+        Assert.Equal("InterruptibleIntent", intercept.AutoCondition);
+        Assert.Equal(1, (await test.Db.CharacterSkillTalents.SingleAsync(node => node.NodeCode == "sword-recovery-training")).PointsSpent);
         Assert.Equal(8, test.Character.TalentSkillDamagePercent);
-        Assert.Equal(6, test.Character.TalentSkillCriticalChancePercent);
+
+        Assert.Null((await test.Service.PromoteAsync("token", 1,
+            new PromoteCharacterRequest { ProfessionCode = "knight" })).Error);
+        test.Character.Level = 11;
+        test.Character.TalentPoints++;
+        await test.Db.SaveChangesAsync();
+        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "sword-recovery-training")).Error);
+        Assert.Equal(0, test.Character.TalentPoints);
     }
 
     [Fact]
     public async Task RankTwoNeedsTheFollowingLevelAndResetRefundsNodes()
     {
-        await using var test = await FormalTreeContext.CreateAsync("acolyte", level: 6, points: 6);
-        foreach (var code in new[] { "acolyte-echo", "acolyte-doctrine", "acolyte-prayer", "acolyte-mercy" })
+        await using var test = await FormalTreeContext.CreateAsync("acolyte", level: 4, points: 4);
+        foreach (var code in new[] { "acolyte-echo", "acolyte-prayer" })
             Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
         Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "acolyte-heal-training")).Error);
         var (_, levelError) = await test.Service.UnlockTalentNodeAsync("token", 1, "acolyte-heal-training");
@@ -49,9 +61,33 @@ public sealed class SkillTalentTreeTests
 
         var (reset, resetError) = await test.Service.ResetTalentTreeAsync("token", 1);
         Assert.Null(resetError);
-        Assert.Equal(6, reset!.TalentPoints);
+        Assert.Equal(4, reset!.TalentPoints);
         Assert.Empty(await test.Db.CharacterSkillTalents.ToListAsync());
         Assert.Equal(0, test.Character.TalentHealingDonePercent);
+    }
+
+    [Fact]
+    public async Task AcolyteCanMixDamageHealingAndThreeNewSkills()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("acolyte", level: 10, points: 9);
+        foreach (var code in new[] { "acolyte-echo", "acolyte-doctrine", "acolyte-prayer",
+                     "acolyte-light-training", "acolyte-light-training", "acolyte-silence-talent",
+                     "acolyte-purify-talent", "acolyte-radiant-flare-talent", "acolyte-mercy" })
+            Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, code)).Error);
+
+        var response = await test.Service.GetAsync("token", 1);
+        Assert.Null(response.Error);
+        Assert.Equal(0, response.Response!.TalentPoints);
+        var silence = Assert.Single(response.Response.LearnedSkills, skill => skill.Code == "acolyte-silence");
+        Assert.Equal(5, silence.CooldownRounds);
+        Assert.Equal("InterruptibleIntent", silence.AutoCondition);
+        Assert.Contains(silence.Effects, effect => effect.Type == "Interrupt");
+        Assert.Contains(silence.Effects, effect => effect.StatusCode == "acolyte-silence" && effect.DurationRounds == 1);
+        Assert.Contains(response.Response.LearnedSkills, skill => skill.Code == "acolyte-purify");
+        Assert.Contains(response.Response.LearnedSkills, skill => skill.Code == "acolyte-radiant-flare");
+        Assert.Contains(response.Response.LearnedSkills.Single(skill => skill.Code == "acolyte-radiant-flare").Effects,
+            effect => effect.StatusCode == "holy-blindness" && effect.DurationRounds == 2);
+        Assert.Contains(response.Response.TalentNodes, node => node.Code == "acolyte-afterglow" && !node.CanUnlock);
     }
 
     [Theory]

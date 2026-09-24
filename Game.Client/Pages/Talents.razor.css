@@ -47,6 +47,9 @@
     .talents-page { padding-bottom: 1.5rem; }
     .talents-page__intro, .talents-page__aside, .talents-page__next { display: none; }
     .talents-page__layout, .talents-page__main { gap: .7rem; }
+    .talents-page__tree-switch { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; padding: .35rem; margin-bottom: .5rem; }
+    .talents-page__tree-switch-row { display: contents; }
+    .talents-page__tree-switch button { width: 100%; min-height: 46px; padding: .35rem .15rem; font-size: .72rem; white-space: nowrap; }
     .talents-page__jump {
         position: sticky;
         z-index: 20;

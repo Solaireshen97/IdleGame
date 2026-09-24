@@ -24,7 +24,8 @@
 .character-card__identity { display: flex; align-items: center; gap: .6rem; min-width: 0; }
 .character-card__identity > div { display: grid; min-width: 0; }
 .character-card__identity small { overflow: hidden; color: #91a6b7; font-size: .66rem; white-space: nowrap; text-overflow: ellipsis; }
-.character-card__glyph { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid #6c6047; border-radius: .62rem; background: rgba(216, 169, 87, .1); color: #e7b966; font-size: .75rem; }
+.character-card__glyph { display: grid; place-items: center; width: 46px; height: 52px; flex: 0 0 46px; overflow: hidden; border: 1px solid #6c6047; border-radius: .62rem; background: rgba(216, 169, 87, .1); color: #e7b966; font-size: .75rem; }
+.character-card__glyph img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; image-rendering: pixelated; }
 
 .character-card__name {
     margin: 0;

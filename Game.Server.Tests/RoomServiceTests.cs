@@ -363,7 +363,7 @@ public class RoomServiceTests
         room!.Status = RoomStatus.Cooldown;
         room.RoundNumber = 1;
         room.RoundCooldownDurationSeconds = BattleRules.AutoRoundCooldownSeconds;
-        room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(25);
+        room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(15);
         await test.Db.SaveChangesAsync();
 
         var (joined, error) = await test.Service.JoinRoomAsync(room.Id,

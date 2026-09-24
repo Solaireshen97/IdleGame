@@ -130,7 +130,7 @@ public sealed class ProfessionCatalog
                     {
                         Code = node.Code, Name = node.Name, Description = node.Description,
                         Tier = node.Tier, Rank = rank, MaxRank = node.MaxRank,
-                        MinimumLevel = node.MinimumLevel, PrerequisiteName = prerequisite?.Name,
+                        MinimumLevel = node.MinimumLevel, PrerequisiteCode = prerequisite?.Code, PrerequisiteName = prerequisite?.Name,
                         PrerequisiteRank = prerequisite is null ? 0 : node.PrerequisiteRank,
                         CanPurchase = reason is null, LockReason = reason
                     };

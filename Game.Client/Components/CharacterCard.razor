@@ -1,9 +1,10 @@
 @using Game.Shared.Dtos.Characters
+@using Game.Client.Services
 
 <article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
     <div class="character-card__header">
         <div class="character-card__identity">
-            <span class="character-card__glyph" aria-hidden="true">◆</span>
+            <span class="character-card__glyph" aria-hidden="true"><img src="@ProfessionArt.ForName(Character.ProfessionName)" alt="" /></span>
             <div>
                 <h3 class="character-card__name">@Character.Name</h3>
                 <small>@Character.ProfessionName</small>

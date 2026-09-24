@@ -1,0 +1,35 @@
+{
+  "potions": [
+    {"code": "minor-healing-potion", "subject": "a small round clear-glass corked healing vial filled with ruby red liquid, simple white cloth neck wrap"},
+    {"code": "northshire-battle-draught", "subject": "a sturdy squat amber battle draught bottle with red-orange liquid, leather neck cord and tiny brass shield charm"},
+    {"code": "travel-healing-potion", "subject": "a practical flask-shaped travel healing bottle filled with bright crimson liquid, leather carrying loop and brass cap"},
+    {"code": "whetstone-oil", "subject": "a short narrow weapon-oil bottle with golden oil, dark iron spout and small sharpening-stone charm"},
+    {"code": "elwynn-assault-draught", "subject": "a broad-shouldered assault elixir flask with vivid scarlet liquid, gold band and a bold sword-shaped stopper"},
+    {"code": "tirisfal-dusk-draught", "subject": "a slim dark violet dusk potion vial with smoky purple liquid, black wax seal and tiny crescent charm"},
+    {"code": "durotar-bloodfire-draught", "subject": "an angular obsidian flask of glowing blood-red fire elixir, rough copper bands and tiny flame-shaped stopper"},
+    {"code": "dun-morogh-fortitude-draught", "subject": "a heavy frosted blue-gray fortitude potion bottle with pale icy liquid, iron bands and a square stone stopper"},
+    {"code": "mulgore-hunter-draught", "subject": "a lightweight hunter elixir bottle with teal-green liquid, feather tied to the neck and carved bone stopper"},
+    {"code": "eversong-inspiration-draught", "subject": "an elegant golden-glass inspiration vial with luminous honey-gold liquid, sunburst cap and fine ivory filigree"}
+  ],
+  "herbs": [
+    {"code": "peacebloom", "subject": "one delicate white peacebloom flower with a sunny yellow center, two rounded green leaves and short roots"},
+    {"code": "silverleaf", "subject": "one small herb sprig with three broad metallic silver-green leaves and a slender dark stem"},
+    {"code": "earthroot", "subject": "one earthy medicinal root with forked ochre-brown roots, low green leaves and a small orange bud"},
+    {"code": "briarthorn", "subject": "one thorny briar sprig with dark green serrated leaves, hooked brown thorns and a tiny mauve flower"},
+    {"code": "tirisfal-gravemoss", "subject": "one tuft of pale gray grave moss growing from a tiny weathered stone chip, muted sage and silver tips"},
+    {"code": "tirisfal-shadowvine", "subject": "one curling shadow vine with deep violet leaves, dark tendrils and a faint lavender bud"},
+    {"code": "tirisfal-crypt-spore", "subject": "one cluster of three small crypt mushrooms with violet-black caps, pale stalks and a few glowing purple spores"},
+    {"code": "durotar-aloe", "subject": "one desert aloe rosette of thick blue-green spiky leaves with pale gel visible at one cut tip"},
+    {"code": "durotar-firethorn", "subject": "one fiery thorn flower with orange-red petals, sharp dry spines and rust-colored leaves"},
+    {"code": "durotar-cinderroot", "subject": "one twisted charred root with ember-orange veins and two tiny ash-gray leaves"},
+    {"code": "dun-morogh-frostdew", "subject": "one icy herb sprig with frost-blue rounded leaves, sparkling dew drops and a cool green stem"},
+    {"code": "dun-morogh-springroot", "subject": "one pale blue spring root with branching white roots, narrow blue-green leaves and a clear water droplet"},
+    {"code": "dun-morogh-icecap", "subject": "one rare icecap flower with crystalline white-blue petals and a small dark teal leaf pair"},
+    {"code": "mulgore-sage", "subject": "one prairie sage sprig with soft dusty green leaves, violet flower tips and a tawny stem"},
+    {"code": "mulgore-windbell", "subject": "one windbell wildflower with two dangling sky-blue bell blossoms and long grass-green leaves"},
+    {"code": "mulgore-stormseed", "subject": "one rare storm seed pod with blue-violet shell, tiny gold lightning veins and a few green leaves"},
+    {"code": "eversong-goldleaf", "subject": "one elegant golden-leaf herb sprig with three warm gold leaves and a slender green stem"},
+    {"code": "eversong-dawnflower", "subject": "one dawn flower with peach-pink petals, pale golden center and two bright green leaves"},
+    {"code": "eversong-sunpetal", "subject": "one rare sun petal flower with layered luminous gold petals, amber center and a tiny emerald stem"}
+  ]
+}

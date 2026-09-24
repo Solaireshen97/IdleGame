@@ -78,7 +78,7 @@ else
             <span class="battle-feed__open">打开完整战报 <span aria-hidden="true">↗</span></span>
         </button>
 
-        @if (_roomDetail.MonsterIntent is { } intent)
+        @if (_roomDetail.MonsterIntent is { } intent && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && _roomDetail.NextBattleStartAtUtc is null)
         {
             <section class="monster-intent monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
                 <div class="monster-intent__icon" aria-hidden="true">!</div>
@@ -99,28 +99,25 @@ else
             </section>
         }
 
-        <div class="battle-field @(_isCombatFeedbackVisible ? "battle-field--player-attack" : "")">
+        <div class="battle-field @(_isCombatFeedbackVisible ? "battle-field--player-attack" : "") @(_roomDetail.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
             <div class="battle-field__party">
                 <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人</strong></div>
                 <div class="fighter-line">
-                    @foreach (var slot in _roomDetail.Slots.OrderBy(slot => slot.SlotIndex))
+                    @foreach (var slot in _roomDetail.Slots.Where(slot => slot.IsOccupied).OrderByDescending(slot => slot.SlotIndex))
                     {
                         <button type="button"
-                                class="fighter @(slot.IsOccupied ? "fighter--occupied fighter--interactive" : "fighter--empty") @(!slot.IsAlive && slot.IsOccupied ? "fighter--down" : "")"
-                                disabled="@(!slot.IsOccupied)"
-                                title="@(slot.IsOccupied ? $"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp} · 点击查看状态" : $"{slot.SlotIndex} 号空槽位")"
-                                aria-label="@(slot.IsOccupied ? $"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}，点击查看详细状态" : $"{slot.SlotIndex} 号空槽位")"
-                                aria-haspopup="@(slot.IsOccupied ? "dialog" : null)"
+                                class="fighter fighter--occupied fighter--interactive @(!slot.IsAlive ? "fighter--down" : "")"
+                                title="@($"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp} · 点击查看状态")"
+                                aria-label="@($"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}，点击查看详细状态")"
+                                aria-haspopup="dialog"
                                 @onclick="() => OpenStatusDialog(slot)">
+                            <span class="fighter__vitals">
+                                <strong>@slot.CharacterName</strong>
+                                <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
+                                <small class="fighter__hp-text">@slot.CharacterHp / @slot.CharacterMaxHp</small>
+                            </span>
                             <div class="fighter__portrait">
-                                @if (slot.IsOccupied)
-                                {
-                                    <img src="/art/knight.svg" alt="" />
-                                }
-                                else
-                                {
-                                    <span aria-hidden="true">＋</span>
-                                }
+                                <img src="@ProfessionArt.ForName(slot.ProfessionName)" alt="" style="animation-delay:@((slot.SlotIndex - 1) * 40)ms" />
                                 <span class="fighter__number">@slot.SlotIndex</span>
                                 @if (slot.StatusEffects.Count > 0)
                                 {
@@ -138,34 +135,38 @@ else
                                     </span>
                                 }
                             </div>
-                            <strong>@(slot.IsOccupied ? slot.CharacterName : "空位")</strong>
-                            @if (slot.IsOccupied) { <small class="fighter__level">Lv @slot.CharacterLevel</small> }
+                            <small class="fighter__level">Lv @slot.CharacterLevel</small>
                             @if (slot.CharacterElement is { } characterElement)
                             {
                                 <small class="battle-element" title="攻击 @FormatElementModifier(slot.OutgoingElementModifierPercent) · 受击 @FormatElementModifier(slot.IncomingElementModifierPercent)">@WeaponRules.ElementName(characterElement)属性 · @GetElementRelation(slot)</small>
-                            }
-                            @if (slot.IsOccupied)
-                            {
-                                <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
-                                <small class="fighter__hp-text">HP @slot.CharacterHp / @slot.CharacterMaxHp</small>
-                            }
-                            else
-                            {
-                                <small>待命</small>
                             }
                         </button>
                     }
                 </div>
             </div>
 
-            <span class="battle-field__versus" aria-hidden="true">VS</span>
-
             <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "") @(_isCombatFeedbackVisible ? "battle-field__enemy--hit" : "")">
+                @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.NextBattleStartAtUtc is not null)
+                {
+                    <div class="battle-field__enemy-pending" aria-live="polite">
+                        <span aria-hidden="true">✦</span>
+                        <strong>怪物即将出现</strong>
+                        <small>刷新后还需等待本回合剩余冷却</small>
+                    </div>
+                }
+                else
+                {
+                <button type="button" class="enemy-vitals" @onclick="OpenMonsterStatusDialog"
+                        title="点击查看 @_roomDetail.MonsterName 的状态"
+                        aria-label="查看 @_roomDetail.MonsterName 的生命值与状态效果" aria-haspopup="dialog">
+                    <span class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></span>
+                    <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
+                </button>
                 <button type="button" class="battle-field__enemy-art" @onclick="OpenMonsterStatusDialog" @ref="_monsterTrigger"
                         title="点击查看 @_roomDetail.MonsterName 的状态"
                         aria-label="@_roomDetail.MonsterName，生命值 @_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp，@_roomDetail.MonsterEffects.Count 个状态效果，点击查看详细状态"
                         aria-haspopup="dialog">
-                    <img src="@GetMonsterArtPath()" alt="" />
+                    <img src="@MonsterArt.ForName(_roomDetail.MonsterName)" alt="" />
                     @if (_roomDetail.MonsterEffects.Count > 0)
                     {
                         <span class="enemy-effect-icons" aria-hidden="true">
@@ -186,13 +187,7 @@ else
                         <strong class="battle-damage-popup" aria-live="polite">@_combatFeedbackText</strong>
                     }
                 </button>
-                <button type="button" class="enemy-vitals" @onclick="OpenMonsterStatusDialog"
-                        title="点击查看 @_roomDetail.MonsterName 的状态"
-                        aria-label="查看 @_roomDetail.MonsterName 的生命值与状态效果" aria-haspopup="dialog">
-                    <span class="enemy-vitals__eyebrow">当前敌人 · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
-                    <span class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP <b aria-hidden="true">›</b></span></span>
-                    <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
-                </button>
+                }
             </div>
         </div>
         <div class="battle-stage__footer"><span><strong>进度</strong> 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @_roomDetail.SlotCount</span><span><strong>规则</strong> @(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则临时 Auto" : "无准备超时")</span></div>
@@ -294,7 +289,7 @@ else
             <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" @onclick:stopPropagation>
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
-                        <span class="status-dialog__portrait" aria-hidden="true"><img src="/art/knight.svg" alt="" /></span>
+                        <span class="status-dialog__portrait" aria-hidden="true"><img src="@ProfessionArt.ForName(statusCharacter.ProfessionName)" alt="" /></span>
                         <div>
                             <span class="section-kicker">CHARACTER STATUS · @statusCharacter.SlotIndex 号位</span>
                             <h2 id="status-dialog-title">@statusCharacter.CharacterName</h2>
@@ -363,7 +358,7 @@ else
             <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" @onclick:stopPropagation>
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
-                        <span class="status-dialog__portrait status-dialog__portrait--enemy" aria-hidden="true"><img src="@GetMonsterArtPath()" alt="" /></span>
+                        <span class="status-dialog__portrait status-dialog__portrait--enemy" aria-hidden="true"><img src="@MonsterArt.ForName(monsterStatus.MonsterName)" alt="" /></span>
                         <div>
                             <span class="section-kicker">ENEMY STATUS · 第 @monsterStatus.CurrentWaveNumber 波</span>
                             <h2 id="monster-status-dialog-title">@monsterStatus.MonsterName</h2>
@@ -555,7 +550,7 @@ else
                                 @if (characterSlot.OperationPotion is { } operationPotion)
                                 {
                                     <div class="battle-supply battle-supply--operation" title="作战药剂在本场首次结算时自动使用">
-                                        <span class="battle-supply__icon" aria-hidden="true">✦</span>
+                                        <span class="battle-supply__icon" aria-hidden="true">@if (operationPotion.ItemCode is { } potionCode) { <img src="@ItemArt.ForCode(potionCode)" alt="" /> } else { <text>✦</text> }</span>
                                         <span class="battle-supply__body"><strong>@(operationPotion.ItemName ?? "空作战药剂槽")</strong><small>@(operationPotion.ItemCode is null ? "前往补给页装备" : $"库存 {operationPotion.Quantity} · {operationPotion.Description}")</small></span>
                                         <span class="battle-supply__action">药剂</span>
                                     </div>
@@ -569,7 +564,7 @@ else
                                             title="@GetConsumableHint(characterSlot, supply)"
                                             aria-pressed="@(selected ? "true" : "false")"
                                             @onclick="() => ToggleConsumableAsync(characterSlot, supply)">
-                                        <span class="battle-supply__icon" aria-hidden="true">✚</span>
+                                        <span class="battle-supply__icon" aria-hidden="true">@if (supply.ItemCode is { } supplyCode) { <img src="@ItemArt.ForCode(supplyCode)" alt="" /> } else { <text>✚</text> }</span>
                                         <span class="battle-supply__body"><strong>@(supply.ItemName ?? $"空槽位 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
                                         <span class="battle-supply__action">@(selected ? "取消" : "使用")</span>
                                     </button>
@@ -642,7 +637,7 @@ else
                             <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
                             <small>未分配天赋点 @slot.TalentPoints</small>
                         </div>
-                        <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
+                        <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsOffline) { <span class="status-badge">@(_roomDetail.IsPreparationTimeoutEnabled ? "离线 · 等待准备超时" : "离线 · 等待准备")</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动准备</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                     }
                     else
                     {
@@ -1364,14 +1359,6 @@ else
 
     private static string FormatElementModifier(int percent) => percent > 0 ? $"+{percent}%" : $"{percent}%";
 
-    private string GetMonsterArtPath()
-    {
-        var name = _roomDetail?.MonsterName.ToLowerInvariant() ?? "";
-        if (name.Contains("slime") || name.Contains("史莱姆")) return "/art/slime.svg";
-        if (name.Contains("goblin") || name.Contains("狗头人") || name.Contains("金牙")) return "/art/goblin.svg";
-        if (name.Contains("wolf") || name.Contains("狼")) return "/art/wolf.svg";
-        return "/art/monster.svg";
-    }
     private string GetActionHint()
     {
         if (_roomDetail?.NextBattleStartAtUtc is not null) return "胜利！即将重开副本，全队恢复至满 HP。";

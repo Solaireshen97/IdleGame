@@ -49,7 +49,7 @@
                         aria-label="@($"{slot.SlotIndex} 号补给槽：{equippedItem?.Name ?? "空槽位"}")"
                         @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
                     <span class="consumables-board__slot-index">@slot.SlotIndex.ToString("00")</span>
-                    <span class="inventory-item__icon" aria-hidden="true">@(equippedItem is null ? "+" : "✚")</span>
+                    <span class="inventory-item__icon" aria-hidden="true">@if (equippedItem is null) { <text>+</text> } else { <img src="@ItemArt.ForCode(equippedItem.Code)" alt="" /> }</span>
                     <span><strong>@(equippedItem?.Name ?? "空槽位")</strong><small>@(equippedItem is null ? "点击配置" : !slot.AutoUseEnabled ? "手动使用" : equippedItem.Kind == "Healing" ? $"AUTO · HP ≤ {slot.AutoHpThresholdPercent}%" : "AUTO · 条件满足时使用")</small></span>
                     @if (IsDirty(slot)) { <b>未保存</b> }
                 </button>
@@ -67,7 +67,7 @@
                     aria-haspopup="dialog" aria-expanded="@(_isEditorOpen && potionSlot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
                     aria-label="@($"作战药剂槽：{potionItem?.Name ?? "空槽位"}")" @onclick="() => OpenEditor(potionSlot.SlotIndex)">
                 <span class="consumables-board__slot-index">作战药剂</span>
-                <span class="inventory-item__icon" aria-hidden="true">✦</span>
+                <span class="inventory-item__icon" aria-hidden="true">@if (potionItem is null) { <text>✦</text> } else { <img src="@ItemArt.ForCode(potionItem.Code)" alt="" /> }</span>
                 <span><strong>@(potionItem?.Name ?? "未装备作战药剂")</strong><small>@(potionItem is null ? "点击配置" : $"{potionItem.Description} · 库存 {potionItem.Quantity}")</small></span>
                 @if (IsDirty(potionSlot)) { <b>未保存</b> }
             </button>
@@ -88,7 +88,7 @@
                     var equippedSlot = _drafts.FirstOrDefault(slot => slot.ItemCode == item.Code);
                     <button type="button" class="inventory-item @(equippedSlot is not null ? "inventory-item--equipped" : null)"
                             disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)">
-                        <span class="inventory-item__icon" aria-hidden="true">✚</span>
+                        <span class="inventory-item__icon" aria-hidden="true"><img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /></span>
                         <span><strong>@item.Name</strong><small>@item.Description</small></span>
                         <span class="inventory-item__meta"><b>×@item.Quantity</b><small>@(equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</small></span>
                     </button>

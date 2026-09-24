@@ -15,7 +15,7 @@ public sealed class MonsterCombatCatalog
         {
             if (string.IsNullOrWhiteSpace(status.Code) || string.IsNullOrWhiteSpace(status.Name) ||
                 string.IsNullOrWhiteSpace(status.Description) ||
-                status.EffectType is not ("AttackPercent" or "ReductionPercent" or "DamageOverTime") ||
+                status.EffectType is not ("AttackPercent" or "ReductionPercent" or "DamageOverTime" or "SilenceNextIntent") ||
                 status.ValuePerStack == 0 || status.MaxStacks is < 1 or > 10 ||
                 status.Stacking is not ("RefreshDuration" or "AddStack" or "ReplaceIfStronger") ||
                 !_statuses.TryAdd(status.Code, status))

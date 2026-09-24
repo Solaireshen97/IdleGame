@@ -99,8 +99,8 @@ public sealed class T1WeaponEffectTests
 
     [Theory]
     [InlineData(1000, 847, 2, 1, 1)]
-    [InlineData(20, 0, 0, 0, 0)]
-    [InlineData(38, 0, 1, 0, 0)]
+    [InlineData(20, 0, 0, 0, 1)]
+    [InlineData(38, 0, 0, 0, 1)]
     public async Task RealRoundAppliesDoubleEchoAndSkillZoneWithoutRepeatingSkillsOrActingAfterDeath(
         int monsterHp, int expectedHp, int echoCount, int doubleCount, int skillCount)
     {

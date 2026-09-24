@@ -1,0 +1,434 @@
+[
+  {
+    "name": "Slime",
+    "file": "monster-001.png",
+    "element": "Wind",
+    "subject": "small translucent green slime with a round wobbly body and two simple bright eyes"
+  },
+  {
+    "name": "King Slime",
+    "file": "monster-002.png",
+    "element": "Wind",
+    "subject": "oversized emerald slime king with a little gold crown and rounded gelatinous folds, clearly a boss"
+  },
+  {
+    "name": "Goblin",
+    "file": "monster-003.png",
+    "element": "Earth",
+    "subject": "small green goblin raider with large ears, ragged brown vest and a chipped dagger"
+  },
+  {
+    "name": "Wolf",
+    "file": "monster-004.png",
+    "element": "Water",
+    "subject": "lean gray wolf with alert ears, dark mane and a ready-to-pounce stance"
+  },
+  {
+    "name": "北郡幼狼",
+    "file": "monster-005.png",
+    "element": "Wind",
+    "subject": "young gray-brown forest wolf with scruffy mane, oversized ears and compact paws"
+  },
+  {
+    "name": "林地毒蛛",
+    "file": "monster-006.png",
+    "element": "Dark",
+    "subject": "dark forest spider with eight stout legs, violet poison markings and visible fangs"
+  },
+  {
+    "name": "石牙野猪",
+    "file": "monster-007.png",
+    "element": "Earth",
+    "subject": "stocky woodland boar with rough brown fur, stone-colored tusks and low charging posture"
+  },
+  {
+    "name": "鱼人掠夺者",
+    "file": "monster-008.png",
+    "element": "Water",
+    "subject": "small blue-green fishfolk raider with fins, bulging eyes, wet scales and a crude spear"
+  },
+  {
+    "name": "狗头人矿工",
+    "file": "monster-009.png",
+    "element": "Earth",
+    "subject": "short kobold miner with a canine snout, patched hood, lantern and chipped pickaxe"
+  },
+  {
+    "name": "狗头人地卜师",
+    "file": "monster-010.png",
+    "element": "Fire",
+    "subject": "short kobold geomancer with a canine snout, ember-tipped staff and rough ochre robe"
+  },
+  {
+    "name": "河爪豺狼人",
+    "file": "monster-011.png",
+    "element": "Wind",
+    "subject": "lean gnoll marauder with hyena face, wind-tossed mane and notched cleaver"
+  },
+  {
+    "name": "狗头人掘地工",
+    "file": "monster-012.png",
+    "element": "Earth",
+    "subject": "dusty kobold tunneler with oversized digging claws, leather cap and mud-stained pick"
+  },
+  {
+    "name": "狗头人监工",
+    "file": "monster-013.png",
+    "element": "Earth",
+    "subject": "stern kobold overseer with iron helmet, chain of keys and heavy mining hammer"
+  },
+  {
+    "name": "矿洞守卫",
+    "file": "monster-014.png",
+    "element": "Earth",
+    "subject": "armored kobold mine guard with a round iron shield and short mining spear"
+  },
+  {
+    "name": "金牙",
+    "file": "monster-015.png",
+    "element": "Earth",
+    "subject": "large kobold chieftain boss with one gleaming gold fang, ornate miner helmet and heavy pickaxe"
+  },
+  {
+    "name": "林地灰熊王",
+    "file": "monster-016.png",
+    "element": "Earth",
+    "subject": "massive brown grizzly bear king with shaggy fur, scarred face and huge forepaws"
+  },
+  {
+    "name": "河爪掠夺首领",
+    "file": "monster-017.png",
+    "element": "Wind",
+    "subject": "broad-shouldered gnoll chief with dark hyena mane, trophy armor and a large cleaver"
+  },
+  {
+    "name": "暮色蝙蝠",
+    "file": "monster-018.png",
+    "element": "Wind",
+    "subject": "dusky purple bat with broad angular wings, large ears and amber eyes"
+  },
+  {
+    "name": "墓园灰狼",
+    "file": "monster-019.png",
+    "element": "Dark",
+    "subject": "gaunt cemetery gray wolf with charcoal fur, pale eyes and ragged mane"
+  },
+  {
+    "name": "腐骨食尸鬼",
+    "file": "monster-020.png",
+    "element": "Earth",
+    "subject": "hunched undead ghoul with exposed bone, torn gravecloth and long crooked claws"
+  },
+  {
+    "name": "迷雾毒蛛",
+    "file": "monster-021.png",
+    "element": "Dark",
+    "subject": "mist-veiled purple spider with long legs, toxic green fangs and pale abdomen markings"
+  },
+  {
+    "name": "失控侍僧",
+    "file": "monster-022.png",
+    "element": "Dark",
+    "subject": "rogue shadow acolyte in ragged black-purple robes with a dark spell in one hand"
+  },
+  {
+    "name": "疫病猎犬",
+    "file": "monster-023.png",
+    "element": "Dark",
+    "subject": "gaunt plague hound with dark mottled fur, sickly green patches and bared teeth"
+  },
+  {
+    "name": "墓穴织网者",
+    "file": "monster-024.png",
+    "element": "Dark",
+    "subject": "large crypt spider with bone-white web patterns, thick legs and dark purple body"
+  },
+  {
+    "name": "织亡蛛后",
+    "file": "monster-025.png",
+    "element": "Dark",
+    "subject": "enormous spider queen boss with black-purple carapace, crimson eyes and ornate web markings"
+  },
+  {
+    "name": "瘟疫潜伏者",
+    "file": "monster-026.png",
+    "element": "Dark",
+    "subject": "sneaking plague beast with hunched canine body, sickly green growths and sharp claws"
+  },
+  {
+    "name": "墓穴守望者",
+    "file": "monster-027.png",
+    "element": "Dark",
+    "subject": "ancient crypt warden in dark ruined armor holding a lantern staff, spectral purple eyes"
+  },
+  {
+    "name": "试炼谷野猪",
+    "file": "monster-028.png",
+    "element": "Earth",
+    "subject": "small red-brown desert boar with dusty hide and short tusks"
+  },
+  {
+    "name": "赤尾蝎",
+    "file": "monster-029.png",
+    "element": "Fire",
+    "subject": "rust-red desert scorpion with broad pincers and a glowing ember-red tail stinger"
+  },
+  {
+    "name": "尘风迅猛龙",
+    "file": "monster-030.png",
+    "element": "Wind",
+    "subject": "lean dust-colored raptor with a feathered crest, strong legs and hooked claws"
+  },
+  {
+    "name": "钢鬃斥候",
+    "file": "monster-031.png",
+    "element": "Earth",
+    "subject": "small quillback humanoid scout with steel-gray bristles, hide armor and a crude spear"
+  },
+  {
+    "name": "燃刃教徒",
+    "file": "monster-032.png",
+    "element": "Fire",
+    "subject": "fire cultist in dark red hooded robes with a short ritual blade and ember sparks"
+  },
+  {
+    "name": "熔岩爬行者",
+    "file": "monster-033.png",
+    "element": "Fire",
+    "subject": "low lava crawler beast with black volcanic shell, orange cracks and six clawed legs"
+  },
+  {
+    "name": "怒焰守卫",
+    "file": "monster-034.png",
+    "element": "Fire",
+    "subject": "fire-forged armored guardian with glowing orange seams and a blunt iron weapon"
+  },
+  {
+    "name": "怒焰领主",
+    "file": "monster-035.png",
+    "element": "Fire",
+    "subject": "towering fire lord boss with dark molten armor, flame crown and oversized burning cleaver"
+  },
+  {
+    "name": "赤尾蝎后",
+    "file": "monster-036.png",
+    "element": "Fire",
+    "subject": "giant scorpion queen boss with armored red shell, gold-edged pincers and blazing tail"
+  },
+  {
+    "name": "燃刃勇士",
+    "file": "monster-037.png",
+    "element": "Fire",
+    "subject": "battle-hardened fire cult champion in red-black armor wielding a broad blazing axe"
+  },
+  {
+    "name": "雪地狂兔",
+    "file": "monster-038.png",
+    "element": "Water",
+    "subject": "small white snow hare with icy blue ear tips and an unusually fierce expression"
+  },
+  {
+    "name": "霜鬃幼狼",
+    "file": "monster-039.png",
+    "element": "Water",
+    "subject": "young winter wolf with blue-white coat, frosted mane and alert ears"
+  },
+  {
+    "name": "石颚掘地者",
+    "file": "monster-040.png",
+    "element": "Earth",
+    "subject": "stocky stone-jawed subterranean digger with gray hide, thick claws and icy cave dust"
+  },
+  {
+    "name": "霜鬃斥候",
+    "file": "monster-041.png",
+    "element": "Water",
+    "subject": "small frost-mane humanoid scout in fur cloak with ice-tipped spear"
+  },
+  {
+    "name": "冰壳野猪",
+    "file": "monster-042.png",
+    "element": "Water",
+    "subject": "heavy boar covered with pale blue ice plates and curved frosted tusks"
+  },
+  {
+    "name": "霜鬃祭司",
+    "file": "monster-043.png",
+    "element": "Water",
+    "subject": "frost-mane shaman in white-blue furs, holding a short icy staff"
+  },
+  {
+    "name": "雪岭雪怪",
+    "file": "monster-044.png",
+    "element": "Earth",
+    "subject": "shaggy white mountain yeti with long arms, pale blue face and broad feet"
+  },
+  {
+    "name": "冰牙之王",
+    "file": "monster-045.png",
+    "element": "Water",
+    "subject": "huge frost wolf king boss with ice-blue mane, long crystalline fangs and regal stance"
+  },
+  {
+    "name": "冰牙巨狼",
+    "file": "monster-046.png",
+    "element": "Water",
+    "subject": "large adult winter wolf with crystalline blue fangs and thick white-blue fur"
+  },
+  {
+    "name": "冰川巨人",
+    "file": "monster-047.png",
+    "element": "Water",
+    "subject": "towering glacier giant with blocky ice limbs, pale blue body and stone shoulder plates"
+  },
+  {
+    "name": "草原陆行鸟",
+    "file": "monster-048.png",
+    "element": "Wind",
+    "subject": "small prairie strider bird with long legs, muted tawny feathers and curved beak"
+  },
+  {
+    "name": "草原狼",
+    "file": "monster-049.png",
+    "element": "Wind",
+    "subject": "lean tawny prairie wolf with wind-ruffled coat and quick running stance"
+  },
+  {
+    "name": "刺背拾荒者",
+    "file": "monster-050.png",
+    "element": "Earth",
+    "subject": "small bristleback humanoid forager with porcupine-like quills, patchwork hide and scavenged club"
+  },
+  {
+    "name": "猛鹫猎手",
+    "file": "monster-051.png",
+    "element": "Wind",
+    "subject": "large tawny vulture-like hunter bird with hooked beak, broad wings and sharp talons"
+  },
+  {
+    "name": "风险投资伐木工",
+    "file": "monster-052.png",
+    "element": "Earth",
+    "subject": "rough human lumberjack mercenary with dark vest, rolled sleeves and a heavy axe"
+  },
+  {
+    "name": "风怒鹰身人",
+    "file": "monster-053.png",
+    "element": "Wind",
+    "subject": "harpy with dark teal feathers, humanlike face, wing-arms and taloned feet"
+  },
+  {
+    "name": "风巢护卫",
+    "file": "monster-054.png",
+    "element": "Wind",
+    "subject": "armored harpy nest guard with broad green wings, spear and leather chest guard"
+  },
+  {
+    "name": "风怒族母",
+    "file": "monster-055.png",
+    "element": "Wind",
+    "subject": "majestic harpy matriarch boss with sweeping turquoise wings, feather crown and taloned feet"
+  },
+  {
+    "name": "雷角蜥蜴",
+    "file": "monster-056.png",
+    "element": "Wind",
+    "subject": "large blue-gray thunder lizard with horned crest, thick tail and subtle electric sparks"
+  },
+  {
+    "name": "高崖猎风者",
+    "file": "monster-057.png",
+    "element": "Wind",
+    "subject": "agile cliff hunter humanoid with feather cloak, bow and wind-swept hair"
+  },
+  {
+    "name": "金叶幼豹",
+    "file": "monster-058.png",
+    "element": "Light",
+    "subject": "small golden-furred lynx cub with pointed ears, leaf-shaped markings and bright eyes"
+  },
+  {
+    "name": "法力幼龙",
+    "file": "monster-059.png",
+    "element": "Light",
+    "subject": "tiny arcane wyrmling with blue-violet scales, little wings and glowing eyes"
+  },
+  {
+    "name": "狂野树人",
+    "file": "monster-060.png",
+    "element": "Earth",
+    "subject": "walking treant with gnarled bark body, leafy crown and root-like feet"
+  },
+  {
+    "name": "游荡奥术怨灵",
+    "file": "monster-061.png",
+    "element": "Dark",
+    "subject": "floating arcane wraith with tattered indigo robes, glowing violet face and smoky lower body"
+  },
+  {
+    "name": "符文石哨兵",
+    "file": "monster-062.png",
+    "element": "Light",
+    "subject": "compact rune-stone sentinel with carved blocky body and softly glowing gold runes"
+  },
+  {
+    "name": "魔化山猫",
+    "file": "monster-063.png",
+    "element": "Wind",
+    "subject": "feral enchanted lynx with tawny coat, teal magical streaks and long ear tufts"
+  },
+  {
+    "name": "晨曦构装体",
+    "file": "monster-064.png",
+    "element": "Light",
+    "subject": "sunrise construct made of brass and pale stone with glowing gold core and sturdy limbs"
+  },
+  {
+    "name": "失控的晨曦守卫",
+    "file": "monster-065.png",
+    "element": "Light",
+    "subject": "runaway dawn guardian boss in ornate gold-and-stone armor with bright light core and tall shield"
+  },
+  {
+    "name": "法力巨蛇",
+    "file": "monster-066.png",
+    "element": "Light",
+    "subject": "large arcane serpent with blue-violet scales, gold markings and glowing eyes"
+  },
+  {
+    "name": "符文巨像",
+    "file": "monster-067.png",
+    "element": "Light",
+    "subject": "massive runic colossus boss of pale stone with gold glowing glyphs and huge fists"
+  },
+  {
+    "name": "深层矿洞护卫",
+    "file": "monster-068.png",
+    "element": "Earth",
+    "subject": "heavily armored underground kobold guard with iron shield and miner helmet"
+  },
+  {
+    "name": "熔炉看守",
+    "file": "monster-069.png",
+    "element": "Fire",
+    "subject": "blackened forge guardian with ember-red armor seams and heavy tongs-like weapon"
+  },
+  {
+    "name": "黑石祭司",
+    "file": "monster-070.png",
+    "element": "Dark",
+    "subject": "dark-stone priest in soot-black ceremonial robe holding a violet crystal staff"
+  },
+  {
+    "name": "矿脉石卫",
+    "file": "monster-071.png",
+    "element": "Earth",
+    "subject": "living mineral guard formed from dark ore plates, gold vein lines and blocky arms"
+  },
+  {
+    "name": "深岩监工",
+    "file": "monster-072.png",
+    "element": "Earth",
+    "subject": "deep-rock overseer boss with massive iron pickaxe, dark mineral armor and glowing ochre eyes"
+  }
+]

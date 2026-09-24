@@ -11,7 +11,7 @@
 
 <div class="activity-page activity-page--gathering">
     <header class="activity-intro">
-        <div><span>FIELD WORK · ELWYNN FOREST</span><h1>草药采集</h1></div>
+        <div><span>FIELD WORK · SIX REGIONS</span><h1>草药采集</h1></div>
         <p>选择地点查看收益与解锁条件；产物进入当前角色背包。</p>
     </header>
 
@@ -61,8 +61,7 @@
                     <button type="button" class="activity-option @(point.IsRare ? "activity-option--rare" : null) @(!point.IsUnlocked ? "activity-option--locked" : null)"
                             @key="point.Code" @onclick="() => OpenPoint(point.Code)" aria-haspopup="dialog" aria-label="查看 @point.Name 的采集详情">
                         <span class="activity-option__top"><span>@(point.IsRare ? "稀有采集" : point.RegionName)</span><b>@(point.IsUnlocked ? point.IsRare ? $"机会 {point.AvailableOpportunities}" : "已解锁" : "未解锁")</b></span>
-                        <strong>@point.Name</strong>
-                        <span class="activity-option__output">@point.MaterialName × @point.OutputQuantity <small>/ @point.CycleSeconds 秒</small></span>
+                        <span class="activity-option__item"><img src="@ItemArt.ForCode(point.MaterialCode)" alt="" loading="lazy" /><span><strong>@point.Name</strong><span class="activity-option__output">@point.MaterialName × @point.OutputQuantity <small>/ @point.CycleSeconds 秒</small></span></span></span>
                         <span class="activity-option__foot">背包 @point.CharacterQuantity <span aria-hidden="true">详情 ›</span></span>
                     </button>
                 }
@@ -84,7 +83,7 @@
         {
             <div class="activity-dialog-overlay" @onclick="ClosePoint" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
                 <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="gathering-dialog-title" @onclick:stopPropagation>
-                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true">@(selected.IsRare ? "✦" : "♣")</span><div><small>@selected.RegionName · @(selected.IsRare ? "稀有" : "普通")</small><h2 id="gathering-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="ClosePoint" @ref="_dialogCloseButton" aria-label="关闭采集详情">×</button></header>
+                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true"><img src="@ItemArt.ForCode(selected.MaterialCode)" alt="" /></span><div><small>@selected.RegionName · @(selected.IsRare ? "稀有" : "普通")</small><h2 id="gathering-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="ClosePoint" @ref="_dialogCloseButton" aria-label="关闭采集详情">×</button></header>
                     <div class="activity-dialog__body">
                         <p>@(selected.IsRare ? $"单次 {selected.CycleSeconds} 秒，保底获得 {selected.MaterialName} × {selected.OutputQuantity}。" : $"每 {selected.CycleSeconds} 秒获得 {selected.MaterialName} × {selected.OutputQuantity}。")</p>
                         <div class="activity-dialog__stats"><div><span>当前角色背包</span><strong>@selected.CharacterQuantity</strong></div><div><span>解锁进度</span><strong>@selected.UnlockProgress / @selected.UnlockRequired</strong></div>@if (selected.IsRare) { <div><span>剩余机会</span><strong>@selected.AvailableOpportunities 次</strong></div> }</div>

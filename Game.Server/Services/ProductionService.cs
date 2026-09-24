@@ -30,9 +30,10 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         if (recipe is null) return (null, "RecipeNotFound");
         if (character.Level < recipe.MinimumCharacterLevel) return (null, "LevelTooLow");
         if (character.AlchemyLevel < recipe.MinimumAlchemyLevel) return (null, "AlchemyLevelTooLow");
+        var unlockTargets = recipe.AlternativeUnlockTargetCodes.Prepend(recipe.UnlockTargetCode).ToList();
         var progress = await db.CharacterBattleMilestones.AsNoTracking().Where(item =>
             item.CharacterId == character.Id && item.Kind == recipe.UnlockKind &&
-            item.TargetCode == recipe.UnlockTargetCode).Select(item => (int?)item.Count).SingleOrDefaultAsync() ?? 0;
+            unlockTargets.Contains(item.TargetCode)).Select(item => (int?)item.Count).MaxAsync() ?? 0;
         if (progress < recipe.RequiredCount) return (null, "RecipeLocked");
         if (await CharacterActivityManager.IsBusyAsync(db, character.Id)) return (null, "CharacterBusy");
 
@@ -246,8 +247,9 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         var recipes = catalog.Recipes.Select(recipe =>
         {
             var source = world.Dungeons.Single(dungeon => dungeon.Code == recipe.UnlockTargetCode);
-            var count = milestones.FirstOrDefault(item => item.Kind == recipe.UnlockKind &&
-                item.TargetCode == recipe.UnlockTargetCode)?.Count ?? 0;
+            var unlockTargets = recipe.AlternativeUnlockTargetCodes.Prepend(recipe.UnlockTargetCode).ToHashSet();
+            var count = milestones.Where(item => item.Kind == recipe.UnlockKind &&
+                unlockTargets.Contains(item.TargetCode)).Select(item => item.Count).DefaultIfEmpty(0).Max();
             return new ProductionRecipeResponse
             {
                 Code = recipe.Code, Name = recipe.Name,
@@ -258,7 +260,9 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 CycleSeconds = Math.Max(1, recipe.CycleSeconds - cycleReduction),
                 MinimumCharacterLevel = recipe.MinimumCharacterLevel,
                 MinimumAlchemyLevel = recipe.MinimumAlchemyLevel,
-                UnlockDescription = recipe.UnlockKind == BattleMilestoneService.MonsterKillKind
+                UnlockDescription = recipe.AlternativeUnlockTargetCodes.Count > 0
+                    ? $"击败以下任一怪物 {recipe.RequiredCount} 次：{string.Join("、", world.Dungeons.Where(dungeon => unlockTargets.Contains(dungeon.Code)).Select(dungeon => dungeon.MonsterName))}"
+                    : recipe.UnlockKind == BattleMilestoneService.MonsterKillKind
                     ? $"击败 {source.MonsterName} {recipe.RequiredCount} 次"
                     : $"通关 {source.Name} {recipe.RequiredCount} 次",
                 UnlockProgress = Math.Min(count, recipe.RequiredCount),
@@ -275,7 +279,8 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         ProductionTaskResponse Map(ProductionTask task) => new()
         {
             Id = task.Id, RecipeCode = task.RecipeCode,
-            RecipeName = catalog.FindRecipe(task.RecipeCode)?.Name ?? task.RecipeCode,
+            RecipeName = catalog.FindRecipe(task.RecipeCode)?.Name ??
+                consumables.FindItem(task.OutputCode)?.Name ?? task.RecipeCode,
             OutputName = consumables.FindItem(task.OutputCode)?.Name ?? task.OutputCode,
             Status = task.Status, CycleSeconds = task.CycleSeconds,
             StartedAtUtc = task.StartedAtUtc, EndsAtUtc = task.EndsAtUtc,
