@@ -1,22 +1,28 @@
 @using Game.Shared
 @using Game.Client.Services
 @using Game.Shared.Dtos
+@using Game.Shared.Dtos.Characters
 @using Microsoft.AspNetCore.Components.Web
 
 <div class="monster-detail-overlay" @onclick="CloseAsync" @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
-    <section class="monster-detail-dialog @(!ShowDrops && SelectedMonster is { } activeMonster ? $"monster-detail-dialog--{activeMonster.Element.ToString().ToLowerInvariant()}" : "")"
+    <section class="monster-detail-dialog @(!_showDrops && SelectedMonster is { } activeMonster ? $"monster-detail-dialog--{activeMonster.Element.ToString().ToLowerInvariant()}" : "")"
              role="dialog" aria-modal="true" aria-labelledby="monster-detail-title" @onclick:stopPropagation>
         <header class="monster-detail-header">
             <div>
-                <span class="monster-detail-kicker">@Dungeon.Name · @(ShowDrops ? "REWARD PREVIEW" : "ENEMY PROFILE")</span>
-                <h2 id="monster-detail-title">@(ShowDrops ? "掉落预览" : "怪物信息")</h2>
-                <p>@(ShowDrops ? "按怪物查看可能掉落与通关奖励" : $"共 {Dungeon.Monsters.Count} 名敌人 · {Dungeon.WaveCount} 波")</p>
+                <span class="monster-detail-kicker">@Dungeon.RegionName · @Dungeon.Name</span>
+                <h2 id="monster-detail-title">创建战斗</h2>
+                <p>@Dungeon.WaveCount 波 · @Dungeon.MonsterCount 名敌人 · 推荐 Lv.@Dungeon.RecommendedLevel</p>
             </div>
             <button type="button" class="monster-detail-close" @onclick="CloseAsync" @ref="_monsterCloseButton" aria-label="关闭详情">×</button>
         </header>
 
-        <div class="monster-detail-body">
-            @if (ShowDrops)
+        <div class="monster-detail-tabs" role="tablist" aria-label="副本资料">
+            <button type="button" role="tab" aria-selected="@(!_showDrops)" class="@(!_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = false">怪物信息</button>
+            <button type="button" role="tab" aria-selected="@_showDrops" class="@(_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = true">掉落预览</button>
+        </div>
+
+        <div class="monster-detail-body" @key="_showDrops">
+            @if (_showDrops)
             {
                 @foreach (var monster in Dungeon.Monsters.OrderBy(item => item.WaveNumber).ThenBy(item => item.Position))
                 {
@@ -113,13 +119,37 @@
                     <div><span>攻击</span><strong>@monster.Attack</strong></div>
                     <div><span>防御</span><strong>@monster.Defense</strong></div>
                 </div>
-                <p class="monster-weapon-note">掉落物请点击创建栏的“掉落预览”查看。</p>
+                <p class="monster-weapon-note">切换到“掉落预览”可查看每只怪物的掉落及武器属性。</p>
             }
             else
             {
                 <p class="monster-detail-empty">此副本暂无怪物资料。</p>
             }
         </div>
+        <footer class="monster-create-panel" aria-label="创建房间设置">
+            @if (Character is { } character)
+            {
+                <div class="monster-create-character"><span>当前角色</span><strong>@character.Name · @character.ProfessionName · Lv.@character.Level</strong><small>生命 @character.Hp / @character.MaxHp · 攻击 @character.Attack · 本副本经验 @Dungeon.ExperiencePercent%</small></div>
+            }
+            else
+            {
+                <div class="monster-create-character"><strong>请先选择角色</strong></div>
+            }
+            <div class="monster-create-settings">
+                <label><input type="checkbox" @bind="_isRepeatBattle" /><span><strong>自动循环</strong><small>胜利后自动重开</small></span></label>
+                <label><input type="checkbox" @bind="_isPreparationTimeoutEnabled" /><span><strong>准备超时</strong><small>到时自动开战</small></span></label>
+                <label><input type="checkbox" @bind="_isPublic" /><span><strong>开放房间</strong><small>允许其他玩家加入</small></span></label>
+            </div>
+            @if (!Dungeon.CanEnter)
+            {
+                <p class="monster-create-message">@Dungeon.LockReason</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(CreateError))
+            {
+                <p class="monster-create-message" role="alert">@CreateError</p>
+            }
+            <button type="button" class="button button--primary monster-create-button" disabled="@(IsCreating || !Dungeon.CanEnter || Character is null)" @onclick="CreateAsync">@(IsCreating ? "创建中…" : "创建战斗")</button>
+        </footer>
     </section>
 
     @if (_selectedWeapon is { Weapon: { } weapon } selectedDrop)
@@ -134,13 +164,20 @@
 
 @code {
     [Parameter, EditorRequired] public DungeonSummaryResponse Dungeon { get; set; } = null!;
-    [Parameter] public bool ShowDrops { get; set; }
+    [Parameter] public CurrentCharacterResponse? Character { get; set; }
+    [Parameter] public EventCallback<CreateRoomRequest> OnCreate { get; set; }
+    [Parameter] public bool IsCreating { get; set; }
+    [Parameter] public string? CreateError { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private DungeonRewardPreviewResponse? _selectedWeapon;
     private ElementReference _monsterCloseButton;
     private bool _focusMonster = true;
     private int _selectedMonsterIndex;
+    private bool _showDrops;
+    private bool _isRepeatBattle = true;
+    private bool _isPreparationTimeoutEnabled = true;
+    private bool _isPublic;
     private MonsterPreviewResponse? SelectedMonster => Dungeon.Monsters.ElementAtOrDefault(_selectedMonsterIndex);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -153,6 +190,13 @@
     }
 
     private void SelectMonster(int index) => _selectedMonsterIndex = index;
+    private Task CreateAsync() => OnCreate.InvokeAsync(new CreateRoomRequest
+    {
+        DungeonId = Dungeon.DungeonId,
+        IsRepeatBattle = _isRepeatBattle,
+        IsPreparationTimeoutEnabled = _isPreparationTimeoutEnabled,
+        IsPublic = _isPublic
+    });
     private void OpenWeapon(DungeonRewardPreviewResponse drop) { _selectedWeapon = drop; }
     private void CloseWeapon() { _selectedWeapon = null; _focusMonster = true; }
 

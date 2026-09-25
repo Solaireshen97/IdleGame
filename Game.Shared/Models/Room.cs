@@ -16,6 +16,7 @@ public class Room
     public DateTime? BattleEndedAtUtc { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; } = true;
     public bool IsRepeatBattle { get; set; }
+    public bool IsPublic { get; set; }
     public DateTime? StartedAtUtc { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }

@@ -238,7 +238,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var effects = await dbContext.BattleStatusEffects.Where(effect =>
             effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
         effects.RemoveAll(effect => dbContext.Entry(effect).State == EntityState.Deleted);
-        foreach (var effect in effects.Where(effect => effect.AppliedRound < room.RoundNumber))
+        foreach (var effect in effects.Where(effect => effect.AppliedRound < room.RoundNumber &&
+                     effect.ExpiresAfterRound >= room.RoundNumber))
         {
             var definition = catalog.FindStatus(effect.EffectCode);
             if (definition?.EffectType != "DamageOverTime") continue;
@@ -328,6 +329,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         effect ??= await dbContext.BattleStatusEffects.SingleOrDefaultAsync(entry => entry.RoomId == room.Id &&
             entry.RunSequence == room.RunSequence && entry.TargetType == targetType && entry.TargetId == targetId &&
             entry.EffectCode == definition.Code);
+        var wasActive = effect is not null && dbContext.Entry(effect).State != EntityState.Deleted &&
+            effect.ExpiresAfterRound >= room.RoundNumber;
         if (effect is not null && dbContext.Entry(effect).State == EntityState.Deleted)
             dbContext.Entry(effect).State = EntityState.Modified;
         if (effect is null)
@@ -341,8 +344,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         }
         else
         {
-            if (definition.Stacking == "AddStack") effect.Stacks = Math.Min(definition.MaxStacks, effect.Stacks + 1);
-            effect.AppliedRound = room.RoundNumber;
+            if (!wasActive) effect.Stacks = 1;
+            else if (definition.Stacking == "AddStack") effect.Stacks = Math.Min(definition.MaxStacks, effect.Stacks + 1);
+            // Only a new exposure gets the first-round grace period. Refreshing an
+            // existing poison/burn must not suppress its already-due damage tick.
+            if (!wasActive || definition.EffectType != "DamageOverTime")
+                effect.AppliedRound = room.RoundNumber;
         }
         effect.ExpiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
         logs.Add($"{targetLabel} 获得 {definition.Name}，持续 {application.DurationRounds} 回合{(effect.Stacks > 1 ? $"（{effect.Stacks} 层）" : "")}。");
@@ -375,20 +382,21 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var attackPercent = await GetModifierAsync(room, "Monster", monster.Id, "AttackPercent");
         var targetReduction = await GetModifierAsync(room, "Character", target.Character.Id, "ReductionPercent");
         if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase)) targetReduction += 10;
-        var guard = defense.TargetCharacterId == target.Character.Id ? defense.ReductionPercent : 0;
+        var guard = defense.ForCharacter(target.Character.Id);
         var potion = operationBonuses?.GetValueOrDefault(target.Character.Id) ?? default;
         var element = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
         var scaledAttack = Math.Max(1, (int)decimal.Floor(monster.Attack * powerPercent / 100m));
         var damage = DamageCalculator.Calculate(scaledAttack, 0,
             factors: new DamageFactors(AttackPercent: attackPercent,
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
-                ReductionPercent: guard + targetReduction + (isAreaAttack ? potion.AreaDamageReductionPercent : 0) -
-                    potion.DamageTakenPercent));
+                ReductionPercent: Math.Min(BattleRules.MaxTotalDamageReductionPercent,
+                    guard.ReductionPercent + targetReduction + (isAreaAttack ? potion.AreaDamageReductionPercent : 0) -
+                    potion.DamageTakenPercent)));
         target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
         logs.Add(skillName is null
             ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
             : $"{monster.Name} 使用 {skillName} 攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
-        if (monster.Hp > 0 && guard > 0 && defense.SourceCharacterId == target.Character.Id)
+        if (monster.Hp > 0 && guard.ReductionPercent > 0 && guard.SourceCharacterId == target.Character.Id)
         {
             if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase))
             {
@@ -437,5 +445,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 }
 
 public sealed record MonsterCombatParticipant(RoomSlot Slot, Character Character);
-public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId, int? SourceCharacterId = null);
+public readonly record struct CharacterRoundDefense(int ReductionPercent, int? SourceCharacterId = null);
+public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId, int? SourceCharacterId = null,
+    IReadOnlyDictionary<int, CharacterRoundDefense>? GuardsByCharacter = null)
+{
+    public CharacterRoundDefense ForCharacter(int characterId) => GuardsByCharacter is not null
+        ? GuardsByCharacter.GetValueOrDefault(characterId)
+        : TargetCharacterId == characterId ? new CharacterRoundDefense(ReductionPercent, SourceCharacterId) : default;
+}
 public sealed record RemovedBattleStatus(int TargetId, string Code, string Name, bool IsPositive);

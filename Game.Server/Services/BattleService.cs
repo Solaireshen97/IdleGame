@@ -549,7 +549,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
                     var damage = DamageCalculator.Calculate(monster.Attack, 0,
                         factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
-                            ReductionPercent: roundDefense.ReductionPercent -
+                            ReductionPercent: roundDefense.ForCharacter(target.Character.Id).ReductionPercent -
                                 operationBonuses.GetValueOrDefault(target.Character.Id).DamageTakenPercent));
                     target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                     logs.Add($"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
@@ -623,7 +623,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 entry.SkillCode == cooldownCode);
             var readyAtRound = cooldown?.ReadyAtRound ?? definition.InitialCooldownRounds;
             if (readyAtRound > room.RoundNumber ||
-                !await CanSoulImprintApplyAsync(room, monster, definition, participant, aliveSlots)) continue;
+                !await CanSoulImprintApplyAsync(room, monster, definition, participant, aliveSlots) ||
+                automatic && !await MeetsSoulImprintAutoConditionAsync(room, monster, definition, participant, aliveSlots)) continue;
 
             async Task<int> DealSoulDamageAsync()
             {
@@ -659,7 +660,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 case SoulImprintEffectType.DamageArmorBreak:
                     await DealSoulDamageAsync();
                     if (monster.Hp > 0 && monsterCombatService is not null)
-                        await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "armor-break",
+                        await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, definition.StatusCode!,
                             definition.DurationRounds, logs, monster.Name);
                     break;
                 case SoulImprintEffectType.DamageEcho:
@@ -704,17 +705,21 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         }
                         if (monsterCombatService is not null)
                         {
-                            var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character",
-                                [target.Character.Id], false);
-                            if (removed is not null)
+                            for (var count = 0; count < definition.SecondaryPowerPercent; count++)
+                            {
+                                var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character",
+                                    [target.Character.Id], false);
+                                if (removed is null) break;
                                 logs.Add($"魂印「{definition.Name}」移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {removed.Name}。");
+                            }
                         }
                     }
                     break;
                 case SoulImprintEffectType.GuardCounter:
                     if (monsterCombatService is not null)
                         await monsterCombatService.ApplyStatusAsync(room, "Character", participant.Character.Id,
-                            "soul-frost-guard", 0, logs, $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
+                            definition.StatusCode!, definition.DurationRounds, logs,
+                            $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
                     await DealSoulDamageAsync();
                     break;
             }
@@ -751,6 +756,32 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         };
     }
 
+    private async Task<bool> MeetsSoulImprintAutoConditionAsync(Room room, Monster monster,
+        SoulImprintDefinitionOptions definition, SlotCharacter participant,
+        IReadOnlyCollection<SlotCharacter> aliveSlots)
+    {
+        switch (definition.EffectType)
+        {
+            case SoulImprintEffectType.HealCleanse:
+                if (monsterCombatService is not null &&
+                    await monsterCombatService.HasRemovableStatusAsync(room, "Character",
+                        aliveSlots.Select(entry => entry.Character.Id).ToList(), false))
+                    return true;
+                return aliveSlots.Any(entry => entry.Character.Hp > 0 &&
+                    (long)entry.Character.Hp * 100 <=
+                    (long)TalentRules.EffectiveMaxHp(entry.Character) * definition.AutoHpThresholdPercent);
+            case SoulImprintEffectType.GuardCounter:
+            {
+                if (monsterCombatService is null) return false;
+                var intent = await monsterCombatService.EnsureIntentAsync(room, monster);
+                return intent is { IsInterrupted: false } &&
+                    (intent.TargetType == "AllAlive" || intent.TargetCharacterId == participant.Character.Id);
+            }
+            default:
+                return true;
+        }
+    }
+
     private async Task<PlayerRoundDefense> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
         IReadOnlyDictionary<int, ElementType> mainWeaponElements,
         IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
@@ -767,9 +798,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             .GroupBy(node => node.CharacterId)
             .ToDictionary(group => group.Key,
                 group => group.ToDictionary(node => node.NodeCode, node => node.PointsSpent, StringComparer.OrdinalIgnoreCase));
-        var guardPercent = 0;
-        int? guardTargetCharacterId = null;
-        int? guardSourceCharacterId = null;
+        var guardsByCharacter = new Dictionary<int, CharacterRoundDefense>();
         var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
@@ -893,12 +922,13 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         var target = effect.Target == "Self" || skill.Code == "sword-parry"
                             ? participant
                             : aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
-                        if (target is null || guardPercent >= BattleRules.MaxGuardDamageReductionPercent) break;
-                        if (automatic && guardPercent > 0 && guardTargetCharacterId == target.Character.Id) break;
+                        if (target is null) break;
                         var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
-                        guardPercent = Math.Min(BattleRules.MaxGuardDamageReductionPercent, guardPercent + power);
-                        guardTargetCharacterId = target.Character.Id;
-                        guardSourceCharacterId = participant.Character.Id;
+                        power = Math.Min(BattleRules.MaxGuardDamageReductionPercent, power);
+                        // Each ally owns its protection; same-target guards replace only weaker protection.
+                        // This keeps self-defence from moving the front line's guard to a different ally.
+                        if (guardsByCharacter.GetValueOrDefault(target.Character.Id).ReductionPercent >= power) break;
+                        guardsByCharacter[target.Character.Id] = new CharacterRoundDefense(power, participant.Character.Id);
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {target.Slot.SlotIndex}号位 {target.Character.Name}。");
                         applied = true;
                         break;
@@ -1052,7 +1082,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             }
             if (monster.Hp <= 0) break;
         }
-        return new PlayerRoundDefense(guardPercent, guardTargetCharacterId, guardSourceCharacterId);
+        return new PlayerRoundDefense(0, null, GuardsByCharacter: guardsByCharacter);
     }
 
     private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CombatSkillOptions skill,

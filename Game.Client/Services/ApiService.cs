@@ -303,10 +303,10 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(int dungeonId, bool isRepeatBattle, bool isPreparationTimeoutEnabled)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(CreateRoomRequest options)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
-        request.Content = JsonContent.Create(new CreateRoomRequest { DungeonId = dungeonId, IsRepeatBattle = isRepeatBattle, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled });
+        request.Content = JsonContent.Create(options);
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {

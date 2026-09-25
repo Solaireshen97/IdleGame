@@ -10,3 +10,6 @@
     .weapons-page { padding-top: .5rem; }
     .weapons-page__intro { display: none; }
 }
+
+.weapons-page { padding: 0; }
+.weapons-page__intro { display: none; }

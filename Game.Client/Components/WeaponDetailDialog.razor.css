@@ -6,7 +6,7 @@
 .weapon-detail-dialog--light { --weapon-tone: #f3df9d; }
 .weapon-detail-dialog--dark { --weapon-tone: #c4a5eb; }
 .weapon-detail-header { display: flex; align-items: center; gap: .75rem; padding: .9rem 1rem; border-bottom: 1px solid #41596c; }
-.weapon-detail-crest { display: grid; width: 52px; height: 52px; flex: 0 0 52px; place-items: center; border: 1px solid var(--weapon-tone); border-radius: .65rem; background: rgba(7, 19, 30, .72); color: var(--weapon-tone); font: 800 1.8rem Georgia, serif; }
+.weapon-detail-crest { display: grid; width: 64px; height: 64px; flex: 0 0 64px; place-items: center; border: 1px solid var(--weapon-tone); border-radius: .65rem; background: rgba(7, 19, 30, .72); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--weapon-tone) 20%, transparent), transparent 70%), rgba(7, 19, 30, .72); color: var(--weapon-tone); font: 800 1.8rem Georgia, serif; }
 .weapon-detail-crest img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .weapon-detail-heading { min-width: 0; flex: 1; }
 .weapon-detail-kicker { color: var(--weapon-tone); font-size: .64rem; font-weight: 850; letter-spacing: .08em; }
@@ -29,6 +29,28 @@
 .weapon-detail-note { margin: 0; }
 .weapon-detail-footer { display: grid; gap: .55rem; padding: .65rem 1rem max(.65rem, env(safe-area-inset-bottom)); border-top: 1px solid #41596c; }
 .weapon-detail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+.weapon-detail-actions .weapon-detail-action--primary,
+.weapon-detail-actions .weapon-detail-action--danger,
+.weapon-detail-actions .weapon-detail-action--wide { grid-column: 1 / -1; }
+.weapon-detail-actions .weapon-detail-action--compact { grid-column: auto; }
 .weapon-detail-back { min-height: 44px; border: 1px solid #60798a; border-radius: .55rem; background: #1b3447; color: #e8eef2; font-weight: 750; cursor: pointer; }
 .weapon-detail-back:hover, .weapon-detail-back:focus-visible { border-color: var(--weapon-tone); color: var(--weapon-tone); }
 @media (max-width: 600px) { .weapon-detail-overlay { align-items: end; padding: .35rem .35rem 0; } .weapon-detail-dialog { width: 100%; max-height: 88dvh; border-radius: .9rem .9rem 0 0; } .weapon-detail-header { padding: .75rem; } .weapon-detail-body { padding: .75rem; } .weapon-detail-footer { padding-inline: .75rem; } }
+
+.weapon-detail-tabs { flex: 0 0 auto; display: flex; gap: .35rem; padding: .5rem .75rem; border-bottom: 1px solid #41596c; }
+.weapon-detail-tabs button { flex: 1; min-height: 40px; border: 1px solid #4b6377; border-radius: .5rem; background: #102537; color: #adc4d1; font-size: .75rem; font-weight: 700; }
+.weapon-detail-tabs button.active { border-color: #c6a668; background: #b6965426; color: #f3d494; }
+.weapon-detail-dialog--managed .weapon-detail-header { padding: .65rem .75rem; }
+.weapon-detail-dialog--managed .weapon-detail-crest { width: 48px; height: 48px; flex-basis: 48px; }
+.weapon-detail-dialog--managed .weapon-detail-body { gap: .6rem; padding: .7rem .75rem; }
+.weapon-detail-dialog--managed .weapon-detail-footer { flex: 0 0 auto; gap: .4rem; padding: .6rem .75rem max(.6rem, env(safe-area-inset-bottom)); }
+.weapon-detail-dialog--managed .weapon-detail-actions { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.weapon-detail-dialog--managed .weapon-detail-actions ::deep .weapon-detail-action { grid-column: span 2; }
+.weapon-detail-dialog--managed .weapon-detail-actions ::deep .weapon-detail-action--primary { grid-column: 1 / -1; }
+.weapon-detail-dialog--managed .weapon-detail-actions ::deep .weapon-detail-action--compact { grid-column: span 3; }
+.weapon-detail-dialog--managed .weapon-detail-actions ::deep .weapon-detail-action--wide { grid-column: 1 / -1; }
+.weapon-detail-action-summary { font-size: .72rem; }
+.weapon-detail-action-summary ::deep .weapon-board__error,
+.weapon-detail-action-summary ::deep .weapon-board__success { margin: 0; font-size: .7rem; }
+.weapon-detail-action-summary:empty { display: none; }
+.weapon-detail-dialog--managed .weapon-detail-additional { display: grid; gap: .65rem; }

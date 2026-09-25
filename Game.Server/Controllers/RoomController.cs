@@ -30,7 +30,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false, request?.IsPreparationTimeoutEnabled ?? true);
+        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false, request?.IsPreparationTimeoutEnabled ?? true, request?.IsPublic ?? false);
         if (roomDetail is null || error is not null)
         {
             return error switch
@@ -148,7 +148,7 @@ public class RoomController(RoomService roomService, BattleService battleService
         "Unauthorized" => Unauthorized(),
         "NotFound" => NotFound(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
-        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "AutoConfigurationDenied" or "AutoNotUnlocked" or "CharacterLevelTooLow" => StatusCode(StatusCodes.Status403Forbidden, error),
+        "NotOwner" or "NotCharacterOwner" or "NotRoomParticipant" or "RoomPrivate" or "AutoConfigurationDenied" or "AutoNotUnlocked" or "CharacterLevelTooLow" => StatusCode(StatusCodes.Status403Forbidden, error),
         "RoomCooldown" or "RoomLocked" or "BattleOver" or "RoomClosed" or "CharacterAlreadyInRoom" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };

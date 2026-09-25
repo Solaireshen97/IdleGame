@@ -20,7 +20,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
     {
         var (currentUser, userError) = await userService.GetCurrentUserEntityAsync(token);
         var currentUserId = userError is null ? currentUser!.Id : (int?)null;
-        var rooms = await dbContext.Rooms.Where(room => room.ClosedAtUtc == null ||
+        var rooms = await dbContext.Rooms.Where(room => room.ClosedAtUtc == null && room.IsPublic ||
             currentUserId.HasValue && (room.OwnerUserId == currentUserId.Value ||
                 dbContext.RoomSlots.Any(slot => slot.RoomId == room.Id && slot.UserId == currentUserId.Value))).ToListAsync();
         var result = new List<RoomSummaryResponse>();
@@ -37,7 +37,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null) return null;
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
-        if (room.ClosedAtUtc.HasValue && (error is not null ||
+        if ((room.ClosedAtUtc.HasValue || !room.IsPublic) && (error is not null ||
             room.OwnerUserId != user!.Id && !await dbContext.RoomSlots.AnyAsync(slot => slot.RoomId == roomId && slot.UserId == user.Id)))
             return null;
         return await BuildRoomDetailAsync(room, error is null ? user!.Id : null);
@@ -91,7 +91,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
     public Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token) =>
         CreateRoomAsync(null, monsterType, token);
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false, bool isPreparationTimeoutEnabled = true)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false, bool isPreparationTimeoutEnabled = true, bool isPublic = false)
     {
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
@@ -111,7 +111,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var room = new Room
         {
             DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount,
-            Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle,
+            Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle, IsPublic = isPublic,
             IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled,
             PreparationStartedAtUtc = isPreparationTimeoutEnabled ? now : null,
             StartedAtUtc = now, ExpiresAtUtc = isRepeatBattle ? now.Add(MaximumActivityDuration) : null,
@@ -154,6 +154,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (room.ClosedAtUtc.HasValue) return (null, "RoomClosed");
+        if (!room.IsPublic && room.OwnerUserId != user!.Id) return (null, "RoomPrivate");
         if (room.IsRepeatBattle && room.ExpiresAtUtc <= DateTime.UtcNow)
         {
             if (room.Status == RoomStatus.NotStarted && room.RoundNumber == 0)
@@ -506,7 +507,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, RunSequence = room.RunSequence, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
-            IsRepeatBattle = room.IsRepeatBattle, StartedAtUtc = room.StartedAtUtc,
+            IsRepeatBattle = room.IsRepeatBattle, IsPublic = room.IsPublic, StartedAtUtc = room.StartedAtUtc,
             ExpiresAtUtc = room.ExpiresAtUtc, ClosedAtUtc = room.ClosedAtUtc,
             NextBattleStartAtUtc = room.ClosedAtUtc is null && room.IsRepeatBattle && room.Status == RoomStatus.BattleOver && monster.Hp <= 0 ? room.BattleEndedAtUtc?.AddSeconds(BattleRules.RepeatBattleDelaySeconds) : null,
             NextWaveStartAtUtc = room.Status == RoomStatus.WaveTransition ? room.NextRoundAvailableAtUtc : null,
@@ -714,7 +715,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             RegionCode = dungeon?.RegionCode ?? "", RegionName = dungeon?.RegionName ?? "", DungeonName = dungeon?.Name ?? "",
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
-            RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle,
+            RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle, IsPublic = room.IsPublic,
             ExpiresAtUtc = room.ExpiresAtUtc, ClosedAtUtc = room.ClosedAtUtc,
             IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled,
             IsCurrentUserParticipant = isCurrentUserParticipant,

@@ -2,6 +2,25 @@
     const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     window.battleUi = {
+        trapDialogFocus(dialog) {
+            if (!(dialog instanceof HTMLElement) || dialog.dataset.focusTrap) return;
+            dialog.dataset.focusTrap = "true";
+            dialog.addEventListener("keydown", event => {
+                if (event.key !== "Tab") return;
+                const controls = [...dialog.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')]
+                    .filter(element => !element.disabled && element.getClientRects().length > 0);
+                const first = controls[0];
+                const last = controls.at(-1);
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last?.focus({ preventScroll: true });
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first?.focus({ preventScroll: true });
+                }
+            });
+        },
+
         scrollBelowSticky(target, stickyPanel) {
             if (!(target instanceof HTMLElement)) return;
 
@@ -54,6 +73,9 @@
 
         revealQuickActionsOnShortViewport(target) {
             if (!(target instanceof HTMLElement)) return;
+            // The focused workspace fits its controls beside the field. Do not scroll
+            // away from enemy intent when changing characters or opening supplies.
+            if (target.closest(".battle-page--focused")) return;
 
             const alignCommandAboveDock = (behavior = "auto") => {
                 if (window.innerWidth > 900) return;

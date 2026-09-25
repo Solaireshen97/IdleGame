@@ -175,8 +175,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (rank >= node.MaxRank) return (null, "SkillTalentMaxRank");
         if (character.Level < node.RequiredLevel + rank) return (null, "SkillTalentLevelRequired");
         if (treePointsSpent < node.RequiredTreePoints) return (null, "SkillTalentTreePointsRequired");
-        if (node.Prerequisites.Any(code => catalog.FindTalentNode(code) is not { } parent ||
-                purchasedNodes.GetValueOrDefault(code) < parent.MaxRank))
+        if (!catalog.ArePrerequisitesMet(node, purchasedNodes))
             return (null, "SkillTalentPrerequisiteRequired");
         if (node.ExclusiveGroup is not null && catalog.TalentNodesForProfession(character.ProfessionCode)
             .Any(other => !string.Equals(other.Code, node.Code, StringComparison.OrdinalIgnoreCase) &&
@@ -349,8 +348,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             {
                 var skill = catalog.FindSkill(node.SkillCode);
                 var rank = purchasedNodes.GetValueOrDefault(node.Code);
-                var prerequisitesMet = node.Prerequisites.All(code => catalog.FindTalentNode(code) is { } parent &&
-                    purchasedNodes.GetValueOrDefault(code) >= parent.MaxRank);
+                var prerequisitesMet = catalog.ArePrerequisitesMet(node, purchasedNodes);
                 var branchOpen = node.ExclusiveGroup is null || !talentNodes.Any(other =>
                     !string.Equals(other.Code, node.Code, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(other.ExclusiveGroup, node.ExclusiveGroup, StringComparison.OrdinalIgnoreCase) &&
@@ -376,6 +374,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                     EffectCode = node.EffectCode,
                     ValuePerRank = node.ValuePerRank,
                     Prerequisites = [.. node.Prerequisites],
+                    AnyPrerequisites = [.. node.AnyPrerequisites],
                     IsUnlocked = unlocked,
                     IsMaxRank = rank >= node.MaxRank,
                     ArePrerequisitesMet = prerequisitesMet,

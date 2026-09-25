@@ -8,7 +8,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 
-<div class="page @(IsBattlePage ? "page--battle" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsAuthPage ? "page--auth" : null)">
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsWeaponsPage ? "page--weapons" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsAuthPage ? "page--auth" : null)">
     @if (!IsAuthPage)
     {
         <NavMenu />
@@ -100,6 +100,7 @@
     private ElementReference _switchCloseButton;
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
+    private bool IsWeaponsPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("weapons", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
     private bool IsSuppliesPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("supplies", StringComparison.OrdinalIgnoreCase);
     private bool IsAuthPage

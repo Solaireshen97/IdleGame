@@ -327,7 +327,7 @@ public class ShopServiceTests
             {
                 Code = "deep-core", Name = "深岩震核", Description = "测试魂印。",
                 DungeonCode = "kobold-mine", Tier = 1, Element = ElementType.Earth,
-                EffectType = SoulImprintEffectType.DamageArmorBreak, PowerPercent = 180,
+                EffectType = SoulImprintEffectType.DamageArmorBreak, StatusCode = "armor-break", PowerPercent = 180,
                 SecondaryPowerPercent = 20, DurationRounds = 3, InitialCooldownRounds = 3,
                 CooldownRounds = 8, DismantleFragments = 25
             }]

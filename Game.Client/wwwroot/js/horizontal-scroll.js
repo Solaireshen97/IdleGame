@@ -24,34 +24,7 @@
         if (next) next.disabled = !hasOverflow || viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
     };
 
-    const updateDungeonRows = viewport => {
-        const layout = getComputedStyle(viewport);
-        if (layout.display !== "grid" || layout.overflowX !== "hidden") {
-            viewport.style.removeProperty("--dungeon-grid-max-height");
-            delete viewport.dataset.visibleRows;
-            return;
-        }
-
-        const command = viewport.closest(".dungeon-launcher")?.querySelector(".dungeon-launcher__command");
-        if (!command) return;
-
-        const rowHeight = parseFloat(layout.gridAutoRows) || 104;
-        const gap = parseFloat(layout.rowGap) || 0;
-        const padding = (parseFloat(layout.paddingTop) || 0) + (parseFloat(layout.paddingBottom) || 0);
-        const available = command.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 10;
-        const fittingRows = Math.floor((available - padding + gap) / (rowHeight + gap));
-        const contentRows = Math.max(1, Math.ceil(viewport.children.length / 3));
-        const rows = Math.max(1, Math.min(3, contentRows, fittingRows));
-        const height = Math.ceil(rows * rowHeight + (rows - 1) * gap + padding);
-        const nextHeight = `${height}px`;
-        if (viewport.style.getPropertyValue("--dungeon-grid-max-height") !== nextHeight) {
-            viewport.style.setProperty("--dungeon-grid-max-height", nextHeight);
-        }
-        viewport.dataset.visibleRows = String(rows);
-    };
-
     const updateAll = () => {
-        document.querySelectorAll("[data-adaptive-dungeon-grid]").forEach(updateDungeonRows);
         document.querySelectorAll(viewportSelector).forEach(updateRail);
     };
     let updateScheduled = false;
@@ -157,11 +130,8 @@
         const containsNewRail = records.some(record => [...record.addedNodes].some(node =>
             node.nodeType === Node.ELEMENT_NODE
             && (node.matches?.(viewportSelector) || node.querySelector?.(viewportSelector))));
-        const changedDungeon = records.some(record =>
-            record.target instanceof Element && record.target.closest(".dungeon-launcher"));
-        if (containsNewRail || changedDungeon) scheduleUpdate();
+        if (containsNewRail) scheduleUpdate();
     }).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("resize", scheduleUpdate);
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
     updateAll();
 })();

@@ -3086,3 +3086,189 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 
     .battle-command .battle-countdown { grid-row: 3; }
 }
+
+/* Focused battle workspace: field, loadout and turn controls share the first view. */
+.battle-page--focused {
+    display: grid;
+    grid-template-rows: minmax(210px, 1fr) auto;
+    gap: .5rem;
+    min-height: min(720px, calc(100svh - 10rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    padding: 0;
+}
+.battle-page--focused .battle-page__header { display: none; }
+.battle-page--focused .battle-stage { display: flex; flex-direction: column; border-radius: .85rem; }
+.battle-page--focused .battle-stage__header { flex: 0 0 auto; padding: .65rem .75rem .45rem; }
+.battle-page--focused .battle-stage__header h1 { font-family: inherit; font-size: 1.05rem; letter-spacing: .02em; }
+.battle-page--focused .battle-stage__meta .battle-status { display: inline-flex; }
+.battle-page--focused .battle-mode, .battle-page--focused .battle-status { font-size: .65rem; padding: .23rem .42rem; }
+.battle-page--focused .monster-intent { flex: 0 0 auto; margin: 0 .65rem; width: calc(100% - 1.3rem); padding: .4rem .5rem; min-height: 40px; gap: .4rem; }
+.battle-page--focused .monster-intent__body { display: grid; gap: .1rem; }
+.battle-page--focused .monster-intent__body > strong { font-size: .76rem; line-height: 1.2; }
+.battle-page--focused .monster-intent__body > small { font-size: .625rem; }
+.battle-page--focused .monster-intent__target { max-width: 110px; }
+.battle-page--focused .battle-field {
+    --unit-height: clamp(76px, 17svh, 160px);
+    flex: 1 0 auto;
+    align-content: center;
+    align-items: end;
+    padding: .4rem .65rem .6rem;
+}
+.battle-page--focused .battle-field--crowded { grid-template-columns: minmax(0, 2fr) minmax(80px, 1fr); }
+.battle-page--focused .fighter { max-width: 110px; }
+.battle-page--focused .fighter__portrait, .battle-page--focused .battle-field__enemy-art { height: var(--unit-height); min-height: 0; }
+.battle-page--focused .fighter__portrait img, .battle-page--focused .battle-field__enemy-art img { height: 100%; max-height: none; }
+.battle-page--focused .fighter__vitals strong, .battle-page--focused .enemy-vitals__name strong { font-size: .7rem; }
+.battle-page--focused .fighter__level { display: none; }
+.battle-page--focused .battle-field__label { min-height: 20px; }
+.battle-page--focused .battle-feed {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: .45rem;
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: .45rem .75rem;
+    border: 0;
+    border-top: 1px solid rgba(122, 161, 184, .2);
+    border-radius: 0;
+    background: rgba(5, 17, 27, .42);
+}
+.battle-page--focused .battle-feed__live { display: inline; font-size: .64rem; letter-spacing: .02em; }
+.battle-page--focused .battle-feed__latest { font-size: .66rem; }
+.battle-page--focused .battle-stage__footer { display: none; }
+.battle-page--focused .battle-command {
+    position: relative;
+    inset: auto;
+    z-index: 5;
+    grid-template-columns: minmax(105px, 1fr) minmax(0, 1.55fr);
+    gap: .45rem;
+    margin: 0;
+    padding: .65rem;
+    border-color: #4d6679;
+    background: linear-gradient(145deg, #1b3042, #0f202e 80%);
+    box-shadow: 0 10px 28px #0004;
+    backdrop-filter: none;
+}
+.battle-page--focused .battle-command::before { inset: 0 0 auto; width: auto; height: 2px; background: linear-gradient(90deg, #e6b970, #e6b97022); }
+.battle-page--focused .battle-mobile-quick-actions {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .4rem .5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+}
+.battle-page--focused .battle-mobile-quick-actions__heading { grid-column: 1; grid-row: 1; min-height: 40px; gap: .3rem; }
+.battle-page--focused .battle-mobile-quick-actions__heading > div:first-child { gap: .18rem; }
+.battle-page--focused .battle-mobile-quick-actions__heading strong { font-size: .8rem; }
+.battle-action-profession { color: #b2c2ce; font-size: .68rem; font-weight: 500; }
+.battle-page--focused .battle-mobile-quick-actions__heading .battle-action-health { display: block; color: #94baa9; font-size: .62rem; }
+.battle-page--focused .battle-mobile-quick-actions--down .battle-action-health { color: #ef9d93; }
+.battle-page--focused .battle-mobile-quick-actions__tools { display: flex; min-width: 0; }
+.battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle { min-height: 40px; padding: .25rem .35rem; gap: .25rem; border-color: transparent; background: transparent; }
+.battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle strong { font-size: .6rem; }
+.battle-loadout-switch { display: flex; align-self: center; gap: .15rem; padding: .18rem; border: 1px solid #435a6c; border-radius: .6rem; background: #091b28; }
+.battle-loadout-switch button { min-width: 48px; min-height: 36px; padding: .2rem .4rem; border: 0; border-radius: .4rem; background: transparent; color: #9aafbf; font-size: .7rem; font-weight: 700; }
+.battle-loadout-switch button.active { color: #f4d69e; background: #b58a422b; box-shadow: inset 0 0 0 1px #d9ad6044; }
+.battle-loadout-switch button:focus-visible { outline: 2px solid #e8bd72; outline-offset: -2px; }
+.battle-page--focused .battle-mobile-quick-actions__characters { grid-column: 1 / -1; gap: .3rem; padding: 0; }
+.battle-page--focused .battle-mobile-quick-actions--solo .battle-mobile-quick-actions__characters { display: none; }
+.battle-page--focused .battle-mobile-character-tab { flex: 1 0 0; min-width: 0; min-height: 40px; padding: .2rem .3rem; }
+.battle-page--focused .battle-mobile-skill-rail { grid-column: 1 / -1; display: flex; gap: .4rem; padding: 2px; overflow: visible; }
+.battle-page--focused .battle-mobile-skill { flex: 1 1 0; width: auto; min-width: 0; min-height: 94px; padding: .35rem .12rem; border-radius: .65rem; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__icon { width: 46px; height: 46px; flex-basis: 46px; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__name { margin-top: .3rem; font-size: .7rem; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__status { display: block; margin-top: .12rem; font-size: .56rem; color: #a8bdc8; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__auto { top: .3rem; right: .2rem; font-size: .45rem; }
+.battle-page--focused .battle-mobile-skill--soul { flex-direction: column; gap: .25rem; }
+.battle-page--focused .battle-mobile-skill__icon { width: 46px; height: 46px; font-size: 1.4rem; }
+.battle-page--focused .battle-mobile-skill--soul strong { font-size: .7rem; }
+.battle-page--focused .battle-mobile-skill--soul small { font-size: .56rem; }
+.battle-page--focused .battle-mobile-supply-rail { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; min-height: 98px; padding: 2px; overflow: visible; }
+.battle-page--focused .battle-mobile-supply { min-width: 0; min-height: 46px; width: auto; padding: .3rem .4rem; }
+.battle-page--focused .battle-mobile-supply strong { font-size: .68rem; }
+.battle-page--focused .battle-mobile-supply small { font-size: .56rem; }
+.battle-page--focused .battle-mobile-quick-actions__hint { display: flex; grid-column: 1 / -1; min-height: 16px; font-size: .6rem; }
+.battle-page--focused .battle-mobile-quick-actions__hint > span { white-space: normal; }
+.battle-page--focused .battle-command .battle-countdown { display: block; grid-column: 1 / -1; grid-row: 2; padding: .25rem 0 0; border-top: 1px solid #66839833; }
+.battle-page--focused .battle-countdown__heading { margin-bottom: .2rem; font-size: .67rem; }
+.battle-page--focused .battle-countdown__heading strong { font-size: .8rem; font-variant-numeric: tabular-nums; }
+.battle-page--focused .battle-countdown__track { height: 3px; }
+.battle-page--focused .battle-command__shortcuts { grid-column: 1; grid-row: 3; display: flex; gap: .3rem; }
+.battle-page--focused .battle-command__shortcuts .battle-shortcut { flex: 1 1 auto; width: auto; min-height: 44px; gap: .25rem; padding: .25rem .35rem; font-size: .66rem; border-color: #40586b; }
+.battle-page--focused .battle-shortcut__count { display: inline; color: #a4b7c6; font-size: .6rem; }
+.battle-page--focused .battle-command__action { grid-column: 2; grid-row: 3; display: flex; flex-direction: row; gap: .35rem; align-items: stretch; }
+.battle-page--focused .battle-command__action .battle-auto { flex: 0 0 46px; width: 46px; min-width: 46px; min-height: 44px; padding: .2rem; border: 1px solid #456050; border-radius: .5rem; background: #253e3229; }
+.battle-page--focused .battle-command__action .battle-auto--locked { display: none; }
+.battle-page--focused .battle-command__action .battle-controls__primary { min-height: 44px; font-size: .76rem; padding: .4rem; box-shadow: 0 3px 12px #bc873520; }
+.battle-page--focused .battle-command__action .battle-controls__waiting,
+.battle-page--focused .battle-command__action .auto-indicator { min-height: 44px; font-size: .68rem; }
+.battle-command__message { grid-column: 1 / -1; grid-row: 4; margin: 0; color: #f2cba2; font-size: .72rem; }
+.battle-management-overlay { position: fixed; z-index: 1400; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: #030b14b8; backdrop-filter: blur(6px); }
+.battle-management-dialog { display: flex; flex-direction: column; width: min(100%, 640px); max-height: calc(92dvh - env(safe-area-inset-top)); overflow: hidden; border: 1px solid #586d80; border-radius: 1rem 1rem 0 0; background: linear-gradient(150deg, #203448, #102231); box-shadow: 0 -20px 60px #0006; }
+.battle-management-dialog__header { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1rem; border-bottom: 1px solid #6d849533; }
+.battle-management-dialog__header h2 { margin: .15rem 0 0; color: #f0e6d5; font-size: 1.15rem; }
+.battle-management-dialog__header h2 small { color: #a8becb; font-size: .8rem; font-weight: 500; }
+.battle-management-dialog__content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .85rem; }
+.battle-management-summary { display: grid; gap: .3rem; padding: .7rem; border: 1px solid #455d6f; border-radius: .65rem; background: #0b1c2980; color: #afc3d0; font-size: .7rem; }
+.battle-management-summary strong { color: #ead2a8; font-size: .85rem; }
+.battle-management-summary strong span { font-size: .7rem; color: #a9bdca; }
+.battle-management-dialog .formation-panel__progress-note { margin: .7rem 0; padding: 0; font-size: .7rem; }
+.battle-management-dialog .slot-grid { grid-template-columns: 1fr; padding: 0; gap: .65rem; }
+.battle-management-dialog__footer { flex: 0 0 auto; padding-bottom: env(safe-area-inset-bottom); }
+.battle-management-dialog .battle-controls--room-actions { margin: 0; padding: .75rem .85rem; border: 0; border-top: 1px solid #6d849533; border-radius: 0; background: #0d1f2e; box-shadow: none; }
+.battle-management-dialog .battle-controls__tools { display: flex; flex-wrap: wrap; gap: .5rem; }
+.battle-management-dialog .battle-controls__tools .button { flex: 1; min-height: 44px; }
+
+@container game-shell (max-width: 380px) {
+    .battle-page--focused .battle-command { padding: .5rem; gap: .35rem; }
+    .battle-page--focused .battle-stage__header { gap: .3rem; padding-inline: .6rem; }
+    .battle-page--focused .battle-stage__header h1 { font-size: .94rem; }
+    .battle-page--focused .battle-mobile-quick-actions { column-gap: .3rem; }
+    .battle-page--focused .battle-mobile-quick-actions__heading strong { font-size: .73rem; }
+    .battle-page--focused .battle-action-profession { display: none; }
+    .battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle { padding-inline: .1rem; }
+    .battle-loadout-switch button { min-width: 44px; padding-inline: .25rem; }
+    .battle-page--focused .battle-mobile-skill-rail { gap: .25rem; }
+    .battle-page--focused .battle-mobile-skill .battle-skill-card__icon { width: 40px; height: 40px; flex-basis: 40px; }
+    .battle-page--focused .battle-command__shortcuts .battle-shortcut > span[aria-hidden] { display: none; }
+    .battle-page--focused .battle-mobile-character-tab { grid-template-columns: minmax(0, 1fr); text-align: center; }
+    .battle-page--focused .battle-mobile-character-tab > span { display: none; }
+}
+
+@media (max-height: 740px) {
+    .battle-page--focused { grid-template-rows: minmax(180px, 1fr) auto; min-height: calc(100svh - 9.3rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); gap: .4rem; }
+    .battle-page--focused .battle-stage__header { padding-block: .4rem; }
+    .battle-page--focused .battle-field__label { display: none; }
+    .battle-page--focused .battle-field { --unit-height: 64px; padding-block: .25rem; }
+    .battle-page--focused .monster-intent { min-height: 36px; padding-block: .3rem; }
+    .battle-page--focused .monster-intent__body { display: flex; }
+    .battle-page--focused .battle-feed { min-height: 32px; padding-block: .3rem; }
+    .battle-page--focused .battle-command { padding-block: .45rem; gap: .3rem; }
+    .battle-page--focused .battle-mobile-quick-actions { row-gap: .25rem; }
+    .battle-page--focused .battle-mobile-skill { min-height: 80px; padding-block: .2rem; }
+    .battle-page--focused .battle-mobile-skill .battle-skill-card__icon { width: 38px; height: 38px; flex-basis: 38px; }
+    .battle-page--focused .battle-mobile-skill__icon { width: 38px; height: 38px; }
+    .battle-page--focused .battle-mobile-supply-rail { min-height: 84px; }
+    .battle-page--focused .battle-mobile-supply { min-height: 40px; }
+    .battle-page--focused .battle-mobile-skill .battle-skill-card__name { margin-top: .18rem; }
+}
+
+@media (max-height: 620px) {
+    .battle-page--focused { grid-template-rows: minmax(160px, 1fr) auto; }
+    .battle-page--focused .battle-field { --unit-height: 48px; padding-block: .2rem; }
+    .battle-page--focused .battle-stage__header { padding-block: .3rem; }
+    .battle-page--focused .battle-mobile-quick-actions__hint:not(.battle-mobile-quick-actions__hint--feedback) { display: none; }
+    .battle-page--focused .battle-mobile-character-tab { min-height: 34px; }
+    .battle-page--focused .battle-mobile-skill { min-height: 72px; }
+    .battle-page--focused .battle-mobile-skill .battle-skill-card__icon { width: 32px; height: 32px; flex-basis: 32px; }
+    .battle-page--focused .battle-mobile-skill__icon { width: 32px; height: 32px; }
+    .battle-page--focused .battle-mobile-supply-rail { min-height: 76px; }
+    .battle-page--focused .battle-countdown__heading { line-height: 1.1; }
+}

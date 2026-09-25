@@ -112,3 +112,17 @@ main {
     .top-row__character-label { font-size: .625rem; }
     .top-row__character-detail { font-size: .625rem; }
 }
+
+/* Combat keeps the account context compact so the field stays in view. */
+.page--battle .top-row { min-height: 3.5rem; padding-block: calc(.35rem + env(safe-area-inset-top)) .35rem; }
+.page--battle .top-row__character { min-height: 44px; gap: .15rem; }
+.page--battle .top-row__character-label { display: none; }
+.page--battle .content { padding-top: .5rem; padding-bottom: .5rem; }
+.page--battle main { padding-bottom: calc(4.6rem + env(safe-area-inset-bottom)); }
+
+/* Keep the weapons workspace between the account bar and the main navigation. */
+.page--weapons .top-row { min-height: 3.5rem; padding-block: calc(.35rem + env(safe-area-inset-top)) .35rem; }
+.page--weapons .top-row__character { min-height: 44px; gap: .15rem; }
+.page--weapons .top-row__character-label { display: none; }
+.page--weapons .content { padding-top: .5rem; padding-bottom: .5rem; }
+.page--weapons main { padding-bottom: calc(4.6rem + env(safe-area-inset-bottom)); }

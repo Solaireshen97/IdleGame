@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public class BattleServiceTests
+public partial class BattleServiceTests
 {
     [Fact]
     public async Task SoulImprintWaitsForInitialCooldownThenAutoCastsAndStartsOwnCooldown()
@@ -94,6 +94,29 @@ public class BattleServiceTests
     }
 
     [Fact]
+    public async Task ArmorBreakSoulImprintAppliesItsConfiguredStatus()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        var (service, _) = CreateProductionSoulBattleService(test);
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.RoundNumber = 4;
+        test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
+        {
+            CharacterId = test.Character.Id, SoulImprintCode = "deep-overseer-core",
+            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(result!.Logs, log => log.Contains("深岩监工的震核") && log.Contains("土属性伤害"));
+        var status = await test.Db.BattleStatusEffects.SingleAsync(effect =>
+            effect.TargetType == "Monster" && effect.EffectCode == "armor-break");
+        Assert.True(status.ExpiresAfterRound >= test.Room.RoundNumber);
+    }
+
+    [Fact]
     public async Task CooldownSoulImprintOnlyReducesClassSkillCooldowns()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
@@ -117,7 +140,7 @@ public class BattleServiceTests
         Assert.Contains(result!.Logs, log => log.Contains("剩余冷却缩短 2 回合"));
         Assert.Equal(8, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
             cooldown.SkillCode == "sword-slash")).ReadyAtRound);
-        Assert.Equal(14, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
+        Assert.Equal(12, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
             cooldown.SkillCode == SoulImprintRules.CooldownCode("storm-matriarch-plume"))).ReadyAtRound);
     }
 
@@ -139,10 +162,55 @@ public class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("恢复 30 点生命值"));
+        Assert.Contains(result!.Logs, log => log.Contains("恢复 24 点生命值"));
         Assert.Contains(result.Logs, log => log.Contains("移除了") && log.Contains("中毒"));
         Assert.True(test.Character.Hp > 40);
         Assert.Empty(await test.Db.BattleStatusEffects.Where(effect => effect.TargetType == "Character").ToListAsync());
+    }
+
+    [Fact]
+    public async Task HealingSoulImprintAutoWaitsForMeaningfulDamage()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 90, characterAttack: 1, monsterAttack: 1);
+        var (service, _) = CreateProductionSoulBattleService(test);
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.RoundNumber = 4;
+        test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
+        {
+            CharacterId = test.Character.Id, SoulImprintCode = "dawn-core-prism",
+            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(result!.Logs, log => log.Contains("黎明守卫的棱晶"));
+        Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown =>
+            cooldown.SkillCode == SoulImprintRules.CooldownCode("dawn-core-prism"));
+    }
+
+    [Fact]
+    public async Task HealingSoulImprintCleansesOnlyTheConfiguredCountPerAlly()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 1, monsterAttack: 1);
+        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.RoundNumber = 4;
+        test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
+        {
+            CharacterId = test.Character.Id, SoulImprintCode = "dawn-core-prism",
+            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
+        });
+        await monsterCombat.ApplyStatusAsync(test.Room, "Character", test.Character.Id, "poison", 2, [], test.Character.Name);
+        await monsterCombat.ApplyStatusAsync(test.Room, "Character", test.Character.Id, "armor-break", 2, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Single(result!.Logs, log => log.Contains("黎明守卫的棱晶") && log.Contains("移除了"));
+        Assert.Single(await test.Db.BattleStatusEffects.Where(effect => effect.TargetType == "Character").ToListAsync());
     }
 
     [Fact]
@@ -164,6 +232,34 @@ public class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("冻心屏障"));
         Assert.Equal(90, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task GuardSoulImprintAutoWaitsUntilTheOwnerWillBeAttacked()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 20);
+        var (service, _) = CreateProductionSoulBattleService(test);
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Room.RoundNumber = 4;
+        test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
+        {
+            CharacterId = test.Character.Id, SoulImprintCode = "frost-king-heart",
+            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
+        });
+        test.Db.MonsterIntents.Add(new MonsterIntent
+        {
+            RoomId = test.Room.Id, RunSequence = test.Room.RunSequence, RoundNumber = test.Room.RoundNumber,
+            MonsterId = test.Monster.Id, ActionType = "BasicAttack", TargetType = "Self",
+            CreatedAtUtc = DateTime.UtcNow
+        });
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(result!.Logs, log => log.Contains("霜脉之王的冻心"));
+        Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown =>
+            cooldown.SkillCode == SoulImprintRules.CooldownCode("frost-king-heart"));
     }
 
     [Fact]
@@ -2956,7 +3052,7 @@ public class BattleServiceTests
             var user = new User { Id = 1, UserName = "user", PasswordHash = "x", ActiveCharacterId = 1 };
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack};
             var monster = new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = monsterAttack, Defense = monsterDefense };
-            var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted };
+            var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted, IsPublic = true };
             db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await db.SaveChangesAsync();
             return new BattleTestContext(path, options, db, room, character, monster);

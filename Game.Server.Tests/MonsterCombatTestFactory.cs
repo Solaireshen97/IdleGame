@@ -12,6 +12,7 @@ internal static class MonsterCombatTestFactory
         [
             new() { Code = "armor-break", Name = "破甲", Description = "受到伤害提高。", EffectType = "ReductionPercent", ValuePerStack = -20 },
             new() { Code = "poison", Name = "中毒", Description = "回合末受到伤害。", EffectType = "DamageOverTime", ValuePerStack = 4, MaxStacks = 3, Stacking = "AddStack" },
+            new() { Code = "burning", Name = "灼烧", Description = "回合末受到伤害。", EffectType = "DamageOverTime", ValuePerStack = 6 },
             new() { Code = "slime-shell", Name = "黏液硬化", Description = "受到伤害降低。", EffectType = "ReductionPercent", ValuePerStack = 20, IsPositive = true },
             new() { Code = "acolyte-silence", Name = "沉默", Description = "下一回合可打断技能自动失效。", EffectType = "SilenceNextIntent", ValuePerStack = 1, IsDispellable = false }
         ],

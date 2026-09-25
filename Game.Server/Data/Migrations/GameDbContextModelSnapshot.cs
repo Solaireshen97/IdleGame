@@ -586,6 +586,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<bool>("IsRepeatBattle")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsPreparationTimeoutEnabled")
                         .HasColumnType("INTEGER");
 

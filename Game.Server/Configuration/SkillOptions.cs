@@ -66,6 +66,7 @@ public sealed class SkillTalentNodeOptions
     public string? EffectCode { get; set; }
     public decimal ValuePerRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
+    public List<string> AnyPrerequisites { get; set; } = [];
     public Game.Shared.Enums.TalentType RequiredTalentType { get; set; }
     public int RequiredTalentRank { get; set; }
 }

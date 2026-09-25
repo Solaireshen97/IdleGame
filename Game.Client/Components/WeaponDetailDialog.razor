@@ -3,51 +3,63 @@
 @using Game.Shared.Enums
 @using Game.Client.Services
 @using Microsoft.AspNetCore.Components.Web
+@inject IJSRuntime Js
 
 <div class="weapon-detail-overlay" @onclick="CloseAsync" @onclick:stopPropagation @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
-    <section class="weapon-detail-dialog weapon-detail-dialog--@Element.ToString().ToLowerInvariant()"
-             role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title" @onclick:stopPropagation>
+    <section class="weapon-detail-dialog weapon-detail-dialog--@Element.ToString().ToLowerInvariant() @(ManagementLabel is not null ? "weapon-detail-dialog--managed" : null)"
+             role="dialog" aria-modal="true" aria-labelledby="weapon-detail-title" aria-describedby="weapon-detail-subtitle" @onclick:stopPropagation @ref="_dialog">
         <header class="weapon-detail-header">
             <span class="weapon-detail-crest" aria-hidden="true"><img src="@WeaponArt.ForName(Name)" alt="" /></span>
             <div class="weapon-detail-heading">
                 <span class="weapon-detail-kicker">@Category · @WeaponRules.ElementName(Element)属性</span>
                 <h2 id="weapon-detail-title">@Name</h2>
-                <p>@(string.IsNullOrWhiteSpace(Subtitle) ? $"装等 {ItemLevel}" : Subtitle)</p>
+                <p id="weapon-detail-subtitle">@(string.IsNullOrWhiteSpace(Subtitle) ? $"装等 {ItemLevel}" : Subtitle)</p>
             </div>
             <button type="button" class="weapon-detail-close" @onclick="CloseAsync" @ref="_closeButton" aria-label="关闭武器详情">×</button>
         </header>
+        @if (ManagementLabel is not null && AdditionalContent is not null)
+        {
+            <nav class="weapon-detail-tabs" aria-label="武器详情分类">
+                <button type="button" class="@(!_showManagement ? "active" : null)" aria-pressed='@(!_showManagement ? "true" : "false")' @onclick="() => _showManagement = false">属性 / 技能</button>
+                <button type="button" class="@(_showManagement ? "active" : null)" aria-pressed='@(_showManagement ? "true" : "false")' @onclick="() => _showManagement = true">@ManagementLabel</button>
+            </nav>
+        }
         <div class="weapon-detail-body">
-            <div class="weapon-detail-stats" aria-label="武器属性">
-                <div><span>属性</span><strong>@WeaponRules.ElementName(Element)</strong></div>
-                <div><span>攻击</span><strong>+@Attack</strong></div>
-                <div><span>生命</span><strong>+@MaxHp</strong></div>
-            </div>
-            <section class="weapon-detail-skills" aria-labelledby="weapon-detail-skills-title">
-                <h3 id="weapon-detail-skills-title">武器技能</h3>
-                @if (Skills.Count == 0)
-                {
-                    <p class="weapon-detail-empty">这把武器没有附带技能。</p>
-                }
-                else
-                {
-                    <ul>
-                        @foreach (var skill in Skills)
-                        {
-                            <li><strong>@skill.Name <small>Lv.@skill.Level</small></strong><span>@skill.Description</span></li>
-                        }
-                    </ul>
-                }
-            </section>
-            @if (AdditionalContent is not null)
+            @if (!_showManagement)
+            {
+                <div class="weapon-detail-stats" aria-label="武器属性">
+                    <div><span>属性</span><strong>@WeaponRules.ElementName(Element)</strong></div>
+                    <div><span>攻击</span><strong>+@Attack</strong></div>
+                    <div><span>生命</span><strong>+@MaxHp</strong></div>
+                </div>
+                <section class="weapon-detail-skills" aria-labelledby="weapon-detail-skills-title">
+                    <h3 id="weapon-detail-skills-title">武器技能</h3>
+                    @if (Skills.Count == 0)
+                    {
+                        <p class="weapon-detail-empty">这把武器没有附带技能。</p>
+                    }
+                    else
+                    {
+                        <ul>
+                            @foreach (var skill in Skills)
+                            {
+                                <li><strong>@skill.Name <small>Lv.@skill.Level</small></strong><span>@skill.Description</span></li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+            @if (AdditionalContent is not null && (ManagementLabel is null || _showManagement))
             {
                 <div class="weapon-detail-additional">@AdditionalContent</div>
             }
-            @if (!string.IsNullOrWhiteSpace(Note))
+            @if (!_showManagement && !string.IsNullOrWhiteSpace(Note))
             {
                 <p class="weapon-detail-note">@Note</p>
             }
         </div>
         <footer class="weapon-detail-footer">
+            @if (ActionSummary is not null) { <div class="weapon-detail-action-summary">@ActionSummary</div> }
             @if (Actions is not null)
             {
                 <div class="weapon-detail-actions">@Actions</div>
@@ -70,13 +82,21 @@
     [Parameter] public IReadOnlyList<WeaponDropSkillPreviewResponse> Skills { get; set; } = [];
     [Parameter] public RenderFragment? AdditionalContent { get; set; }
     [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter] public RenderFragment? ActionSummary { get; set; }
+    [Parameter] public string? ManagementLabel { get; set; }
+    private bool _showManagement;
     [Parameter] public EventCallback OnClose { get; set; }
 
     private ElementReference _closeButton;
+    private ElementReference _dialog;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) await _closeButton.FocusAsync();
+        if (firstRender)
+        {
+            await _closeButton.FocusAsync(preventScroll: true);
+            if (ManagementLabel is not null) await Js.InvokeVoidAsync("weaponBoardUi.trapDialogFocus", _dialog);
+        }
     }
 
     private Task CloseAsync() => OnClose.InvokeAsync();

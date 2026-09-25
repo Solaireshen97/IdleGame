@@ -17,6 +17,7 @@ public class RoomSummaryResponse
     public int EnemiesInCurrentWave { get; set; }
     public RoomStatus RoomStatus { get; set; }
     public bool IsRepeatBattle { get; set; }
+    public bool IsPublic { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; }

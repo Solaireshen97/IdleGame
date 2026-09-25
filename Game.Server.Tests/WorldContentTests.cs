@@ -194,7 +194,7 @@ public sealed class WorldContentTests
         Assert.Empty(await db.Rooms.ToListAsync());
         character.Level = dungeon.MinimumLevel;
         await db.SaveChangesAsync();
-        var created = await rooms.CreateRoomAsync(dungeon.Id, null, "owner-token", isPreparationTimeoutEnabled: false);
+        var created = await rooms.CreateRoomAsync(dungeon.Id, null, "owner-token", isPreparationTimeoutEnabled: false, isPublic: true);
         Assert.Null(created.Error);
         Assert.Equal(dungeon.RegionName, created.Detail!.RegionName);
         Assert.Equal(dungeon.RegionCode, Assert.Single(await rooms.GetRoomsAsync()).RegionCode);

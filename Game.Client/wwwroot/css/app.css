@@ -281,3 +281,5 @@ a, .btn-link { color:#d8a957; }
 code {
     color: #c02d76;
 }
+
+body:has(.weapon-overview-overlay, .weapon-detail-overlay, .weapon-quality-overlay, .monster-detail-overlay) { overflow: hidden; }

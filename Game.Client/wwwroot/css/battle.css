@@ -19,4 +19,4 @@
 .status-badge--gold { background: #594625; color: #f3d385; }
 .status-badge--danger { background: #572c32; color: #f1a8ad; }
 
-body:has(.battle-log-overlay) { overflow: hidden; }
+body:has(.battle-log-overlay, .battle-management-overlay) { overflow: hidden; }

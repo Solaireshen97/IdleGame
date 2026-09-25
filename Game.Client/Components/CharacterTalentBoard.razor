@@ -50,7 +50,7 @@
         }
         else
         {
-            <div class="talent-tree-legend" aria-label="节点状态说明"><span><i class="talent-tree-legend__available"></i> 可加点</span><span><i class="talent-tree-legend__learned"></i> 已学习</span><span><i class="talent-tree-legend__locked"></i> 未解锁</span></div>
+            <div class="talent-tree-legend" aria-label="节点与路线说明"><span><i class="talent-tree-legend__available"></i> 可加点</span><span><i class="talent-tree-legend__learned"></i> 已学习</span><span><i class="talent-tree-legend__locked"></i> 未解锁</span><span><i class="talent-tree-legend__route"></i> 必需路线</span><span><i class="talent-tree-legend__alternate"></i> 任选路线</span></div>
             <div class="talent-tree-layout">
                 <div class="talent-tree-map" aria-label="@_skills.ProfessionName 天赋树，点击节点查看详情" style="--tree-tiers:@TreeTierCount">
                     <svg class="talent-tree-map__links" viewBox="0 0 300 @(TreeTierCount * 100)" preserveAspectRatio="none" aria-hidden="true">
@@ -61,7 +61,15 @@
                                 var parent = _skills.TalentNodes.FirstOrDefault(candidate => candidate.Code == prerequisite);
                                 if (parent is not null)
                                 {
-                                    <path class="@(parent.IsMaxRank ? "talent-tree-map__link--active" : null)" d="@ConnectionPath(parent, node)" />
+                                    <path class="@ConnectionClass(parent, false)" d="@ConnectionPath(parent, node)" />
+                                }
+                            }
+                            @foreach (var prerequisite in node.AnyPrerequisites)
+                            {
+                                var parent = _skills.TalentNodes.FirstOrDefault(candidate => candidate.Code == prerequisite);
+                                if (parent is not null)
+                                {
+                                    <path class="@ConnectionClass(parent, true)" d="@ConnectionPath(parent, node)" />
                                 }
                             }
                         }
@@ -106,7 +114,11 @@
                             </div>
                             @if (selected.Prerequisites.Count > 0)
                             {
-                                <small class="talent-tree-detail__prerequisite">前置：@PrerequisiteNames(selected)</small>
+                                <small class="talent-tree-detail__prerequisite">必需前置：@PrerequisiteNames(selected.Prerequisites)</small>
+                            }
+                            @if (selected.AnyPrerequisites.Count > 0)
+                            {
+                                <small class="talent-tree-detail__prerequisite talent-tree-detail__prerequisite--alternate">任选前置：@PrerequisiteNames(selected.AnyPrerequisites)</small>
                             }
                             @if (selected.RequiredTreePoints > 0)
                             {
@@ -217,11 +229,17 @@
     private void SelectNode(string code) { _selectedNodeCode = code; _detailOpen = true; _focusDetail = true; }
     private void CloseNodeDetails() { _detailOpen = false; _focusDetail = false; }
     private void HandleDetailKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseNodeDetails(); }
-    private string PrerequisiteNames(SkillTalentNodeResponse node) => string.Join("、", node.Prerequisites.Select(code => _skills?.TalentNodes.FirstOrDefault(candidate => candidate.Code == code)?.Name ?? code));
+    private string PrerequisiteNames(IEnumerable<string> codes) => string.Join("、", codes.Select(code => _skills?.TalentNodes.FirstOrDefault(candidate => candidate.Code == code)?.Name ?? code));
     private static string NodeGlyph(SkillTalentNodeResponse node) => node.BranchCode switch
     {
-        "assault" => "⚔", "guard" => "⬡", "judgment" => "✥", "mercy" => "✚", _ => "✦"
+        "assault" => "⚔", "guard" => "⬡", "tempo" => "↯",
+        "judgment" => "✥", "mercy" => "✚",
+        "arcane" => "✦", "control" => "◇", "frost" => "❄",
+        "precision" => "◎", "survival" => "➶", "endurance" => "♧",
+        "assassination" => "✢", "subtlety" => "◈", "evasion" => "◌", _ => "✦"
     };
+    private static string ConnectionClass(SkillTalentNodeResponse parent, bool alternate) =>
+        $"{(alternate ? "talent-tree-map__link--alternate" : "talent-tree-map__link--primary")} {(parent.IsMaxRank ? "talent-tree-map__link--active" : null)}";
     private static string ConnectionPath(SkillTalentNodeResponse parent, SkillTalentNodeResponse child)
     {
         var fromX = (parent.Column - 1) * 100 + 50;
@@ -237,19 +255,26 @@
         if (_skills!.Level < node.RequiredLevel + node.Rank) return $"需要 Lv {node.RequiredLevel + node.Rank}";
         if (_skills.TalentNodes.Sum(talent => talent.Rank) < node.RequiredTreePoints)
             return $"需要在基础树已投入 {node.RequiredTreePoints} 点";
-        if (!node.ArePrerequisitesMet) return "需要完成前置节点";
+        if (!node.ArePrerequisitesMet) return node.AnyPrerequisites.Count > 0 ? "需要完成必需前置，并满足任一可选前置" : "需要完成必需前置";
         if (node.ExclusiveGroup is not null && _skills.TalentNodes.Any(other =>
                 other.Code != node.Code && other.ExclusiveGroup == node.ExclusiveGroup && other.Rank > 0))
             return "与已选择的天赋互斥";
         if (_skills.TalentPoints < node.Cost) return "天赋点不足";
         return node.ExclusiveGroup is null ? "可以投入" : "选择后锁定另一分支";
     }
-    private static string BranchName(string code) => code switch { "shared" => "基础", "assault" => "猛攻", "guard" => "稳守", "tempo" => "战术", "judgment" => "惩戒", "mercy" => "慈悲", _ => code };
+    private static string BranchName(string code) => code switch
+    {
+        "shared" => "基础", "assault" => "猛攻", "guard" => "稳守", "tempo" => "战术",
+        "judgment" => "惩戒", "mercy" => "慈悲",
+        "arcane" => "奥术", "control" => "控场", "frost" => "寒霜",
+        "precision" => "狙猎", "survival" => "游猎", "endurance" => "生存",
+        "assassination" => "刺杀", "subtlety" => "诡道", "evasion" => "脱身", _ => code
+    };
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch
     {
         null or "" => null,
         "InsufficientTalentPoints" => "天赋点不足。",
-        "SkillTalentPrerequisiteRequired" => "请先完成上一层节点。",
+        "SkillTalentPrerequisiteRequired" => "请先完成必需前置，并满足任一可选前置节点。",
         "SkillTalentTreePointsRequired" => "基础树已投入的天赋点不足。",
         "SkillTalentLevelRequired" => "角色等级尚未达到要求。",
         "SkillTalentBranchLocked" => "已经选择了互斥的另一条路线。",

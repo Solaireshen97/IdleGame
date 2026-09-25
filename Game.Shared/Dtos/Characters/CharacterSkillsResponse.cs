@@ -36,6 +36,7 @@ public class SkillTalentNodeResponse
     public string? EffectCode { get; set; }
     public decimal ValuePerRank { get; set; }
     public List<string> Prerequisites { get; set; } = [];
+    public List<string> AnyPrerequisites { get; set; } = [];
     public bool IsUnlocked { get; set; }
     public bool IsMaxRank { get; set; }
     public bool ArePrerequisitesMet { get; set; }

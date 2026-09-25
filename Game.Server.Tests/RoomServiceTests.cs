@@ -222,7 +222,7 @@ public class RoomServiceTests
     public async Task CreateRoomAsync_MixedTeamRespectsPreparationTimeoutChoice()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPreparationTimeoutEnabled: false);
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPreparationTimeoutEnabled: false, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         var (detail, error) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
 
@@ -252,7 +252,7 @@ public class RoomServiceTests
     public async Task GetRoomsAsync_MarksOwnedAndJoinedRoomsForCurrentUser()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
 
         var ownerSummary = Assert.Single(await test.Service.GetRoomsAsync(test.Token));
@@ -266,6 +266,31 @@ public class RoomServiceTests
         Assert.False(guestBeforeJoin.IsOwnedByCurrentUser);
         Assert.True(guestAfterJoin.IsCurrentUserParticipant);
         Assert.False(guestAfterJoin.IsOwnedByCurrentUser);
+    }
+
+    [Fact]
+    public async Task PrivateRoom_IsHiddenFromGuestsAndStillAllowsOwnersOtherCharacters()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, error) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        Assert.Null(error);
+        Assert.False(created!.IsPublic);
+        await test.AddOtherActiveCharacterAsync();
+
+        Assert.Contains(await test.Service.GetRoomsAsync(test.Token), room => room.RoomId == created.RoomId && !room.IsPublic);
+        Assert.DoesNotContain(await test.Service.GetRoomsAsync("other-token"), room => room.RoomId == created.RoomId);
+        Assert.Null(await test.Service.GetRoomDetailAsync(created.RoomId, "other-token"));
+        Assert.Null(await test.Service.GetRoomDetailAsync(created.RoomId));
+        var (joined, joinError) = await test.Service.JoinRoomAsync(created.RoomId,
+            new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        Assert.Null(joined);
+        Assert.Equal("RoomPrivate", joinError);
+
+        var secondCharacter = await test.AddCharacterAsync("Mage");
+        var (updated, assignError) = await test.Service.AssignSlotAsync(created.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 2, CharacterId = secondCharacter.Id }, test.Token);
+        Assert.Null(assignError);
+        Assert.Equal(secondCharacter.Id, updated!.Slots.Single(slot => slot.SlotIndex == 2).CharacterId);
     }
 
     [Fact]
@@ -299,7 +324,7 @@ public class RoomServiceTests
     public async Task JoinRoomAsync_EmptySlot_AddsOtherUsersActiveCharacter()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         var otherCharacter = await test.Db.Characters.FindAsync(2);
         otherCharacter!.Hp = 17;
@@ -318,7 +343,7 @@ public class RoomServiceTests
     public async Task LeavingOrDeletingRoom_RestoresParticipantHp()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
         var otherCharacter = await test.Db.Characters.FindAsync(2);
@@ -340,7 +365,7 @@ public class RoomServiceTests
     public async Task JoinRoomAsync_OccupiedOrFinishedRoom_IsRejected()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (room, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (room, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
 
         var (_, occupiedError) = await test.Service.JoinRoomAsync(room!.RoomId, new JoinRoomRequest { SlotIndex = 1 }, "other-token");
@@ -357,7 +382,7 @@ public class RoomServiceTests
     public async Task JoiningDuringAutoCooldownSwitchesToManualRoundTiming()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         var room = await test.Db.Rooms.FindAsync(created!.RoomId);
         room!.Status = RoomStatus.Cooldown;
@@ -380,7 +405,7 @@ public class RoomServiceTests
     public async Task StaleConcurrentJoinReturnsConflictWithoutOccupyingAnotherSlot()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         test.Db.AddRange(new User { Id = 3, UserName = "third", PasswordHash = "x", ActiveCharacterId = 3 },
             new Character { Id = 3, UserId = 3, Name = "Third", Hp = 100, MaxHp = 100, Attack = 20 },
@@ -410,7 +435,7 @@ public class RoomServiceTests
     public async Task GuestCanJoinPreparingRoomAndGetsFullPreparationWindow()
     {
         await using var test = await RoomTestContext.CreateAsync();
-        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
         await test.AddOtherActiveCharacterAsync();
         var room = await test.Db.Rooms.FindAsync(created!.RoomId);
         room!.Status = RoomStatus.Preparing;

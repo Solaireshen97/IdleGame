@@ -29,6 +29,7 @@ public class RoomDetailResponse
     public DateTime? NextBattleStartAtUtc { get; set; }
     public DateTime? NextWaveStartAtUtc { get; set; }
     public bool IsRepeatBattle { get; set; }
+    public bool IsPublic { get; set; }
     public DateTime? StartedAtUtc { get; set; }
     public DateTime? ExpiresAtUtc { get; set; }
     public DateTime? ClosedAtUtc { get; set; }

@@ -17,9 +17,11 @@ public sealed class SoulImprintDefinitionOptions
     public int Tier { get; set; } = 1;
     public ElementType Element { get; set; }
     public SoulImprintEffectType EffectType { get; set; }
+    public string? StatusCode { get; set; }
     public int PowerPercent { get; set; }
     public int SecondaryPowerPercent { get; set; }
     public int DurationRounds { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = 100;
     public int InitialCooldownRounds { get; set; }
     public int CooldownRounds { get; set; }
     public int DismantleFragments { get; set; }

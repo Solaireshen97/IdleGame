@@ -168,6 +168,62 @@ public sealed class SkillTalentTreeTests
     }
 
     [Fact]
+    public void ProductionTalentTreesAreCrossLinkedAndOfferDiverseLevelTenBuilds()
+    {
+        var catalog = LoadProductionCatalog();
+
+        foreach (var profession in catalog.BaseProfessions)
+        {
+            var nodes = catalog.TalentNodesForProfession(profession.Code);
+            var byCode = nodes.ToDictionary(node => node.Code, StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(3, nodes.Count(node => node.Tier == 1));
+            Assert.All(nodes.Where(node => node.Tier > 1), node => Assert.True(node.AnyPrerequisites.Count >= 2,
+                $"{node.Code} should have at least two entry routes."));
+            var crossLinks = nodes.Sum(node => node.Prerequisites.Concat(node.AnyPrerequisites)
+                .Count(code => byCode[code].Column != node.Column));
+            Assert.True(crossLinks >= 10, $"{profession.Code} only has {crossLinks} cross-branch links.");
+
+            var builds = EnumerateLevelTenBuilds(nodes);
+            Assert.True(builds.Count >= 100, $"{profession.Code} only has {builds.Count} legal nine-point builds.");
+            Assert.All(nodes.Where(node => node.Tier == nodes.Max(candidate => candidate.Tier)), capstone =>
+                Assert.Contains(builds, build => build.GetValueOrDefault(capstone.Code) > 0));
+            Assert.True(builds.Count(build => nodes.Where(node => build.GetValueOrDefault(node.Code) > 0)
+                    .Select(node => node.BranchCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() >= 3) >= 20,
+                $"{profession.Code} does not offer enough three-branch hybrid builds.");
+        }
+    }
+
+    [Fact]
+    public void RequiredAndAnyPrerequisitesAreBothEnforced()
+    {
+        var catalog = LoadProductionCatalog();
+        var capstone = catalog.FindTalentNode("mage-arcane-mastery")!;
+
+        Assert.False(catalog.ArePrerequisitesMet(capstone, new Dictionary<string, int>
+            { ["mage-barrage-talent"] = 1 }));
+        Assert.False(catalog.ArePrerequisitesMet(capstone, new Dictionary<string, int>
+            { ["mage-precision"] = 2 }));
+        Assert.True(catalog.ArePrerequisitesMet(capstone, new Dictionary<string, int>
+            { ["mage-barrage-talent"] = 1, ["mage-countermagic"] = 2 }));
+    }
+
+    [Fact]
+    public async Task AnyPrerequisiteAllowsEnteringAnAdjacentBranch()
+    {
+        await using var test = await FormalTreeContext.CreateAsync("mage", level: 4, points: 3);
+        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "mage-arcane-insight")).Error);
+        Assert.Null((await test.Service.UnlockTalentNodeAsync("token", 1, "mage-frost-discipline")).Error);
+
+        var (response, error) = await test.Service.UnlockTalentNodeAsync("token", 1, "mage-spellbreak-talent");
+
+        Assert.Null(error);
+        Assert.Equal(0, response!.TalentPoints);
+        Assert.Contains(response.LearnedSkills, skill => skill.Code == "mage-spellbreak");
+        Assert.DoesNotContain(await test.Db.CharacterSkillTalents.ToListAsync(),
+            node => node.NodeCode == "mage-flow");
+    }
+
+    [Fact]
     public void ProductionConfigGivesEveryNewPromotionAndCapstoneAConcreteIdentityMechanic()
     {
         var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
@@ -259,6 +315,42 @@ public sealed class SkillTalentTreeTests
         Assert.Null((await test.Service.PromoteAsync("token", 1, new PromoteCharacterRequest { ProfessionCode = "knight" })).Error);
         Assert.Equal("AlreadyPromoted", (await test.Service.PromoteAsync("token", 1,
             new PromoteCharacterRequest { ProfessionCode = "warrior" })).Error);
+    }
+
+    private static SkillCatalog LoadProductionCatalog()
+    {
+        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var monsters = new MonsterCombatCatalog(Options.Create(
+            config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
+        return new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);
+    }
+
+    private static List<Dictionary<string, int>> EnumerateLevelTenBuilds(IReadOnlyList<SkillTalentNodeOptions> nodes)
+    {
+        var states = new Dictionary<string, Dictionary<string, int>>(StringComparer.Ordinal) { [string.Empty] = [] };
+        for (var spent = 0; spent < 9; spent++)
+        {
+            var next = new Dictionary<string, Dictionary<string, int>>(StringComparer.Ordinal);
+            foreach (var ranks in states.Values)
+            foreach (var node in nodes)
+            {
+                var rank = ranks.GetValueOrDefault(node.Code);
+                if (rank >= node.MaxRank || 10 < node.RequiredLevel + rank || spent < node.RequiredTreePoints) continue;
+                if (node.Prerequisites.Any(code => ranks.GetValueOrDefault(code) < nodes.Single(parent => parent.Code == code).MaxRank)) continue;
+                if (node.AnyPrerequisites.Count > 0 && !node.AnyPrerequisites.Any(code =>
+                        ranks.GetValueOrDefault(code) >= nodes.Single(parent => parent.Code == code).MaxRank)) continue;
+                if (node.ExclusiveGroup is not null && nodes.Any(other => other.Code != node.Code &&
+                        string.Equals(other.ExclusiveGroup, node.ExclusiveGroup, StringComparison.OrdinalIgnoreCase) &&
+                        ranks.GetValueOrDefault(other.Code) > 0)) continue;
+
+                var added = new Dictionary<string, int>(ranks, StringComparer.OrdinalIgnoreCase) { [node.Code] = rank + 1 };
+                var key = string.Join('|', nodes.Select(candidate => added.GetValueOrDefault(candidate.Code)));
+                next.TryAdd(key, added);
+            }
+            states = next;
+        }
+        return states.Values.ToList();
     }
 
     private sealed class FormalTreeContext : IAsyncDisposable

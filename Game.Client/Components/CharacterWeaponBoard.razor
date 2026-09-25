@@ -7,8 +7,9 @@
 @inject ApiService ApiService
 @inject AccountBalanceState AccountBalance
 @inject IJSRuntime Js
+@implements IAsyncDisposable
 
-<section class="weapon-board" aria-label="角色武器盘">
+<section class="weapon-board weapon-board--focused" aria-label="角色武器盘" @ref="_boardElement">
     @if (_isLoading)
     {
         <GameStateCard Compact="true" Title="正在整理武器盘" Detail="同步装备、属性与生效技能…" />
@@ -21,51 +22,39 @@
     }
     else
     {
-        <div class="weapon-board__summary">
-            <div class="weapon-board__identity">
-                <span class="weapon-board__eyebrow">CURRENT FORMATION</span>
-                <h2>@_data.CharacterName <small>@_data.ProfessionName</small></h2>
-                <p>已装备 @_data.Weapons.Count(item => item.EquippedSlotIndex.HasValue) / @WeaponRules.SlotCount 把武器</p>
-            </div>
-            <div class="weapon-board__element element-@_data.MainElement?.ToString().ToLowerInvariant()">
-                <span>主属性</span>
-                <strong>@(_data.MainElement is { } mainElement ? WeaponRules.ElementName(mainElement) : "未确定")</strong>
-            </div>
-            <div class="weapon-board__stat"><span>武器攻击总和</span><strong>@_data.TotalAttack</strong><small>天赋后 @_data.EffectiveAttack · 技能 +@_data.AttackBonusPercent.ToString("0.##")%</small></div>
-            <div class="weapon-board__stat"><span>武器 HP 总和</span><strong>@_data.TotalMaxHp</strong><small>技能 +@_data.HealthBonusPercent.ToString("0.##")% · 当前 @_data.Hp / @_data.EffectiveMaxHp</small></div>
-            <button type="button" class="weapon-board__refresh" @onclick="LoadAsync" disabled="@_isSaving">刷新</button>
-        </div>
-
         <nav class="weapon-board__mobile-tabs" aria-label="武器编成工作区" role="tablist">
             <button id="weapon-grid-tab" type="button" role="tab" class="@(_mobileView == "grid" ? "active" : null)"
                     aria-selected="@(_mobileView == "grid" ? "true" : "false")" aria-controls="weapon-grid-panel"
-                    @onclick='() => _mobileView = "grid"'>
+                    @onclick="SwitchToGridAsync">
                 <span aria-hidden="true">⚔</span>
                 <strong>武器盘</strong>
                 <small>@_data.Weapons.Count(item => item.EquippedSlotIndex.HasValue) / @WeaponRules.SlotCount</small>
             </button>
             <button id="weapon-inventory-tab" type="button" role="tab" class="@(_mobileView == "inventory" ? "active" : null)"
                     aria-selected="@(_mobileView == "inventory" ? "true" : "false")" aria-controls="weapon-inventory-panel"
-                    @onclick='() => _mobileView = "inventory"'>
+                    @onclick="SwitchToInventoryAsync">
                 <span aria-hidden="true">▦</span>
                 <strong>武器仓库</strong>
                 <small>@_data.Weapons.Count 把</small>
             </button>
         </nav>
 
-        <section class="weapon-board__overview" aria-label="配装详情">
-            <button type="button" class="weapon-board__overview-toggle" aria-expanded="@(_isOverviewExpanded ? "true" : "false")"
-                    aria-controls="weapon-overview-details" @onclick="() => _isOverviewExpanded = !_isOverviewExpanded">
-                <span class="weapon-board__overview-title"><strong>配装详情</strong><small>金币、碎片与生效技能</small></span>
-                <span class="weapon-board__overview-summary">
-                    <b>◆ @_data.Gold</b>
-                    <b>@_data.ActiveEffects.Count 个技能</b>
-                </span>
-                <span class="weapon-board__overview-icon" aria-hidden="true">@(_isOverviewExpanded ? "−" : "+")</span>
-            </button>
-            @if (_isOverviewExpanded)
-            {
-                <div id="weapon-overview-details" class="weapon-board__overview-details">
+        @if (_mobileView == "grid")
+        {
+            <div class="weapon-board__compact-stats" aria-label="武器盘属性总览">
+                <div class="element-@_data.MainElement?.ToString().ToLowerInvariant()"><span>主属性</span><strong>@(_data.MainElement is { } mainElement ? WeaponRules.ElementName(mainElement) : "未确定")</strong></div>
+                <div><span>武器攻击</span><strong>@_data.TotalAttack</strong></div>
+                <div><span>武器生命</span><strong>@_data.TotalMaxHp</strong></div>
+                <button type="button" @onclick="OpenOverview" @ref="_overviewTrigger" aria-haspopup="dialog"><span>配装详情</span><small>@_data.ActiveEffects.Count 项加成 ›</small></button>
+            </div>
+        }
+        @if (_isOverviewExpanded)
+        {
+            <div class="weapon-overview-overlay" @onclick="CloseOverview" @onkeydown="HandleOverviewKeyDown">
+                <section class="weapon-overview-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-overview-title" @onclick:stopPropagation @ref="_overviewDialog">
+                    <header><div><span class="weapon-board__eyebrow">FORMATION</span><h2 id="weapon-overview-title">配装详情与资源</h2><p>@_data.CharacterName · @_data.ProfessionName</p></div><button type="button" @onclick="CloseOverview" @ref="_overviewClose" aria-label="关闭配装详情">×</button></header>
+                    <div class="weapon-overview-body">
+                        <div class="weapon-overview-totals"><span>天赋后攻击 <strong>@_data.EffectiveAttack</strong></span><span>生命上限 <strong>@_data.EffectiveMaxHp</strong></span><span>攻击加成 +@_data.AttackBonusPercent.ToString("0.##")%</span><span>生命加成 +@_data.HealthBonusPercent.ToString("0.##")%</span></div>
                     <div class="weapon-board__resources" aria-label="武器养成资源">
                         <div><span>角色金币</span><strong>◆ @_data.Gold</strong></div>
                         @foreach (var fragment in _data.Fragments)
@@ -93,21 +82,25 @@
                             }
                         }
                     </div>
-                </div>
-            }
-        </section>
 
-        <div id="weapon-grid-panel" role="tabpanel" aria-labelledby="weapon-grid-tab"
+                        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。</p>
+                    </div>
+                    <footer><button type="button" @onclick="LoadAsync" disabled="@_isSaving">刷新配装</button><button type="button" @onclick="CloseOverview">返回武器盘</button></footer>
+                </section>
+            </div>
+        }
+
+        <div id="weapon-grid-panel" role="tabpanel" aria-labelledby="weapon-grid-tab" tabindex="-1" @ref="_gridPanel"
              class="weapon-board__workspace @(_mobileView == "grid" ? "weapon-board__workspace--selected" : null)">
             <div class="weapon-board__grid-head">
-                <div><span class="weapon-board__eyebrow">TEN WEAPON GRID</span><h2>武器盘</h2></div>
-                <p>点击栏位后，将直接进入仓库选择武器。主武器决定角色属性。</p>
+                <div><h2>主武器 + 九格副武器</h2></div>
+                <p>点按栏位查看或更换</p>
             </div>
             <div class="weapon-board__grid">
                 @{ var main = FindEquipped(1); }
                 <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
-                        @onclick="() => SelectSlot(1)" aria-pressed="@(_selectedSlot == 1 ? "true" : "false")" disabled="@_isSaving">
-                    <span class="weapon-card__slot">MAIN WEAPON <b>01</b></span>
+                        @onclick="() => SelectSlotAsync(1)" aria-pressed="@(_selectedSlot == 1 ? "true" : "false")" disabled="@_isSaving">
+                    <span class="weapon-card__slot">主武器 <b>01</b></span>
                     <span class="weapon-card__crest" aria-hidden="true">@if (main is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(main.WeaponCode)" alt="" /> }</span>
                     <span class="weapon-card__name">@(main?.Name ?? "选择主武器")</span>
                     <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
@@ -123,7 +116,7 @@
                         var slotIndex = index;
                         var weapon = FindEquipped(slotIndex);
                         <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
-                                @onclick="() => SelectSlot(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex ? "true" : "false")" disabled="@_isSaving">
+                                @onclick="() => SelectSlotAsync(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex ? "true" : "false")" disabled="@_isSaving">
                             <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
                             <span class="weapon-card__crest" aria-hidden="true">@if (weapon is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /> }</span>
                             <span class="weapon-card__name">@(weapon?.Name ?? "空栏位")</span>
@@ -139,61 +132,44 @@
             </div>
         </div>
 
-        <div id="weapon-inventory-panel" role="tabpanel" aria-labelledby="weapon-inventory-tab"
+        <div id="weapon-inventory-panel" role="tabpanel" aria-labelledby="weapon-inventory-tab" tabindex="-1" @ref="_inventoryPanel"
              class="weapon-board__workspace @(_mobileView == "inventory" ? "weapon-board__workspace--selected" : null)">
-        <div class="weapon-board__inventory-head">
-            <div>
-                <span class="weapon-board__eyebrow">CHARACTER ARMORY</span>
-                <h2>武器仓库 · 当前选择 @(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</h2>
-                <p>可以在这里编成、锁定、强化、升品、出售或分解武器。</p>
-            </div>
-            @if (_selectedSlot > 1 && FindEquipped(_selectedSlot) is not null)
+            @if (_inventorySelectionMode)
             {
-                <button type="button" class="weapon-board__unequip" @onclick="() => EquipAsync(null)" disabled="@_isSaving">卸下此位</button>
+                <div class="weapon-board__equip-target" role="status"><span>正在更换 <strong>@(_selectedSlot == 1 ? "主武器" : $"副武器 {_selectedSlot:00}")</strong></span><button type="button" @onclick="SwitchToGridAsync">取消更换</button></div>
             }
-        </div>
-        <div class="weapon-board__filters" aria-label="按属性筛选武器">
-            <strong>属性筛选</strong>
-            <div class="weapon-board__filter-options" role="group" aria-label="武器属性">
-                <button type="button" class="@(_selectedElementFilter is null ? "active" : null)" aria-pressed="@(_selectedElementFilter is null)" @onclick="() => SelectElementFilter(null)">全部</button>
+        <div class="weapon-board__inventory-controls">
+            <div class="weapon-board__search-row">
+                <input type="search" class="weapon-board__search" placeholder="搜索武器名称" aria-label="搜索武器名称" value="@_searchText" @oninput="OnSearchChanged" />
+                <select class="weapon-board__sort-select" aria-label="武器排序" value="@_inventorySort" @onchange='e => SelectInventorySort(e.Value?.ToString() ?? "recent")'><option value="recent">最近获得</option><option value="level">装等优先</option><option value="attack">攻击优先</option></select>
+            </div>
+            <div class="weapon-board__filter-options" role="group" aria-label="按属性筛选武器">
+                <button type="button" class="@(_selectedElementFilter is null ? "active" : null)" aria-pressed="@(_selectedElementFilter is null ? "true" : "false")" @onclick="() => SelectElementFilter(null)">全部</button>
                 @foreach (var element in Enum.GetValues<ElementType>())
                 {
-                    <button type="button" class="element-@element.ToString().ToLowerInvariant() @(_selectedElementFilter == element ? "active" : null)"
-                            aria-pressed="@(_selectedElementFilter == element)" @onclick="() => SelectElementFilter(element)">@WeaponRules.ElementName(element)</button>
+                    <button type="button" class="element-@element.ToString().ToLowerInvariant() @(_selectedElementFilter == element ? "active" : null)" aria-pressed="@(_selectedElementFilter == element ? "true" : "false")" @onclick="() => SelectElementFilter(element)">@WeaponRules.ElementName(element)</button>
                 }
             </div>
-            <small>显示 @FilteredWeapons.Count / @_data.Weapons.Count 把</small>
+            <div class="weapon-board__inventory-tools"><small aria-live="polite">@FilteredWeapons.Count / @_data.Weapons.Count 把</small><label><input type="checkbox" checked="@_onlyUnequipped" @onchange="ToggleOnlyUnequipped" />未装备</label><button type="button" class="@(_batchMode ? "active" : null)" aria-pressed="@(_batchMode ? "true" : "false")" @onclick="ToggleBatchMode">@(_batchMode ? "退出批量" : "批量管理")</button></div>
         </div>
-        <div class="weapon-board__batch" aria-label="批量处理武器">
-            <div class="weapon-board__batch-summary">
-                <strong>已选择 @_selectedWeaponIds.Count 把</strong>
-                <span>出售可得 @SelectedSellGold 金币 · 分解可得 @SelectedDismantleSummary</span>
-            </div>
-            <div class="weapon-board__batch-actions">
-                <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeapons.Count == 0)">全选当前筛选</button>
-                <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving || _selectedWeaponIds.Count == 0)">清空</button>
-                <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanSell))">批量出售</button>
-                <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || _selectedWeaponIds.Count == 0 || SelectedWeapons.Any(weapon => !weapon.CanDismantle))">批量分解</button>
-            </div>
-            <small>仅可选择当前筛选中未装备、未锁定的武器，单次最多处理 100 把；没有碎片收益的武器不能分解。</small>
-        </div>
-        <div class="weapon-board__inventory">
+        <div class="weapon-board__inventory" @ref="_inventoryList">
             @if (FilteredWeapons.Count == 0)
             {
-                <p class="weapon-board__inventory-empty">当前属性下没有武器，切换筛选可查看其他属性。</p>
+                <p class="weapon-board__inventory-empty">@InventoryEmptyMessage</p>
             }
-            @foreach (var weapon in FilteredWeapons)
+            @foreach (var weapon in PagedWeapons)
             {
                 var isBatchSelected = _selectedWeaponIds.Contains(weapon.Id);
                 var canBatchProcess = CanBatchProcess(weapon);
                 <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() quality-@weapon.QualityCode @(weapon.EquippedSlotIndex.HasValue ? "weapon-tile--equipped" : null) @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
-                    @if (weapon.EquippedSlotIndex is null)
+                    @if (_batchMode && weapon.EquippedSlotIndex is null)
                     {
-                        <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : "请先解锁武器")">
-                            <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)" aria-label="选择 @weapon.Name 进行批量处理" />
+                        <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : weapon.IsLocked ? "请先解锁武器" : "这把武器暂不可批量处理")">
+                            <input type="checkbox" checked="@isBatchSelected" disabled="@(_isSaving || !canBatchProcess)" @onchange="_ => ToggleBatchSelection(weapon)"
+                                   aria-label="@(canBatchProcess ? $"选择 {weapon.Name} 进行批量处理" : $"{weapon.Name} 不可批量处理")" />
                         </label>
                     }
-                    <button type="button" class="weapon-tile__open" @onclick="() => OpenWeaponDetails(weapon.Id)" disabled="@_isSaving"
+                    <button type="button" id="@($"weapon-tile-{weapon.Id}")" class="weapon-tile__open" @onclick="() => OpenWeaponDetails(weapon.Id)" disabled="@_isSaving"
                             aria-haspopup="dialog" aria-label="@GetWeaponTileLabel(weapon)">
                         @if (weapon.EquippedSlotIndex.HasValue)
                         {
@@ -203,24 +179,73 @@
                         <span class="weapon-tile__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /></span>
                         <strong>@weapon.Name</strong>
                         <span class="weapon-tile__stats">Lv.@weapon.ItemLevel · ⚔ @weapon.Attack</span>
-                        <span class="weapon-tile__flags">@if (weapon.EquippedSlotIndex is int slot) { <span>@(slot == 1 ? "主武器" : $"副武器 {slot:00}")</span> } @if (weapon.IsLocked) { <span>🔒</span> }</span>
+                        <span class="weapon-tile__flags">@if (weapon.EquippedSlotIndex is int slot) { <span>@(slot == 1 ? "主武器" : $"副武器 {slot:00}")</span> } @if (weapon.IsLocked) { <span>🔒</span> } @if (weapon.Skills.Count > 0) { <span title="含 @weapon.Skills.Count 项武器技能">✦@weapon.Skills.Count</span> }</span>
                     </button>
                 </article>
             }
         </div>
+        <nav class="weapon-board__pager" aria-label="武器仓库分页">
+            <button type="button" @onclick="() => GoToInventoryPage(_inventoryPage - 1)" disabled="@(_inventoryPage <= 1)" aria-label="上一页">←</button>
+            <select value="@_inventoryPage" @onchange="OnInventoryPageChanged" aria-label="跳转到武器仓库页码">
+                @for (var pageNumber = 1; pageNumber <= InventoryPageCount; pageNumber++)
+                {
+                    <option value="@pageNumber">第 @pageNumber / @InventoryPageCount 页 · 每页 @_inventoryPageSize 把</option>
+                }
+            </select>
+            <button type="button" @onclick="() => GoToInventoryPage(_inventoryPage + 1)" disabled="@(_inventoryPage >= InventoryPageCount)" aria-label="下一页">→</button>
+        </nav>
+        @if (_batchMode)
+        {
+            <div class="weapon-board__batch @(_selectedWeaponIds.Count == 0 ? "weapon-board__batch--compact" : "weapon-board__batch--selected")" role="group" aria-label="批量处理武器" tabindex="-1" @ref="_batchPanel">
+                <div class="weapon-board__batch-summary" aria-live="polite">
+                    @if (_selectedWeaponIds.Count == 0)
+                    {
+                        <strong>批量处理</strong>
+                        <span>勾选未装备、未锁定的武器</span>
+                    }
+                    else
+                    {
+                        <strong>已选择 @_selectedWeaponIds.Count 把</strong>
+                        <span>出售可得 @SelectedSellGold 金币 · 分解可得 @SelectedDismantleSummary</span>
+                    }
+                </div>
+                <div class="weapon-board__batch-actions @(_selectedWeaponIds.Count == 0 ? "weapon-board__batch-actions--compact" : null)">
+                    @if (_selectedWeaponIds.Count == 0)
+                    {
+                        <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeaponCount == 0)">@SelectAllProcessableLabel</button>
+                    }
+                    else
+                    {
+                        <button type="button" @onclick="SelectAllProcessable" disabled="@(_isSaving || ProcessableWeaponCount == 0)" aria-label="@SelectAllProcessableLabel" title="@SelectAllProcessableLabel">全选</button>
+                        <button type="button" @onclick="ClearBatchSelection" disabled="@(_isSaving)">清空</button>
+                        <button type="button" class="weapon-board__batch-sell" @onclick="SellSelectedAsync" disabled="@(_isSaving || SelectedWeapons.Any(weapon => !weapon.CanSell))">批量出售</button>
+                        <button type="button" class="weapon-board__batch-dismantle" @onclick="DismantleSelectedAsync" disabled="@(_isSaving || SelectedWeapons.Any(weapon => !weapon.CanDismantle))">批量分解</button>
+                    }
+                </div>
+                <small>仅可选择当前筛选中未装备、未锁定且可出售或分解的武器，单次最多处理 100 把；没有碎片收益的武器不能分解。</small>
+            </div>
+
+        }
         </div>
         @if (InspectedWeapon is { } inspected)
         {
-            var isHere = inspected.EquippedSlotIndex == _selectedSlot;
-            var wouldEmptyMain = inspected.EquippedSlotIndex == WeaponRules.MainSlotIndex &&
+            var isSelectionMode = _inventorySelectionMode;
+            var isHere = isSelectionMode && inspected.EquippedSlotIndex == _selectedSlot;
+            var wouldEmptyMain = isSelectionMode && inspected.EquippedSlotIndex == WeaponRules.MainSlotIndex &&
                 _selectedSlot != WeaponRules.MainSlotIndex && FindEquipped(_selectedSlot) is null;
+            var targetSlotName = _selectedSlot == WeaponRules.MainSlotIndex ? "主武器" : $"副武器 {_selectedSlot:00}";
+            var inspectedLocation = inspected.EquippedSlotIndex is int equipped
+                ? equipped == WeaponRules.MainSlotIndex ? "主武器" : $"副武器 {equipped:00}"
+                : "背包";
+            var detailSubtitle = $"{inspected.QualityName} · 装等 {inspected.ItemLevel} · {inspectedLocation}";
+            if (isSelectionMode) detailSubtitle += $" · {(isHere ? $"当前{targetSlotName}" : $"目标 {targetSlotName}")}";
             var previewAttack = inspected.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + inspected.Attack;
             var previewHp = inspected.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + inspected.MaxHp;
             <WeaponDetailDialog @key="inspected.Id" Name="@inspected.Name" Element="@inspected.Element" ItemLevel="@inspected.ItemLevel"
                                 Attack="@inspected.Attack" MaxHp="@inspected.MaxHp" Skills="@GetDetailSkills(inspected)"
-                                Category="OWNED WEAPON" Subtitle="@($"{inspected.QualityName} · 装等 {inspected.ItemLevel} · {(inspected.EquippedSlotIndex is int equipped ? equipped == 1 ? "主武器" : $"副武器 {equipped:00}" : "背包")}")"
+                                Category="OWNED WEAPON" Subtitle="@detailSubtitle" ManagementLabel="强化 / 升品"
                                 Note="@(inspected.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop ? "初始或商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
-                                CloseLabel="← 返回武器仓库" OnClose="CloseWeaponDetails">
+                                CloseLabel="@(_detailFromSlot ? "← 返回武器盘" : "← 返回武器仓库")" OnClose="CloseWeaponDetails">
                 <AdditionalContent>
                     <section class="weapon-detail-management" aria-label="武器升品">
                         <h3>品质提升 <small>@inspected.QualityName · 每条技能强化上限 +@(WeaponRules.MaxEnhancementPerSkill + inspected.QualityRank)</small></h3>
@@ -237,7 +262,6 @@
                             <button type="button" class="weapon-quality-open" @ref="_qualityPickerTrigger" @onclick="OpenQualityPicker" disabled="@_isSaving">
                                 <span><strong>选择同名武器素材</strong><small>@QualityMaterials(inspected).Count 把可用 · @MatchingQualityMaterials(inspected).Count 把同款</small></span><span aria-hidden="true">›</span>
                             </button>
-                            <p class="weapon-detail-preview">升品消耗一把同款武器，素材的品质与强化投入不会继承。</p>
                         }
                     </section>
                     @if (inspected.Skills.Count > 0)
@@ -256,12 +280,28 @@
                             }
                         </section>
                     }
-                    @if (wouldEmptyMain) { <p class="weapon-detail-preview">主武器只能与已有武器交换。</p> }
-                    else if (!isHere) { <p class="weapon-detail-preview">装备后武器总和：攻击 @previewAttack · HP @previewHp</p> }
                 </AdditionalContent>
+                <ActionSummary>
+                    @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
+                    @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
+
+                    @if (wouldEmptyMain) { <p class="weapon-detail-preview">主武器只能与已有武器交换。</p> }
+                    else if (isSelectionMode && !isHere) { <p class="weapon-detail-preview">装备后武器总和：攻击 @previewAttack · HP @previewHp</p> }
+                </ActionSummary>
                 <Actions>
-                    <button type="button" class="weapon-detail-action weapon-detail-action--primary" @onclick="() => EquipAsync(inspected.Id)" disabled="@(_isSaving || isHere || wouldEmptyMain)">@(isHere ? "已装备" : wouldEmptyMain ? "主位锁定" : inspected.EquippedSlotIndex is null ? "装备" : "交换")</button>
-                    <button type="button" class="weapon-detail-action" @onclick="() => ToggleLockAsync(inspected)" disabled="@_isSaving">@(inspected.IsLocked ? "解锁" : "锁定")</button>
+                    @if (isHere)
+                    {
+                        <button type="button" class="weapon-detail-action weapon-detail-action--primary weapon-detail-action--compact" @onclick="StartWeaponSwapAsync" disabled="@_isSaving">交换</button>
+                        <button type="button" class="weapon-detail-action weapon-detail-action--danger weapon-detail-action--compact" @onclick="() => EquipAsync(null)"
+                                disabled="@(_isSaving || _selectedSlot == WeaponRules.MainSlotIndex)" title="@(_selectedSlot == WeaponRules.MainSlotIndex ? "主武器不能卸下，必须始终装备" : "卸下当前栏位武器")">
+                            @(_selectedSlot == WeaponRules.MainSlotIndex ? "主武器不可卸下" : "卸下")
+                        </button>
+                    }
+                    else if (isSelectionMode)
+                    {
+                        <button type="button" class="weapon-detail-action weapon-detail-action--primary" @onclick="() => EquipAsync(inspected.Id)" disabled="@(_isSaving || wouldEmptyMain)">@(wouldEmptyMain ? "主位锁定" : inspected.EquippedSlotIndex is null ? "装备" : "交换")</button>
+                    }
+                    <button type="button" class="weapon-detail-action @(inspected.EquippedSlotIndex.HasValue ? "weapon-detail-action--wide" : null)" @onclick="() => ToggleLockAsync(inspected)" disabled="@_isSaving">@(inspected.IsLocked ? "解锁" : "锁定")</button>
                     @if (inspected.EquippedSlotIndex is null)
                     {
                         <button type="button" class="weapon-detail-action" @onclick="() => SellAsync(inspected)" disabled="@(_isSaving || inspected.IsLocked || !inspected.CanSell)">@(inspected.CanSell ? $"出售 · {inspected.SellGold} 金币" : "不可出售")</button>
@@ -273,13 +313,13 @@
         @if (_qualityPickerOpen && InspectedWeapon is { } qualityTarget)
         {
             <div class="weapon-quality-overlay" @onclick="CloseQualityPicker" @onkeydown="HandleQualityPickerKeyDown" @onkeydown:stopPropagation>
-                <section class="weapon-quality-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-quality-title" @onclick:stopPropagation>
+                <section class="weapon-quality-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-quality-title" aria-describedby="weapon-quality-description" @onclick:stopPropagation>
                     <header class="weapon-quality-header">
                         <div><span>QUALITY UPGRADE · @qualityTarget.Name</span><h2 id="weapon-quality-title">选择升品素材</h2><p>@qualityTarget.QualityName → @WeaponRules.QualityName(qualityTarget.QualityRank + 1) · 选择一把同款武器</p></div>
                         <button type="button" class="weapon-quality-close" @onclick="CloseQualityPicker" @ref="_qualityPickerCloseButton" aria-label="关闭素材选择">×</button>
                     </header>
                     <div class="weapon-quality-body">
-                        <p class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示低品质、低装等素材。</p>
+                        <p id="weapon-quality-description" class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示低品质、低装等素材。</p>
                         <div class="weapon-quality-grid" role="group" aria-label="同款武器素材">
                             @foreach (var material in MatchingQualityMaterials(qualityTarget))
                             {
@@ -316,7 +356,7 @@
         }
         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="weapon-board__success" role="status">@_notice</p> }
-        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。强化、出售与分解结果均由服务端结算。</p>
+
     }
 </section>
 
@@ -325,20 +365,49 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private CharacterWeaponsResponse? _data;
+    private int _inventoryPageSize = 6;
+    private bool _batchMode;
+    private string _searchText = string.Empty;
+    private string? _filteredWeaponsSearch;
+    private ElementReference _boardElement;
+    private ElementReference _inventoryList;
+    private ElementReference _overviewTrigger;
+    private ElementReference _overviewDialog;
+    private ElementReference _overviewClose;
+    private bool _focusOverview;
+    private bool _focusOverviewTrigger;
+    private DotNetObjectReference<CharacterWeaponBoard>? _boardReference;
+    private bool _disposed;
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _isOverviewExpanded;
     private int _selectedSlot = 1;
+    private int _inventoryPage = 1;
     private string _mobileView = "grid";
+    private bool _inventorySelectionMode;
     private ElementType? _selectedElementFilter;
+    private string _inventorySort = "recent";
+    private bool _onlyUnequipped;
     private int? _inspectedWeaponId;
+    private bool _detailFromSlot;
     private int _qualityMaterialId;
     private bool _qualityPickerOpen;
     private bool _focusQualityPicker;
     private bool _focusQualityTrigger;
+    private string? _focusWorkspace;
+    private int? _focusWeaponTileId;
+    private ElementReference _gridPanel;
+    private ElementReference _inventoryPanel;
+    private ElementReference _batchPanel;
     private ElementReference _qualityPickerCloseButton;
     private ElementReference _qualityPickerTrigger;
     private readonly HashSet<int> _selectedWeaponIds = [];
+    private CharacterWeaponsResponse? _filteredWeaponsSource;
+    private ElementType? _filteredWeaponsElement;
+    private string? _filteredWeaponsSort;
+    private bool _filteredWeaponsOnlyUnequipped;
+    private List<CharacterWeaponResponse> _filteredWeapons = [];
+    private int _filteredProcessableWeaponCount;
     private string? _error;
     private string? _notice;
 
@@ -346,20 +415,59 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_disposed) return;
+        if (_data is not null && !_isLoading)
+        {
+            _boardReference ??= DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("weaponBoardUi.observeInventory", _boardElement, _inventoryList, _boardReference);
+        }
+        if (_focusOverview)
+        {
+            _focusOverview = false;
+            await _overviewClose.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("weaponBoardUi.trapDialogFocus", _overviewDialog);
+        }
+        else if (_focusOverviewTrigger)
+        {
+            _focusOverviewTrigger = false;
+            await _overviewTrigger.FocusAsync(preventScroll: true);
+        }
         if (_focusQualityPicker)
         {
             _focusQualityPicker = false;
-            await _qualityPickerCloseButton.FocusAsync();
+            await _qualityPickerCloseButton.FocusAsync(preventScroll: true);
         }
         else if (_focusQualityTrigger)
         {
             _focusQualityTrigger = false;
-            await _qualityPickerTrigger.FocusAsync();
+            await _qualityPickerTrigger.FocusAsync(preventScroll: true);
+        }
+        else if (_focusWeaponTileId is int weaponId)
+        {
+            _focusWeaponTileId = null;
+            await Js.InvokeVoidAsync("weaponBoardUi.focusTile", $"weapon-tile-{weaponId}");
+        }
+        else if (_focusWorkspace == "inventory")
+        {
+            _focusWorkspace = null;
+            await _inventoryPanel.FocusAsync(preventScroll: true);
+        }
+        else if (_focusWorkspace == "batch")
+        {
+            _focusWorkspace = null;
+            await _batchPanel.FocusAsync(preventScroll: true);
+        }
+        else if (_focusWorkspace == "grid")
+        {
+            _focusWorkspace = null;
+            await _gridPanel.FocusAsync(preventScroll: true);
         }
     }
 
     private async Task LoadAsync()
     {
+        _isOverviewExpanded = false;
+        _focusOverview = false;
         _isLoading = true;
         _error = null;
         _notice = null;
@@ -368,10 +476,15 @@
             var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
             _data = response;
             _inspectedWeaponId = null;
+            _detailFromSlot = false;
+            _inventorySelectionMode = false;
             _qualityPickerOpen = false;
             _focusQualityPicker = false;
             _focusQualityTrigger = false;
+            _focusWorkspace = null;
+            _focusWeaponTileId = null;
             _selectedWeaponIds.Clear();
+            _inventoryPage = 1;
             _error = GetError(error);
         }
         catch
@@ -385,9 +498,55 @@
     private CharacterWeaponResponse? FindEquipped(int slotIndex) =>
         _data?.Weapons.FirstOrDefault(item => item.EquippedSlotIndex == slotIndex);
 
-    private List<CharacterWeaponResponse> FilteredWeapons => _data?.Weapons
-        .Where(weapon => _selectedElementFilter is null || weapon.Element == _selectedElementFilter)
-        .ToList() ?? [];
+    private List<CharacterWeaponResponse> FilteredWeapons
+    {
+        get
+        {
+            if (ReferenceEquals(_filteredWeaponsSource, _data) &&
+                _filteredWeaponsElement == _selectedElementFilter &&
+                string.Equals(_filteredWeaponsSort, _inventorySort, StringComparison.Ordinal) &&
+                _filteredWeaponsOnlyUnequipped == _onlyUnequipped &&
+                _filteredWeaponsSearch == _searchText)
+            {
+                return _filteredWeapons;
+            }
+
+            var filtered = _data?.Weapons
+                .Where(weapon => (_selectedElementFilter is null || weapon.Element == _selectedElementFilter)
+                    && (!_onlyUnequipped || weapon.EquippedSlotIndex is null)
+                    && (string.IsNullOrWhiteSpace(_searchText) || weapon.Name.Contains(_searchText.Trim(), StringComparison.OrdinalIgnoreCase)));
+            _filteredWeapons = filtered is null ? [] : _inventorySort switch
+            {
+                "level" => filtered.OrderByDescending(weapon => weapon.ItemLevel)
+                    .ThenByDescending(weapon => weapon.QualityRank).ThenByDescending(weapon => weapon.Id).ToList(),
+                "attack" => filtered.OrderByDescending(weapon => weapon.Attack)
+                    .ThenByDescending(weapon => weapon.MaxHp).ThenByDescending(weapon => weapon.Id).ToList(),
+                _ => filtered.OrderByDescending(weapon => weapon.Id).ToList()
+            };
+            _filteredWeaponsSearch = _searchText;
+            _filteredWeaponsSource = _data;
+            _filteredWeaponsElement = _selectedElementFilter;
+            _filteredWeaponsSort = _inventorySort;
+            _filteredWeaponsOnlyUnequipped = _onlyUnequipped;
+            _filteredProcessableWeaponCount = _filteredWeapons.Count(CanBatchProcess);
+            return _filteredWeapons;
+        }
+    }
+
+    private int InventoryPageCount => Math.Max(1, (FilteredWeapons.Count + _inventoryPageSize - 1) / _inventoryPageSize);
+
+    private List<CharacterWeaponResponse> PagedWeapons => FilteredWeapons
+        .Skip(Math.Clamp(_inventoryPage - 1, 0, InventoryPageCount - 1) * _inventoryPageSize)
+        .Take(_inventoryPageSize)
+        .ToList();
+
+    private string InventoryEmptyMessage => !string.IsNullOrWhiteSpace(_searchText)
+        ? "没有符合条件的武器，试试其他名称或筛选。"
+        : _onlyUnequipped
+        ? "当前条件下没有未装备武器，关闭“未装备”或切换属性。"
+        : _selectedElementFilter is null
+            ? "仓库里还没有武器。"
+            : "当前属性下没有武器，切换属性筛选可查看其他属性。";
 
     private CharacterWeaponResponse? InspectedWeapon => _inspectedWeaponId is int id
         ? _data?.Weapons.FirstOrDefault(weapon => weapon.Id == id)
@@ -398,14 +557,120 @@
 
     private void SelectElementFilter(ElementType? element)
     {
+        if (_selectedElementFilter == element) return;
         _selectedElementFilter = element;
         _selectedWeaponIds.Clear();
+        _inventoryPage = 1;
         _error = null;
         _notice = null;
+
     }
 
-    private void OpenWeaponDetails(int weaponId) { _inspectedWeaponId = weaponId; _qualityMaterialId = 0; _qualityPickerOpen = false; _focusQualityTrigger = false; }
-    private void CloseWeaponDetails() { _inspectedWeaponId = null; _qualityMaterialId = 0; _qualityPickerOpen = false; _focusQualityTrigger = false; }
+    private void SelectInventorySort(string sort)
+    {
+        if (_inventorySort == sort) return;
+        _inventorySort = sort;
+        _selectedWeaponIds.Clear();
+        _inventoryPage = 1;
+        _error = null;
+        _notice = null;
+
+    }
+
+    private void ToggleOnlyUnequipped()
+    {
+        _onlyUnequipped = !_onlyUnequipped;
+        _selectedWeaponIds.Clear();
+        _inventoryPage = 1;
+        _error = null;
+        _notice = null;
+
+    }
+
+    private Task SwitchToGridAsync()
+    {
+        _batchMode = false;
+        _selectedWeaponIds.Clear();
+        _inventorySelectionMode = false;
+        if (_mobileView == "grid") return Task.CompletedTask;
+        _mobileView = "grid";
+        _focusWorkspace = "grid";
+        return Task.CompletedTask;
+    }
+
+    private Task SwitchToInventoryAsync()
+    {
+        _inventorySelectionMode = false;
+        if (_mobileView == "inventory") return Task.CompletedTask;
+        _mobileView = "inventory";
+        _focusWorkspace = "inventory";
+        return Task.CompletedTask;
+    }
+
+    private void GoToInventoryPage(int page)
+    {
+        var nextPage = Math.Clamp(page, 1, InventoryPageCount);
+        if (_inventoryPage == nextPage) return;
+        _inventoryPage = nextPage;
+        _error = null;
+        _notice = null;
+
+    }
+
+    private void OnInventoryPageChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var page)) GoToInventoryPage(page);
+    }
+
+    private void OpenWeaponDetails(int weaponId)
+    {
+        _inspectedWeaponId = weaponId;
+        _detailFromSlot = false;
+        _qualityMaterialId = 0;
+        _qualityPickerOpen = false;
+        _focusQualityTrigger = false;
+        _focusWeaponTileId = null;
+        _focusWorkspace = null;
+    }
+    private void CloseWeaponDetails()
+    {
+        var fromSlot = _detailFromSlot;
+        _detailFromSlot = false;
+        if (fromSlot)
+        {
+            _focusWeaponTileId = null;
+            _mobileView = "grid";
+            _focusWorkspace = "grid";
+        }
+        else
+        {
+            _focusWeaponTileId = _inspectedWeaponId;
+            _focusWorkspace = null;
+        }
+        _inspectedWeaponId = null;
+        _qualityMaterialId = 0;
+        _qualityPickerOpen = false;
+        _focusQualityTrigger = false;
+    }
+
+    private Task StartWeaponSwapAsync()
+    {
+        _batchMode = false;
+        _selectedWeaponIds.Clear();
+        if (_isSaving) return Task.CompletedTask;
+        _detailFromSlot = false;
+        _inspectedWeaponId = null;
+        _qualityMaterialId = 0;
+        _qualityPickerOpen = false;
+        _focusQualityTrigger = false;
+        _focusWeaponTileId = null;
+        _mobileView = "inventory";
+        _inventorySelectionMode = true;
+        _focusWorkspace = "inventory";
+        _error = null;
+        _notice = null;
+        return Task.CompletedTask;
+    }
 
     private void OpenQualityPicker()
     {
@@ -456,18 +721,37 @@
         var equipped = weapon.EquippedSlotIndex is int slot
             ? $"，已装备在{(slot == 1 ? "主武器" : $"副武器 {slot:00}")}"
             : string.Empty;
-        return $"查看 {weapon.Name}，{WeaponRules.ElementName(weapon.Element)}属性，装等 {weapon.ItemLevel}{equipped} 的详情";
+        var locked = weapon.IsLocked ? "，已锁定" : string.Empty;
+        var skills = weapon.Skills.Count > 0 ? $"，含 {weapon.Skills.Count} 项武器技能" : string.Empty;
+        return $"查看 {weapon.Name}，{WeaponRules.ElementName(weapon.Element)}属性，装等 {weapon.ItemLevel}{equipped}{locked}{skills} 的详情";
     }
 
-    private void SelectSlot(int index)
+    private Task SelectSlotAsync(int index)
     {
+        _batchMode = false;
+        _selectedWeaponIds.Clear();
         _selectedSlot = index;
-        _mobileView = "inventory";
-        _inspectedWeaponId = null;
+        _inventorySelectionMode = true;
+        _qualityMaterialId = 0;
         _qualityPickerOpen = false;
         _focusQualityTrigger = false;
+        _focusWeaponTileId = null;
         _error = null;
         _notice = null;
+        if (FindEquipped(index) is { } equipped)
+        {
+            _inspectedWeaponId = equipped.Id;
+            _detailFromSlot = true;
+            _focusWorkspace = null;
+        }
+        else
+        {
+            _inspectedWeaponId = null;
+            _detailFromSlot = false;
+            _mobileView = "inventory";
+            _focusWorkspace = "inventory";
+        }
+        return Task.CompletedTask;
     }
 
     private async Task EquipAsync(int? weaponId)
@@ -482,8 +766,12 @@
             if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
             var previousHp = _data?.Hp;
             _data = response;
+            ReconcileInventoryState(response);
             _inspectedWeaponId = null;
+            _detailFromSlot = false;
+            _inventorySelectionMode = false;
             _mobileView = "grid";
+            _focusWorkspace = "grid";
             _notice = previousHp is int oldHp && oldHp > response.Hp
                 ? $"武器盘已更新，当前 HP 随生命上限降至 {response.Hp}。"
                 : weaponId is null ? "武器已卸下。" : "武器盘已更新。";
@@ -497,6 +785,18 @@
 
     private List<CharacterWeaponResponse> ProcessableWeapons => FilteredWeapons
         .Where(CanBatchProcess).Take(100).ToList();
+
+    private int ProcessableWeaponCount
+    {
+        get
+        {
+            _ = FilteredWeapons;
+            return _filteredProcessableWeaponCount;
+        }
+    }
+
+    private string SelectAllProcessableLabel => ProcessableWeaponCount > 100
+        ? "全选前 100 把" : "全选当前筛选";
 
     private List<CharacterWeaponResponse> SelectedWeapons => _data?.Weapons
         .Where(weapon => _selectedWeaponIds.Contains(weapon.Id) && CanBatchProcess(weapon)).ToList() ?? [];
@@ -518,7 +818,14 @@
     }
 
     private static bool CanBatchProcess(CharacterWeaponResponse weapon) =>
-        weapon.EquippedSlotIndex is null && !weapon.IsLocked;
+        weapon.EquippedSlotIndex is null && !weapon.IsLocked && (weapon.CanSell || weapon.CanDismantle);
+
+    private void ReconcileInventoryState(CharacterWeaponsResponse response)
+    {
+        _inventoryPage = Math.Min(_inventoryPage, InventoryPageCount);
+        _selectedWeaponIds.RemoveWhere(id =>
+            !response.Weapons.Any(weapon => weapon.Id == id && CanBatchProcess(weapon)));
+    }
 
     private void ToggleBatchSelection(CharacterWeaponResponse weapon)
     {
@@ -605,7 +912,7 @@
                 $"出售选中的 {selected.Count} 把武器？将获得 {gold} 金币，强化投入不会返还。")) return;
         var ids = selected.Select(weapon => weapon.Id).ToArray();
         await RunWeaponActionAsync(() => ApiService.SellWeaponsAsync(CharacterId, ids),
-            $"已批量出售 {selected.Count} 把武器，获得 {gold} 金币。", balanceChanged: true);
+            $"已批量出售 {selected.Count} 把武器，获得 {gold} 金币。", balanceChanged: true, focusWorkspace: "batch");
     }
 
     private async Task DismantleSelectedAsync()
@@ -617,12 +924,12 @@
                 $"分解选中的 {selected.Count} 把武器？将获得 {returns}。")) return;
         var ids = selected.Select(weapon => weapon.Id).ToArray();
         await RunWeaponActionAsync(() => ApiService.DismantleWeaponsAsync(CharacterId, ids),
-            $"已批量分解 {selected.Count} 把武器，获得 {returns}。");
+            $"已批量分解 {selected.Count} 把武器，获得 {returns}。", focusWorkspace: "batch");
     }
 
     private async Task RunWeaponActionAsync(
         Func<Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)>> action,
-        string notice, bool refreshCharacter = false, bool balanceChanged = false)
+        string notice, bool refreshCharacter = false, bool balanceChanged = false, string? focusWorkspace = null)
     {
         if (_isSaving) return;
         _isSaving = true;
@@ -632,11 +939,22 @@
         {
             var (response, error) = await action();
             if (response is null) { _error = GetError(error) ?? "武器操作失败，请稍后重试。"; return; }
+            var previousPage = _inventoryPage;
             _data = response;
-            if (_inspectedWeaponId is int inspectedId && !response.Weapons.Any(weapon => weapon.Id == inspectedId))
+            ReconcileInventoryState(response);
+            if (focusWorkspace is not null)
+            {
+                _focusWorkspace = focusWorkspace;
+            }
+            else if (_inspectedWeaponId is int inspectedId && !response.Weapons.Any(weapon => weapon.Id == inspectedId))
+            {
                 _inspectedWeaponId = null;
-            _selectedWeaponIds.RemoveWhere(id =>
-                !response.Weapons.Any(weapon => weapon.Id == id && CanBatchProcess(weapon)));
+                _focusWorkspace = "inventory";
+            }
+            else if (_inventoryPage != previousPage)
+            {
+                _focusWorkspace = "inventory";
+            }
             _notice = notice;
             if (refreshCharacter && OnChanged.HasDelegate) await OnChanged.InvokeAsync();
             if (balanceChanged) AccountBalance.NotifyChanged();
@@ -668,4 +986,57 @@
         "NotOwner" => "只能调整自己的角色。",
         _ => "武器操作失败，请稍后重试。"
     };
+
+    [JSInvokable]
+    public Task UpdateInventoryCapacity(int capacity)
+    {
+        if (_disposed || capacity < 1 || capacity > 24 || capacity == _inventoryPageSize) return Task.CompletedTask;
+        var firstItem = (_inventoryPage - 1) * _inventoryPageSize;
+        _inventoryPageSize = capacity;
+        _inventoryPage = Math.Clamp(firstItem / capacity + 1, 1, InventoryPageCount);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        _searchText = args.Value?.ToString() ?? string.Empty;
+        _inventoryPage = 1;
+        _selectedWeaponIds.Clear();
+        _error = null;
+        _notice = null;
+    }
+
+    private void ToggleBatchMode()
+    {
+        _batchMode = !_batchMode;
+        if (_batchMode) _inventorySelectionMode = false;
+        _selectedWeaponIds.Clear();
+        _error = null;
+        _notice = null;
+    }
+
+    private void OpenOverview()
+    {
+        _isOverviewExpanded = true;
+        _focusOverview = true;
+    }
+
+    private void CloseOverview()
+    {
+        _isOverviewExpanded = false;
+        _focusOverviewTrigger = true;
+    }
+
+    private void HandleOverviewKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CloseOverview();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        try { await Js.InvokeVoidAsync("weaponBoardUi.disconnectInventory", _boardElement); }
+        catch (JSDisconnectedException) { }
+        finally { _boardReference?.Dispose(); }
+    }
 }

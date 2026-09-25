@@ -93,6 +93,74 @@ public class MonsterCombatServiceTests
         Assert.Empty(await test.Service.GetStatusResponsesAsync(test.Room, "Character", test.Character.Id));
     }
 
+    [Theory]
+    [InlineData("poison", 92, 2)]
+    [InlineData("burning", 94, 1)]
+    public async Task RefreshingActiveDamageOverTimeDoesNotPostponeItsTick(
+        string statusCode, int expectedHp, int expectedStacks)
+    {
+        await using var test = await Context.CreateAsync("basic-attacks-only");
+        await test.Service.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+            statusCode, 2, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+
+        test.Room.RoundNumber = 1;
+        await test.Service.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+            statusCode, 2, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], []);
+
+        Assert.Equal(expectedHp, test.Character.Hp);
+        var poison = await test.Db.BattleStatusEffects.SingleAsync();
+        Assert.Equal(expectedStacks, poison.Stacks);
+        Assert.Equal(3, poison.ExpiresAfterRound);
+    }
+
+    [Fact]
+    public async Task CleansedPoisonReappliesAsOneNewStackWithFirstRoundGrace()
+    {
+        await using var test = await Context.CreateAsync("basic-attacks-only");
+        for (var i = 0; i < 3; i++)
+            await test.Service.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+                "poison", 2, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+        test.Room.RoundNumber = 1;
+        await test.Service.RemoveFirstStatusAsync(test.Room, "Character", [test.Character.Id], false);
+
+        await test.Service.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+            "poison", 2, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], []);
+
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Equal(1, (await test.Db.BattleStatusEffects.SingleAsync()).Stacks);
+        test.Room.RoundNumber = 2;
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], []);
+        Assert.Equal(96, test.Character.Hp);
+    }
+
+    [Fact]
+    public async Task ExpiredPoisonIsRemovedWithoutALateTickAfterSkippedRoundEnd()
+    {
+        await using var test = await Context.CreateAsync("basic-attacks-only");
+        await test.Service.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+            "poison", 1, [], test.Character.Name);
+        await test.Db.SaveChangesAsync();
+
+        // Killing an enemy can skip its round-end resolution. Its expired poison
+        // must not inflict a delayed tick when a later enemy survives a round.
+        test.Room.RoundNumber = 2;
+        await test.Service.ResolveEndOfRoundAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], []);
+        await test.Db.SaveChangesAsync();
+
+        Assert.Equal(100, test.Character.Hp);
+        Assert.Empty(await test.Db.BattleStatusEffects.ToListAsync());
+    }
+
     [Fact]
     public async Task DeadlyIntentCanBeConfiguredAsUninterruptible()
     {

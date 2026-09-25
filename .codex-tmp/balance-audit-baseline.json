@@ -1,0 +1,347 @@
+{
+  "Assumptions": {
+    "RunsPerScenario": 1,
+    "MaxRounds": 250,
+    "PartySize": 5,
+    "ControlMode": "auto",
+    "Compositions": [
+      [
+        "knight",
+        "priest",
+        "elementalist",
+        "marksman",
+        "trickster"
+      ]
+    ],
+    "SoulLoadouts": [
+      [
+        "none"
+      ]
+    ],
+    "Description": "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and legal talent budgets; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Auto uses production Auto conditions. Manual queues every currently applicable equipped skill and soul before each round, while retaining automatic room progression for deterministic simulation. Successful encounters include 30s repeat wait; failures have no automatic restart."
+  },
+  "Summary": [
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Fire",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "ragefire-heart",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 17,
+      "MeanCycleSeconds": 320.9926371,
+      "MeanPotionsUsed": 2,
+      "MeanPotionDrops": 28,
+      "MeanGold": 550,
+      "MeanRemainingHp": 2503,
+      "Attack": 228,
+      "MaxHp": 703
+    },
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Water",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "frostspring-throne",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 21,
+      "MeanCycleSeconds": 400.9973726,
+      "MeanPotionsUsed": 2,
+      "MeanPotionDrops": 36,
+      "MeanGold": 550,
+      "MeanRemainingHp": 2957,
+      "Attack": 212,
+      "MaxHp": 814
+    },
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Earth",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "kobold-mine-depths",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 22,
+      "MeanCycleSeconds": 420.99780710000005,
+      "MeanPotionsUsed": 2,
+      "MeanPotionDrops": 36,
+      "MeanGold": 550,
+      "MeanRemainingHp": 3618,
+      "Attack": 204,
+      "MaxHp": 904
+    },
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Wind",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "windfury-spire",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 17,
+      "MeanCycleSeconds": 320.9979347,
+      "MeanPotionsUsed": 1,
+      "MeanPotionDrops": 34,
+      "MeanGold": 550,
+      "MeanRemainingHp": 2801,
+      "Attack": 212,
+      "MaxHp": 814
+    },
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Light",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "dawn-core",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 19,
+      "MeanCycleSeconds": 360.9980969,
+      "MeanPotionsUsed": 2,
+      "MeanPotionDrops": 32,
+      "MeanGold": 550,
+      "MeanRemainingHp": 2386,
+      "Attack": 212,
+      "MaxHp": 761
+    },
+    {
+      "Key": {
+        "Stage": "raid",
+        "Element": "Dark",
+        "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+        "SoulLoadout": "none",
+        "Dungeon": "plague-crypt-depths",
+        "PartySize": 5
+      },
+      "Runs": 1,
+      "Victories": 1,
+      "MeanRounds": 21,
+      "MeanCycleSeconds": 400.997997,
+      "MeanPotionsUsed": 2,
+      "MeanPotionDrops": 28,
+      "MeanGold": 550,
+      "MeanRemainingHp": 2704,
+      "Attack": 224,
+      "MaxHp": 718
+    }
+  ],
+  "Samples": [
+    {
+      "Stage": "raid",
+      "Element": "Fire",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "ragefire-heart",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 17,
+      "CycleSeconds": 320.9926371,
+      "PotionsUsed": 2,
+      "PotionDrops": 28,
+      "Gold": 550,
+      "RemainingHp": 2503,
+      "Attack": 228,
+      "MaxHp": 703,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 48000,
+      "EnemyRounds": {
+        "\u7194\u5FC3\u70C8\u7130\u536B": 1,
+        "\u7126\u5CA9\u722C\u884C\u8005": 1,
+        "\u71C3\u5203\u72C2\u4FE1\u5F92": 3,
+        "\u88C2\u8C37\u7194\u5CA9\u536B": 2,
+        "\u7194\u706B\u7763\u519B": 10
+      },
+      "BossSkillUses": {
+        "\u7194\u5CA9\u55B7\u53D1": 2,
+        "\u6012\u7130\u65A9\u51FB": 2
+      },
+      "FailureLog": []
+    },
+    {
+      "Stage": "raid",
+      "Element": "Water",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "frostspring-throne",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 21,
+      "CycleSeconds": 400.9973726,
+      "PotionsUsed": 2,
+      "PotionDrops": 36,
+      "Gold": 550,
+      "RemainingHp": 2957,
+      "Attack": 212,
+      "MaxHp": 814,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 56000,
+      "EnemyRounds": {
+        "\u5BD2\u6CC9\u51B0\u5492\u5E08": 1,
+        "\u51BB\u5CA9\u5B88\u536B": 2,
+        "\u971C\u9B03\u98CE\u8BED\u8005": 2,
+        "\u738B\u5EA7\u51B0\u94E0\u517D": 2,
+        "\u971C\u8109\u4E4B\u738B": 14
+      },
+      "BossSkillUses": {
+        "\u5BD2\u6CC9\u66B4\u96EA": 3,
+        "\u51B0\u7259\u7A7F\u523A": 2
+      },
+      "FailureLog": []
+    },
+    {
+      "Stage": "raid",
+      "Element": "Earth",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "kobold-mine-depths",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 22,
+      "CycleSeconds": 420.99780710000005,
+      "PotionsUsed": 2,
+      "PotionDrops": 36,
+      "Gold": 550,
+      "RemainingHp": 3618,
+      "Attack": 204,
+      "MaxHp": 904,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 57000,
+      "EnemyRounds": {
+        "\u6DF1\u5C42\u77FF\u6D1E\u62A4\u536B": 1,
+        "\u7194\u7089\u770B\u5B88": 2,
+        "\u9ED1\u77F3\u796D\u53F8": 3,
+        "\u77FF\u8109\u77F3\u536B": 2,
+        "\u6DF1\u5CA9\u76D1\u5DE5": 14
+      },
+      "BossSkillUses": {
+        "\u77FF\u6D1E\u5D29\u584C": 3,
+        "\u91D1\u7259\u788E\u5CA9\u51FB": 2
+      },
+      "FailureLog": []
+    },
+    {
+      "Stage": "raid",
+      "Element": "Wind",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "windfury-spire",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 17,
+      "CycleSeconds": 320.9979347,
+      "PotionsUsed": 1,
+      "PotionDrops": 34,
+      "Gold": 550,
+      "RemainingHp": 2801,
+      "Attack": 212,
+      "MaxHp": 814,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 50000,
+      "EnemyRounds": {
+        "\u96F7\u5CF0\u4FEF\u51B2\u8005": 1,
+        "\u98CE\u56FE\u817E\u62A4\u536B": 1,
+        "\u6012\u98CE\u6B4C\u8005": 3,
+        "\u96F7\u7FBD\u730E\u624B": 2,
+        "\u98CE\u66B4\u4E3B\u6BCD": 10
+      },
+      "BossSkillUses": {
+        "\u65CB\u7FBD\u98CE\u66B4": 3,
+        "\u65CF\u6BCD\u6218\u6B4C": 1
+      },
+      "FailureLog": []
+    },
+    {
+      "Stage": "raid",
+      "Element": "Light",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "dawn-core",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 19,
+      "CycleSeconds": 360.9980969,
+      "PotionsUsed": 2,
+      "PotionDrops": 32,
+      "Gold": 550,
+      "RemainingHp": 2386,
+      "Attack": 212,
+      "MaxHp": 761,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 55000,
+      "EnemyRounds": {
+        "\u6838\u5FC3\u5965\u672F\u6028\u7075": 1,
+        "\u8F89\u5149\u9632\u5FA1\u6784\u88C5\u4F53": 1,
+        "\u5931\u5E8F\u7B26\u6587\u536B\u58EB": 2,
+        "\u865A\u7A7A\u5BFC\u80FD\u8005": 2,
+        "\u5965\u672F\u9ECE\u660E\u5B88\u536B": 13
+      },
+      "BossSkillUses": {
+        "\u6668\u66E6\u8D2F\u7A7F": 2,
+        "\u8F89\u5149\u65B0\u661F": 3,
+        "\u5B88\u536B\u5149\u76FE": 1
+      },
+      "FailureLog": []
+    },
+    {
+      "Stage": "raid",
+      "Element": "Dark",
+      "Profession": "knight\u002Bpriest\u002Belementalist\u002Bmarksman\u002Btrickster",
+      "SoulLoadout": "none",
+      "Dungeon": "plague-crypt-depths",
+      "PartySize": 5,
+      "ControlMode": "auto",
+      "Seed": 1,
+      "Victory": true,
+      "Rounds": 21,
+      "CycleSeconds": 400.997997,
+      "PotionsUsed": 2,
+      "PotionDrops": 28,
+      "Gold": 550,
+      "RemainingHp": 2704,
+      "Attack": 224,
+      "MaxHp": 718,
+      "MonsterHp": 0,
+      "MonsterMaxHp": 52000,
+      "EnemyRounds": {
+        "\u75AB\u96FE\u5893\u7A74\u86DB": 1,
+        "\u8150\u7F51\u6F5C\u4F0F\u8005": 2,
+        "\u67D3\u75AB\u5730\u7A74\u5B88\u536B": 2,
+        "\u88F9\u5C38\u7EC7\u7F51\u8005": 2,
+        "\u8150\u5DE2\u5BE1\u5987": 14
+      },
+      "BossSkillUses": {
+        "\u86DB\u540E\u6355\u98DF": 2,
+        "\u6B7B\u4EA1\u6BD2\u96FE": 3,
+        "\u6697\u4E1D\u7ED3\u8327": 2
+      },
+      "FailureLog": []
+    }
+  ]
+}

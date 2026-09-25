@@ -16,14 +16,18 @@
 
 ## 终局难度规则
 
-终局目标是三波、五怪的 Lv.10 精英副本，不是地图上的单个 Lv.10 精英怪。六个副本都不检查队伍人数，而是通过 54,000 生命的首领、职责机制和时间压力形成软门槛：
+终局目标是三波、五怪的 Lv.10 精英副本，不是地图上的单个 Lv.10 精英怪。六个副本都不检查队伍人数，而是通过不同的首领属性、职责机制和时间压力形成软门槛：
 
-- 第 22 回合开始，首领每隔 3 回合发动一次不可打断的全体软狂暴。
-- 第 42 回合开始，首领每隔 2 回合发动一次 900% 倍率的不可打断硬狂暴，不能靠治疗无限拖延。
-- 狗头人深层检验破甲、持续输出和前排承伤；瘟疫地穴检验中毒、持续伤害和净化；怒焰熔心检验预告爆发、群体减伤和治疗。
-- 霜王座检验打断、减速和技能节奏；风暴巢穴检验多目标压力、追击和快速处理；晨曦核心检验首领护盾、增益驱散和爆发窗口。
+- 累计完成 22 回合后，首领每隔 3 回合尝试一次不可打断的全体软狂暴。
+- 累计完成 42 回合后，首领每隔 2 回合尝试一次 900% 倍率的不可打断硬狂暴，不能靠治疗无限拖延。计数覆盖前四怪；从零计数对应第 23/43 次结算，玩家先手击杀可阻止该次施放。
+- 狗头人深层是高护甲、长血量的前排耐力战，碎岩裂甲可叠两层；瘟疫地穴以可叠三层的疫巢剧毒持续检验净化。
+- 怒焰熔心是低血量、高爆发的全队生存战；霜王座用深寒逐层压低全队输出，并以冰甲封锁爆发窗口。
+- 风怒巢穴以高频范围攻击叠加静电荷，放大后续伤害；晨曦核心同时使用全队衰弱与 30% 减伤棱镜，要求净化、打断或驱散后集中输出。
+- 每个首领在生命降至 55%～70% 的指定阈值后，阶段技能都拥有明确优先级，会在冷却就绪时优先预告；软狂暴仍高于这些阶段技能，硬狂暴优先级最高。打断和先手击杀仍能阻止预告技能施放。
 
-“稳定 Auto”不是“固定三个种子里勉强通关”的同义词。本轮回归同时要求 18/18，并以六区平均回合均低于软狂暴触发线作为稳定收尾基线。
+逐项数值、技能循环与职责反制见 `t1-endgame-dungeon-balance.md`。
+
+精英准备 Auto 的回归要求为 60/60、六区平均回合低于软狂暴阈值，同时披露最慢回合、实际狂暴场数与伤亡。当前基线最慢 20 回合，零软/硬狂暴、零伤亡；这些是固定样本中的余量证据，不等于无限期挂机胜率保证。
 
 ## 战斗样本
 
@@ -32,15 +36,33 @@
 | 普通讨伐 | 首周参考；10 路线 × 6 属性 × 3 种子 | 180 | 180/180 | — |
 | 区域正式副本 | 首周参考；10 路线 × 6 属性 × 3 种子 | 180 | 180/180 | — |
 | Lv.10 单个区域精英 | 首周参考；10 路线 × 6 属性 × 3 种子 | 180 | 180/180 | — |
-| 终局单人边界 | 普通 T1 Auto；10 路线 × 6 属性 | 60 | 0/60 | 34.2～41.0 |
-| 终局双人边界 | 骑士＋牧师，普通 T1 Auto | 18 | 0/18 | 37.0～41.7 |
-| 终局三人挑战 | 骑士＋牧师＋元素使，普通 T1 手动策略 | 18 | 1/18 | 30.0～39.0 |
-| 终局四人手动 | 加入神射手，普通 T1 手动策略 | 18 | 15/18 | 26.3～32.0 |
-| 终局五人手动 | 再加入诡术师，普通 T1 手动策略 | 18 | 18/18 | 21.0～25.3 |
-| 普通装备 Auto 压力样本 | 同一五人队，普通 T1 Auto | 18 | 18/18 | 21.0～25.0 |
-| 稳定 Auto | 每人两件区域精英武器、对应魂印，五人 Auto | 18 | 18/18 | 16.7～19.0 |
+| 终局单人边界 | 普通 T1 Auto；10 路线 × 6 属性 | 60 | 0/60 | 31.1～41.5 |
+| 终局双人边界 | 骑士＋牧师，普通 T1 Auto | 30 | 0/30 | 32.2～43.4 |
+| 终局三人挑战 | 骑士＋牧师＋元素使，普通 T1 手动策略 | 30 | 1/30 | 28.0～43.2 |
+| 终局四人手动 | 加入神射手，普通 T1 手动策略 | 60 | 60/60 | 23.9～31.4 |
+| 终局五人手动 | 再加入诡术师，普通 T1 手动策略 | 60 | 60/60 | 18.8～24.3 |
+| 普通装备 Auto 压力样本 | 同一五人队，普通 T1 Auto | 60 | 60/60 | 19.2～24.5 |
+| 精英准备 Auto | 每人两件区域精英武器、对应魂印，五人 Auto | 60 | 60/60 | 15.2～19.3 |
+| 十转职替换覆盖 | 每次替换一名同位转职，五套队伍手动 | 90 | 90/90 | 18.93～24.27 |
 
-这组结果对应讨论中的分层：1～2 人无法通过；三人只有极少数手动挑战样本成功；四人普通成型队在手动操作下有合理通关率；五人普通成型队可以稳定手动通关。普通装备五人 Auto 能在这组固定样本中清关，但暗区平均仍到第 25 回合、整体平均消耗 4.9 瓶药水，因此不把它登记成稳定无人值守基线。精英准备队的六区平均全部在第 22 回合前，平均消耗降至 2.2 瓶，才登记为稳定 Auto。
+普通 T1 下，单人十转职与双人骑士＋牧师 Auto 未能通过，三人手动仅 1/30。四人和五人手动均为 60/60，但压力明显不同：
+
+| 队伍 | 平均 / 最慢回合 | 平均药耗 | 实际软狂暴场次 | 有队员阵亡的场次 |
+| --- | ---: | ---: | ---: | ---: |
+| 四人手动 | 28.85 / 33 | 9.48 | 56/60 | 13/60 |
+| 五人手动 | 22.03 / 26 | 3.57 | 17/60 | 0/60 |
+| 普通五人 Auto | 22.35 / 26 | 4.72 | 23/60 | 0/60 |
+| 精英准备五人 Auto | 17.55 / 20 | 1.38 | 0/60 | 0/60 |
+
+四组均未实际触发硬狂暴。四人手动使用完整预告与技能决策，理想策略全胜是合理结果；挑战通过较五人多 30.9% 的回合、约 2.66 倍药耗和减员压力体现。因此四人门槛从 70%～90% 成功率改为至少 70%、各区至少 50%，另要求至少半数场次实际进入软狂暴、平均回合至少五人的 1.15 倍、六区分别都比五人更慢。取消成功率上限不等于取消难度验证。
+
+普通五人 Auto 同样在样本中全胜且无伤亡，较慢和药耗较高不能单独证明它不稳定。精英准备则明显改善通关效率与余量。单人和双人核心结果只覆盖表中配装与组合，不能推导为绝对人数限制；额外种子和精英双人等对照见 [平衡复核总报告](t1-balance-audit.md)。
+
+五套替换队伍把骑士换成战士、牧师换成审判官、元素使换成奥术师、神射手换成兽王、诡术师换成刺客，共覆盖十个转职并取得 90/90。副本因此要求的是承伤、恢复、净化、打断/驱散与输出等职责组合，而不是指定某一个转职才能进入。
+
+## Boss 魂印验收
+
+六枚魂印保持六种不同职责，不以等倍率方式强行拉齐。压力矩阵覆盖无魂印、六种全队同印和两套混搭，共 270/270；最快的全毒核平均 16.17 回合、1.43 瓶药，最低药耗的全棱晶平均 19.00 回合、0 瓶药，体现速度与补给的取舍。适配岗位单枚魂印为 126/126；同一固定混搭再覆盖十个转职替换队为 90/90，六区平均 15.00～19.07 回合，其中 1 场有队员阵亡，零软/硬狂暴。功能魂印的验收要求是在至少一个副本中具备比纯输出魂印更快或更省药的优势，并比无魂印至少改善一个维度；不要求功能魂印同时赢下两个维度。完整表格与 Auto 规则见 `t1-soul-imprint-balance.md`。
 
 手动模式会读取当前首领预告，提前排队防御、治疗、净化、驱散、打断和魂印；房间推进仍由模拟器自动完成，以保证固定种子可复现。它验证的是回合决策收益，不测量玩家实际点击速度。
 
@@ -50,20 +72,22 @@
 - `t1-endgame-solo-boundary.json`、`t1-endgame-party2-final.json`：单人和双人失败边界。
 - `t1-endgame-party3-final.json`、`t1-endgame-party4-final.json`、`t1-endgame-party-final.json`：三、四、五人手动策略。
 - `t1-endgame-auto-entry.json`、`t1-endgame-auto-stable.json`：普通装备与精英准备 Auto 对照。
+- `t1-endgame-role-coverage.json`：五套同位转职替换队伍，共 90 场。
+- `t1-soul-imprint-balance.json`：六种全队同印、无魂印与两套混搭，共 270 场。
+- `t1-soul-imprint-specialists.json`：六枚魂印分别放在适配岗位的单枚对照，共 126 场。
+- `t1-soul-imprint-role-coverage.json`：固定混搭覆盖十个转职替换队，共 90 场。
 
 ## 复跑命令
 
 ```powershell
-dotnet build tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-restore
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles knight,warrior,priest,inquisitor,elementalist,arcanist,marksman,beastmaster,assassin,trickster --stages week --targets normal,dungeon,elite --output docs/t1-profession-balance-final.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 1 --elements Fire,Water,Earth,Wind,Light,Dark --roles knight,warrior,priest,inquisitor,elementalist,arcanist,marksman,beastmaster,assassin,trickster --stages week --targets endgame --party 1 --mode auto --output docs/t1-endgame-solo-boundary.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 2 --mode auto --output docs/t1-endgame-party2-final.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 3 --mode manual --output docs/t1-endgame-party3-final.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 4 --mode manual --output docs/t1-endgame-party4-final.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 5 --mode manual --output docs/t1-endgame-party-final.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages week --targets endgame --party 5 --mode auto --output docs/t1-endgame-auto-entry.json
-dotnet run --project tools/Game.BalanceSimulator/Game.BalanceSimulator.csproj --no-build -- --runs 3 --elements Fire,Water,Earth,Wind,Light,Dark --roles balanced-team --stages raid --targets endgame --party 5 --mode auto --output docs/t1-endgame-auto-stable.json
+./tools/run-t1-endgame-balance.ps1 -Suite core
+./tools/run-t1-endgame-balance.ps1 -Suite professions -SkipBuild
+./tools/run-t1-soul-imprint-balance.ps1 -SkipBuild
+./tools/run-t1-endgame-balance.ps1 -Suite holdout -SkipBuild
+./tools/verify-t1-endgame-balance.ps1 -RequireFresh
 ```
+
+`core` 生成 450 场人数、Auto 与职业替换基线；魂印脚本生成 486 场，二者合计 936 场由严格验收脚本检查。`professions` 另覆盖 540 场成长内容，`holdout` 使用 1001 起的新种子做补充对照。报告记录源码指纹与运行期间源码是否变化；`-RequireFresh` 会拒绝缺失指纹或与当前源码不一致的旧报告。改变生产代码或配置后需要重新构建与生成对应报告。
 
 这些结果是固定配装和固定随机种子的回归基线，不代表真实获取时间或无限期挂机胜率。长期经济仍以获取流程模拟、试玩和线上遥测为准。
 

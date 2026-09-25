@@ -6,4 +6,5 @@ public class CreateRoomRequest
     public string? MonsterType { get; set; }
     public bool IsRepeatBattle { get; set; }
     public bool IsPreparationTimeoutEnabled { get; set; } = true;
+    public bool IsPublic { get; set; }
 }

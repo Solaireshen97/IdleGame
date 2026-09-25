@@ -10,7 +10,7 @@
 
 <PageTitle>副本大厅</PageTitle>
 
-<div class="rooms-page @(_activeLobbyTab == LobbyTab.Create ? "rooms-page--creating" : null)">
+<div class="rooms-page">
 @if (_isCheckingLoginState)
 {
     <GameStateCard Compact="true" Title="正在确认冒险者身份" Detail="马上为你载入可用副本。" />
@@ -59,7 +59,7 @@ else
                                     <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge status-badge--@RoomStatusTone(room.RoomStatus)">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
                                     <h3>@room.MonsterName</h3>
                                     <p>@room.RegionName · @room.DungeonName</p>
-                                    <div class="room-card__rules"><span>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</span><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span></div>
+                                    <div class="room-card__rules"><span>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</span><span>@(room.IsPublic ? "公开房间" : "私人房间")</span><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span></div>
                                 </div>
                                 <div class="room-card__progress">
                                     <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
@@ -121,14 +121,13 @@ else
                 @if (_selectedRegion is not null)
                 {
                     <section class="dungeon-region">
-                        <div class="dungeon-region__heading"><span>地区挑战</span><small>正式副本 Lv.8 解锁 · 推荐 Lv.10</small></div>
-                        <div class="horizontal-rail">
-                            <button type="button" class="horizontal-rail__control horizontal-rail__control--previous" data-scroll-step="-1" aria-label="查看前面的地区挑战">‹</button>
-                            <div class="dungeon-grid" data-drag-scroll data-adaptive-dungeon-grid tabindex="0" aria-label="地区挑战列表，窄屏可左右滑动，高屏可上下滚动">
+                        <div class="dungeon-region__heading"><span>地区挑战</span><small>点击挑战，查看怪物与掉落并创建房间</small></div>
+                        <div class="dungeon-grid" aria-label="地区挑战列表">
                             @foreach (var dungeon in RegionDungeons)
                             {
                                 <button type="button"
                                         class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
+                                        aria-haspopup="dialog"
                                         @onclick="() => SelectDungeon(dungeon.DungeonId)">
                                     <span class="dungeon-card__topline">
                                         <span>@DungeonKindName(dungeon.DungeonKind)</span>
@@ -143,53 +142,22 @@ else
                                     }
                                 </button>
                             }
-                            </div>
-                            <button type="button" class="horizontal-rail__control horizontal-rail__control--next" data-scroll-step="1" aria-label="查看更多地区挑战">›</button>
                         </div>
                     </section>
                 }
-                </div>
-                <div class="dungeon-launcher__command" aria-label="房间设置与创建战斗">
-                    <div class="dungeon-launcher__selection" aria-live="polite">
-                        @if (_message is not null)
-                        {
-                            <strong class="dungeon-launcher__selection-error">@_message</strong>
-                            <small>请调整副本选择后重试</small>
-                        }
-                        else if (_selectedDungeon is not null)
-                        {
-                            <span class="status-badge @(_selectedDungeon.AutoUnlocked ? "status-badge--success" : "status-badge--warning")">@(_selectedDungeon.AutoUnlocked ? "AUTO 已解锁" : "首次挑战")</span>
-                            <strong>@_selectedDungeon.Name</strong>
-                            <small>角色 Lv.@_selectedDungeon.CurrentCharacterLevel · 推荐 Lv.@_selectedDungeon.RecommendedLevel · 经验 @_selectedDungeon.ExperiencePercent%</small>
-                        }
-                        else
-                        {
-                            <strong>请选择副本</strong>
-                        }
-                    </div>
-                    <div class="dungeon-launcher__info" aria-label="副本资料">
-                        <button type="button" @onclick="() => OpenInspector(InspectorPanel.Monsters)" disabled="@(_selectedDungeon is null)" aria-haspopup="dialog">怪物信息</button>
-                        <button type="button" @onclick="() => OpenInspector(InspectorPanel.Drops)" disabled="@(_selectedDungeon is null)" aria-haspopup="dialog">掉落预览</button>
-                    </div>
-                    <div class="dungeon-launcher__quick-settings" aria-label="战斗设置">
-                        <label title="胜利后 @BattleRules.RepeatBattleDelaySeconds 秒自动重开">
-                            <input type="checkbox" @bind="_isRepeatBattle" />
-                            <span><strong>循环</strong><small>胜利重开</small></span>
-                        </label>
-                    </div>
-                    <button class="button button--primary" @onclick="CreateRoomAsync" disabled="@(_isLoading || _selectedDungeon is null || !_selectedDungeon.CanEnter)">@(_isLoading ? "创建中…" : "创建战斗")</button>
                 </div>
             </section>
         </div>
     }
 }
 
-@if (_inspectorPanel is { } inspectorPanel && _selectedDungeon is { } inspectedDungeon)
+@if (_isCreateDialogOpen && _selectedDungeon is { } inspectedDungeon)
 {
-    <MonsterDetailDialog @key="(inspectedDungeon.DungeonId, inspectorPanel)" Dungeon="inspectedDungeon" ShowDrops="@(inspectorPanel == InspectorPanel.Drops)" OnClose="CloseInspector" />
+    <MonsterDetailDialog @key="inspectedDungeon.DungeonId" Dungeon="inspectedDungeon" Character="ActiveCharacters.Current"
+                         IsCreating="_isLoading" CreateError="_message" OnCreate="CreateRoomAsync" OnClose="CloseCreateDialog" />
 }
 
-@if (_message is not null && _activeLobbyTab != LobbyTab.Create)
+@if (_message is not null && !_isCreateDialogOpen)
 {
     <p class="notice-message">@_message</p>
 }
@@ -209,11 +177,10 @@ else
     private int _catalogRequest;
     private bool _disposed;
     private int _selectedDungeonId;
-    private bool _isRepeatBattle = true;
-    private InspectorPanel? _inspectorPanel;
+    private bool _isCreateDialogOpen;
     private LobbyTab _activeLobbyTab = LobbyTab.Create;
-    private int CurrentRoomCount => _rooms?.Count(room => room.IsCurrentUserParticipant) ?? 0;
-    private int JoinableRoomCount => _rooms?.Count(room => !room.IsCurrentUserParticipant && !room.ClosedAtUtc.HasValue) ?? 0;
+    private int CurrentRoomCount => _rooms?.Count(room => room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser) ?? 0;
+    private int JoinableRoomCount => _rooms?.Count(room => room.IsPublic && !room.IsCurrentUserParticipant && !room.IsOwnedByCurrentUser && !room.ClosedAtUtc.HasValue) ?? 0;
     private DungeonSummaryResponse? _selectedDungeon => _dungeons.SingleOrDefault(dungeon => dungeon.DungeonId == _selectedDungeonId);
 
     private enum LobbyTab
@@ -223,18 +190,17 @@ else
         Join
     }
 
-    private enum InspectorPanel { Monsters, Drops }
-
-    private void OpenInspector(InspectorPanel panel) => _inspectorPanel = panel;
-    private void CloseInspector() => _inspectorPanel = null;
+    private void CloseCreateDialog() { _isCreateDialogOpen = false; _message = null; }
 
     private IEnumerable<RoomSummaryResponse> GetRoomsForActiveTab() => (_rooms ?? [])
-        .Where(room => _activeLobbyTab == LobbyTab.Current ? room.IsCurrentUserParticipant : !room.IsCurrentUserParticipant && !room.ClosedAtUtc.HasValue);
+        .Where(room => _activeLobbyTab == LobbyTab.Current
+            ? room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser
+            : room.IsPublic && !room.IsCurrentUserParticipant && !room.IsOwnedByCurrentUser && !room.ClosedAtUtc.HasValue);
 
     private void SwitchLobbyTab(LobbyTab tab)
     {
         _activeLobbyTab = tab;
-        _inspectorPanel = null;
+        _isCreateDialogOpen = false;
         _message = null;
     }
 
@@ -281,7 +247,7 @@ else
     private void SelectRegion(string code)
     {
         _selectedRegionCode = code;
-        _inspectorPanel = null;
+        _isCreateDialogOpen = false;
         _selectedDungeonId = (RegionDungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? RegionDungeons.FirstOrDefault())?.DungeonId ?? 0;
         _message = null;
     }
@@ -290,20 +256,24 @@ else
     {
         _isLoading = true;
         _rooms = await ApiService.GetRoomsAsync();
-        if (_rooms?.Any(room => room.IsCurrentUserParticipant) == true)
+        if (_rooms?.Any(room => room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser) == true)
         {
             _activeLobbyTab = LobbyTab.Current;
         }
         _isLoading = false;
     }
 
-    private async Task CreateRoomAsync()
+    private async Task CreateRoomAsync(CreateRoomRequest options)
     {
         _isLoading = true;
         _message = null;
-        if (_selectedDungeonId == 0) { _message = "暂无可用副本。"; _isLoading = false; return; }
-        if (_selectedDungeon is null || !_selectedDungeon.CanEnter) { _message = _selectedDungeon?.LockReason ?? "当前角色无法进入该副本。"; _isLoading = false; return; }
-        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(_selectedDungeonId, _isRepeatBattle, isPreparationTimeoutEnabled: true);
+        if (options.DungeonId is null || _selectedDungeon is null || options.DungeonId != _selectedDungeon.DungeonId || !_selectedDungeon.CanEnter)
+        {
+            _message = _selectedDungeon?.LockReason ?? "当前角色无法进入该副本。";
+            _isLoading = false;
+            return;
+        }
+        var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(options);
         if (roomDetail is null)
         {
             _message = errorMessage switch
@@ -328,8 +298,8 @@ else
     private void SelectDungeon(int dungeonId)
     {
         _selectedDungeonId = dungeonId;
-        _inspectorPanel = null;
-        _message = _selectedDungeon?.CanEnter == false ? _selectedDungeon.LockReason : null;
+        _message = null;
+        _isCreateDialogOpen = _selectedDungeon is not null;
     }
 
     private static string DungeonKindName(string kind) => kind switch

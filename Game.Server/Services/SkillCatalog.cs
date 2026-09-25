@@ -60,9 +60,9 @@ public sealed class SkillCatalog
                 throw new InvalidOperationException($"Invalid talent configuration: {node.Code}");
         }
         foreach (var node in _talentNodes.Values)
-            if (node.Prerequisites.Distinct(StringComparer.OrdinalIgnoreCase).Count() != node.Prerequisites.Count ||
-                node.Prerequisites.Any(code => !_talentNodes.TryGetValue(code, out var parent) ||
-                    !string.Equals(parent.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) || parent.Tier >= node.Tier))
+            if (!AreValidPrerequisites(node, node.Prerequisites) ||
+                !AreValidPrerequisites(node, node.AnyPrerequisites) ||
+                node.Prerequisites.Intersect(node.AnyPrerequisites, StringComparer.OrdinalIgnoreCase).Any())
                 throw new InvalidOperationException($"Invalid talent prerequisites: {node.Code}");
 
         foreach (var skill in _skills.Values)
@@ -92,9 +92,22 @@ public sealed class SkillCatalog
     public IReadOnlyList<SkillTalentNodeOptions> TalentNodesForProfession(string professionCode) => _talentNodes.Values
         .Where(node => string.Equals(node.ProfessionCode, professionCode, StringComparison.OrdinalIgnoreCase)).OrderBy(node => node.Tier).ThenBy(node => node.Column).ToList();
 
+    public bool ArePrerequisitesMet(SkillTalentNodeOptions node, IReadOnlyDictionary<string, int> ranks)
+    {
+        var requiredPrerequisitesMet = node.Prerequisites.All(code =>
+            ranks.GetValueOrDefault(code) >= (_talentNodes.TryGetValue(code, out var parent) ? parent.MaxRank : int.MaxValue));
+        var anyPrerequisiteMet = node.AnyPrerequisites.Count == 0 || node.AnyPrerequisites.Any(code =>
+            ranks.GetValueOrDefault(code) >= (_talentNodes.TryGetValue(code, out var parent) ? parent.MaxRank : int.MaxValue));
+        return requiredPrerequisitesMet && anyPrerequisiteMet;
+    }
+
     public bool IsNodeActive(Character character, SkillTalentNodeOptions node, IReadOnlyDictionary<string, int> ranks) =>
-        ranks.GetValueOrDefault(node.Code) > 0 && node.RequiredLevel <= character.Level &&
-        node.Prerequisites.All(code => ranks.GetValueOrDefault(code) >= (_talentNodes.TryGetValue(code, out var parent) ? parent.MaxRank : int.MaxValue));
+        ranks.GetValueOrDefault(node.Code) > 0 && node.RequiredLevel <= character.Level && ArePrerequisitesMet(node, ranks);
+
+    private bool AreValidPrerequisites(SkillTalentNodeOptions node, IReadOnlyCollection<string> prerequisites) =>
+        prerequisites.Distinct(StringComparer.OrdinalIgnoreCase).Count() == prerequisites.Count &&
+        prerequisites.All(code => _talentNodes.TryGetValue(code, out var parent) &&
+            string.Equals(parent.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) && parent.Tier < node.Tier);
 
     public bool IsLearned(Character character, string? skillCode, IReadOnlyDictionary<string, int> ranks)
     {
