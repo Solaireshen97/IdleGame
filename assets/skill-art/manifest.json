@@ -94,5 +94,181 @@
     "file": "priest-group-heal.png",
     "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
     "palette": "emerald green, ivory, pale cyan and warm gold"
+  },
+  {
+    "code": "mage-arcane-bolt",
+    "name": "奥术箭",
+    "profession": "mage",
+    "file": "mage-arcane-bolt.png",
+    "subject": "one luminous violet arcane dart with a pointed gold rune trail",
+    "palette": "violet, cobalt blue and warm gold"
+  },
+  {
+    "code": "mage-frost-ward",
+    "name": "寒霜护体",
+    "profession": "mage",
+    "file": "mage-frost-ward.png",
+    "subject": "a faceted icy blue shield bearing a crisp white snowflake",
+    "palette": "ice blue, pale cyan and ivory"
+  },
+  {
+    "code": "mage-arcane-barrage",
+    "name": "奥术弹幕",
+    "profession": "mage",
+    "file": "mage-arcane-barrage.png",
+    "subject": "three violet mana bolts fanning outward with tiny gold sparks",
+    "palette": "violet, indigo and warm gold"
+  },
+  {
+    "code": "mage-spellbreak",
+    "name": "法术反制",
+    "profession": "mage",
+    "file": "mage-spellbreak.png",
+    "subject": "a fractured violet spell rune pierced by a blue crystal shard",
+    "palette": "violet, crystal blue and ivory"
+  },
+  {
+    "code": "mage-arcane-suppression",
+    "name": "奥术压制",
+    "profession": "mage",
+    "file": "mage-arcane-suppression.png",
+    "subject": "a glowing angular rune seal pressing down a dim violet mana orb",
+    "palette": "indigo, violet and muted gold"
+  },
+  {
+    "code": "hunter-quick-shot",
+    "name": "快速射击",
+    "profession": "hunter",
+    "file": "hunter-quick-shot.png",
+    "subject": "a compact drawn hunting bow releasing a single fast amber arrow",
+    "palette": "forest green, amber and dark brown"
+  },
+  {
+    "code": "hunter-field-mend",
+    "name": "野外包扎",
+    "profession": "hunter",
+    "file": "hunter-field-mend.png",
+    "subject": "a rolled leather field bandage wrapped with two fresh healing leaves",
+    "palette": "leaf green, warm ivory and leather brown"
+  },
+  {
+    "code": "hunter-marked-shot",
+    "name": "标记射击",
+    "profession": "hunter",
+    "file": "hunter-marked-shot.png",
+    "subject": "a feathered arrow striking a red crossed target mark with one impact spark",
+    "palette": "forest green, scarlet and amber"
+  },
+  {
+    "code": "hunter-venom-arrow",
+    "name": "毒箭",
+    "profession": "hunter",
+    "file": "hunter-venom-arrow.png",
+    "subject": "a sharp arrowhead coated with dripping emerald venom",
+    "palette": "poison green, dark steel and leather brown"
+  },
+  {
+    "code": "hunter-rapid-volley",
+    "name": "连珠箭",
+    "profession": "hunter",
+    "file": "hunter-rapid-volley.png",
+    "subject": "three feathered arrows in a tight diagonal volley with gold speed streaks",
+    "palette": "amber, forest green and steel blue"
+  },
+  {
+    "code": "rogue-shadow-strike",
+    "name": "影袭",
+    "profession": "rogue",
+    "file": "rogue-shadow-strike.png",
+    "subject": "a dark curved dagger emerging from a bold violet shadow slash",
+    "palette": "near black, violet and cold silver"
+  },
+  {
+    "code": "rogue-evasion",
+    "name": "闪避",
+    "profession": "rogue",
+    "file": "rogue-evasion.png",
+    "subject": "a single dark boot sidestepping a pale blade streak with teal motion squares",
+    "palette": "dark navy, teal and ivory"
+  },
+  {
+    "code": "rogue-blade-flurry",
+    "name": "刀锋乱舞",
+    "profession": "rogue",
+    "file": "rogue-blade-flurry.png",
+    "subject": "two short crossing curved daggers surrounded by crisp crimson slash trails",
+    "palette": "dark steel, crimson and ivory"
+  },
+  {
+    "code": "rogue-poisoned-blade",
+    "name": "淬毒之刃",
+    "profession": "rogue",
+    "file": "rogue-poisoned-blade.png",
+    "subject": "a dark dagger with emerald venom along its edge and two falling drops",
+    "palette": "dark steel, emerald and muted violet"
+  },
+  {
+    "code": "rogue-gouge",
+    "name": "凿击",
+    "profession": "rogue",
+    "file": "rogue-gouge.png",
+    "subject": "a hooked short dagger making one jagged red impact spark on dark armor",
+    "palette": "scarlet, charcoal and silver"
+  },
+  {
+    "code": "inquisitor-condemn",
+    "name": "定罪",
+    "profession": "inquisitor",
+    "file": "inquisitor-condemn.png",
+    "subject": "a gold judgment mace crushing a black sigil beneath a white sunburst",
+    "palette": "warm gold, ivory and charcoal"
+  },
+  {
+    "code": "elementalist-pyroblast",
+    "name": "炎爆术",
+    "profession": "elementalist",
+    "file": "elementalist-pyroblast.png",
+    "subject": "a dense orange-red fireball erupting into angular flames with a bright yellow core",
+    "palette": "ember red, flame orange and yellow"
+  },
+  {
+    "code": "arcanist-overcharge",
+    "name": "奥能超载",
+    "profession": "arcanist",
+    "file": "arcanist-overcharge.png",
+    "subject": "an overfilled purple arcane crystal crackling with blue runic lightning",
+    "palette": "violet, electric blue and silver"
+  },
+  {
+    "code": "marksman-sniper-shot",
+    "name": "致命狙击",
+    "profession": "marksman",
+    "file": "marksman-sniper-shot.png",
+    "subject": "a long steel-tipped arrow piercing a tiny gold precision star with a straight motion trail",
+    "palette": "forest green, steel blue and warm gold"
+  },
+  {
+    "code": "beastmaster-coordinated-assault",
+    "name": "协同突袭",
+    "profession": "beastmaster",
+    "file": "beastmaster-coordinated-assault.png",
+    "subject": "a hunting spear tip alongside one broad beast claw slash converging on a bright impact",
+    "palette": "moss green, tawny brown and amber"
+  },
+  {
+    "code": "assassin-deathblow",
+    "name": "绝命一击",
+    "profession": "assassin",
+    "file": "assassin-deathblow.png",
+    "subject": "a crimson-edged dagger descending into a dark heart-shaped shadow with one sharp impact glint",
+    "palette": "deep crimson, near black and silver"
+  },
+  {
+    "code": "trickster-smoke-bomb",
+    "name": "烟幕弹",
+    "profession": "trickster",
+    "file": "trickster-smoke-bomb.png",
+    "subject": "a small violet smoke bomb bursting open into chunky teal and purple smoke curls",
+    "palette": "violet, teal and charcoal"
   }
 ]

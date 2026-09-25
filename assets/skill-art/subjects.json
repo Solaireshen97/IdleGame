@@ -58,5 +58,27 @@
     "code": "priest-group-heal",
     "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
     "palette": "emerald green, ivory, pale cyan and warm gold"
-  }
+  },
+  {"code":"mage-arcane-bolt","subject":"one luminous violet arcane dart with a pointed gold rune trail","palette":"violet, cobalt blue and warm gold"},
+  {"code":"mage-frost-ward","subject":"a faceted icy blue shield bearing a crisp white snowflake","palette":"ice blue, pale cyan and ivory"},
+  {"code":"mage-arcane-barrage","subject":"three violet mana bolts fanning outward with tiny gold sparks","palette":"violet, indigo and warm gold"},
+  {"code":"mage-spellbreak","subject":"a fractured violet spell rune pierced by a blue crystal shard","palette":"violet, crystal blue and ivory"},
+  {"code":"mage-arcane-suppression","subject":"a glowing angular rune seal pressing down a dim violet mana orb","palette":"indigo, violet and muted gold"},
+  {"code":"hunter-quick-shot","subject":"a compact drawn hunting bow releasing a single fast amber arrow","palette":"forest green, amber and dark brown"},
+  {"code":"hunter-field-mend","subject":"a rolled leather field bandage wrapped with two fresh healing leaves","palette":"leaf green, warm ivory and leather brown"},
+  {"code":"hunter-marked-shot","subject":"a feathered arrow striking a red crossed target mark with one impact spark","palette":"forest green, scarlet and amber"},
+  {"code":"hunter-venom-arrow","subject":"a sharp arrowhead coated with dripping emerald venom","palette":"poison green, dark steel and leather brown"},
+  {"code":"hunter-rapid-volley","subject":"three feathered arrows in a tight diagonal volley with gold speed streaks","palette":"amber, forest green and steel blue"},
+  {"code":"rogue-shadow-strike","subject":"a dark curved dagger emerging from a bold violet shadow slash","palette":"near black, violet and cold silver"},
+  {"code":"rogue-evasion","subject":"a single dark boot sidestepping a pale blade streak with teal motion squares","palette":"dark navy, teal and ivory"},
+  {"code":"rogue-blade-flurry","subject":"two short crossing curved daggers surrounded by crisp crimson slash trails","palette":"dark steel, crimson and ivory"},
+  {"code":"rogue-poisoned-blade","subject":"a dark dagger with emerald venom along its edge and two falling drops","palette":"dark steel, emerald and muted violet"},
+  {"code":"rogue-gouge","subject":"a hooked short dagger making one jagged red impact spark on dark armor","palette":"scarlet, charcoal and silver"},
+  {"code":"inquisitor-condemn","subject":"a gold judgment mace crushing a black sigil beneath a white sunburst","palette":"warm gold, ivory and charcoal"},
+  {"code":"elementalist-pyroblast","subject":"a dense orange-red fireball erupting into angular flames with a bright yellow core","palette":"ember red, flame orange and yellow"},
+  {"code":"arcanist-overcharge","subject":"an overfilled purple arcane crystal crackling with blue runic lightning","palette":"violet, electric blue and silver"},
+  {"code":"marksman-sniper-shot","subject":"a long steel-tipped arrow piercing a tiny gold precision star with a straight motion trail","palette":"forest green, steel blue and warm gold"},
+  {"code":"beastmaster-coordinated-assault","subject":"a hunting spear tip alongside one broad beast claw slash converging on a bright impact","palette":"moss green, tawny brown and amber"},
+  {"code":"assassin-deathblow","subject":"a crimson-edged dagger descending into a dark heart-shaped shadow with one sharp impact glint","palette":"deep crimson, near black and silver"},
+  {"code":"trickster-smoke-bomb","subject":"a small violet smoke bomb bursting open into chunky teal and purple smoke curls","palette":"violet, teal and charcoal"}
 ]

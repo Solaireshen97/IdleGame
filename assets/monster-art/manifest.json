@@ -430,5 +430,155 @@
     "file": "monster-072.png",
     "element": "Earth",
     "subject": "deep-rock overseer boss with massive iron pickaxe, dark mineral armor and glowing ochre eyes"
+  },
+  {
+    "name": "疫雾墓穴蛛",
+    "file": "monster-073.png",
+    "element": "Dark",
+    "subject": "small sickly tomb spider with jaundiced green abdomen and wisps of plague vapor"
+  },
+  {
+    "name": "腐网潜伏者",
+    "file": "monster-074.png",
+    "element": "Wind",
+    "subject": "lean cellar spider with torn mossy webbing between long legs and pale poison fangs"
+  },
+  {
+    "name": "染疫地穴守卫",
+    "file": "monster-075.png",
+    "element": "Dark",
+    "subject": "ancient armored crypt guard with pitted iron shield and green plague growth in its joints"
+  },
+  {
+    "name": "裹尸织网者",
+    "file": "monster-076.png",
+    "element": "Earth",
+    "subject": "shrouded spider weaver wrapped in burial cloth and dense gray silk, with many angular legs"
+  },
+  {
+    "name": "腐巢寡妇",
+    "file": "monster-077.png",
+    "element": "Dark",
+    "subject": "large widow spider queen boss with black-purple shell, red hourglass marking and swollen toxic abdomen"
+  },
+  {
+    "name": "熔心烈焰卫",
+    "file": "monster-078.png",
+    "element": "Fire",
+    "subject": "armored flame sentinel with glowing furnace chest, red steel plates and a blazing polearm"
+  },
+  {
+    "name": "焦岩爬行者",
+    "file": "monster-079.png",
+    "element": "Earth",
+    "subject": "low volcanic crawler made of cracked black rock with ember cracks and four clawed legs"
+  },
+  {
+    "name": "燃刃狂信徒",
+    "file": "monster-080.png",
+    "element": "Dark",
+    "subject": "fanatical dark-robed cult fighter with scorched hood and a curved fire-coated blade"
+  },
+  {
+    "name": "裂谷熔岩卫",
+    "file": "monster-081.png",
+    "element": "Fire",
+    "subject": "heavy magma guardian with basalt armor, molten orange seams and a broad stone shield"
+  },
+  {
+    "name": "熔火督军",
+    "file": "monster-082.png",
+    "element": "Fire",
+    "subject": "powerful infernal warlord boss in dark crimson plate with horned helm and massive flaming axe"
+  },
+  {
+    "name": "寒泉冰咒师",
+    "file": "monster-083.png",
+    "element": "Water",
+    "subject": "frostspring spellcaster in pale blue robes with icicle wand and circular frozen collar"
+  },
+  {
+    "name": "冻岩守卫",
+    "file": "monster-084.png",
+    "element": "Earth",
+    "subject": "blocky frozen-rock guardian with gray stone body and translucent blue ice plates"
+  },
+  {
+    "name": "霜鬃风语者",
+    "file": "monster-085.png",
+    "element": "Wind",
+    "subject": "fur-cloaked winter shaman with white mane and teal wind ribbons circling a small staff"
+  },
+  {
+    "name": "王座冰铠兽",
+    "file": "monster-086.png",
+    "element": "Water",
+    "subject": "massive quadruped throne beast with layered ice armor, blue antlers and heavy paws"
+  },
+  {
+    "name": "霜脉之王",
+    "file": "monster-087.png",
+    "element": "Water",
+    "subject": "regal frost king boss in crystalline blue armor with a tall ice crown and broad frost blade"
+  },
+  {
+    "name": "雷峰俯冲者",
+    "file": "monster-088.png",
+    "element": "Wind",
+    "subject": "swift cliff raptor with swept teal wings, hooked talons and tiny lightning sparks"
+  },
+  {
+    "name": "风图腾护卫",
+    "file": "monster-089.png",
+    "element": "Earth",
+    "subject": "stocky totem defender with carved stone mask, feather mantle and turquoise wind glyphs"
+  },
+  {
+    "name": "怒风歌者",
+    "file": "monster-090.png",
+    "element": "Wind",
+    "subject": "birdlike wind singer with open beak, long streaming feathers and visible teal sonic gusts"
+  },
+  {
+    "name": "雷羽猎手",
+    "file": "monster-091.png",
+    "element": "Light",
+    "subject": "agile thunder-feather archer with ivory plumage, gold chest armor and a short lightning bow"
+  },
+  {
+    "name": "风暴主母",
+    "file": "monster-092.png",
+    "element": "Wind",
+    "subject": "grand storm harpy matriarch boss with enormous blue-green wings, lightning crown and commanding talons"
+  },
+  {
+    "name": "核心奥术怨灵",
+    "file": "monster-093.png",
+    "element": "Dark",
+    "subject": "floating core wraith with hollow hood, violet-white magical center and ragged indigo vapor"
+  },
+  {
+    "name": "辉光防御构装体",
+    "file": "monster-094.png",
+    "element": "Light",
+    "subject": "square-shouldered defensive construct of pale stone and gold metal with a bright shield core"
+  },
+  {
+    "name": "失序符文卫士",
+    "file": "monster-095.png",
+    "element": "Light",
+    "subject": "damaged runic knight of pale stone with misaligned glowing glyphs and one heavy spear"
+  },
+  {
+    "name": "虚空导能者",
+    "file": "monster-096.png",
+    "element": "Dark",
+    "subject": "hooded void channeler with dark violet robe, floating crystal conductors and an empty shadow face"
+  },
+  {
+    "name": "奥术黎明守卫",
+    "file": "monster-097.png",
+    "element": "Light",
+    "subject": "towering arcane dawn guardian boss of ivory stone and gold armor with violet core and large radiant blade"
   }
 ]

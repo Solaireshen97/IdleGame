@@ -1,6 +1,6 @@
 # 怪物像素图
 
-当前遭遇配置中的 72 种怪物各有一张独立 PNG，存放在 `Game.Client/wwwroot/art/monsters/`。战斗、状态弹窗和副本怪物详情通过 `Game.Client/Services/MonsterArt.cs` 按名称取图。原来的四张通用怪物 SVG 占位图已删除。
+当前遭遇配置中的 97 种怪物各有一张独立 PNG，存放在 `Game.Client/wwwroot/art/monsters/`。战斗、状态弹窗和副本怪物详情通过 `Game.Client/Services/MonsterArt.cs` 按名称取图。原来的四张通用怪物 SVG 占位图已删除。
 
 风格沿用已定稿的职业与武器图：经典 RPG 的中等 Q 版比例，清晰的大块像素、深蓝轮廓、暖金高光和冷青阴影；怪物分别保留名称所指的物种、装备及属性特征。所有成品都保留透明背景。
 
