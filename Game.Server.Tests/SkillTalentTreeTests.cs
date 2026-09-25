@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public sealed class SkillTalentTreeTests
+public sealed partial class SkillTalentTreeTests
 {
     [Fact]
     public async Task SwordTreeAllowsCrossBranchChoicesAndKeepsOnlyStancesExclusive()

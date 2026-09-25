@@ -8,92 +8,48 @@
 @implements IDisposable
 
 <PageTitle>职业天赋</PageTitle>
-
 <div class="talents-page">
-    <div class="talents-page__intro">
-        <a class="talents-page__back" href="/">← 返回大厅</a>
-        <p>为当前角色规划战斗、采集与炼金的成长路线。</p>
-    </div>
-
     @if (_isLoading)
     {
         <GameStateCard Compact="true" Title="正在读取当前角色" Detail="准备载入职业成长路线。" />
     }
     else if (ActiveCharacters.Current is { } character)
     {
-        <div class="talents-page__layout">
-            <aside class="talents-page__aside">
-                <section class="talents-page__identity" aria-label="当前操作角色">
-                    <span class="talents-page__eyebrow">ACTIVE CHARACTER</span>
-                    <h2>@character.Name</h2><small>@character.ProfessionName</small>
-                    <div class="talents-page__level"><strong>Lv @character.Level</strong><span>@(character.ExperienceToNextLevel is int required ? $"EXP {character.Experience} / {required}" : "MAX")</span></div>
-                    <progress value="@(character.ExperienceToNextLevel is null ? 1 : character.Experience)" max="@(character.ExperienceToNextLevel ?? 1)" aria-label="角色经验值"></progress>
-                    <dl>
-                        <div><dt>HP</dt><dd>@character.Hp / @character.MaxHp</dd></div>
-                        <div><dt>攻击</dt><dd>@character.Attack</dd></div>
-                        <div><dt>可用天赋点</dt><dd>@character.TalentPoints</dd></div>
-                    </dl>
-                    <p>可从顶栏切换当前操作角色。</p>
-                </section>
-                <section class="talents-page__roadmap">
-                    <span class="talents-page__eyebrow">CAREER PATH</span>
-                    <h2>职业路线</h2>
-                    <p>从基础属性出发，沿路线学习新技能。后续可在这里扩展转职条件与专属路线。</p>
-                </section>
-            </aside>
-
-            <div class="talents-page__main">
-                <nav class="talents-page__jump" role="tablist" aria-label="职业养成页面导航">
-                    <button type="button" id="talents-section-tab" role="tab" aria-controls="talent-tree" class="@(_mobileSection == "talents" ? "active" : null)" aria-selected="@(_mobileSection == "talents" ? "true" : "false")" @onclick='() => _mobileSection = "talents"'><span aria-hidden="true">✦</span><strong>天赋树</strong><small>分配点数</small></button>
-                    <button type="button" id="skills-section-tab" role="tab" aria-controls="skill-loadout" class="@(_mobileSection == "skills" ? "active" : null)" aria-selected="@(_mobileSection == "skills" ? "true" : "false")" @onclick='() => _mobileSection = "skills"'><span aria-hidden="true">◆</span><strong>技能栏</strong><small>配置 Auto</small></button>
-                </nav>
-                <div class="talents-page__panel @(_mobileSection == "talents" ? "talents-page__panel--selected" : null)" id="talent-tree" role="tabpanel" aria-labelledby="talents-section-tab">
-                    <nav class="talents-page__tree-switch" aria-label="选择天赋树">
-                        <div class="talents-page__tree-switch-row">
-                            <button type="button" class="@(_activeTalentTree == "battle" ? "active" : null)" aria-pressed="@(_activeTalentTree == "battle")" @onclick='() => SelectTalentTreeAsync("battle")'>✦ 战斗天赋</button>
-                        </div>
-                        <div class="talents-page__tree-switch-row">
-                            <button type="button" class="@(_activeTalentTree == "Gathering" ? "active" : null)" aria-pressed="@(_activeTalentTree == "Gathering")" @onclick='() => SelectTalentTreeAsync("Gathering")'>♣ 采集天赋</button>
-                            <button type="button" class="@(_activeTalentTree == "Alchemy" ? "active" : null)" aria-pressed="@(_activeTalentTree == "Alchemy")" @onclick='() => SelectTalentTreeAsync("Alchemy")'>⚗ 炼金天赋</button>
-                        </div>
-                    </nav>
-                    @if (_activeTalentTree == "battle")
-                    {
-                        <CharacterTalentBoard @key='("base", character.CharacterId)'
-                                              CharacterId="@character.CharacterId"
-                                              OnChanged="RefreshCurrentAsync" />
-                    }
-                    else if (_isProfessionLoading)
-                    {
-                        <GameStateCard Compact="true" Title="正在读取专业天赋" Detail="同步当前角色的专业等级、点数与任务状态…" />
-                    }
-                    else if (_professionProgress is null)
-                    {
-                        <GameStateCard Compact="true" Tone="error" Icon="!" Title="专业天赋读取失败" Detail="@(_professionNotice ?? "请刷新后重试。")">
-                            <Actions><button type="button" class="talents-page__refresh" @onclick="LoadProfessionAsync">重新读取</button></Actions>
-                        </GameStateCard>
-                    }
-                    else
-                    {
-                        <div class="talents-page__profession-tools"><span role="status">@(_professionNotice ?? "专业等级和天赋点按角色分别保存。")</span><button type="button" @onclick="LoadProfessionAsync" disabled="@_isProfessionBusy">刷新状态</button></div>
-                        <ProfessionTalentBoard Progress="_professionProgress" OnSpend="SpendProfessionTalentAsync" OnReset="ResetProfessionTalentsAsync" IsBusy="_isProfessionBusy" />
-                    }
-                </div>
-                <div class="talents-page__panel @(_mobileSection == "skills" ? "talents-page__panel--selected" : null)" id="skill-loadout" role="tabpanel" aria-labelledby="skills-section-tab">
-                    <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)'
-                                         CharacterId="@character.CharacterId" />
-                    <CharacterSoulImprintBoard @key='("soul-imprints", character.CharacterId)'
-                                               CharacterId="@character.CharacterId" />
-                </div>
-                <section class="talents-page__next">
-                    <span class="talents-page__next-icon" aria-hidden="true">✦</span>
-                    <div>
-                        <span class="talents-page__eyebrow">FUTURE PATH</span>
-                        <h2>职业进阶</h2>
-                        <p>职业路线将继续扩展专精、转职与更高等级的技能节点。</p>
-                    </div>
-                </section>
-            </div>
+        <nav class="talents-page__tabs" aria-label="天赋与技能">
+            <button type="button" class="@(_section == "battle" ? "active" : null)" aria-pressed="@(_section == "battle" ? "true" : "false")" @onclick='() => SelectTalentTreeAsync("battle")'>战斗</button>
+            <button type="button" class="@(_section == "Gathering" ? "active" : null)" aria-pressed="@(_section == "Gathering" ? "true" : "false")" @onclick='() => SelectTalentTreeAsync("Gathering")'>采集</button>
+            <button type="button" class="@(_section == "Alchemy" ? "active" : null)" aria-pressed="@(_section == "Alchemy" ? "true" : "false")" @onclick='() => SelectTalentTreeAsync("Alchemy")'>炼金</button>
+            <button type="button" class="@(_section == "skills" ? "active" : null)" aria-pressed="@(_section == "skills" ? "true" : "false")" @onclick='() => _section = "skills"'>技能</button>
+            <button type="button" class="@(_section == "soul" ? "active" : null)" aria-pressed="@(_section == "soul" ? "true" : "false")" @onclick='() => _section = "soul"'>魂印</button>
+        </nav>
+        <div class="talents-page__workspace @(_section is "skills" or "soul" ? "talents-page__workspace--library" : null)">
+            @if (_section == "battle")
+            {
+                <CharacterTalentBoard @key='("base", character.CharacterId)' CharacterId="@character.CharacterId" OnChanged="RefreshCurrentAsync" />
+            }
+            else if (_section == "skills")
+            {
+                <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)' CharacterId="@character.CharacterId" />
+            }
+            else if (_section == "soul")
+            {
+                <CharacterSoulImprintBoard @key='("soul", character.CharacterId)' CharacterId="@character.CharacterId" />
+            }
+            else if (_isProfessionLoading)
+            {
+                <GameStateCard Compact="true" Title="正在读取专业天赋" Detail="同步专业等级、点数与任务状态…" />
+            }
+            else if (_professionProgress is null)
+            {
+                <GameStateCard Compact="true" Tone="error" Icon="!" Title="专业天赋读取失败" Detail="@(_professionNotice ?? "请刷新后重试。")">
+                    <Actions><button type="button" class="talents-page__refresh" @onclick="LoadProfessionAsync">重新读取</button></Actions>
+                </GameStateCard>
+            }
+            else
+            {
+                <div class="talents-page__profession-tools"><span role="status">@(_professionNotice ?? "工作升级获得专业点数")</span><button type="button" @onclick="LoadProfessionAsync" disabled="@_isProfessionBusy">刷新</button></div>
+                <ProfessionTalentBoard @key='(character.CharacterId, _activeTalentTree)' Progress="_professionProgress" OnSpend="SpendProfessionTalentAsync" OnReset="ResetProfessionTalentsAsync" IsBusy="_isProfessionBusy" Notice="@_professionNotice" />
+            }
         </div>
     }
     else
@@ -110,7 +66,7 @@
 
     private bool _isLoading = true;
     private int _talentRevision;
-    private string _mobileSection = "talents";
+    private string _section = "battle";
     private string _activeTalentTree = "battle";
     private ProfessionProgressResponse? _professionProgress;
     private string? _professionNotice;
@@ -144,6 +100,7 @@
     }
     private async Task SelectTalentTreeAsync(string tree)
     {
+        _section = tree;
         if (_activeTalentTree == tree) return;
         _activeTalentTree = tree;
         _professionLoadSequence++;

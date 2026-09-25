@@ -1,386 +1,141 @@
-.rooms-page { max-width: 1180px; margin: 0 auto; padding: 1rem 0 3rem; }
-.section-kicker { color: #d8a957; font-size: .68rem; font-weight: 850; letter-spacing: .16em; }
-.lobby-tabs {
-    position: sticky;
-    top: calc(4.65rem + env(safe-area-inset-top));
-    z-index: 60;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .34rem;
-    margin-bottom: .72rem;
-    padding: .34rem;
-    border: 1px solid #3b5268;
-    border-radius: .82rem;
-    background: rgba(9, 23, 35, .96);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, .24);
-    backdrop-filter: blur(14px);
+.rooms-page {
+    display: flex; flex-direction: column; gap: .5rem; min-width: 0;
+    height: min(900px, calc(100dvh - 9.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    min-height: 380px; margin: 0; padding: 0;
 }
-.lobby-tab {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: .4rem;
-    min-width: 0;
-    min-height: 58px;
-    padding: .45rem .52rem;
-    border: 1px solid transparent;
-    border-radius: .58rem;
-    background: transparent;
-    color: #9eb1c0;
-    text-align: left;
-    cursor: pointer;
-}
-.lobby-tab:hover { background: rgba(48, 72, 91, .38); color: #e8eef2; }
-.lobby-tab:focus-visible { outline: 2px solid #f0c77f; outline-offset: 2px; }
-.lobby-tab--active {
-    border-color: #b98a43;
-    background: linear-gradient(145deg, rgba(181, 132, 58, .24), rgba(40, 57, 72, .72));
-    color: #f4e6cc;
-    box-shadow: inset 0 0 0 1px rgba(240, 199, 127, .08);
-}
-.lobby-tab__icon {
-    display: grid;
-    place-items: center;
-    width: 1.65rem;
-    height: 1.65rem;
-    border-radius: .45rem;
-    background: rgba(120, 151, 169, .12);
-    color: #d9ad63;
-    font-size: .82rem;
-    font-weight: 900;
-}
-.lobby-tab > span:last-child { display: grid; gap: .08rem; min-width: 0; }
-.lobby-tab strong,
-.lobby-tab small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.lobby-tab strong { color: inherit; font-size: .76rem; }
-.lobby-tab small { color: #8298a9; font-size: .625rem; }
-.lobby-tab--active small { color: #c1b28f; }
-.lobby-panel { min-width: 0; }
-.lobby-panel > .region-picker { margin-top: 0; }
-.lobby-panel > .empty-state {
-    min-height: 190px;
-    justify-content: center;
-    border: 1px dashed #3a5065;
-    border-radius: .82rem;
-    background: rgba(13, 28, 41, .48);
-}
-.region-picker { margin: 1.4rem 0; }
-.region-picker__heading { margin-bottom: .85rem; }
-.region-picker__heading h2, .room-list h2, .dungeon-launcher h2 { margin: .2rem 0; color: #f0e4cb; font-family: Georgia, serif; letter-spacing: .02em; }
-.region-picker__heading h2 { font-size: 1.4rem; }
-.region-picker__heading p, .dungeon-launcher__heading p { margin: .25rem 0 0; color: #8fa4b7; font-size: .8rem; }
-.horizontal-rail { position: relative; min-width: 0; }
-.horizontal-rail__control { display: none; }
-.region-picker__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
-.region-card { --region-color: #d8bd86; display: flex; flex-direction: column; gap: .3rem; min-width: 0; min-height: 112px; padding: .85rem; text-align: left; color: #dce7f0; border: 1px solid #33495d; border-top: 3px solid var(--region-color); border-radius: .7rem; background: linear-gradient(140deg, #1a2c3e, #111e2d); cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
+.lobby-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 0 0 auto; gap: .25rem; padding: .25rem; border: 1px solid #3d566b; border-radius: .8rem; background: #0b1b29; }
+.lobby-tab { display: flex; justify-content: center; align-items: center; gap: .4rem; min-width: 0; min-height: 48px; padding: .3rem .2rem; border: 1px solid transparent; border-radius: .55rem; color: #9fb4c4; background: transparent; }
+.lobby-tab > span:last-child { display: grid; gap: .15rem; min-width: 0; }
+.lobby-tab strong { font-size: .76rem; white-space: nowrap; }
+.lobby-tab small { font-size: .59rem; color: #8ea6b7; white-space: nowrap; }
+.lobby-tab__icon { color: #d8ad63; font-size: 1rem; }
+.lobby-tab--active { border-color: #b58c4d; background: linear-gradient(135deg, #d5ac6130, #8d682812); color: #f1d39c; }
+.lobby-tab--active small { color: #c7b890; }
+.lobby-panel { display: flex; flex-direction: column; gap: .5rem; flex: 1 1 0; min-width: 0; min-height: 0; }
+.lobby-panel--rooms { padding: .65rem; border: 1px solid #3e566b; border-radius: .85rem; background: linear-gradient(145deg, #192e40, #0f1e2d); }
+.lobby-heading { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: .5rem; min-height: 38px; }
+.lobby-heading > div { min-width: 0; }
+.lobby-heading h2 { margin: 0; color: #eee0c4; font-size: 1rem; }
+.lobby-heading h2 small { margin-left: .2rem; font: 400 .62rem system-ui, sans-serif; color: #8fa8b8; white-space: nowrap; }
+.section-kicker { color: #d5ab64; font-size: .56rem; font-weight: 800; letter-spacing: .14em; }
+.lobby-refresh, .region-info-trigger { flex: 0 0 auto; min-height: 36px; padding: .3rem .6rem; border: 1px solid #4b6377; border-radius: .5rem; background: #112738; color: #dec18c; font-size: .69rem; }
+.lobby-segments { display: flex; flex: 0 0 auto; gap: .25rem; padding: .2rem; border: 1px solid #3a5266; border-radius: .55rem; background: #0b1c2a; }
+.lobby-segments button { flex: 1 1 0; min-width: 0; min-height: 32px; border: 1px solid transparent; border-radius: .35rem; padding: .25rem .2rem; background: transparent; color: #9fb4c3; font-size: .69rem; white-space: nowrap; }
+.lobby-segments button.active { border-color: #b4965f66; background: #dfb16125; color: #efd09a; }
+.lobby-room-search { display: grid; grid-template-columns: minmax(0, 1fr) 106px; gap: .4rem; flex: 0 0 auto; }
+.lobby-room-search input, .lobby-room-search select { width: 100%; min-width: 0; min-height: 40px; border: 1px solid #496176; border-radius: .5rem; background: #0d1e2c; color: #d3e0e9; font-size: .7rem; padding: .35rem .5rem; }
+.lobby-room-search input::placeholder { color: #849eae; }
+.lobby-results { --lobby-columns: 1; --lobby-row-height: 132; display: grid; grid-template-columns: repeat(var(--lobby-columns), minmax(0, 1fr)); grid-auto-rows: calc(var(--lobby-row-height) * 1px); align-content: start; gap: .5rem; flex: 1 1 0; min-height: 0; min-width: 0; padding: .15rem; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.room-card { display: grid; grid-template-columns: minmax(0, 1fr) 86px; grid-template-rows: 22px minmax(0, 1fr) 18px 4px; gap: .2rem .5rem; min-width: 0; padding: .5rem .6rem; border: 1px solid #476075; border-radius: .65rem; background: linear-gradient(120deg, #1a3043, #102434); }
+.room-card--closed { background: #122331; border-color: #3b5163; }
+.room-card__topline { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: .35rem; color: #90aabd; font-size: .61rem; }
+.room-card__topline > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-badge { flex: 0 0 auto; padding: .15rem .4rem; border-radius: .35rem; background: #29415a; color: #bcd9ee; font-size: .6rem; }
+.status-badge--success { background: #1f453b; color: #a2d9bf; }
+.status-badge--warning { background: #4a3a26; color: #dcc190; }
+.room-card__identity { min-width: 0; align-self: center; }
+.room-card h3 { margin: 0 0 .2rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #f0dfc0; font-size: .82rem; }
+.room-card p { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .62rem; color: #aac0ce; }
+.room-card__enter { grid-column: 2; grid-row: 2; align-self: center; display: flex; justify-content: space-between; align-items: center; min-width: 0; min-height: 44px; padding: .4rem .45rem; font-size: .66rem; }
+.room-card__bottom { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: .4rem; font-size: .59rem; }
+.room-card__rules { color: #8fa9b9; white-space: nowrap; }
+.room-card__hp { color: #b7c9d3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.health-bar { grid-column: 1 / -1; width: 100%; height: 4px; border: 0; border-radius: 99px; overflow: hidden; background: #081725; }
+.health-bar::-webkit-progress-bar { background: #081725; }
+.health-bar::-webkit-progress-value { background: linear-gradient(90deg, #c8686c, #ed9a87); }
+.health-bar::-moz-progress-bar { background: #e28b7b; }
+.region-picker { flex: 0 0 auto; margin: 0; padding: .5rem; border: 1px solid #3e566b; border-radius: .8rem; background: #132638; }
+.region-picker__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; gap: .35rem; }
+.region-picker__heading h2 { margin: 0; color: #c9d9e4; font-size: .74rem; }
+.region-picker__heading > span { color: #819dac; font-size: .59rem; }
+.region-picker__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+.region-card { --region-color: #d8bd86; display: grid; gap: .15rem; min-width: 0; min-height: 47px; padding: .35rem .25rem; border: 1px solid #415a6d; border-left: 3px solid var(--region-color); border-radius: .45rem; background: #0e2131; text-align: center; color: #d6e2e9; }
 .region-card--dark { --region-color: #bc9eea; }
 .region-card--fire { --region-color: #ed9c7e; }
 .region-card--water { --region-color: #86cde7; }
 .region-card--wind { --region-color: #86d3ad; }
 .region-card--light { --region-color: #f4df9b; }
-.region-card:hover, .region-card:focus-visible { border-color: var(--region-color); transform: translateY(-1px); }
-.region-card--selected { outline: 1px solid var(--region-color); border-color: var(--region-color); background: linear-gradient(140deg, #293f52, #17283a); }
-.region-card__topline { display: flex; justify-content: space-between; gap: .5rem; color: var(--region-color); font-size: .66rem; }
-.region-card strong { color: #f0e4cb; font-size: 1rem; }
-.region-card__dungeon { color: #bbccdb; font-size: .76rem; }
-.region-card__weapon { margin-top: auto; color: #849aac; font-size: .67rem; }
-
-.room-list--priority { margin-bottom: 1.2rem; padding: 1rem; border: 1px solid #3c5268; border-radius: .9rem; background: linear-gradient(120deg, rgba(28, 47, 66, .9), rgba(15, 28, 42, .92)); box-shadow: 0 14px 30px rgba(0, 0, 0, .16); }
-.room-list__heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
-.room-list h2 { font-size: 1.3rem; }
-.room-list__count { padding: .22rem .5rem; border: 1px solid #40586e; border-radius: 999px; color: #9fb2c3; font-size: .68rem; }
-.room-grid { display: grid; gap: .7rem; }
-.room-card { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(190px, .8fr) auto; align-items: center; gap: 1rem; padding: .85rem 1rem; border: 1px solid #3b5269; border-radius: .72rem; background: rgba(12, 26, 40, .7); transition: border-color .15s, background .15s; }
-.room-card:hover { border-color: #bb9250; background: rgba(20, 38, 54, .86); }
-.room-card__topline { display: flex; align-items: center; gap: .5rem; color: #8398aa; font-size: .65rem; font-weight: 750; letter-spacing: .08em; }
-.room-card h3 { margin: .35rem 0 .1rem; color: #f3e6cd; font-family: Georgia, serif; font-size: 1.05rem; }
-.room-card p { margin: 0; color: #8fa3b4; font-size: .72rem; }
-.room-card__rules { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem; color: #afc0cf; font-size: .64rem; }
-.room-card__rules span { padding: .16rem .38rem; border: 1px solid #344b60; border-radius: 999px; }
-.room-card__progress { display: grid; gap: .32rem; min-width: 0; }
-.room-card__progress > small { color: #748a9d; font-size: .64rem; text-align: right; }
-.hp-readout { display: flex; justify-content: space-between; gap: .5rem; color: #92a5b6; font-size: .7rem; }
-.hp-readout strong { color: #eaf0f5; }
-.hp-readout small { color: #7f92a4; }
-.health-bar { width: 100%; height: .48rem; overflow: hidden; border: 0; border-radius: 999px; background: #091522; }
-.health-bar::-webkit-progress-bar { border-radius: 999px; background: #091522; }
-.health-bar::-webkit-progress-value { border-radius: 999px; background: linear-gradient(90deg, #d45f62, #ef8f82); }
-.health-bar::-moz-progress-bar { border-radius: 999px; background: linear-gradient(90deg, #d45f62, #ef8f82); }
-.room-card__enter { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-width: 120px; min-height: 44px; }
-.status-badge { display: inline-flex; align-items: center; padding: .22rem .5rem; border-radius: 999px; background: #253a51; color: #b7c8da; font-size: .66rem; }
-.status-badge--success { background: #1d493c; color: #a7e4c4; }
-.status-badge--warning { background: #574222; color: #f4d38a; }
-.status-badge--active { background: #263e57; color: #bad5ec; }
-
-.dungeon-launcher { min-width: 0; max-width: 100%; padding: 1.25rem; border: 1px solid #37465b; border-radius: .9rem; background: linear-gradient(125deg, #17283b, #111b2a); box-shadow: 0 16px 32px rgba(0, 0, 0, .18); }
-.dungeon-launcher__heading { margin-bottom: 1rem; }
-.dungeon-launcher h2 { font-size: 1.5rem; }
-.dungeon-catalog { display: grid; min-width: 0; max-width: 100%; gap: .8rem; }
-.dungeon-region { min-width: 0; max-width: 100%; padding: .85rem; border: 1px solid #30465b; border-radius: .75rem; background: rgba(8, 20, 32, .42); }
-.dungeon-region__heading { display: flex; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; color: #e7d9bd; font-size: .82rem; font-weight: 700; }
-.dungeon-region__heading small { color: #8499ac; font-size: .68rem; font-weight: 400; }
-.dungeon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: .55rem; }
-.dungeon-card { display: flex; flex-direction: column; gap: .3rem; min-height: 118px; padding: .75rem; border: 1px solid #385169; border-radius: .62rem; background: #132337; color: #dce7f0; text-align: left; cursor: pointer; transition: border-color .16s, transform .16s, background .16s; }
-.dungeon-card:hover { transform: translateY(-1px); border-color: #d8a957; }
-.dungeon-card--selected { border-color: #e2b65f; background: linear-gradient(145deg, #20354a, #192a3c); box-shadow: inset 0 0 0 1px rgba(226, 182, 95, .2); }
-.dungeon-card--locked { opacity: .76; }
-.dungeon-card__topline { display: flex; justify-content: space-between; color: #9cb1c4; font-size: .64rem; letter-spacing: .06em; }
-.dungeon-card strong { color: #f0e4cb; font-size: .88rem; }
-.dungeon-card small { color: #8fa3b6; font-size: .68rem; }
-.dungeon-card__monster { display: flex; align-items: center; gap: .3rem; min-width: 0; margin-top: auto; color: #b9c9d7; font-size: .68rem; }
-.dungeon-card__monster-name { overflow: hidden; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
-.monster-attribute { flex: 0 0 auto; display: inline-flex; align-items: center; padding: .1rem .3rem; border: 1px solid currentColor; border-radius: .34rem; color: #d8bd86; font-size: .625rem; font-weight: 800; white-space: nowrap; }
+.region-card strong { font-size: .7rem; white-space: nowrap; }
+.region-card > span { font-size: .59rem; color: #99b0bf; }
+.region-card b { color: var(--region-color); font-weight: 700; }
+.region-card--selected { border-color: var(--region-color); background: linear-gradient(140deg, #385066, #22384a); box-shadow: inset 0 0 0 1px #ffffff12; }
+.dungeon-heading { min-height: 32px; padding-inline: .15rem; }
+.dungeon-heading h2 { font-size: .92rem; }
+.region-info-trigger { min-height: 32px; padding-inline: .4rem; border: 0; background: transparent; font-size: .65rem; }
+.dungeon-toolbar { display: flex; flex: 0 0 auto; gap: .5rem; align-items: center; }
+.dungeon-toolbar .lobby-segments { flex: 1 1 0; }
+.dungeon-toolbar label { display: flex; align-items: center; gap: .2rem; min-height: 36px; color: #acc1cf; font-size: .62rem; white-space: nowrap; }
+.dungeon-toolbar input { accent-color: #d8ac63; }
+.dungeon-grid { --lobby-columns: 2; --lobby-row-height: 110; }
+.dungeon-card { display: flex; flex-direction: column; min-width: 0; gap: .3rem; padding: .55rem .6rem; border: 1px solid #4a6276; border-radius: .65rem; background: linear-gradient(145deg, #1b3145, #112435); text-align: left; color: #dbe6ee; }
+.dungeon-card:hover { border-color: #d8b16b; background: #243c50; }
+.dungeon-card--locked { border-style: dashed; background: #152330; }
+.dungeon-card--locked > strong { color: #9bafbd; }
+.dungeon-card__topline { display: flex; align-items: center; justify-content: space-between; gap: .3rem; color: #9db5c7; font-size: .6rem; }
+.level-badge { padding: .12rem .35rem; border-radius: .35rem; color: #a1dbc0; background: #21463d; }
+.level-badge--locked { background: #443928; color: #dcbf85; }
+.dungeon-card > strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #efdfbf; font-size: .79rem; }
+.dungeon-card__summary { font-size: .63rem; color: #92adbe; }
+.dungeon-card__bottom { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: .2rem; }
+.dungeon-card__bottom small { font-size: .6rem; color: #adc0cb; white-space: nowrap; }
+.monster-attribute { color: #d8bd86; font-size: .6rem; }
 .monster-attribute--fire { color: #ed9c7e; }
 .monster-attribute--water { color: #86cde7; }
 .monster-attribute--wind { color: #86d3ad; }
 .monster-attribute--light { color: #f4df9b; }
 .monster-attribute--dark { color: #bc9eea; }
-.dungeon-card__lock { color: #e6c781; font-size: .64rem; }
-.level-badge { padding: .12rem .38rem; border-radius: 999px; background: #244a41; color: #9fe0c1; }
-.level-badge--locked { background: #493b2a; color: #e6c781; }
-.empty-state { display: flex; flex-direction: column; gap: .35rem; padding: 2rem 1rem; text-align: center; color: #94a3b7; }
-.empty-state strong { color: #e6edf5; }
-.empty-state__actions { display: flex; justify-content: center; gap: .5rem; margin-top: .65rem; }
-.empty-state__actions .button { min-width: 112px; min-height: 44px; }
-.empty-state__actions .empty-state__secondary { border-color: #4c6579; color: #d8e4eb; background: #172b3d; }
-.empty-state__actions .empty-state__secondary:hover { border-color: #7893a7; background: #20394d; }
-.notice-message { color: #f4d38a; }
-
-@container game-shell (max-width: 760px) {
-    .rooms-page { padding: .75rem 0 1.25rem; }
-    .room-list--priority { margin-bottom: .95rem; padding: .75rem; }
-    .room-list__heading { margin-bottom: .6rem; }
-    .room-card { grid-template-columns: minmax(0, 1fr) 96px; gap: .55rem; padding: .7rem; }
-    .room-card__identity { min-width: 0; }
-    .room-card h3 { margin-block: .28rem .1rem; }
-    .room-card p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card__rules { flex-wrap: nowrap; margin-top: .35rem; }
-    .room-card__rules span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card__progress { grid-column: 1 / -1; grid-row: 2; }
-    .room-card__progress > small { display: none; }
-    .room-card__enter { grid-column: 2; grid-row: 1; align-self: center; width: 100%; min-width: 0; min-height: 52px; padding-inline: .65rem; font-size: .72rem; }
-    .region-picker__grid {
-        display: flex;
-        width: 100%;
-        max-width: 100%;
-        gap: .55rem;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        padding: 2px 2px .55rem;
-        scroll-padding-inline: .15rem;
-        scroll-snap-type: x proximity;
-        scrollbar-width: thin;
-        scrollbar-color: #6b8193 rgba(7, 17, 27, .65);
-        touch-action: pan-x pan-y;
-        user-select: none;
-        -webkit-user-drag: none;
-        -webkit-overflow-scrolling: touch;
-    }
-    .region-picker__grid::-webkit-scrollbar { height: 6px; }
-    .region-picker__grid::-webkit-scrollbar-track { border-radius: 999px; background: rgba(7, 17, 27, .65); }
-    .region-picker__grid::-webkit-scrollbar-thumb { border-radius: 999px; background: #6b8193; }
-    .region-picker__grid.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
-    .region-card { touch-action: pan-x pan-y; user-select: none; -webkit-user-drag: none; }
-    .region-card { flex: 0 0 164px; min-height: 110px; scroll-snap-align: start; }
-    .dungeon-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
-    .dungeon-card { min-width: 0; min-height: 112px; }
-    .dungeon-launcher { padding: .9rem; }
-    .dungeon-region { padding: .7rem; }
-    .dungeon-region__heading { align-items: flex-start; }
-    .dungeon-region__heading small { max-width: 145px; text-align: right; }
-}
-
-@media (hover: hover) and (pointer: fine) {
-    .horizontal-rail--overflowing .horizontal-rail__control {
-        position: absolute;
-        z-index: 3;
-        top: 50%;
-        display: grid;
-        place-items: center;
-        width: 44px;
-        height: 44px;
-        padding: 0;
-        transform: translateY(-56%);
-        border: 1px solid #657d90;
-        border-radius: 50%;
-        background: rgba(10, 24, 37, .94);
-        color: #f0c675;
-        box-shadow: 0 5px 18px rgba(0, 0, 0, .42);
-        font-size: 1.35rem;
-        cursor: pointer;
-        backdrop-filter: blur(8px);
-    }
-    .horizontal-rail__control--previous { left: .28rem; }
-    .horizontal-rail__control--next { right: .28rem; }
-    .horizontal-rail__control:disabled { opacity: .28; cursor: default; }
-    .region-picker__grid { cursor: grab; }
-}
-
-@container game-shell (max-width: 430px) {
-    .rooms-page { padding-top: .55rem; }
-    .room-list--priority { margin-bottom: .85rem; padding: .65rem; border-radius: .78rem; }
-    .room-list__heading { align-items: center; }
-    .room-list__heading .section-kicker { display: none; }
-    .room-list__heading { margin-bottom: .55rem; }
-    .room-list h2 { margin: 0; font-size: 1.05rem; }
-    .room-list__count { padding: .18rem .4rem; font-size: .625rem; }
-    .room-card { grid-template-columns: minmax(0, 1fr) 86px; gap: .48rem; padding: .65rem; }
-    .room-card__identity { min-width: 0; }
-    .room-card__topline { gap: .3rem; letter-spacing: .04em; }
-    .room-card__topline > span:first-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card__topline .status-badge { flex: 0 0 auto; padding: .15rem .34rem; font-size: .625rem; }
-    .room-card h3 { margin: .25rem 0 .08rem; overflow: hidden; font-size: .94rem; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card p { overflow: hidden; font-size: .64rem; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card__rules { flex-wrap: nowrap; gap: .22rem; margin-top: .32rem; }
-    .room-card__rules span { overflow: hidden; padding: .12rem .3rem; font-size: .625rem; white-space: nowrap; text-overflow: ellipsis; }
-    .room-card__rules span:nth-child(n + 3) { display: none; }
-    .room-card__progress { grid-column: 1 / -1; grid-row: 2; gap: .22rem; }
-    .room-card__enter { grid-column: 2; grid-row: 1; align-self: center; width: 100%; min-width: 0; min-height: 52px; gap: .3rem; padding: .45rem .5rem; font-size: .68rem; }
-    .hp-readout { font-size: .625rem; }
-    .health-bar { height: .4rem; }
-    .empty-state { min-height: 220px; padding: 1.5rem .75rem; }
-    .empty-state__actions { width: 100%; margin-top: .7rem; }
-    .empty-state__actions .button { flex: 1 1 0; min-width: 0; }
-    .region-picker { margin: .85rem 0; }
-    .region-picker__heading h2 { font-size: 1.25rem; }
-    .dungeon-launcher { padding: .7rem; }
-    .dungeon-launcher__heading { margin-bottom: .65rem; }
-    .dungeon-launcher__heading .section-kicker { display: none; }
-    .dungeon-launcher__heading h2 { margin-top: 0; font-size: 1.2rem; }
-    .dungeon-launcher__heading p { display: none; }
-    .dungeon-region { padding: .6rem; }
-    .dungeon-region__heading { margin-bottom: .45rem; }
-    .dungeon-region__heading small { display: none; }
-}
-
-@container game-shell (max-width: 640.98px) {
-    .lobby-tabs {
-        gap: .25rem;
-        margin-bottom: .62rem;
-        padding: .28rem;
-    }
-    .lobby-tab {
-        gap: .3rem;
-        min-height: 54px;
-        padding: .38rem .4rem;
-    }
-    .lobby-tab__icon { width: 1.4rem; height: 1.4rem; font-size: .7rem; }
-    .lobby-tab strong { font-size: .7rem; }
-    .lobby-tab small { font-size: .625rem; }
-
-    .room-list--priority {
-        margin-bottom: .7rem;
-        padding: .55rem;
-    }
-
-    .room-list__heading { margin-bottom: .42rem; }
-    .room-card { padding: .55rem .6rem; }
-    .room-card__rules span:nth-child(n + 3) { display: none; }
-
-    .region-picker {
-        margin: .72rem 0;
-    }
-
-    .region-picker__heading {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: .75rem;
-        margin-bottom: .48rem;
-    }
-
-    .region-picker__heading .section-kicker { display: none; }
-    .region-picker__heading h2 {
-        margin: 0;
-        font-size: 1.08rem;
-    }
-
-    .region-picker__heading p {
-        margin: 0 0 .08rem;
-        overflow: hidden;
-        font-size: .625rem;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
-
-    .region-picker__grid {
-        gap: .42rem;
-        padding-bottom: .25rem;
-        scroll-snap-type: x mandatory;
-    }
-
-    .region-card {
-        flex-basis: 134px;
-        min-height: 70px;
-        gap: .18rem;
-        padding: .48rem .58rem;
-        border-top-width: 2px;
-        border-radius: .58rem;
-    }
-
-    .region-card__topline { font-size: .625rem; }
-    .region-card strong {
-        overflow: hidden;
-        font-size: .82rem;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
-
-    .region-card__dungeon,
-    .region-card__weapon { display: none; }
-
-    .dungeon-launcher {
-        padding: .62rem;
-    }
-
-    .dungeon-launcher__heading {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: .7rem;
-        margin-bottom: .45rem;
-    }
-
-    .dungeon-launcher__heading .section-kicker,
-    .dungeon-launcher__heading p { display: none; }
-
-    .dungeon-launcher__heading h2 {
-        margin: 0;
-        font-size: 1.08rem;
-    }
-
-    .dungeon-region { padding: .52rem; }
-    .dungeon-region__heading { margin-bottom: .4rem; }
-    .dungeon-region__heading small { display: none; }
-    .dungeon-grid { gap: .42rem; padding-bottom: .25rem; }
-    .dungeon-card {
-        flex-basis: 164px;
-        min-height: 96px;
-        gap: .2rem;
-        padding: .52rem .58rem;
-    }
-    .dungeon-card strong { font-size: .82rem; }
-    .dungeon-card small,
-    .dungeon-card__monster { font-size: .625rem; }
-    .dungeon-card__lock {
-        overflow: hidden;
-        font-size: .625rem;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
-
-}
-
+.lobby-pager { display: grid; flex: 0 0 auto; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: .4rem; }
+.lobby-pager button, .lobby-pager select { min-width: 0; min-height: 44px; border: 1px solid #4a6377; border-radius: .55rem; background: #142a3c; color: #dec28e; }
+.lobby-pager button { font-size: 1rem; }
+.lobby-pager select { width: 100%; text-align: center; padding: .4rem; font-size: .69rem; }
+.lobby-results:has(.empty-state) { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); align-content: stretch; }
+.empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .55rem; min-height: 0; padding: .5rem; text-align: center; color: #96afc0; }
+.empty-state__icon { color: #b69761; font-size: 1.8rem; }
+.empty-state strong { font-size: .86rem; color: #d9e4ec; }
+.empty-state > span:not(.empty-state__icon) { font-size: .7rem; }
+.empty-state__actions { display: flex; justify-content: center; gap: .4rem; }
+.empty-state .button { font-size: .7rem; }
+.notice-message { flex: 0 0 auto; margin: 0; padding: .35rem .5rem; border: 1px solid #8d684e; border-radius: .45rem; background: #4f302638; color: #e4bc8d; font-size: .69rem; }
+.lobby-info-overlay { position: fixed; z-index: 1300; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: #030b14c7; backdrop-filter: blur(6px); }
+.lobby-info-dialog { display: flex; flex-direction: column; width: min(100%, 540px); max-height: 88dvh; border: 1px solid #607b8e; border-radius: 1rem 1rem 0 0; background: linear-gradient(135deg, #23394c, #122536); overflow: hidden; }
+.lobby-info-dialog header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-bottom: 1px solid #506b8055; }
+.lobby-info-dialog h2 { margin: .15rem 0; font-size: 1.2rem; color: #eedeC2; }
+.lobby-info-dialog header button { width: 44px; height: 44px; border: 1px solid #506c80; border-radius: .5rem; background: #102638; color: #c9dce7; font-size: 1.5rem; }
+.lobby-info-body { min-height: 0; overflow-y: auto; padding: .8rem 1rem; font-size: .8rem; color: #b2c8d4; line-height: 1.7; }
+.lobby-info-body p { margin: 0 0 .8rem; }
+.lobby-info-body dl { display: grid; gap: .5rem; margin: 0; }
+.lobby-info-body dl > div { display: flex; justify-content: space-between; gap: .6rem; border-bottom: 1px solid #4b657744; padding-bottom: .35rem; }
+.lobby-info-body dd { margin: 0; color: #ead0a0; }
+.lobby-info-dialog footer { padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); border-top: 1px solid #506b8055; }
+.lobby-info-dialog footer button { width: 100%; }
+.rooms-page :where(button, input, select):focus-visible { outline: 2px solid #f0c779; outline-offset: -2px; }
 @container game-shell (max-width: 360px) {
-    .lobby-tab {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 52px;
-        padding-inline: .28rem;
-        text-align: center;
-    }
-    .lobby-tab__icon,
-    .lobby-tab small { display: none; }
-    .lobby-tab strong { font-size: .67rem; }
+    .lobby-tab__icon { display: none; }
+    .lobby-tab strong { font-size: .72rem; }
+    .lobby-panel--rooms { padding: .5rem; }
+    .room-card { grid-template-columns: minmax(0, 1fr) 77px; padding-inline: .45rem; }
+    .room-card__bottom { gap: .2rem; font-size: .53rem; }
+    .room-card__enter { font-size: .62rem; }
+    .region-card strong { font-size: .66rem; }
+    .dungeon-heading h2 { font-size: .82rem; }
+    .dungeon-card { padding-inline: .45rem; }
+    .dungeon-card > strong { font-size: .72rem; }
+}
+@media (max-height: 700px) {
+    .rooms-page, .lobby-panel { gap: .4rem; }
+    .region-picker { padding: .4rem; }
+    .region-picker__heading { margin-bottom: .3rem; }
+    .region-card { min-height: 44px; padding-block: .25rem; }
+    .dungeon-grid { --lobby-row-height: 84; }
+    .dungeon-card { gap: .15rem; padding-block: .35rem; }
+}
+@media (max-height: 600px) {
+    .lobby-tab { min-height: 44px; }
+    .lobby-heading .section-kicker { display: none; }
+    .room-grid { --lobby-row-height: 116; }
+    .dungeon-grid { --lobby-row-height: 80; }
+    .lobby-panel--rooms { gap: .4rem; }
+    .empty-state { gap: .3rem; }
+    .empty-state__icon { display: none; }
+    .dungeon-grid .empty-state > span { display: none; }
 }

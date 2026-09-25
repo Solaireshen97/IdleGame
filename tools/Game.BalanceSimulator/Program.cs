@@ -18,6 +18,17 @@ using Microsoft.Extensions.Options;
 string Option(string name, string fallback) => Array.IndexOf(args, name) is var index && index >= 0 && index + 1 < args.Length ? args[index + 1] : fallback;
 var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Option("--config", "Game.Server/appsettings.json"))).Build();
 var boundSections = new Dictionary<(Type, string), object>();
+var talentBuildPath = Option("--talent-builds", string.Empty);
+var talentBuilds = talentBuildPath.Length == 0 ? new Dictionary<string, TalentBuildProfile>() :
+    JsonSerializer.Deserialize<Dictionary<string, TalentBuildProfile>>(File.ReadAllText(talentBuildPath),
+        new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+foreach (var (name, profile) in talentBuilds)
+{
+    _ = StandardRole(profile.Role);
+    if (string.IsNullOrWhiteSpace(name) || profile.Nodes.Count == 0 || profile.Nodes.Values.Any(rank => rank <= 0) ||
+        profile.Skills.Count is < 1 or > 5 || profile.Skills.Distinct(StringComparer.OrdinalIgnoreCase).Count() != profile.Skills.Count)
+        throw new ArgumentException($"Invalid talent build: {name}");
+}
 var worldConfig = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath("Game.Server/world.json")).Build();
 var world = new WorldCatalog(Options.Create(worldConfig.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!));
 var runs = int.Parse(Option("--runs", "5"));
@@ -77,6 +88,7 @@ var report = new
     SourcesUnchangedDuringRun = sourceFiles.SequenceEqual(SourceHashes()),
     Assumptions = new { RunsPerScenario = runs, SeedStart = seedStart, MaxRounds = 250, PartySize = partySize, ControlMode = controlMode,
         WeaponElement = weaponElement?.ToString() ?? "SameAsDungeonRegion",
+        TalentBuildsFile = talentBuildPath.Length == 0 ? null : talentBuildPath,
         Compositions = compositions.Count > 0 ? compositions : null,
         SoulLoadouts = soulLoadouts,
         Description = "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and reachable talent builds; weapon element defaults to dungeon region unless overridden; dungeon clear milestones pre-unlocked; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Raid weapons come from regional content; native souls require a previous endgame clear or exchange, so raid/native measures farming, not first-clear access. Auto uses production Auto conditions. Manual queues equipped skills before each round, reserving Guard effects for Deadly intents; it is a fixed policy, not optimal human play. Successful encounters include 30s repeat wait; failures have no automatic restart." },
@@ -105,7 +117,8 @@ Dictionary<string, string> SourceHashes()
         .SelectMany(directory => Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories))
         .Where(path => !path.Replace('\\', '/').Split('/').Any(part => part is "bin" or "obj"))
         .Concat([Option("--config", "Game.Server/appsettings.json"), "Game.Server/world.json",
-            "tools/Game.BalanceSimulator/Program.cs"]);
+            "tools/Game.BalanceSimulator/Program.cs"])
+        .Concat(talentBuildPath.Length == 0 ? [] : new[] { talentBuildPath });
     return paths.Select(path => path.Replace('\\', '/')).Order(StringComparer.Ordinal)
         .ToDictionary(path => path, path => Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(File.ReadAllText(path).Replace("\r\n", "\n")))));
@@ -194,9 +207,11 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 70 });
         foreach (var (code, rank) in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = rank });
         var learned = skills.LearnedSkills(character, talentCodes).Select(skill => skill.Code).ToHashSet();
-        var preferred = PreferredSkills(build.Promotion);
+        var preferred = build.Profile?.Skills.ToArray() ?? PreferredSkills(build.Promotion);
+        if (build.Profile is not null && preferred.Any(code => !learned.Contains(code)))
+            throw new InvalidOperationException($"Talent build {role} equips an unlearned skill");
         var selected = preferred.Where(learned.Contains).Take(5).ToList();
-        actorBuilds.Add(new ActorBuild(index, role, weaponElement ?? element, selected, talentCodes));
+        actorBuilds.Add(new ActorBuild(index, build.Promotion, weaponElement ?? element, selected, talentCodes));
         for (var slot = 0; slot < selected.Count; slot++) db.CharacterSkillSlots.Add(new CharacterSkillSlot
         { CharacterId = index, SlotIndex = slot + 1, SkillCode = selected[slot], AutoUseEnabled = true, AutoHpThresholdPercent = 75 });
         if (stage == "raid")
@@ -335,7 +350,9 @@ Dictionary<string, int> Talents(Character character, string stage, RoleBuild bui
 {
     if (stage == "starter") return new(StringComparer.OrdinalIgnoreCase);
     var isShop = stage == "shop";
-    Dictionary<string, int> nodes = character.ProfessionCode switch
+    Dictionary<string, int> nodes = build.Profile is not null
+        ? new(build.Profile.Nodes, StringComparer.OrdinalIgnoreCase)
+        : character.ProfessionCode switch
     {
         "swordsman" when isShop => new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-assault-stance"] = 1 },
         "swordsman" when build.Style == "guard" => new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-guard-stance"] = 1,
@@ -365,6 +382,8 @@ Dictionary<string, int> Talents(Character character, string stage, RoleBuild bui
         _ => throw new InvalidOperationException($"Unsupported base profession: {character.ProfessionCode}")
     };
     var settings = Bind<SkillOptions>(SkillOptions.SectionName).Value;
+    var talentCatalog = new SkillCatalog(Bind<SkillOptions>(SkillOptions.SectionName));
+    if (nodes.Values.Any(rank => rank <= 0)) throw new InvalidOperationException("Illegal talent rank");
     var unlocked = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     while (unlocked.Values.Sum() < nodes.Values.Sum())
     {
@@ -375,8 +394,7 @@ Dictionary<string, int> Talents(Character character, string stage, RoleBuild bui
                 unlocked.GetValueOrDefault(node.Code) < node.MaxRank &&
                 character.Level >= node.RequiredLevel + unlocked.GetValueOrDefault(node.Code) &&
                 unlocked.Values.Sum() >= node.RequiredTreePoints &&
-                node.Prerequisites.All(parent => unlocked.GetValueOrDefault(parent) >=
-                    settings.TalentNodes.Single(item => item.Code == parent).MaxRank) &&
+                talentCatalog.ArePrerequisitesMet(node, unlocked) &&
                 (node.ExclusiveGroup is null || !settings.TalentNodes.Any(other =>
                     other.Code != node.Code && other.ExclusiveGroup == node.ExclusiveGroup &&
                     unlocked.GetValueOrDefault(other.Code) > 0)));
@@ -413,7 +431,10 @@ static string BalancedPartyRole(int slotIndex) => slotIndex switch
     _ => throw new ArgumentOutOfRangeException(nameof(slotIndex))
 };
 
-static RoleBuild ResolveRole(string role) => role.ToLowerInvariant() switch
+RoleBuild ResolveRole(string role) => talentBuilds.TryGetValue(role, out var profile)
+    ? StandardRole(profile.Role) with { Profile = profile } : StandardRole(role);
+
+static RoleBuild StandardRole(string role) => role.ToLowerInvariant() switch
 {
     "knight" or "swordsman-guard" => new("swordsman", "knight", "guard"),
     "warrior" or "swordsman-assault" => new("swordsman", "warrior", "assault"),
@@ -449,6 +470,7 @@ record Sample(string Stage, ElementType Element, string Profession, string SoulL
     Dictionary<string, int> BossSkillUses, List<string> FailureLog, List<ActorBuild> Builds, int Survivors,
     int SoftEnrageCasts, int HardEnrageCasts);
 
-record RoleBuild(string BaseProfession, string Promotion, string Style);
+record RoleBuild(string BaseProfession, string Promotion, string Style, TalentBuildProfile? Profile = null);
+record TalentBuildProfile(string Role, Dictionary<string, int> Nodes, List<string> Skills);
 record ActorBuild(int Slot, string Profession, ElementType WeaponElement,
     List<string> EquippedSkills, Dictionary<string, int> TalentRanks);

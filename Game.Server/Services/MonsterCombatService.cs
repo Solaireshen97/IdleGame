@@ -104,6 +104,13 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         return effects.Any(effect => string.Equals(effect.EffectCode, statusCode, StringComparison.OrdinalIgnoreCase));
     }
 
+    public async Task<int> GetStatusStacksAsync(Room room, string targetType, int targetId, string statusCode)
+    {
+        var effects = await GetActiveEffectsAsync(room, targetType, [targetId]);
+        return effects.FirstOrDefault(effect =>
+            string.Equals(effect.EffectCode, statusCode, StringComparison.OrdinalIgnoreCase))?.Stacks ?? 0;
+    }
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -351,7 +358,11 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             if (!wasActive || definition.EffectType != "DamageOverTime")
                 effect.AppliedRound = room.RoundNumber;
         }
-        effect.ExpiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
+        var expiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
+        // A shorter poison application from an ally must not cut an existing extended
+        // poison short. New exposure after expiry or cleansing starts its own duration.
+        effect.ExpiresAfterRound = wasActive && definition.EffectType == "DamageOverTime"
+            ? Math.Max(effect.ExpiresAfterRound, expiresAfterRound) : expiresAfterRound;
         logs.Add($"{targetLabel} 获得 {definition.Name}，持续 {application.DurationRounds} 回合{(effect.Stacks > 1 ? $"（{effect.Stacks} 层）" : "")}。");
         return true;
     }

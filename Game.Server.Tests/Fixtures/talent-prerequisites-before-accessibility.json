@@ -1,0 +1,1406 @@
+{
+  "SourceCommit": "3ecccc5d8772178abc2d63591d0da326993b5bbb",
+  "Description": "T1 talent node rules before the September 25 prerequisite accessibility changes. Compatibility data only; not production configuration.",
+  "TalentNodes": [
+    {
+      "Code": "sword-rhythm",
+      "ProfessionCode": "swordsman",
+      "Name": "剑术节奏",
+      "Description": "伤害技能命中后，下一回合普通攻击追加 25% 追击。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 2,
+      "RequiredLevel": 2,
+      "BranchCode": "shared",
+      "Prerequisites": [],
+      "EffectCode": "SwordRhythm",
+      "ValuePerRank": 25
+    },
+    {
+      "Code": "sword-edge",
+      "ProfessionCode": "swordsman",
+      "Name": "利刃打磨",
+      "Description": "普通攻击伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 1,
+      "RequiredLevel": 2,
+      "BranchCode": "assault",
+      "Prerequisites": [],
+      "EffectCode": "NormalAttackPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "sword-vitality",
+      "ProfessionCode": "swordsman",
+      "Name": "强健体魄",
+      "Description": "最大生命提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 3,
+      "RequiredLevel": 2,
+      "BranchCode": "guard",
+      "Prerequisites": [],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "sword-assault-stance",
+      "ProfessionCode": "swordsman",
+      "Name": "猛攻架势",
+      "Description": "选择进攻路线并学会连斩；剑士伤害技能会恢复相当于实际伤害 10% 的生命。与稳守架势互斥。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 1,
+      "RequiredLevel": 5,
+      "BranchCode": "assault",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-edge",
+        "sword-combat-training",
+        "sword-intercept-talent"
+      ],
+      "SkillCode": "sword-double-slash",
+      "ExclusiveGroup": "sword-stance",
+      "EffectCode": "AssaultStance"
+    },
+    {
+      "Code": "sword-guard-stance",
+      "ProfessionCode": "swordsman",
+      "Name": "稳守架势",
+      "Description": "常驻获得 10% 减伤；招架减伤提高到 50%，减伤成功时以 50% 攻击反击一次。与猛攻架势互斥。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 3,
+      "RequiredLevel": 5,
+      "BranchCode": "guard",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-vitality",
+        "sword-recovery-training",
+        "sword-intercept-talent"
+      ],
+      "ExclusiveGroup": "sword-stance",
+      "EffectCode": "GuardStance",
+      "ValuePerRank": 50
+    },
+    {
+      "Code": "sword-combat-training",
+      "ProfessionCode": "swordsman",
+      "Name": "战技训练",
+      "Description": "技能伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 1,
+      "RequiredLevel": 4,
+      "BranchCode": "assault",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-edge",
+        "sword-rhythm"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "sword-recovery-training",
+      "ProfessionCode": "swordsman",
+      "Name": "恢复训练",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 3,
+      "RequiredLevel": 4,
+      "BranchCode": "guard",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-vitality",
+        "sword-rhythm"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "sword-pursuit",
+      "ProfessionCode": "swordsman",
+      "Name": "乘胜追击",
+      "Description": "击败怪物时恢复 8% 最大生命，并使所有伤害技能冷却减少 1 回合。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 1,
+      "RequiredLevel": 8,
+      "BranchCode": "assault",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "sword-assault-stance"
+      ],
+      "AnyPrerequisites": [
+        "sword-precision",
+        "sword-intercept-talent"
+      ],
+      "EffectCode": "VictoryCooldown",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "sword-counteroffense",
+      "ProfessionCode": "swordsman",
+      "Name": "以守为攻",
+      "Description": "成功减伤后，下一次普通攻击追加 75% 追击。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 3,
+      "RequiredLevel": 8,
+      "BranchCode": "guard",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "sword-guard-stance"
+      ],
+      "AnyPrerequisites": [
+        "sword-protection",
+        "sword-intercept-talent"
+      ],
+      "EffectCode": "GuardEcho",
+      "ValuePerRank": 75
+    },
+    {
+      "Code": "sword-precision",
+      "ProfessionCode": "swordsman",
+      "Name": "精准训练",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 1,
+      "RequiredLevel": 6,
+      "BranchCode": "assault",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-assault-stance",
+        "sword-intercept-talent",
+        "sword-combat-training"
+      ],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "sword-protection",
+      "ProfessionCode": "swordsman",
+      "Name": "护身训练",
+      "Description": "最大生命提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 3,
+      "RequiredLevel": 6,
+      "BranchCode": "guard",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-guard-stance",
+        "sword-intercept-talent",
+        "sword-recovery-training"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "sword-intercept-talent",
+      "ProfessionCode": "swordsman",
+      "Name": "截击",
+      "Description": "学会截击，可打断怪物当前预告的可打断技能，冷却 2 回合。",
+      "SkillCode": "sword-intercept",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 2,
+      "Column": 2,
+      "RequiredLevel": 4,
+      "BranchCode": "tempo",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "sword-rhythm",
+        "sword-edge",
+        "sword-vitality"
+      ]
+    },
+    {
+      "Code": "sword-disruption",
+      "ProfessionCode": "swordsman",
+      "Name": "破势追击",
+      "Description": "截击成功打断后，下一回合普通攻击追加 50% 追击。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 2,
+      "RequiredLevel": 8,
+      "BranchCode": "tempo",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "sword-intercept-talent"
+      ],
+      "AnyPrerequisites": [
+        "sword-assault-stance",
+        "sword-guard-stance",
+        "sword-precision",
+        "sword-protection"
+      ],
+      "EffectCode": "InterruptEcho",
+      "ValuePerRank": 50
+    },
+    {
+      "Code": "acolyte-echo",
+      "ProfessionCode": "acolyte",
+      "Name": "圣光回响",
+      "Description": "伤害技能使下一次治疗提高 10%；治疗使下一次圣光弹提高 20%，效果不叠加。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 2,
+      "RequiredLevel": 2,
+      "BranchCode": "shared",
+      "Prerequisites": [],
+      "EffectCode": "HolyEcho"
+    },
+    {
+      "Code": "acolyte-doctrine",
+      "ProfessionCode": "acolyte",
+      "Name": "教义研习",
+      "Description": "技能伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 1,
+      "RequiredLevel": 2,
+      "BranchCode": "judgment",
+      "Prerequisites": [],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "acolyte-prayer",
+      "ProfessionCode": "acolyte",
+      "Name": "祷告训练",
+      "Description": "造成的治疗提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 3,
+      "RequiredLevel": 2,
+      "BranchCode": "mercy",
+      "Prerequisites": [],
+      "EffectCode": "HealingDonePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "acolyte-judgment",
+      "ProfessionCode": "acolyte",
+      "Name": "惩戒祷言",
+      "Description": "圣光弹使目标受到伤害提高 8%。与慈悲祷言互斥。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 1,
+      "RequiredLevel": 5,
+      "BranchCode": "judgment",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-doctrine",
+        "acolyte-light-training",
+        "acolyte-silence-talent"
+      ],
+      "ExclusiveGroup": "acolyte-choice",
+      "EffectCode": "JudgmentPrayer",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "acolyte-mercy",
+      "ProfessionCode": "acolyte",
+      "Name": "慈悲祷言",
+      "Description": "治疗低于 50% 的目标后，使其下回合减伤 15%。与惩戒祷言互斥。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 3,
+      "RequiredLevel": 5,
+      "BranchCode": "mercy",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-prayer",
+        "acolyte-heal-training",
+        "acolyte-silence-talent"
+      ],
+      "ExclusiveGroup": "acolyte-choice",
+      "EffectCode": "MercyPrayer",
+      "ValuePerRank": 15
+    },
+    {
+      "Code": "acolyte-light-training",
+      "ProfessionCode": "acolyte",
+      "Name": "圣光训练",
+      "Description": "圣光弹伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 1,
+      "RequiredLevel": 4,
+      "BranchCode": "judgment",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-doctrine",
+        "acolyte-echo"
+      ],
+      "EffectCode": "HolyBoltPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "acolyte-heal-training",
+      "ProfessionCode": "acolyte",
+      "Name": "治疗训练",
+      "Description": "治疗术恢复量提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 3,
+      "RequiredLevel": 4,
+      "BranchCode": "mercy",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-prayer",
+        "acolyte-echo"
+      ],
+      "EffectCode": "HealSkillPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "acolyte-light-return",
+      "ProfessionCode": "acolyte",
+      "Name": "圣光回流",
+      "Description": "圣光弹为生命最低的队友恢复伤害量的 15%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 1,
+      "RequiredLevel": 8,
+      "BranchCode": "judgment",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "acolyte-judgment"
+      ],
+      "AnyPrerequisites": [
+        "acolyte-focus",
+        "acolyte-radiant-flare-talent",
+        "acolyte-purify-talent"
+      ],
+      "EffectCode": "HolyLeech",
+      "ValuePerRank": 15
+    },
+    {
+      "Code": "acolyte-afterglow",
+      "ProfessionCode": "acolyte",
+      "Name": "余辉庇护",
+      "Description": "治疗产生溢出时，使目标下回合减伤 15%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 3,
+      "RequiredLevel": 8,
+      "BranchCode": "mercy",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "acolyte-mercy"
+      ],
+      "AnyPrerequisites": [
+        "acolyte-devotion",
+        "acolyte-radiant-flare-talent",
+        "acolyte-purify-talent"
+      ],
+      "EffectCode": "OverhealWard",
+      "ValuePerRank": 15
+    },
+    {
+      "Code": "acolyte-focus",
+      "ProfessionCode": "acolyte",
+      "Name": "专注训练",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 1,
+      "RequiredLevel": 6,
+      "BranchCode": "judgment",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-judgment",
+        "acolyte-purify-talent",
+        "acolyte-light-training"
+      ],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "acolyte-devotion",
+      "ProfessionCode": "acolyte",
+      "Name": "虔诚训练",
+      "Description": "最大生命提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 3,
+      "RequiredLevel": 6,
+      "BranchCode": "mercy",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-mercy",
+        "acolyte-purify-talent",
+        "acolyte-heal-training"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "acolyte-silence-talent",
+      "ProfessionCode": "acolyte",
+      "Name": "沉默祷言",
+      "Description": "学会沉默祷言：打断当前可打断技能，并使怪物下一回合准备的可打断技能自动失效。",
+      "SkillCode": "acolyte-silence",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 2,
+      "Column": 2,
+      "RequiredLevel": 4,
+      "BranchCode": "tempo",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "acolyte-echo",
+        "acolyte-doctrine",
+        "acolyte-prayer"
+      ]
+    },
+    {
+      "Code": "acolyte-purify-talent",
+      "ProfessionCode": "acolyte",
+      "Name": "净化祷言",
+      "Description": "学会净化祷言，可以移除队友身上的一个可驱散负面状态。",
+      "SkillCode": "acolyte-purify",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 2,
+      "RequiredLevel": 5,
+      "BranchCode": "tempo",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [
+        "acolyte-silence-talent"
+      ],
+      "AnyPrerequisites": [
+        "acolyte-light-training",
+        "acolyte-heal-training"
+      ]
+    },
+    {
+      "Code": "acolyte-radiant-flare-talent",
+      "ProfessionCode": "acolyte",
+      "Name": "灼目圣光",
+      "Description": "学会灼目圣光，对怪物造成伤害并降低其造成的伤害。",
+      "SkillCode": "acolyte-radiant-flare",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 4,
+      "Column": 2,
+      "RequiredLevel": 6,
+      "BranchCode": "tempo",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [
+        "acolyte-purify-talent"
+      ],
+      "AnyPrerequisites": [
+        "acolyte-judgment",
+        "acolyte-mercy",
+        "acolyte-light-training",
+        "acolyte-heal-training"
+      ]
+    },
+    {
+      "Code": "mage-arcane-insight",
+      "ProfessionCode": "mage",
+      "Name": "奥术洞察",
+      "Description": "技能伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 1,
+      "RequiredLevel": 2,
+      "BranchCode": "arcane",
+      "Prerequisites": [],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "mage-flow",
+      "ProfessionCode": "mage",
+      "Name": "魔力流转",
+      "Description": "普通攻击伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 2,
+      "RequiredLevel": 2,
+      "BranchCode": "control",
+      "Prerequisites": [],
+      "EffectCode": "NormalAttackPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "mage-frost-discipline",
+      "ProfessionCode": "mage",
+      "Name": "寒霜训练",
+      "Description": "最大生命提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 3,
+      "RequiredLevel": 2,
+      "BranchCode": "frost",
+      "Prerequisites": [],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "mage-arcane-training",
+      "ProfessionCode": "mage",
+      "Name": "飞弹研习",
+      "Description": "技能伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 1,
+      "RequiredLevel": 4,
+      "BranchCode": "arcane",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-arcane-insight",
+        "mage-flow"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "mage-spellbreak-talent",
+      "ProfessionCode": "mage",
+      "Name": "法术反制",
+      "Description": "学会法术反制：造成伤害并驱散怪物的一个增益效果。",
+      "SkillCode": "mage-spellbreak",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 2,
+      "Column": 2,
+      "RequiredLevel": 4,
+      "BranchCode": "control",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-flow",
+        "mage-arcane-insight",
+        "mage-frost-discipline"
+      ]
+    },
+    {
+      "Code": "mage-ward-training",
+      "ProfessionCode": "mage",
+      "Name": "结界训练",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 3,
+      "RequiredLevel": 4,
+      "BranchCode": "frost",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-frost-discipline",
+        "mage-flow"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "mage-barrage-talent",
+      "ProfessionCode": "mage",
+      "Name": "奥术弹幕",
+      "Description": "学会奥术弹幕，连续释放三枚可分别暴击的飞弹。",
+      "SkillCode": "mage-arcane-barrage",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 1,
+      "RequiredLevel": 5,
+      "BranchCode": "arcane",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-arcane-training",
+        "mage-spellbreak-talent"
+      ]
+    },
+    {
+      "Code": "mage-suppression-talent",
+      "ProfessionCode": "mage",
+      "Name": "奥术压制",
+      "Description": "学会奥术压制，在造成伤害后降低怪物的伤害。",
+      "SkillCode": "mage-arcane-suppression",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 2,
+      "RequiredLevel": 5,
+      "BranchCode": "control",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-spellbreak-talent",
+        "mage-arcane-training",
+        "mage-ward-training"
+      ]
+    },
+    {
+      "Code": "mage-ice-armor",
+      "ProfessionCode": "mage",
+      "Name": "冰甲术",
+      "Description": "最大生命提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 3,
+      "Column": 3,
+      "RequiredLevel": 5,
+      "BranchCode": "frost",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-ward-training",
+        "mage-spellbreak-talent"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "mage-precision",
+      "ProfessionCode": "mage",
+      "Name": "精准施法",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 1,
+      "RequiredLevel": 6,
+      "BranchCode": "arcane",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-barrage-talent",
+        "mage-suppression-talent"
+      ],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "mage-countermagic",
+      "ProfessionCode": "mage",
+      "Name": "反魔法专精",
+      "Description": "技能伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 2,
+      "RequiredLevel": 6,
+      "BranchCode": "control",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-suppression-talent",
+        "mage-barrage-talent",
+        "mage-spellbreak-talent"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "mage-deep-ward",
+      "ProfessionCode": "mage",
+      "Name": "深层结界",
+      "Description": "最大生命提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 3,
+      "RequiredLevel": 6,
+      "BranchCode": "frost",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "mage-ice-armor",
+        "mage-suppression-talent",
+        "mage-ward-training"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "mage-arcane-mastery",
+      "ProfessionCode": "mage",
+      "Name": "奥术掌握",
+      "Description": "奥术弹幕额外发射一枚造成 40% 攻击 + 1 点伤害、可独立暴击的飞弹。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 1,
+      "RequiredLevel": 8,
+      "BranchCode": "arcane",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "mage-barrage-talent"
+      ],
+      "AnyPrerequisites": [
+        "mage-precision",
+        "mage-countermagic"
+      ]
+    },
+    {
+      "Code": "mage-stable-channeling",
+      "ProfessionCode": "mage",
+      "Name": "稳定引导",
+      "Description": "法术反制成功驱散增益后，使自身其他伤害技能的剩余冷却缩短 1 回合。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 2,
+      "RequiredLevel": 8,
+      "BranchCode": "control",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "mage-spellbreak-talent"
+      ],
+      "AnyPrerequisites": [
+        "mage-countermagic",
+        "mage-suppression-talent",
+        "mage-deep-ward"
+      ]
+    },
+    {
+      "Code": "mage-frozen-heart",
+      "ProfessionCode": "mage",
+      "Name": "霜心",
+      "Description": "寒霜护体发动时，同时移除自身一个可净化的减益。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 3,
+      "RequiredLevel": 8,
+      "BranchCode": "frost",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "mage-ice-armor"
+      ],
+      "AnyPrerequisites": [
+        "mage-deep-ward",
+        "mage-countermagic"
+      ]
+    },
+    {
+      "Code": "hunter-keen-eye",
+      "ProfessionCode": "hunter",
+      "Name": "锐眼",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 1,
+      "RequiredLevel": 2,
+      "BranchCode": "precision",
+      "Prerequisites": [],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "hunter-steady-hand",
+      "ProfessionCode": "hunter",
+      "Name": "稳健射击",
+      "Description": "普通攻击伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 2,
+      "RequiredLevel": 2,
+      "BranchCode": "survival",
+      "Prerequisites": [],
+      "EffectCode": "NormalAttackPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "hunter-fieldcraft",
+      "ProfessionCode": "hunter",
+      "Name": "野外生存",
+      "Description": "最大生命提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 3,
+      "RequiredLevel": 2,
+      "BranchCode": "endurance",
+      "Prerequisites": [],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "hunter-bow-training",
+      "ProfessionCode": "hunter",
+      "Name": "弓术训练",
+      "Description": "普通攻击伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 1,
+      "RequiredLevel": 4,
+      "BranchCode": "precision",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-keen-eye",
+        "hunter-steady-hand"
+      ],
+      "EffectCode": "NormalAttackPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "hunter-venom-talent",
+      "ProfessionCode": "hunter",
+      "Name": "毒箭",
+      "Description": "学会毒箭，对怪物造成伤害并附加持续伤害。",
+      "SkillCode": "hunter-venom-arrow",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 2,
+      "Column": 2,
+      "RequiredLevel": 4,
+      "BranchCode": "survival",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-steady-hand",
+        "hunter-keen-eye",
+        "hunter-fieldcraft"
+      ]
+    },
+    {
+      "Code": "hunter-mending-training",
+      "ProfessionCode": "hunter",
+      "Name": "包扎训练",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 3,
+      "RequiredLevel": 4,
+      "BranchCode": "endurance",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-fieldcraft",
+        "hunter-steady-hand"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "hunter-mark-talent",
+      "ProfessionCode": "hunter",
+      "Name": "标记射击",
+      "Description": "学会标记射击，使怪物在短时间内受到更多伤害。",
+      "SkillCode": "hunter-marked-shot",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 1,
+      "RequiredLevel": 5,
+      "BranchCode": "precision",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-bow-training",
+        "hunter-venom-talent"
+      ]
+    },
+    {
+      "Code": "hunter-volley-talent",
+      "ProfessionCode": "hunter",
+      "Name": "连珠箭",
+      "Description": "学会连珠箭，连续进行两次可分别暴击的射击。",
+      "SkillCode": "hunter-rapid-volley",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 2,
+      "RequiredLevel": 5,
+      "BranchCode": "survival",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-venom-talent",
+        "hunter-bow-training",
+        "hunter-mending-training"
+      ]
+    },
+    {
+      "Code": "hunter-endurance",
+      "ProfessionCode": "hunter",
+      "Name": "耐力训练",
+      "Description": "最大生命提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 3,
+      "Column": 3,
+      "RequiredLevel": 5,
+      "BranchCode": "endurance",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-mending-training",
+        "hunter-venom-talent"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "hunter-precision",
+      "ProfessionCode": "hunter",
+      "Name": "致命准星",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 1,
+      "RequiredLevel": 6,
+      "BranchCode": "precision",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-mark-talent",
+        "hunter-volley-talent"
+      ],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "hunter-toxin-training",
+      "ProfessionCode": "hunter",
+      "Name": "毒素调制",
+      "Description": "技能伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 2,
+      "RequiredLevel": 6,
+      "BranchCode": "survival",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-volley-talent",
+        "hunter-mark-talent",
+        "hunter-venom-talent"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "hunter-recovery",
+      "ProfessionCode": "hunter",
+      "Name": "快速恢复",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 3,
+      "RequiredLevel": 6,
+      "BranchCode": "endurance",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "hunter-endurance",
+        "hunter-volley-talent",
+        "hunter-mending-training"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "hunter-predator",
+      "ProfessionCode": "hunter",
+      "Name": "掠食本能",
+      "Description": "对带有猎人印记的目标造成的技能伤害提高 15%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 1,
+      "RequiredLevel": 8,
+      "BranchCode": "precision",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "hunter-mark-talent"
+      ],
+      "AnyPrerequisites": [
+        "hunter-precision",
+        "hunter-toxin-training"
+      ]
+    },
+    {
+      "Code": "hunter-relentless",
+      "ProfessionCode": "hunter",
+      "Name": "连绵攻势",
+      "Description": "毒箭命中时额外叠加一层中毒，并刷新其持续时间。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 2,
+      "RequiredLevel": 8,
+      "BranchCode": "survival",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "hunter-venom-talent"
+      ],
+      "AnyPrerequisites": [
+        "hunter-toxin-training",
+        "hunter-volley-talent",
+        "hunter-recovery"
+      ]
+    },
+    {
+      "Code": "hunter-hardened",
+      "ProfessionCode": "hunter",
+      "Name": "风餐露宿",
+      "Description": "野外包扎后获得荒野韧性，本回合受到的伤害降低 20%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 3,
+      "RequiredLevel": 8,
+      "BranchCode": "endurance",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "hunter-endurance"
+      ],
+      "AnyPrerequisites": [
+        "hunter-recovery",
+        "hunter-toxin-training"
+      ]
+    },
+    {
+      "Code": "rogue-killer-instinct",
+      "ProfessionCode": "rogue",
+      "Name": "杀手本能",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 1,
+      "RequiredLevel": 2,
+      "BranchCode": "assassination",
+      "Prerequisites": [],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "rogue-light-fingers",
+      "ProfessionCode": "rogue",
+      "Name": "灵巧手法",
+      "Description": "普通攻击伤害提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 2,
+      "RequiredLevel": 2,
+      "BranchCode": "subtlety",
+      "Prerequisites": [],
+      "EffectCode": "NormalAttackPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "rogue-footwork",
+      "ProfessionCode": "rogue",
+      "Name": "敏捷步法",
+      "Description": "最大生命提高 3%。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 1,
+      "Column": 3,
+      "RequiredLevel": 2,
+      "BranchCode": "evasion",
+      "Prerequisites": [],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "rogue-blade-training",
+      "ProfessionCode": "rogue",
+      "Name": "短刃训练",
+      "Description": "技能伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 1,
+      "RequiredLevel": 4,
+      "BranchCode": "assassination",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-killer-instinct",
+        "rogue-light-fingers"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "rogue-poison-talent",
+      "ProfessionCode": "rogue",
+      "Name": "淬毒之刃",
+      "Description": "学会淬毒之刃，对怪物造成伤害并附加持续伤害。",
+      "SkillCode": "rogue-poisoned-blade",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 2,
+      "Column": 2,
+      "RequiredLevel": 4,
+      "BranchCode": "subtlety",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-light-fingers",
+        "rogue-killer-instinct",
+        "rogue-footwork"
+      ]
+    },
+    {
+      "Code": "rogue-recovery-training",
+      "ProfessionCode": "rogue",
+      "Name": "脱身训练",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 2,
+      "Column": 3,
+      "RequiredLevel": 4,
+      "BranchCode": "evasion",
+      "RequiredTreePoints": 2,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-footwork",
+        "rogue-light-fingers"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "rogue-flurry-talent",
+      "ProfessionCode": "rogue",
+      "Name": "刀锋乱舞",
+      "Description": "学会刀锋乱舞，连续进行两次可分别暴击的攻击。",
+      "SkillCode": "rogue-blade-flurry",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 1,
+      "RequiredLevel": 5,
+      "BranchCode": "assassination",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-blade-training",
+        "rogue-poison-talent"
+      ]
+    },
+    {
+      "Code": "rogue-gouge-talent",
+      "ProfessionCode": "rogue",
+      "Name": "凿击",
+      "Description": "学会凿击，造成伤害并打断当前可打断的怪物技能。",
+      "SkillCode": "rogue-gouge",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 3,
+      "Column": 2,
+      "RequiredLevel": 5,
+      "BranchCode": "subtlety",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-poison-talent",
+        "rogue-blade-training",
+        "rogue-recovery-training"
+      ]
+    },
+    {
+      "Code": "rogue-hardiness",
+      "ProfessionCode": "rogue",
+      "Name": "以退为进",
+      "Description": "最大生命提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 3,
+      "Column": 3,
+      "RequiredLevel": 5,
+      "BranchCode": "evasion",
+      "RequiredTreePoints": 3,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-recovery-training",
+        "rogue-poison-talent"
+      ],
+      "EffectCode": "MaxHpPercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "rogue-deadly-precision",
+      "ProfessionCode": "rogue",
+      "Name": "致命精准",
+      "Description": "技能暴击率提高 3%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 1,
+      "RequiredLevel": 6,
+      "BranchCode": "assassination",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-flurry-talent",
+        "rogue-gouge-talent"
+      ],
+      "EffectCode": "SkillCriticalChancePercent",
+      "ValuePerRank": 3
+    },
+    {
+      "Code": "rogue-dirty-fighting",
+      "ProfessionCode": "rogue",
+      "Name": "卑劣伎俩",
+      "Description": "技能伤害提高 4%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 2,
+      "RequiredLevel": 6,
+      "BranchCode": "subtlety",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-gouge-talent",
+        "rogue-flurry-talent",
+        "rogue-poison-talent"
+      ],
+      "EffectCode": "SkillDamagePercent",
+      "ValuePerRank": 4
+    },
+    {
+      "Code": "rogue-composure",
+      "ProfessionCode": "rogue",
+      "Name": "处变不惊",
+      "Description": "受到的治疗与战斗道具恢复量提高 8%。",
+      "Cost": 1,
+      "MaxRank": 2,
+      "Tier": 4,
+      "Column": 3,
+      "RequiredLevel": 6,
+      "BranchCode": "evasion",
+      "RequiredTreePoints": 4,
+      "Prerequisites": [],
+      "AnyPrerequisites": [
+        "rogue-hardiness",
+        "rogue-gouge-talent",
+        "rogue-recovery-training"
+      ],
+      "EffectCode": "HealingReceivedPercent",
+      "ValuePerRank": 8
+    },
+    {
+      "Code": "rogue-relentless-assault",
+      "ProfessionCode": "rogue",
+      "Name": "夺命连攻",
+      "Description": "刀锋乱舞额外追加一次 40% 攻击 + 1 点伤害、可独立暴击的攻击。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 1,
+      "RequiredLevel": 8,
+      "BranchCode": "assassination",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "rogue-flurry-talent"
+      ],
+      "AnyPrerequisites": [
+        "rogue-deadly-precision",
+        "rogue-dirty-fighting"
+      ]
+    },
+    {
+      "Code": "rogue-opportunist",
+      "ProfessionCode": "rogue",
+      "Name": "伺机而动",
+      "Description": "凿击成功打断时令目标暴露破绽，受到的伤害提高 10%，持续 2 回合。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 2,
+      "RequiredLevel": 8,
+      "BranchCode": "subtlety",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "rogue-gouge-talent"
+      ],
+      "AnyPrerequisites": [
+        "rogue-dirty-fighting",
+        "rogue-deadly-precision",
+        "rogue-composure"
+      ]
+    },
+    {
+      "Code": "rogue-escape-artist",
+      "ProfessionCode": "rogue",
+      "Name": "金蝉脱壳",
+      "Description": "闪避发动时，同时移除自身一个可净化的减益。",
+      "Cost": 1,
+      "MaxRank": 1,
+      "Tier": 5,
+      "Column": 3,
+      "RequiredLevel": 8,
+      "BranchCode": "evasion",
+      "RequiredTreePoints": 5,
+      "Prerequisites": [
+        "rogue-hardiness"
+      ],
+      "AnyPrerequisites": [
+        "rogue-composure",
+        "rogue-dirty-fighting"
+      ]
+    }
+  ]
+}

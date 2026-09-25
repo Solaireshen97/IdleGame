@@ -14,7 +14,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
     private static readonly TimeSpan PreparationTimeout = TimeSpan.FromSeconds(BattleRules.PreparationTimeoutSeconds);
 
-    public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token, int? expectedRoundNumber = null)
+    public async Task<(BattleResult? Result, string? Error)> StartPreparationAsync(int roomId, string? token,
+        int? expectedRoundNumber = null, int? expectedRunSequence = null)
     {
         var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
@@ -26,7 +27,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             await SaveResultAsync(room, slots!, monster!, now, ["任务已达到时限，无法开始新一轮战斗。"]);
             return (null, "RoomClosed");
         }
-        if (expectedRoundNumber.HasValue && room!.RoundNumber != expectedRoundNumber.Value)
+        if (expectedRoundNumber.HasValue && room!.RoundNumber != expectedRoundNumber.Value ||
+            expectedRunSequence.HasValue && room!.RunSequence != expectedRunSequence.Value)
             return (BuildResult(room, slots!, monster!, now, ["当前回合已经推进，本次准备请求已忽略。"]), "StaleRound");
         if (room!.Status == RoomStatus.BattleOver) return (BuildResult(room, slots!, monster!, now, ["战斗已经结束，请重置房间。"]), "BattleOver");
         if (room.Status == RoomStatus.WaveTransition) return (BuildResult(room, slots!, monster!, now, ["下一名敌人正在接近。"]), "WaveTransition");
@@ -50,7 +52,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (aliveSlots.Where(x => x.Slot.UserId == user.Id).All(x => x.Slot.IsConfirmed))
                 return (BuildResult(room, slots, monster, now, ["你的角色已经为下一回合做好准备。"]), "AlreadyPrepared");
 
-            foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedCharacterIds)))
+            foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedCharacterIds, slots)))
                 entry.Slot.IsConfirmed = true;
             return await SaveResultAsync(room, slots, monster, now, []);
         }
@@ -68,9 +70,38 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             return (BuildResult(room, slots, monster, now, ["你的角色已经准备完毕。"]), "AlreadyPrepared");
         }
 
-        foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedCharacterIds))) entry.Slot.IsConfirmed = true;
+        foreach (var entry in aliveSlots.Where(x => x.Slot.UserId == user.Id || IsSlotAuto(room, x, clearedCharacterIds, slots))) entry.Slot.IsConfirmed = true;
         if (aliveSlots.All(x => x.Slot.IsConfirmed)) return await ExecutePreparedRoundAsync(room, slots, monster, now, []);
         return await SaveResultAsync(room, slots, monster, now, []);
+    }
+
+    public async Task<(BattleResult? Result, string? Error)> CancelPreparationAsync(int roomId, string? token,
+        int expectedRoundNumber, int expectedRunSequence)
+    {
+        var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
+        if (error is not null) return (null, error);
+        var now = DateTime.UtcNow;
+        if (room!.RoundNumber != expectedRoundNumber || room.RunSequence != expectedRunSequence)
+            return (BuildResult(room, slots!, monster!, now, []), "StaleRound");
+        if (room.Status == RoomStatus.BattleOver || monster!.Hp <= 0)
+            return (BuildResult(room, slots!, monster!, now, []), "BattleOver");
+        if (room.Status == RoomStatus.WaveTransition)
+            return (BuildResult(room, slots!, monster!, now, []), "WaveTransition");
+        var ownedAlive = slots!.Where(entry => entry.Slot.UserId == user!.Id && entry.Character.Hp > 0).ToList();
+        if (ownedAlive.Count == 0) return (null, "NoOwnedAliveCharacters");
+        var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
+        var manualSlots = ownedAlive.Where(entry => !IsSlotAuto(room, entry, clearedCharacterIds, slots)).ToList();
+        if (manualSlots.Count == 0) return (null, "PreparationCancellationDenied");
+        if (manualSlots.All(entry => !entry.Slot.IsConfirmed && !entry.Slot.IsTemporaryAuto))
+            return (BuildResult(room, slots, monster!, now, []), null);
+        foreach (var entry in manualSlots)
+        {
+            entry.Slot.IsConfirmed = false;
+            entry.Slot.IsTemporaryAuto = false;
+        }
+        // Preserve queued actions and both deadlines. Saving the room version makes
+        // cancellation race safely with the background worker's round settlement.
+        return await SaveResultAsync(room, slots, monster!, now, ["已取消准备，保留已安排的技能与道具。"]);
     }
 
     public async Task<(BattleResult? Result, string? Error)> SyncAsync(int roomId, string? token)
@@ -129,8 +160,19 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).ToList();
         var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
-        var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedCharacterIds));
+        var allAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(x => IsSlotAuto(room, x, clearedCharacterIds, slots));
         var stateChanged = restartedBattle;
+        if (room.Status is RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown)
+        {
+            // Auto members are ready in mixed parties too. Only manual members
+            // may subsequently be marked as temporary timeout attackers.
+            foreach (var entry in aliveSlots.Where(entry => IsSlotAuto(room, entry, clearedCharacterIds, slots)))
+            {
+                if (!entry.Slot.IsConfirmed || entry.Slot.IsTemporaryAuto) stateChanged = true;
+                entry.Slot.IsConfirmed = true;
+                entry.Slot.IsTemporaryAuto = false;
+            }
+        }
         var transitionCompleted = false;
         if (room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime cooldownDeadline)
         {
@@ -180,6 +222,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             stateChanged = true;
         }
 
+        if (!allAliveMembersAuto && (room.Status is RoomStatus.NotStarted or RoomStatus.Preparing) &&
+            aliveSlots.Count > 0 && monster.Hp > 0 && aliveSlots.All(entry => entry.Slot.IsConfirmed))
+        {
+            room.Status = RoomStatus.Preparing;
+            return await ExecutePreparedRoundAsync(room, slots, monster, now, ["全队已准备完毕，本回合继续结算。"]);
+        }
         if ((room.Status == RoomStatus.Preparing || room.Status == RoomStatus.NotStarted && !allAliveMembersAuto) &&
             room.IsPreparationTimeoutEnabled && aliveSlots.Count > 0 && monster.Hp > 0)
         {
@@ -195,7 +243,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 {
                     entry.Slot.IsTemporaryAuto = true;
                     entry.Slot.IsConfirmed = true;
-                    logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 准备超时，本回合临时切换为自动战斗。");
+                    logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 准备超时，本回合执行自动攻击（不释放自动技能）。");
                 }
                 logs.Add("准备阶段已超时，本回合自动开始。");
                 return await ExecutePreparedRoundAsync(room, slots, monster, now, logs);
@@ -203,11 +251,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         if (room.Status == RoomStatus.Preparing)
         {
-            if (allAliveMembersAuto && aliveSlots.Count > 0 && monster.Hp > 0)
+            if (aliveSlots.Count > 0 && monster.Hp > 0 && aliveSlots.All(entry => entry.Slot.IsConfirmed))
             {
                 foreach (var entry in aliveSlots) entry.Slot.IsConfirmed = true;
                 return await ExecutePreparedRoundAsync(room, slots, monster, now,
-                    ["全队已进入自动准备，本回合继续结算。"]);
+                    ["全队已准备完毕，本回合继续结算。"]);
             }
             return stateChanged ? await SaveResultAsync(room, slots, monster, now, []) : (BuildResult(room, slots, monster, now, []), null);
         }
@@ -253,18 +301,30 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var (room, slots, monster, user, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         var entry = slots!.SingleOrDefault(x => x.Slot.SlotIndex == request.SlotIndex);
-        if (entry is null || entry.Slot.UserId != user!.Id || entry.Character.Hp <= 0 || (entry.Slot.UserId == room!.OwnerUserId && !entry.Slot.IsMainControl)) return (null, "AutoConfigurationDenied");
-        if (request.IsAutoEnabled && !(await GetClearedCharacterIdsAsync(room!.DungeonId)).Contains(entry.Character.Id)) return (null, "AutoNotUnlocked");
-
-        var clearedCharacterIds = !request.IsAutoEnabled ? await GetClearedCharacterIdsAsync(room!.DungeonId) : [];
-        var wasAllAliveMembersAuto = !request.IsAutoEnabled && slots.Where(slot => slot.Character.Hp > 0)
-            .All(slot => IsSlotAuto(room!, slot, clearedCharacterIds));
-        entry.Slot.IsAutoEnabled = request.IsAutoEnabled;
+        if (entry is null || entry.Slot.UserId != user!.Id) return (null, "AutoConfigurationDenied");
+        var ownedSlots = slots.Where(slot => slot.Slot.UserId == user.Id).ToList();
+        var clearedCharacterIds = await GetClearedCharacterIdsAsync(room!.DungeonId);
+        if (request.IsAutoEnabled && !ownedSlots.Any(slot => slot.Character.Hp > 0 &&
+                clearedCharacterIds.Contains(slot.Character.Id))) return (null, "AutoNotUnlocked");
+        var wasUserAutoEnabled = RoomAutoPolicy.IsEnabled(room, entry.Slot, slots.Select(slot => slot.Slot).ToArray());
+        var wasAllAliveMembersAuto = slots.Where(slot => slot.Character.Hp > 0)
+            .All(slot => IsSlotAuto(room, slot, clearedCharacterIds, slots));
+        foreach (var owned in ownedSlots)
+        {
+            owned.Slot.IsAutoEnabled = request.IsAutoEnabled;
+            if (!request.IsAutoEnabled && wasUserAutoEnabled)
+            {
+                owned.Slot.IsConfirmed = false;
+                owned.Slot.IsTemporaryAuto = false;
+            }
+        }
         var now = DateTime.UtcNow;
+        if (request.IsAutoEnabled && room.Status is RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown)
+            foreach (var owned in ownedSlots.Where(slot => slot.Character.Hp > 0 && clearedCharacterIds.Contains(slot.Character.Id)))
+                owned.Slot.IsConfirmed = true;
         if (request.IsAutoEnabled && room!.Status == RoomStatus.NotStarted)
         {
-            var enabledClearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
-            if (slots.Where(slot => slot.Character.Hp > 0).All(slot => IsSlotAuto(room, slot, enabledClearedCharacterIds)))
+            if (slots.Where(slot => slot.Character.Hp > 0).All(slot => IsSlotAuto(room, slot, clearedCharacterIds, slots)))
                 return await SyncCoreAsync(room, slots, monster!);
         }
         if (!request.IsAutoEnabled && room!.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc is DateTime deadline &&
@@ -277,6 +337,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             {
                 room.Status = RoomStatus.NotStarted;
                 room.NextRoundAvailableAtUtc = null;
+                room.RoundCooldownDurationSeconds = null;
                 room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? now : null;
             }
             else
@@ -286,7 +347,6 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         if (room!.Status == RoomStatus.Preparing && request.IsAutoEnabled)
         {
-            entry.Slot.IsConfirmed = true;
             if (slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed))
                 return await ExecutePreparedRoundAsync(room, slots, monster!, now, []);
         }
@@ -442,6 +502,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
         if (aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed)) return (null, "PreparationRequired");
+        var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
         foreach (var entry in aliveSlots)
         {
             entry.Slot.HasParticipatedInRun = true;
@@ -474,8 +535,11 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 echo += skillCatalog.FindTalentNode("sword-counteroffense")?.ValuePerRank ?? 75;
             pendingTalentEcho[entry.Character.Id] = echo;
         }
-        await ApplySoulImprintsAsync(room, aliveSlots, monster, operationBonuses, logs);
-        var roundDefense = await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements, operationBonuses, logs);
+        var autoCharacterIds = aliveSlots.Where(entry => !entry.Slot.IsTemporaryAuto &&
+                IsSlotAuto(room, entry, clearedCharacterIds, slots)).Select(entry => entry.Character.Id).ToHashSet();
+        await ApplySoulImprintsAsync(room, aliveSlots, monster, operationBonuses, autoCharacterIds, logs);
+        var roundDefense = await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements,
+            operationBonuses, autoCharacterIds, logs);
         var monsterReduction = monsterCombatService is null ? 0m :
             await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
         foreach (var entry in aliveSlots)
@@ -574,10 +638,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                 }
                 else
                 {
-                    var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
                     room.Status = RoomStatus.Cooldown;
                     room.RoundCooldownDurationSeconds = slots.Where(slot => slot.Character.Hp > 0)
-                        .All(slot => IsSlotAuto(room, slot, clearedCharacterIds))
+                        .All(slot => IsSlotAuto(room, slot, clearedCharacterIds, slots))
                         ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds;
                     room.NextRoundAvailableAtUtc = now.AddSeconds(room.RoundCooldownDurationSeconds.Value);
                     room.BattleEndedAtUtc = null;
@@ -599,7 +662,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     }
 
     private async Task ApplySoulImprintsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
-        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
+        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses,
+        IReadOnlyCollection<int> autoCharacterIds, List<string> logs)
     {
         if (soulImprintCatalog is null || aliveSlots.Count == 0 || monster.Hp <= 0) return;
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -616,7 +680,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var imprint = equipped.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id);
             var definition = soulImprintCatalog.Find(imprint?.SoulImprintCode);
             if (imprint is null || definition is null) continue;
-            var automatic = !participant.Slot.IsSoulImprintQueued && imprint.AutoUseEnabled;
+            var automatic = !participant.Slot.IsSoulImprintQueued && imprint.AutoUseEnabled &&
+                autoCharacterIds.Contains(participant.Character.Id);
             if (!participant.Slot.IsSoulImprintQueued && !automatic) continue;
             var cooldownCode = SoulImprintRules.CooldownCode(definition.Code);
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id &&
@@ -784,7 +849,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
     private async Task<PlayerRoundDefense> ApplyCombatSkillsAsync(Room room, List<SlotCharacter> aliveSlots, Monster monster,
         IReadOnlyDictionary<int, ElementType> mainWeaponElements,
-        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses, List<string> logs)
+        IReadOnlyDictionary<int, OperationPotionBonuses> operationBonuses,
+        IReadOnlyCollection<int> autoCharacterIds, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var equipment = await dbContext.CharacterSkillSlots
@@ -806,21 +872,21 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         {
             var skill = skillCatalog.FindSkill(slot.SkillCode);
             var used = usedByCharacter[participant.Character.Id];
-            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code,
-                    purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)) ||
+            var ranks = purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, ranks) ||
                 used.Contains(skill.Code)) return false;
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
             if (automatic && !await MeetsAutoConditionAsync(room, monster, skill, participant, aliveSlots,
-                    slot.AutoHpThresholdPercent)) return false;
+                    slot.AutoHpThresholdPercent, ranks)) return false;
             if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots)) return false;
 
             var applied = false;
             var totalDamage = 0;
-            var ranks = purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var healingOccurred = false;
+            var holyHealEchoChecked = false;
+            var holyHealEcho = 0m;
             var holyDamageEcho = skill.Code == "acolyte-holy-bolt" && await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", false) ? 20m : 0m;
-            var holyHealEcho = SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Heal") &&
-                await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-heal", false) ? 10m : 0m;
             var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
                 TalentRules.EffectiveMaxHp(participant.Character),
                 participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
@@ -900,20 +966,33 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                         foreach (var target in targets)
                         {
                             var maxHp = TalentRules.EffectiveMaxHp(target.Character);
-                            if (target.Character.Hp >= maxHp) continue;
+                            var hasAfterglow = monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-afterglow") > 0;
+                            if (target.Character.Hp >= maxHp && !hasAfterglow) continue;
                             var wasBelowHalf = (long)target.Character.Hp * 2 < maxHp;
-                            var missing = maxHp - target.Character.Hp;
+                            var missing = Math.Max(0, maxHp - target.Character.Hp);
+                            // Cleansing and overheal-only protection are not actual healing and must
+                            // neither consume the stored healing echo nor prime the damage echo.
+                            if (missing > 0 && !holyHealEchoChecked)
+                            {
+                                holyHealEcho = await ConsumeTalentStateAsync(room, participant.Character.Id,
+                                    "talent-holy-heal", false) ? 10m : 0m;
+                                holyHealEchoChecked = true;
+                            }
                             var bonus = participant.Character.TalentHealingDonePercent + target.Character.TalentHealingReceivedPercent + holyHealEcho +
                                 (skill.Code == "acolyte-heal" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-heal-training") * 4 ?? 0 : 0);
                             var raw = (int)decimal.Floor(RecoveryCalculator.Calculate(maxHp, effect.Power, effect.HealMaxHpPercent) * (1 + bonus / 100m));
-                            var healed = Math.Min(raw, maxHp - target.Character.Hp);
+                            var healed = Math.Min(raw, missing);
                             target.Character.Hp += healed;
-                            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
-                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-mercy") > 0 && wasBelowHalf)
+                            if (healed > 0)
+                            {
+                                logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。");
+                                healingOccurred = true;
+                                applied = true;
+                            }
+                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-mercy") > 0 && wasBelowHalf && healed > 0)
                                 await monsterCombatService.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
-                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-afterglow") > 0 && raw > missing)
-                                await monsterCombatService.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
-                            applied = true;
+                            if (hasAfterglow && raw > missing)
+                                applied |= await monsterCombatService!.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
                         }
                         break;
                     }
@@ -1002,14 +1081,20 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             if (monsterCombatService is not null && monster.Hp > 0 && skill.Code == "hunter-venom-arrow" &&
                 ranks.GetValueOrDefault("hunter-relentless") > 0)
             {
-                applied |= await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "poison", 3, logs, monster.Name);
+                applied |= await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "poison", 5, logs, monster.Name);
+                if (await monsterCombatService.GetStatusStacksAsync(room, "Monster", monster.Id, "poison") >= 3)
+                {
+                    var toxin = Math.Min(monster.Hp,
+                        Math.Max(1, (int)decimal.Floor(TalentRules.EffectiveAttack(participant.Character) * .30m)));
+                    monster.Hp -= toxin;
+                    totalDamage += toxin;
+                    logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的连绵攻势毒蚀对 {monster.Name} 造成 {toxin} 点无视防御伤害。");
+                }
             }
             if (monsterCombatService is not null && skill.Code == "hunter-field-mend" && ranks.GetValueOrDefault("hunter-hardened") > 0)
                 applied |= await monsterCombatService.ApplyStatusAsync(room, "Character", participant.Character.Id,
                     "hunter-resilience", 1, logs, $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
-            if (monsterCombatService is not null &&
-                (skill.Code == "mage-frost-ward" && ranks.GetValueOrDefault("mage-frozen-heart") > 0 ||
-                 skill.Code == "rogue-evasion" && ranks.GetValueOrDefault("rogue-escape-artist") > 0))
+            if (monsterCombatService is not null && HasSelfCleanseTalent(skill, ranks))
             {
                 var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", [participant.Character.Id], false);
                 if (removed is not null)
@@ -1048,7 +1133,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     }
                 }
             }
-            if (SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Heal") && ranks.GetValueOrDefault("acolyte-echo") > 0)
+            if (healingOccurred && ranks.GetValueOrDefault("acolyte-echo") > 0)
                 await SetTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", 3);
             if (cooldown is null)
             {
@@ -1073,6 +1158,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         }
         foreach (var participant in aliveSlots)
         {
+            if (!autoCharacterIds.Contains(participant.Character.Id)) continue;
             var characterEquipment = equipment.Where(slot => slot.CharacterId == participant.Character.Id);
             foreach (var slot in characterEquipment)
             {
@@ -1134,8 +1220,12 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     }
 
     private async Task<bool> MeetsAutoConditionAsync(Room room, Monster monster, CombatSkillOptions skill,
-        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int hpThresholdPercent)
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int hpThresholdPercent,
+        IReadOnlyDictionary<string, int> ranks)
     {
+        if (monsterCombatService is not null && HasSelfCleanseTalent(skill, ranks) &&
+            await monsterCombatService.HasRemovableStatusAsync(room, "Character", [participant.Character.Id], false))
+            return true;
         var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
         return SkillCatalog.AutoConditionFor(skill) switch
         {
@@ -1153,6 +1243,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             _ => false
         };
     }
+
+    private static bool HasSelfCleanseTalent(CombatSkillOptions skill, IReadOnlyDictionary<string, int> ranks) =>
+        skill.Code == "mage-frost-ward" && ranks.GetValueOrDefault("mage-frozen-heart") > 0 ||
+        skill.Code == "rogue-evasion" && ranks.GetValueOrDefault("rogue-escape-artist") > 0;
 
     private static SlotCharacter? GetHpConditionTarget(CombatSkillOptions skill, SlotCharacter participant,
         IReadOnlyList<SlotCharacter> alive)
@@ -1508,8 +1602,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             return (false, "ConcurrencyConflict");
         }
     }
-    private static bool IsSlotAuto(Room room, SlotCharacter entry, List<int> clearedCharacterIds) =>
-        RoomAutoPolicy.IsAuto(room, entry.Slot, clearedCharacterIds);
+    private static bool IsSlotAuto(Room room, SlotCharacter entry, IReadOnlyCollection<int> clearedCharacterIds,
+        IReadOnlyCollection<SlotCharacter> slots) =>
+        RoomAutoPolicy.IsAuto(room, entry.Slot, clearedCharacterIds, slots.Select(item => item.Slot).ToArray());
 
     private async Task<List<int>> GetClearedCharacterIdsAsync(int dungeonId)
     {

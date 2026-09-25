@@ -33,8 +33,10 @@ public class BattleController(BattleService battleService, RoomService roomServi
     public async Task<IActionResult> Prepare([FromBody] BattleRequest request)
     {
         if (!request.ExpectedRoundNumber.HasValue) return BadRequest("ExpectedRoundNumberRequired");
-        var (result, error) = await battleService.StartPreparationAsync(request.RoomId, GetBearerToken(), request.ExpectedRoundNumber);
-        if (error is "RoundCooldown" or "BattleOver" or "StaleRound") return Conflict(result);
+        if (!request.ExpectedRunSequence.HasValue) return BadRequest("ExpectedRunSequenceRequired");
+        var (result, error) = await battleService.StartPreparationAsync(request.RoomId, GetBearerToken(),
+            request.ExpectedRoundNumber, request.ExpectedRunSequence);
+        if (error is "RoundCooldown" or "BattleOver" or "WaveTransition" or "StaleRound") return Conflict(result);
         if (result is not null) return Ok(result);
         return error switch
         {
@@ -110,6 +112,25 @@ public class BattleController(BattleService battleService, RoomService roomServi
         }
 
         return Ok(roomDetail);
+    }
+
+    [HttpPost("cancel-prepare")]
+    public async Task<IActionResult> CancelPreparation([FromBody] BattleRequest request)
+    {
+        if (!request.ExpectedRoundNumber.HasValue) return BadRequest("ExpectedRoundNumberRequired");
+        if (!request.ExpectedRunSequence.HasValue) return BadRequest("ExpectedRunSequenceRequired");
+        var (result, error) = await battleService.CancelPreparationAsync(request.RoomId, GetBearerToken(),
+            request.ExpectedRoundNumber.Value, request.ExpectedRunSequence.Value);
+        if (error is "BattleOver" or "WaveTransition" or "StaleRound") return Conflict(result);
+        if (result is not null) return Ok(result);
+        return error switch
+        {
+            "Unauthorized" => Unauthorized(),
+            "NotFound" or "UserNotFound" or "MonsterNotFound" => NotFound(error),
+            "NotInRoom" => StatusCode(403, error),
+            "ConcurrencyConflict" => Conflict(error),
+            _ => BadRequest(error)
+        };
     }
 
     [HttpPost("consumable")]

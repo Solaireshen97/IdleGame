@@ -3,10 +3,11 @@
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Characters
 @using Microsoft.AspNetCore.Components.Web
+@inject IJSRuntime Js
 
 <div class="monster-detail-overlay" @onclick="CloseAsync" @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
     <section class="monster-detail-dialog @(!_showDrops && SelectedMonster is { } activeMonster ? $"monster-detail-dialog--{activeMonster.Element.ToString().ToLowerInvariant()}" : "")"
-             role="dialog" aria-modal="true" aria-labelledby="monster-detail-title" @onclick:stopPropagation>
+             role="dialog" aria-modal="true" aria-labelledby="monster-detail-title" @onclick:stopPropagation @ref="_dialog">
         <header class="monster-detail-header">
             <div>
                 <span class="monster-detail-kicker">@Dungeon.RegionName · @Dungeon.Name</span>
@@ -17,8 +18,8 @@
         </header>
 
         <div class="monster-detail-tabs" role="tablist" aria-label="副本资料">
-            <button type="button" role="tab" aria-selected="@(!_showDrops)" class="@(!_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = false">怪物信息</button>
-            <button type="button" role="tab" aria-selected="@_showDrops" class="@(_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = true">掉落预览</button>
+            <button type="button" role="tab" aria-selected="@(!_showDrops ? "true" : "false")" class="@(!_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = false">怪物信息</button>
+            <button type="button" role="tab" aria-selected="@(_showDrops ? "true" : "false")" class="@(_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = true">掉落预览</button>
         </div>
 
         <div class="monster-detail-body" @key="_showDrops">
@@ -104,7 +105,7 @@
                         var option = Dungeon.Monsters[index];
                         var optionIndex = index;
                         <button type="button" class="monster-selector__item @(index == _selectedMonsterIndex ? "monster-selector__item--active" : "")"
-                                aria-pressed="@(index == _selectedMonsterIndex)" @onclick="() => SelectMonster(optionIndex)">
+                                aria-pressed="@(index == _selectedMonsterIndex ? "true" : "false")" @onclick="() => SelectMonster(optionIndex)">
                             <img src="@MonsterArt.ForName(option.Name)" alt="" loading="lazy" /><span><small>第 @option.WaveNumber 波</small><strong>@option.Name</strong></span>
                         </button>
                     }
@@ -172,6 +173,7 @@
 
     private DungeonRewardPreviewResponse? _selectedWeapon;
     private ElementReference _monsterCloseButton;
+    private ElementReference _dialog;
     private bool _focusMonster = true;
     private int _selectedMonsterIndex;
     private bool _showDrops;
@@ -185,7 +187,8 @@
         if (_focusMonster)
         {
             _focusMonster = false;
-            await _monsterCloseButton.FocusAsync();
+            await _monsterCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("lobbyUi.trapFocus", _dialog);
         }
     }
 

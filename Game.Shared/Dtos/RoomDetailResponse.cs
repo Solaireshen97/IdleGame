@@ -39,8 +39,10 @@ public class RoomDetailResponse
     public bool IsPreparationTimeoutEnabled { get; set; }
     public int PreparationTimeoutSeconds { get; set; }
     public bool IsCurrentUserAutoUnlocked { get; set; }
+    public bool IsCurrentUserAutoEnabled { get; set; }
     public bool IsAllAliveMembersAuto { get; set; }
     public bool CanPrepare { get; set; }
+    public bool CanCancelPreparation { get; set; }
     public bool CanLeaveRoom { get; set; }
     public MonsterIntentResponse? MonsterIntent { get; set; }
     public List<BattleStatusEffectResponse> MonsterEffects { get; set; } = [];

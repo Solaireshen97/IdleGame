@@ -3,164 +3,153 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos
 @using Game.Shared
+@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 @inject ActiveCharacterState ActiveCharacters
-@implements IDisposable
+@inject IJSRuntime Js
+@implements IAsyncDisposable
 
 <PageTitle>副本大厅</PageTitle>
 
-<div class="rooms-page">
+<div class="rooms-page" @ref="_root">
 @if (_isCheckingLoginState)
 {
     <GameStateCard Compact="true" Title="正在确认冒险者身份" Detail="马上为你载入可用副本。" />
 }
 else
 {
-    <div class="lobby-tabs" role="tablist" aria-label="副本大厅模式">
+    <nav class="lobby-tabs" role="tablist" aria-label="副本大厅模式">
         <button type="button" id="current-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Current ? "true" : "false")" aria-controls="current-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Current ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Current)">
-            <span class="lobby-tab__icon" aria-hidden="true">◆</span>
-            <span><strong>我的战斗</strong><small>@(CurrentRoomCount > 0 ? $"{CurrentRoomCount} 个房间" : "尚未加入")</small></span>
+            <span class="lobby-tab__icon" aria-hidden="true">◆</span><span><strong>我的战斗</strong><small>@ActiveRoomCount 进行中</small></span>
         </button>
         <button type="button" id="create-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Create ? "true" : "false")" aria-controls="create-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Create ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">
-            <span class="lobby-tab__icon" aria-hidden="true">＋</span>
-            <span><strong>创建战斗</strong><small>选择副本开房</small></span>
+            <span class="lobby-tab__icon" aria-hidden="true">＋</span><span><strong>创建战斗</strong><small>选择地区与挑战</small></span>
         </button>
         <button type="button" id="join-room-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Join ? "true" : "false")" aria-controls="join-room-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Join ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">
-            <span class="lobby-tab__icon" aria-hidden="true">⇥</span>
-            <span><strong>加入房间</strong><small>@JoinableRoomCount 个可加入</small></span>
+            <span class="lobby-tab__icon" aria-hidden="true">⇥</span><span><strong>加入房间</strong><small>@JoinableRoomCount 个公开房间</small></span>
         </button>
-    </div>
+    </nav>
 
     @if (_activeLobbyTab != LobbyTab.Create)
     {
+        var isCurrent = _activeLobbyTab == LobbyTab.Current;
         var visibleRooms = GetRoomsForActiveTab().ToList();
-        var isCurrentBattleTab = _activeLobbyTab == LobbyTab.Current;
-        <div id="@(isCurrentBattleTab ? "current-battle-panel" : "join-room-panel")" class="lobby-panel" role="tabpanel" aria-labelledby="@(isCurrentBattleTab ? "current-battle-tab" : "join-room-tab")">
-            @if (_isLoading)
+        var hasRooms = (isCurrent ? CurrentRoomCount : JoinableRoomCount) > 0;
+        <section @key="_activeLobbyTab" id="@(isCurrent ? "current-battle-panel" : "join-room-panel")" class="lobby-panel lobby-panel--rooms" role="tabpanel" aria-labelledby="@(isCurrent ? "current-battle-tab" : "join-room-tab")">
+            <header class="lobby-heading">
+                <div><span class="section-kicker">@(isCurrent ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrent ? "战斗与记录" : "寻找同行队伍") <small>@visibleRooms.Count 个</small></h2></div>
+                <button type="button" class="lobby-refresh" @onclick="() => LoadRoomsAsync()" disabled="@_isRefreshing" aria-label="刷新房间">@(_isRefreshing ? "刷新中…" : "↻ 刷新")</button>
+            </header>
+            @if (isCurrent)
             {
-                <GameStateCard Compact="true" Title="正在搜索房间" Detail="同步当前战斗和可加入队伍…" />
-            }
-            else if (visibleRooms.Count > 0)
-            {
-                <section class="room-list room-list--priority" aria-label="@(isCurrentBattleTab ? "当前战斗" : "可加入的房间")">
-                    <div class="room-list__heading">
-                        <div><span class="section-kicker">@(isCurrentBattleTab ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrentBattleTab ? "我的战斗与记录" : "活跃房间")</h2></div>
-                        <span class="room-list__count">@visibleRooms.Count @(isCurrentBattleTab ? "个房间" : "个可加入")</span>
-                    </div>
-                    <div class="room-grid">
-                        @foreach (var room in visibleRooms)
-                        {
-                            <article class="room-card">
-                                <div class="room-card__identity">
-                                    <div class="room-card__topline"><span>ROOM · @room.RoomId</span><span class="status-badge status-badge--@RoomStatusTone(room.RoomStatus)">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
-                                    <h3>@room.MonsterName</h3>
-                                    <p>@room.RegionName · @room.DungeonName</p>
-                                    <div class="room-card__rules"><span>第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</span><span>@(room.IsPublic ? "公开房间" : "私人房间")</span><span>@(room.IsRepeatBattle ? "循环讨伐" : "单次讨伐")</span><span>@(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span></div>
-                                </div>
-                                <div class="room-card__progress">
-                                    <div class="hp-readout"><span>敌方生命</span><strong>@room.MonsterHp <small>/ @room.MonsterMaxHp</small></strong></div>
-                                    <progress class="health-bar health-bar--enemy" value="@room.MonsterHp" max="@room.MonsterMaxHp"></progress>
-                                    <small>敌人 @room.CurrentEnemyNumber / @room.EnemiesInCurrentWave</small>
-                                </div>
-                                <button class="button button--primary room-card__enter"
-                                        aria-label="@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrentBattleTab ? "返回战斗" : "加入战斗")：@room.MonsterName"
-                                        @onclick="() => EnterRoom(room.RoomId)">@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrentBattleTab ? "返回战斗" : "加入战斗") <span>→</span></button>
-                            </article>
-                        }
-                    </div>
-                </section>
+                <div class="lobby-segments" role="group" aria-label="筛选我的战斗">
+                    <button type="button" class="@(_currentRoomFilter == "all" ? "active" : null)" aria-pressed="@(_currentRoomFilter == "all" ? "true" : "false")" @onclick='() => SetRoomFilter("all")'>全部 @CurrentRoomCount</button>
+                    <button type="button" class="@(_currentRoomFilter == "active" ? "active" : null)" aria-pressed="@(_currentRoomFilter == "active" ? "true" : "false")" @onclick='() => SetRoomFilter("active")'>进行中 @ActiveRoomCount</button>
+                    <button type="button" class="@(_currentRoomFilter == "closed" ? "active" : null)" aria-pressed="@(_currentRoomFilter == "closed" ? "true" : "false")" @onclick='() => SetRoomFilter("closed")'>已结束 @ClosedRoomCount</button>
+                </div>
             }
             else
             {
-                <div class="empty-state">
-                    <strong>@(isCurrentBattleTab ? "当前没有参与中的战斗" : "目前没有可加入的房间")</strong>
-                    <span>@(isCurrentBattleTab ? "你可以创建自己的战斗，或加入其他玩家的房间。" : "切换到“创建战斗”，选择副本开启自己的远征。")</span>
-                    <div class="empty-state__actions">
-                        <button type="button" class="button button--primary" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">创建战斗</button>
-                        @if (isCurrentBattleTab)
-                        {
-                            <button type="button" class="button empty-state__secondary" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">浏览房间</button>
-                        }
-                    </div>
+                <div class="lobby-room-search">
+                    <input type="search" value="@_roomSearch" @oninput="SearchRooms" placeholder="房间号 / 副本 / 怪物" aria-label="搜索公开房间" />
+                    <select value="@_joinRegion" @onchange="FilterJoinRegion" aria-label="按地区筛选房间"><option value="">全部地区</option>@foreach (var region in _regions) { <option value="@region.Code">@region.Name</option> }</select>
                 </div>
             }
-        </div>
+            @if (_roomLoadError is not null) { <p class="notice-message" role="alert">@_roomLoadError</p> }
+            <div class="lobby-results room-grid" @ref="_list" aria-label="@(isCurrent ? "我的战斗列表" : "公开房间列表")" aria-busy="@(_isRefreshing ? "true" : "false")">
+                @foreach (var room in visibleRooms.Skip((Math.Clamp(CurrentPage, 1, PageCount) - 1) * PageSize).Take(PageSize))
+                {
+                    <article class="room-card @(room.ClosedAtUtc.HasValue ? "room-card--closed" : null)" @key="room.RoomId">
+                        <div class="room-card__topline"><span>#@room.RoomId · @room.RegionName</span><span class="status-badge status-badge--@(room.ClosedAtUtc.HasValue ? "warning" : RoomStatusTone(room.RoomStatus))">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
+                        <div class="room-card__identity"><h3>@room.DungeonName</h3><p>@room.MonsterName · 第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</p></div>
+                        <button type="button" class="button button--primary room-card__enter" aria-label="@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗")：@room.DungeonName" @onclick="() => EnterRoom(room.RoomId)">@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗") <span aria-hidden="true">→</span></button>
+                        <div class="room-card__bottom"><span class="room-card__rules">@(room.IsPublic ? "公开" : "私人") · @(room.IsRepeatBattle ? "循环" : "单次") · @(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span><span class="room-card__hp">HP @room.MonsterHp / @room.MonsterMaxHp</span></div>
+                        <progress class="health-bar" value="@room.MonsterHp" max="@Math.Max(1, room.MonsterMaxHp)" aria-label="@room.MonsterName 的剩余生命"></progress>
+                    </article>
+                }
+                @if (visibleRooms.Count == 0)
+                {
+                    <div class="empty-state">
+                        <span class="empty-state__icon" aria-hidden="true">@(isCurrent ? "⚔" : "⌕")</span>
+                        <strong>@(_roomLoadError is not null && _rooms is null ? "暂时无法读取房间" : hasRooms ? "没有符合条件的房间" : isCurrent ? "还没有战斗记录" : "暂时没有公开房间")</strong>
+                        <span>@(hasRooms ? "调整筛选条件，继续寻找战斗。" : "选择一个地区，开启新的挑战。")</span>
+                        <div class="empty-state__actions">
+                            @if (hasRooms) { <button type="button" class="button button--secondary" @onclick="ResetRoomFilters">清除筛选</button> }
+                            else { <button type="button" class="button button--primary" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">创建战斗</button> }
+                            @if (isCurrent && !hasRooms) { <button type="button" class="button button--secondary" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">浏览房间</button> }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
     }
     else
     {
-        <div id="create-battle-panel" class="lobby-panel" role="tabpanel" aria-labelledby="create-battle-tab">
+        <section @key="_activeLobbyTab" id="create-battle-panel" class="lobby-panel lobby-panel--create" role="tabpanel" aria-labelledby="create-battle-tab">
             <section class="region-picker" aria-label="选择冒险地区">
-                <div class="region-picker__heading"><span class="section-kicker">EXPLORE THE WORLD</span><h2>选择冒险地区</h2><p>六片初始区域 · 自由选择成长路线</p></div>
-                <div class="horizontal-rail">
-                    <button type="button" class="horizontal-rail__control horizontal-rail__control--previous" data-scroll-step="-1" aria-label="查看前面的冒险区域">‹</button>
-                    <div class="region-picker__grid" data-drag-scroll tabindex="0" aria-label="冒险区域列表，可左右拖动浏览">
+                <div class="region-picker__heading"><h2>选择地区</h2><span>六大地区 · 自由探索</span></div>
+                <div class="region-picker__grid">
                     @foreach (var region in _regions)
                     {
-                        <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)"
-                                aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
-                            <span class="region-card__topline"><span>@WeaponRules.ElementName(region.FeaturedElement)属性</span><small>Lv.@region.MinimumLevel–@region.MaximumLevel</small></span>
-                            <strong>@region.Name</strong><span class="region-card__dungeon">@region.FeaturedDungeonName</span>
-                            <small class="region-card__weapon">专属 · @region.FeaturedWeaponName</small>
+                        <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)" aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
+                            <strong>@region.Name</strong><span><b>@WeaponRules.ElementName(region.FeaturedElement)</b> Lv.@region.MinimumLevel–@region.MaximumLevel</span>
                         </button>
                     }
-                    </div>
-                    <button type="button" class="horizontal-rail__control horizontal-rail__control--next" data-scroll-step="1" aria-label="查看更多冒险区域">›</button>
                 </div>
             </section>
-            <section class="dungeon-launcher">
-                <div class="dungeon-launcher__heading">
-                    <span class="section-kicker">SELECT MISSION</span>
-                    <h2>@(_selectedRegion?.Name ?? "冒险地区")</h2>
-                    <p>@_selectedRegion?.Description</p>
+            <header class="lobby-heading dungeon-heading"><div><h2>@(_selectedRegion?.Name ?? "地区挑战") <small>@ResultCount 项挑战</small></h2></div><button type="button" class="region-info-trigger" @ref="_regionTrigger" @onclick="OpenRegionInfo" disabled="@(_selectedRegion is null)" aria-haspopup="dialog">地区情报 ›</button></header>
+            <div class="dungeon-toolbar">
+                <div class="lobby-segments" role="group" aria-label="筛选挑战类型">
+                    <button type="button" class="@(_dungeonKind == "" ? "active" : null)" aria-pressed="@(_dungeonKind == "" ? "true" : "false")" @onclick='() => SetDungeonKind("")'>全部</button>
+                    <button type="button" class="@(_dungeonKind == "Hunt" ? "active" : null)" aria-pressed="@(_dungeonKind == "Hunt" ? "true" : "false")" @onclick='() => SetDungeonKind("Hunt")'>讨伐</button>
+                    <button type="button" class="@(_dungeonKind == "Elite" ? "active" : null)" aria-pressed="@(_dungeonKind == "Elite" ? "true" : "false")" @onclick='() => SetDungeonKind("Elite")'>精英</button>
+                    <button type="button" class="@(_dungeonKind == "Dungeon" ? "active" : null)" aria-pressed="@(_dungeonKind == "Dungeon" ? "true" : "false")" @onclick='() => SetDungeonKind("Dungeon")'>副本</button>
                 </div>
-                <div class="dungeon-catalog">
-                @if (_selectedRegion is not null)
+                <label><input type="checkbox" checked="@_onlyAvailable" @onchange="ToggleAvailable" />可挑战</label>
+            </div>
+            <div class="lobby-results dungeon-grid" @ref="_list" aria-label="地区挑战列表">
+                @foreach (var dungeon in FilteredDungeons.Skip((Math.Clamp(CurrentPage, 1, PageCount) - 1) * PageSize).Take(PageSize))
                 {
-                    <section class="dungeon-region">
-                        <div class="dungeon-region__heading"><span>地区挑战</span><small>点击挑战，查看怪物与掉落并创建房间</small></div>
-                        <div class="dungeon-grid" aria-label="地区挑战列表">
-                            @foreach (var dungeon in RegionDungeons)
-                            {
-                                <button type="button"
-                                        class="dungeon-card @(_selectedDungeonId == dungeon.DungeonId ? "dungeon-card--selected" : null) @(!dungeon.CanEnter ? "dungeon-card--locked" : null)"
-                                        aria-haspopup="dialog"
-                                        @onclick="() => SelectDungeon(dungeon.DungeonId)">
-                                    <span class="dungeon-card__topline">
-                                        <span>@DungeonKindName(dungeon.DungeonKind)</span>
-                                        <span class="@(dungeon.CanEnter ? "level-badge" : "level-badge level-badge--locked")">Lv.@dungeon.MinimumLevel</span>
-                                    </span>
-                                    <strong>@dungeon.Name</strong>
-                                    <small>@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</small>
-                                    <span class="dungeon-card__monster"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><span class="dungeon-card__monster-name">@dungeon.MonsterName</span></span>
-                                    @if (!dungeon.CanEnter)
-                                    {
-                                        <span class="dungeon-card__lock">🔒 @dungeon.LockReason</span>
-                                    }
-                                </button>
-                            }
-                        </div>
-                    </section>
+                    <button type="button" id="dungeon-@dungeon.DungeonId" @key="dungeon.DungeonId" class="dungeon-card @(!dungeon.CanEnter ? "dungeon-card--locked" : null)" aria-haspopup="dialog" @onclick="() => SelectDungeon(dungeon.DungeonId)">
+                        <span class="dungeon-card__topline"><span>@DungeonKindName(dungeon.DungeonKind)</span><span class="level-badge @(dungeon.CanEnter ? null : "level-badge--locked")">Lv.@dungeon.MinimumLevel</span></span>
+                        <strong>@dungeon.Name</strong>
+                        <span class="dungeon-card__summary">@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人</span>
+                        <span class="dungeon-card__bottom"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><small>@(!dungeon.CanEnter ? "等级未达标 ›" : dungeon.IsClearedByCurrentUser ? "已通关 ›" : "查看挑战 ›")</small></span>
+                    </button>
                 }
-                </div>
-            </section>
-        </div>
+                @if (ResultCount == 0)
+                {
+                    <div class="empty-state"><strong>暂无符合条件的挑战</strong><span>切换地区或放宽筛选条件。</span><button type="button" class="button button--secondary" @onclick='() => { _dungeonKind = ""; _onlyAvailable = false; GoToPage(1); }'>查看全部挑战</button></div>
+                }
+            </div>
+        </section>
     }
+    <nav class="lobby-pager" aria-label="@(_activeLobbyTab == LobbyTab.Create ? "挑战分页" : "房间分页")">
+        <button type="button" @onclick="() => GoToPage(CurrentPage - 1)" disabled="@(CurrentPage <= 1)" aria-label="上一页">←</button>
+        <select value="@Math.Clamp(CurrentPage, 1, PageCount)" @onchange="OnPageChanged" aria-label="跳转页码">@for (var pageNumber = 1; pageNumber <= PageCount; pageNumber++) { <option value="@pageNumber">第 @pageNumber / @PageCount 页 · 共 @ResultCount @(_activeLobbyTab == LobbyTab.Create ? "项" : "个")</option> }</select>
+        <button type="button" @onclick="() => GoToPage(CurrentPage + 1)" disabled="@(CurrentPage >= PageCount)" aria-label="下一页">→</button>
+    </nav>
 }
 
+@if (_showRegionInfo && _selectedRegion is { } info)
+{
+    <div class="lobby-info-overlay" @onclick="CloseRegionInfo" @onkeydown="HandleRegionKey">
+        <section class="lobby-info-dialog" role="dialog" aria-modal="true" aria-labelledby="region-info-title" @ref="_regionDialog" @onclick:stopPropagation>
+            <header><div><span class="section-kicker">REGION GUIDE</span><h2 id="region-info-title">@info.Name</h2></div><button type="button" @ref="_regionClose" @onclick="CloseRegionInfo" aria-label="关闭地区情报">×</button></header>
+            <div class="lobby-info-body"><p>@info.Description</p><dl><div><dt>推荐等级</dt><dd>Lv.@info.MinimumLevel–@info.MaximumLevel</dd></div><div><dt>地区属性</dt><dd>@WeaponRules.ElementName(info.FeaturedElement)</dd></div><div><dt>特色副本</dt><dd>@info.FeaturedDungeonName</dd></div><div><dt>专属武器</dt><dd>@info.FeaturedWeaponName</dd></div></dl></div>
+            <footer><button type="button" class="button button--primary" @onclick="CloseRegionInfo">返回挑战列表</button></footer>
+        </section>
+    </div>
+}
 @if (_isCreateDialogOpen && _selectedDungeon is { } inspectedDungeon)
 {
-    <MonsterDetailDialog @key="inspectedDungeon.DungeonId" Dungeon="inspectedDungeon" Character="ActiveCharacters.Current"
-                         IsCreating="_isLoading" CreateError="_message" OnCreate="CreateRoomAsync" OnClose="CloseCreateDialog" />
+    <MonsterDetailDialog @key="inspectedDungeon.DungeonId" Dungeon="inspectedDungeon" Character="ActiveCharacters.Current" IsCreating="_isLoading" CreateError="@_message" OnCreate="CreateRoomAsync" OnClose="CloseCreateDialog" />
 }
-
-@if (_message is not null && !_isCreateDialogOpen)
-{
-    <p class="notice-message">@_message</p>
-}
+@if (_message is not null && !_isCreateDialogOpen) { <p class="notice-message" role="alert">@_message</p> }
 </div>
 
 @code {
@@ -176,6 +165,33 @@ else
     private (int? Id, int? Level) _loadedCharacter;
     private int _catalogRequest;
     private bool _disposed;
+    private bool _isRefreshing;
+    private string? _roomLoadError;
+    private string _currentRoomFilter = "all";
+    private string _roomSearch = "";
+    private string _joinRegion = "";
+    private string _dungeonKind = "";
+    private bool _onlyAvailable;
+    private bool _showRegionInfo;
+    private bool _focusRegionInfo;
+    private bool _focusRegionTrigger;
+    private bool _restoreDungeonFocus;
+    private ElementReference _root;
+    private ElementReference _list;
+    private ElementReference _regionDialog;
+    private ElementReference _regionClose;
+    private ElementReference _regionTrigger;
+    private DotNetObjectReference<Rooms>? _reference;
+    private readonly Dictionary<LobbyTab, int> _pages = new() { [LobbyTab.Current] = 1, [LobbyTab.Create] = 1, [LobbyTab.Join] = 1 };
+    private readonly Dictionary<LobbyTab, int> _capacities = new() { [LobbyTab.Current] = 2, [LobbyTab.Create] = 2, [LobbyTab.Join] = 2 };
+    private int CurrentPage => _pages[_activeLobbyTab];
+    private int PageSize => _capacities[_activeLobbyTab];
+    private int ResultCount => _activeLobbyTab == LobbyTab.Create ? FilteredDungeons.Count() : GetRoomsForActiveTab().Count();
+    private int PageCount => Math.Max(1, (ResultCount + PageSize - 1) / PageSize);
+    private IEnumerable<DungeonSummaryResponse> FilteredDungeons => RegionDungeons
+        .Where(dungeon => (_dungeonKind.Length == 0 || (dungeon.DungeonKind == _dungeonKind || (_dungeonKind == "Hunt" && dungeon.DungeonKind == "Legacy"))) && (!_onlyAvailable || dungeon.CanEnter));
+    private int ActiveRoomCount => _rooms?.Count(room => (room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser) && !room.ClosedAtUtc.HasValue) ?? 0;
+    private int ClosedRoomCount => CurrentRoomCount - ActiveRoomCount;
     private int _selectedDungeonId;
     private bool _isCreateDialogOpen;
     private LobbyTab _activeLobbyTab = LobbyTab.Create;
@@ -190,16 +206,23 @@ else
         Join
     }
 
-    private void CloseCreateDialog() { _isCreateDialogOpen = false; _message = null; }
+    private void CloseCreateDialog() { _isCreateDialogOpen = false; _message = null; _restoreDungeonFocus = true; }
 
     private IEnumerable<RoomSummaryResponse> GetRoomsForActiveTab() => (_rooms ?? [])
         .Where(room => _activeLobbyTab == LobbyTab.Current
             ? room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser
-            : room.IsPublic && !room.IsCurrentUserParticipant && !room.IsOwnedByCurrentUser && !room.ClosedAtUtc.HasValue);
+            : room.IsPublic && !room.IsCurrentUserParticipant && !room.IsOwnedByCurrentUser && !room.ClosedAtUtc.HasValue)
+        .Where(room => _activeLobbyTab == LobbyTab.Current
+            ? _currentRoomFilter == "all" || (_currentRoomFilter == "active" ? !room.ClosedAtUtc.HasValue : room.ClosedAtUtc.HasValue)
+            : (_joinRegion.Length == 0 || room.RegionCode == _joinRegion) &&
+              (string.IsNullOrWhiteSpace(_roomSearch) || $"{room.RoomId} {room.MonsterName} {room.DungeonName} {room.RegionName}".Contains(_roomSearch.Trim(), StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(room => room.ClosedAtUtc.HasValue).ThenByDescending(room => room.RoomId);
 
     private void SwitchLobbyTab(LobbyTab tab)
     {
         _activeLobbyTab = tab;
+        _pages[tab] = Math.Clamp(CurrentPage, 1, PageCount);
+        _showRegionInfo = false;
         _isCreateDialogOpen = false;
         _message = null;
     }
@@ -219,7 +242,7 @@ else
             _regions = await ApiService.GetRegionsAsync() ?? [];
             _selectedRegionCode = _regions.FirstOrDefault()?.Code ?? "";
             await LoadDungeonsAsync();
-            await LoadRoomsAsync();
+            await LoadRoomsAsync(selectInitialTab: true);
         }
         catch { _message = "地区信息读取失败，请刷新页面重试。"; }
         finally { _isCheckingLoginState = false; }
@@ -246,21 +269,29 @@ else
 
     private void SelectRegion(string code)
     {
+        _pages[LobbyTab.Create] = 1;
         _selectedRegionCode = code;
         _isCreateDialogOpen = false;
         _selectedDungeonId = (RegionDungeons.FirstOrDefault(dungeon => dungeon.CanEnter) ?? RegionDungeons.FirstOrDefault())?.DungeonId ?? 0;
         _message = null;
     }
 
-    private async Task LoadRoomsAsync()
+    private async Task LoadRoomsAsync(bool selectInitialTab = false)
     {
-        _isLoading = true;
-        _rooms = await ApiService.GetRoomsAsync();
-        if (_rooms?.Any(room => room.IsCurrentUserParticipant || room.IsOwnedByCurrentUser) == true)
+        if (_isRefreshing) return;
+        _isRefreshing = true;
+        _roomLoadError = null;
+        try
         {
-            _activeLobbyTab = LobbyTab.Current;
+            var rooms = await ApiService.GetRoomsAsync();
+            if (_disposed) return;
+            if (rooms is null) { _roomLoadError = "房间读取失败，请重试。"; return; }
+            _rooms = rooms;
+            if (selectInitialTab && CurrentRoomCount > 0) _activeLobbyTab = LobbyTab.Current;
+            _pages[_activeLobbyTab] = Math.Clamp(CurrentPage, 1, PageCount);
         }
-        _isLoading = false;
+        catch { _roomLoadError = "连接失败，请稍后刷新房间。"; }
+        finally { _isRefreshing = false; }
     }
 
     private async Task CreateRoomAsync(CreateRoomRequest options)
@@ -324,10 +355,59 @@ else
         _ => "active"
     };
 
-    public void Dispose()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_disposed || _isCheckingLoginState) return;
+        _reference ??= DotNetObjectReference.Create(this);
+        await Js.InvokeVoidAsync("lobbyUi.observe", _root, _list, _reference, _activeLobbyTab.ToString());
+        if (_restoreDungeonFocus)
+        {
+            _restoreDungeonFocus = false;
+            await Js.InvokeVoidAsync("lobbyUi.focus", $"dungeon-{_selectedDungeonId}");
+        }
+        if (_focusRegionInfo)
+        {
+            _focusRegionInfo = false;
+            await _regionClose.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("lobbyUi.trapFocus", _regionDialog);
+        }
+        else if (_focusRegionTrigger)
+        {
+            _focusRegionTrigger = false;
+            await _regionTrigger.FocusAsync(preventScroll: true);
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateLobbyCapacity(string view, int capacity)
+    {
+        if (_disposed || capacity < 1 || capacity > 12 || !Enum.TryParse<LobbyTab>(view, out var tab) || !Enum.IsDefined(tab) || _capacities[tab] == capacity) return Task.CompletedTask;
+        var firstItem = (_pages[tab] - 1) * _capacities[tab];
+        _capacities[tab] = capacity;
+        _pages[tab] = firstItem / capacity + 1;
+        if (tab == _activeLobbyTab) _pages[tab] = Math.Clamp(_pages[tab], 1, PageCount);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void GoToPage(int page) => _pages[_activeLobbyTab] = Math.Clamp(page, 1, PageCount);
+    private void OnPageChanged(ChangeEventArgs args) { if (int.TryParse(args.Value?.ToString(), out var page)) GoToPage(page); }
+    private void SetRoomFilter(string value) { _currentRoomFilter = value; _pages[LobbyTab.Current] = 1; }
+    private void SearchRooms(ChangeEventArgs args) { _roomSearch = args.Value?.ToString() ?? ""; _pages[LobbyTab.Join] = 1; }
+    private void FilterJoinRegion(ChangeEventArgs args) { _joinRegion = args.Value?.ToString() ?? ""; _pages[LobbyTab.Join] = 1; }
+    private void SetDungeonKind(string value) { _dungeonKind = value; _pages[LobbyTab.Create] = 1; }
+    private void ToggleAvailable(ChangeEventArgs args) { _onlyAvailable = args.Value is true; _pages[LobbyTab.Create] = 1; }
+    private void ResetRoomFilters() { _currentRoomFilter = "all"; _roomSearch = ""; _joinRegion = ""; GoToPage(1); }
+    private void OpenRegionInfo() { _showRegionInfo = true; _focusRegionInfo = true; }
+    private void CloseRegionInfo() { _showRegionInfo = false; _focusRegionTrigger = true; }
+    private void HandleRegionKey(KeyboardEventArgs args) { if (args.Key == "Escape") CloseRegionInfo(); }
+
+    public async ValueTask DisposeAsync()
     {
         _disposed = true;
         ActiveCharacters.Changed -= OnActiveCharacterChanged;
+        try { await Js.InvokeVoidAsync("lobbyUi.disconnect", _root); }
+        catch (JSDisconnectedException) { }
+        finally { _reference?.Dispose(); }
     }
 
 }

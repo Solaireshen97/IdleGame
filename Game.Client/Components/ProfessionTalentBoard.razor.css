@@ -58,3 +58,44 @@
     .profession-tree-detail{display:none}.profession-tree-detail--open{position:fixed;z-index:1501;left:.35rem;right:.35rem;bottom:0;display:block;max-height:78dvh;overflow-y:auto;border-radius:.9rem .9rem 0 0;padding-bottom:env(safe-area-inset-bottom)}
     .profession-tree-detail__close{flex:0 0 44px;height:44px;display:grid;place-items:center;border:1px solid #6e8492;border-radius:.45rem;color:#e9f0ef;background:#172b3a;font-size:1.4rem;cursor:pointer}
 }
+
+/* Keep the map and its selected-node actions in the same workspace. */
+.profession-board { display:flex; flex-direction:column; gap:.4rem; padding:.6rem; border-radius:.8rem; }
+.profession-board__header { flex-shrink:0; gap:.5rem; align-items:center; }
+.profession-board__header>div:first-child { flex:1; min-width:0; }
+.profession-board__header h2 { margin:0; font-size:1rem; }
+.profession-board__header p, .profession-board__eyebrow { display:none; }
+.profession-board__points { min-width:44px; padding:0; border:0; background:none; }
+.profession-board__points strong { font-size:1.4rem; }
+.profession-board__points small { font-size:.6rem; }
+.profession-board__reset { min-height:40px; padding:.3rem .5rem; border:1px solid #526c7e; border-radius:.4rem; color:#d5e4ec; background:#193244; font-size:.7rem; cursor:pointer; }
+.profession-board__reset:disabled { opacity:.45; }
+.profession-board__experience { flex-shrink:0; margin:0; font-size:.65rem; gap:.4rem; }
+.profession-board__locked { flex-shrink:0; padding:.4rem; font-size:.65rem !important; }
+.profession-tree-legend { flex-shrink:0; margin:0; font-size:.6rem; }
+.profession-tree-layout { flex:1; min-height:0; display:flex; flex-direction:column; align-items:stretch; gap:.4rem; }
+.profession-tree-map { flex:1; min-height:135px; }
+.profession-tree-map__grid { height:100%; grid-template-rows:repeat(var(--tree-tiers),minmax(0,1fr)); padding-left:25px; }
+.profession-tree-map__links { left:25px; width:calc(100% - 25px); }
+.profession-tree-map__links path { stroke-dasharray:none; stroke:#d7ad66; stroke-width:2; vector-effect:non-scaling-stroke; }
+.profession-tree-map__links .profession-tree-map__link--active { stroke-width:2; filter:none; }
+.profession-tree-map__level { position:relative; left:-25px; margin:0; width:25px; height:auto; align-self:center; padding:.15rem; border:0; background:transparent; font-size:.5rem; writing-mode:horizontal-tb; }
+.profession-tree-map__node { min-height:44px; width:82%; height:80%; max-height:105px; gap:3px; padding:2px; }
+.profession-tree-map__icon { width:clamp(27px,4.5vh,48px); height:clamp(27px,4.5vh,48px); font-size:1.3rem; border-width:2px; box-shadow:none; }
+.profession-tree-map__icon b { font-size:.65rem; min-width:22px; right:-12px; bottom:-3px; }
+.profession-tree-map__node>strong { font-size:.72rem; }
+.profession-selection { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.4rem; padding-top:.4rem; border-top:1px solid #40596c; flex-shrink:0; min-height:60px; }
+.profession-selection>div { display:grid; gap:.2rem; }
+.profession-selection strong { color:#f0dfbd; font-size:.8rem; }
+.profession-selection small { color:#a4bdcd; font-size:.62rem; line-height:1.3; }
+.profession-selection button, .profession-parent { min-height:44px; border:1px solid #526c7e; border-radius:.45rem; background:#1a3042; color:#d4e2e9; padding:.3rem .5rem; font-size:.7rem; cursor:pointer; }
+.profession-selection .profession-selection__spend { background:#d9ad5e; color:#142333; border-color:#e8c681; font-weight:800; }
+.profession-selection button:disabled { opacity:.48; cursor:not-allowed; }
+.profession-tree-detail { display:none; }
+.profession-tree-detail-shade--open { position:fixed; inset:0; display:block; z-index:1500; background:#030b15bd; backdrop-filter:blur(4px); }
+.profession-tree-detail--open { position:fixed; left:50%; right:auto; bottom:0; transform:translateX(-50%); z-index:1501; display:flex; flex-direction:column; width:min(100% - 12px,600px); max-height:88dvh; overflow:hidden; border-radius:1rem 1rem 0 0; padding-bottom:env(safe-area-inset-bottom); }
+.profession-tree-detail__header { flex-shrink:0; }
+.profession-tree-detail__body { overflow-y:auto; min-height:0; overscroll-behavior:contain; }
+.profession-tree-detail__spend { flex-shrink:0; }
+.profession-tree-detail__notice { padding:0 .85rem .5rem; font-size:.7rem !important; color:#f3c68d !important; flex-shrink:0; }
+.profession-tree-detail__close { display:grid; place-items:center; width:44px; height:44px; border:1px solid #6e8492; border-radius:.45rem; color:#e9f0ef; background:#172b3a; font-size:1.4rem; cursor:pointer; }

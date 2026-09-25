@@ -1,0 +1,138 @@
+{
+  "knight-offense": {
+    "Role": "knight",
+    "Nodes": {
+      "sword-edge": 1, "sword-rhythm": 1, "sword-combat-training": 2,
+      "sword-assault-stance": 1, "sword-precision": 2, "sword-pursuit": 1,
+      "sword-intercept-talent": 1
+    },
+    "Skills": ["sword-intercept", "knight-guard", "sword-double-slash", "sword-slash", "sword-parry"]
+  },
+  "knight-tactics": {
+    "Role": "knight",
+    "Nodes": {
+      "sword-edge": 1, "sword-rhythm": 1, "sword-vitality": 1,
+      "sword-intercept-talent": 1, "sword-combat-training": 1,
+      "sword-guard-stance": 1, "sword-protection": 1,
+      "sword-disruption": 1, "sword-counteroffense": 1
+    },
+    "Skills": ["sword-intercept", "knight-guard", "sword-parry", "sword-slash"]
+  },
+  "knight-survival": {
+    "Role": "knight",
+    "Nodes": {
+      "sword-rhythm": 1, "sword-vitality": 1, "sword-recovery-training": 2,
+      "sword-guard-stance": 1, "sword-protection": 2,
+      "sword-intercept-talent": 1, "sword-counteroffense": 1
+    },
+    "Skills": ["sword-intercept", "knight-guard", "sword-parry", "sword-slash"]
+  },
+  "priest-offense": {
+    "Role": "priest",
+    "Nodes": {
+      "acolyte-echo": 1, "acolyte-doctrine": 1, "acolyte-prayer": 1,
+      "acolyte-judgment": 1, "acolyte-radiant-flare-talent": 1,
+      "acolyte-light-return": 1, "acolyte-light-training": 2, "acolyte-focus": 1
+    },
+    "Skills": ["acolyte-holy-bolt", "acolyte-radiant-flare", "priest-group-heal", "acolyte-heal"]
+  },
+  "priest-tactics": {
+    "Role": "priest",
+    "Nodes": {
+      "acolyte-echo": 1, "acolyte-prayer": 1, "acolyte-silence-talent": 1,
+      "acolyte-purify-talent": 1, "acolyte-radiant-flare-talent": 1,
+      "acolyte-mercy": 1, "acolyte-heal-training": 2, "acolyte-devotion": 1
+    },
+    "Skills": ["acolyte-silence", "acolyte-purify", "acolyte-radiant-flare", "priest-group-heal", "acolyte-heal"]
+  },
+  "priest-survival": {
+    "Role": "priest",
+    "Nodes": {
+      "acolyte-echo": 1, "acolyte-prayer": 1, "acolyte-heal-training": 2,
+      "acolyte-mercy": 1, "acolyte-purify-talent": 1,
+      "acolyte-afterglow": 1, "acolyte-devotion": 2
+    },
+    "Skills": ["acolyte-purify", "acolyte-holy-bolt", "priest-group-heal", "acolyte-heal"]
+  },
+  "elementalist-offense": {
+    "Role": "elementalist",
+    "Nodes": {
+      "mage-arcane-insight": 1, "mage-flow": 1, "mage-frost-discipline": 1,
+      "mage-barrage-talent": 1, "mage-precision": 2,
+      "mage-arcane-mastery": 1, "mage-arcane-training": 2
+    },
+    "Skills": ["mage-arcane-barrage", "elementalist-pyroblast", "mage-arcane-bolt", "mage-frost-ward"]
+  },
+  "elementalist-tactics": {
+    "Role": "elementalist",
+    "Nodes": {
+      "mage-arcane-insight": 1, "mage-flow": 1, "mage-spellbreak-talent": 1,
+      "mage-barrage-talent": 1, "mage-suppression-talent": 1,
+      "mage-countermagic": 2, "mage-stable-channeling": 1, "mage-arcane-mastery": 1
+    },
+    "Skills": ["mage-spellbreak", "mage-arcane-barrage", "mage-arcane-suppression", "elementalist-pyroblast", "mage-arcane-bolt"]
+  },
+  "elementalist-survival": {
+    "Role": "elementalist",
+    "Nodes": {
+      "mage-arcane-insight": 1, "mage-flow": 1, "mage-frost-discipline": 1,
+      "mage-ice-armor": 2, "mage-deep-ward": 2,
+      "mage-frozen-heart": 1, "mage-barrage-talent": 1
+    },
+    "Skills": ["mage-frost-ward", "mage-arcane-barrage", "elementalist-pyroblast", "mage-arcane-bolt"]
+  },
+  "marksman-offense": {
+    "Role": "marksman",
+    "Nodes": {
+      "hunter-keen-eye": 1, "hunter-steady-hand": 1, "hunter-fieldcraft": 1,
+      "hunter-mark-talent": 1, "hunter-precision": 2,
+      "hunter-predator": 1, "hunter-bow-training": 2
+    },
+    "Skills": ["hunter-field-mend", "hunter-marked-shot", "marksman-sniper-shot", "hunter-quick-shot"]
+  },
+  "marksman-tactics": {
+    "Role": "marksman",
+    "Nodes": {
+      "hunter-keen-eye": 1, "hunter-steady-hand": 1, "hunter-venom-talent": 1,
+      "hunter-mark-talent": 1, "hunter-volley-talent": 1,
+      "hunter-toxin-training": 2, "hunter-predator": 1, "hunter-relentless": 1
+    },
+    "Skills": ["hunter-rapid-volley", "hunter-marked-shot", "marksman-sniper-shot", "hunter-venom-arrow", "hunter-quick-shot"]
+  },
+  "marksman-survival": {
+    "Role": "marksman",
+    "Nodes": {
+      "hunter-keen-eye": 1, "hunter-steady-hand": 1, "hunter-fieldcraft": 1,
+      "hunter-endurance": 2, "hunter-recovery": 2,
+      "hunter-hardened": 1, "hunter-mark-talent": 1
+    },
+    "Skills": ["hunter-field-mend", "hunter-marked-shot", "marksman-sniper-shot", "hunter-quick-shot"]
+  },
+  "trickster-offense": {
+    "Role": "trickster",
+    "Nodes": {
+      "rogue-killer-instinct": 1, "rogue-light-fingers": 1, "rogue-footwork": 1,
+      "rogue-flurry-talent": 1, "rogue-deadly-precision": 2,
+      "rogue-relentless-assault": 1, "rogue-blade-training": 2
+    },
+    "Skills": ["rogue-blade-flurry", "rogue-shadow-strike", "trickster-smoke-bomb", "rogue-evasion"]
+  },
+  "trickster-tactics": {
+    "Role": "trickster",
+    "Nodes": {
+      "rogue-killer-instinct": 1, "rogue-light-fingers": 1, "rogue-footwork": 1,
+      "rogue-flurry-talent": 1, "rogue-gouge-talent": 1,
+      "rogue-dirty-fighting": 2, "rogue-opportunist": 1, "rogue-relentless-assault": 1
+    },
+    "Skills": ["rogue-gouge", "rogue-blade-flurry", "rogue-shadow-strike", "trickster-smoke-bomb", "rogue-evasion"]
+  },
+  "trickster-survival": {
+    "Role": "trickster",
+    "Nodes": {
+      "rogue-killer-instinct": 1, "rogue-light-fingers": 1, "rogue-footwork": 1,
+      "rogue-hardiness": 2, "rogue-composure": 2,
+      "rogue-escape-artist": 1, "rogue-flurry-talent": 1
+    },
+    "Skills": ["rogue-evasion", "rogue-blade-flurry", "rogue-shadow-strike", "trickster-smoke-bomb"]
+  }
+}

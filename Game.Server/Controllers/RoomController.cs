@@ -54,6 +54,13 @@ public class RoomController(RoomService roomService, BattleService battleService
         return detail is null ? RoomOperationError(error) : Ok(detail);
     }
 
+    [HttpPut("{roomId:int}/visibility")]
+    public async Task<IActionResult> SetVisibility(int roomId, [FromBody] SetRoomVisibilityRequest request)
+    {
+        var (detail, error) = await roomService.SetRoomVisibilityAsync(roomId, request.IsPublic, GetBearerToken());
+        return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
     [HttpDelete("{roomId:int}/leave")]
     public async Task<IActionResult> LeaveRoom(int roomId)
     {

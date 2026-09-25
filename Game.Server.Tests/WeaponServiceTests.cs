@@ -114,8 +114,10 @@ public sealed class WeaponServiceTests
             new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 200, MonsterAttack = 8, MonsterDefense = 5, SlotCount = 5 },
             new Monster { Id = 1, Name = "Slime", Hp = 200, MaxHp = 200, Attack = 8, Defense = 5 },
             new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
-            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true },
+            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true, IsAutoEnabled = true },
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
+            new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind,
+                TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
             new CharacterSkillSlot { CharacterId = 1, SlotIndex = 1, SkillCode = "knight-strike", AutoUseEnabled = true });
         await test.Db.SaveChangesAsync();
         var progression = ProgressionTestFactory.Create();

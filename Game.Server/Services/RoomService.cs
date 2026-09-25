@@ -217,6 +217,27 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
+    public async Task<(RoomDetailResponse? Detail, string? Error)> SetRoomVisibilityAsync(int roomId, bool isPublic, string? token)
+    {
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        if (error is not null) return (null, error);
+        var room = await dbContext.Rooms.FindAsync(roomId);
+        if (room is null) return (null, "NotFound");
+        if (room.OwnerUserId != user!.Id) return (null, "NotOwner");
+        if (room.ClosedAtUtc.HasValue || room.IsRepeatBattle && room.ExpiresAtUtc <= DateTime.UtcNow)
+            return (null, "RoomClosed");
+
+        // Admission can change during a round without changing its combat or formation state.
+        if (room.IsPublic != isPublic)
+        {
+            room.IsPublic = isPublic;
+            room.Version++;
+            try { await dbContext.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException) { return (null, "ConcurrencyConflict"); }
+        }
+        return (await BuildRoomDetailAsync(room, user.Id), null);
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? Error)> LeaveRoomAsync(int roomId, string? token)
     {
         var room = await dbContext.Rooms.FindAsync(roomId);
@@ -322,7 +343,13 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var slot = await dbContext.RoomSlots.SingleOrDefaultAsync(x => x.RoomId == room!.Id && x.CharacterId == request.CharacterId && x.UserId == user!.Id);
         if (slot is null) return (null, "CharacterNotInRoom");
         var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).ToListAsync();
-        foreach (var item in slots) item.IsMainControl = item.Id == slot.Id;
+        var autoEnabled = RoomAutoPolicy.IsEnabled(room, slot, slots);
+        foreach (var item in slots)
+        {
+            item.IsMainControl = item.Id == slot.Id;
+            if (item.UserId == user.Id) item.IsAutoEnabled = autoEnabled;
+        }
+        room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user.Id), null);
     }
@@ -445,11 +472,15 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             .GroupBy(entry => entry.CharacterId)
             .ToDictionary(group => group.Key,
                 group => group.ToDictionary(entry => entry.NodeCode, entry => entry.PointsSpent, StringComparer.OrdinalIgnoreCase));
-        var isCurrentUserAutoUnlocked = currentUserCharacterIds.Any(clearedDungeonCharacterIds.Contains);
+        var isCurrentUserAutoUnlocked = currentUserAliveSlots.Any(slot =>
+            slot.CharacterId.HasValue && clearedDungeonCharacterIds.Contains(slot.CharacterId.Value));
+        var currentUserSlot = slots.FirstOrDefault(slot => slot.UserId == currentUserId && slot.IsMainControl)
+            ?? slots.FirstOrDefault(slot => slot.UserId == currentUserId);
+        var isCurrentUserAutoEnabled = currentUserSlot is not null && RoomAutoPolicy.IsEnabled(room, currentUserSlot, slots);
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
         var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot =>
-            RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds));
+            RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots));
         var rewardRun = currentUserId.HasValue
             ? await dbContext.RewardRuns.Where(run => run.RoomId == room.Id && run.Sequence <= room.RunSequence)
                 .OrderByDescending(run => run.Sequence).FirstOrDefaultAsync()
@@ -514,8 +545,14 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             ServerTimeUtc = now,
             CanExecuteRound = room.Status == RoomStatus.Preparing && aliveSlots.Count > 0 && aliveSlots.All(x => x.IsConfirmed) && monster.Hp > 0,
             IsMixedTeam = isMixedTeam, IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled, PreparationTimeoutSeconds = BattleRules.PreparationTimeoutSeconds, IsCurrentUserAutoUnlocked = isCurrentUserAutoUnlocked, IsAllAliveMembersAuto = isAllAliveMembersAuto,
-            CanPrepare = room.ClosedAtUtc is null && currentUserAliveSlots.Any(x => !x.IsConfirmed) && !isAllAliveMembersAuto && monster.Hp > 0 &&
+            IsCurrentUserAutoEnabled = isCurrentUserAutoEnabled,
+            CanPrepare = room.ClosedAtUtc is null && currentUserAliveSlots.Any(slot => !slot.IsConfirmed &&
+                    !RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots)) && !isAllAliveMembersAuto && monster.Hp > 0 &&
                 room.Status is RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown,
+            CanCancelPreparation = room.ClosedAtUtc is null && monster.Hp > 0 &&
+                (room.Status is RoomStatus.NotStarted or RoomStatus.Preparing or RoomStatus.Cooldown) &&
+                currentUserAliveSlots.Any(slot => slot.IsConfirmed &&
+                    !RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots)),
             CanLeaveRoom = room.ClosedAtUtc is null && currentUserId.HasValue && currentUserId != room.OwnerUserId &&
                 (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0) &&
                 slots.Any(x => x.UserId == currentUserId),
@@ -654,9 +691,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 }
                 var characterElement = slot.CharacterId is int characterId && mainWeaponElements.TryGetValue(characterId, out var element)
                     ? element : (ElementType?)null;
-                var canConfigureAuto = slot.UserId == currentUserId && slot.CharacterId.HasValue &&
-                    clearedDungeonCharacterIds.Contains(slot.CharacterId.Value) && character?.Hp > 0 &&
-                    (slot.UserId != room.OwnerUserId || slot.IsMainControl);
+                var isAutoUnlocked = slot.UserId == currentUserId && slot.CharacterId.HasValue &&
+                    clearedDungeonCharacterIds.Contains(slot.CharacterId.Value);
+                var canConfigureAuto = room.ClosedAtUtc is null && slot.UserId == currentUserId &&
+                    slot.CharacterId.HasValue && (isCurrentUserAutoUnlocked || isCurrentUserAutoEnabled);
                 var statusEffects = character is null
                     ? new List<BattleStatusEffectResponse>()
                     : (characterEffects.GetValueOrDefault(character.Id) ?? []).ToList();
@@ -691,9 +729,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                         ExpiresWithRun = true
                     });
                 }
-                var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds);
+                var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots);
                 var isOffline = RoomAutoPolicy.IsOffline(room, slot, now);
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = canConfigureAuto, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }

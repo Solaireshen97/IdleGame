@@ -3272,3 +3272,14 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
     .battle-page--focused .battle-mobile-supply-rail { min-height: 76px; }
     .battle-page--focused .battle-countdown__heading { line-height: 1.1; }
 }
+.room-visibility-control { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .6rem; padding: .6rem .7rem; border: 1px solid #4b6576; border-radius: .65rem; background: #132a3b; }
+.room-visibility-control > div { display: grid; gap: .15rem; min-width: 0; }
+.room-visibility-control strong { color: #eddbb8; font-size: .8rem; }
+.room-visibility-control small { color: #9bb4c3; font-size: .63rem; }
+.room-visibility-switch { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; min-height: 44px; padding: .35rem .5rem; border: 1px solid #546b7d; border-radius: .55rem; background: #0e2030; color: #aabcc8; font-size: .67rem; }
+.room-visibility-switch i { display: block; position: relative; width: 30px; height: 18px; border-radius: 99px; background: #405767; }
+.room-visibility-switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: #d9e3e9; transition: transform .15s; }
+.room-visibility-switch.is-public { border-color: #c4a061; color: #edcf92; background: #9d794021; }
+.room-visibility-switch.is-public i { background: #a17d41; }
+.room-visibility-switch.is-public i::after { transform: translateX(12px); background: #fff0c7; }
+.room-visibility-error { margin: 0 0 .5rem; color: #efb49f; font-size: .7rem; }

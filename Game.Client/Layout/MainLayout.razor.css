@@ -126,3 +126,16 @@ main {
 .page--weapons .top-row__character-label { display: none; }
 .page--weapons .content { padding-top: .5rem; padding-bottom: .5rem; }
 .page--weapons main { padding-bottom: calc(4.6rem + env(safe-area-inset-bottom)); }
+
+/* Keep all three lobby workspaces inside the main view. */
+.page--lobby .top-row { min-height: 3.5rem; padding-block: calc(.35rem + env(safe-area-inset-top)) .35rem; }
+.page--lobby .top-row__character { min-height: 44px; gap: .15rem; }
+.page--lobby .top-row__character-label { display: none; }
+.page--lobby .content { padding-top: .5rem; padding-bottom: .5rem; }
+.page--lobby main { padding-bottom: calc(4.6rem + env(safe-area-inset-bottom)); }
+
+.page--talents .top-row { min-height: 3.5rem; padding-block: calc(.35rem + env(safe-area-inset-top)) .35rem; }
+.page--talents .top-row__character { min-height: 44px; gap: .15rem; }
+.page--talents .top-row__character-label { display: none; }
+.page--talents .content { padding-top: .5rem; padding-bottom: .5rem; }
+.page--talents main { padding-bottom: calc(4.6rem + env(safe-area-inset-bottom)); }

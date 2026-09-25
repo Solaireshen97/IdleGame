@@ -42,6 +42,26 @@ public sealed class RoomAutoConfigurationTests
             Assert.True(slot.IsAutoUnlockedForCurrentUser);
             Assert.True(slot.CanConfigureAuto);
 
+            var character = await db.Characters.SingleAsync();
+            var ownerSlot = await db.RoomSlots.SingleAsync();
+            character.Hp = 0;
+            await db.SaveChangesAsync();
+            detail = await service.GetRoomDetailAsync(1, "token");
+            slot = Assert.Single(detail!.Slots, item => item.SlotIndex == 1);
+            Assert.True(slot.IsAutoUnlockedForCurrentUser);
+            Assert.False(slot.CanConfigureAuto);
+            Assert.False(detail.IsCurrentUserAutoUnlocked);
+            Assert.False(detail.IsCurrentUserAutoEnabled);
+
+            ownerSlot.IsAutoEnabled = true;
+            await db.SaveChangesAsync();
+            detail = await service.GetRoomDetailAsync(1, "token");
+            Assert.True(detail!.Slots.Single().CanConfigureAuto);
+            Assert.True(detail.IsCurrentUserAutoEnabled);
+
+            character.Hp = character.MaxHp;
+            ownerSlot.IsAutoEnabled = false;
+            await db.SaveChangesAsync();
             await db.CharacterBattleMilestones.ExecuteDeleteAsync();
             detail = await service.GetRoomDetailAsync(1, "token");
             slot = Assert.Single(detail!.Slots, item => item.SlotIndex == 1);
@@ -83,6 +103,68 @@ public sealed class RoomAutoConfigurationTests
             (await db.Users.SingleAsync()).ActiveCharacterId = 1;
             await db.SaveChangesAsync();
             Assert.True(Assert.Single(await service.GetDungeonsAsync("token")).AutoUnlocked);
+        }
+        finally
+        {
+            await db.DisposeAsync();
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task RoomDetailSeparatesOwnerSwitchFromEachCharactersAutoEligibility()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"idlegame-room-auto-group-{Guid.NewGuid():N}.db");
+        var options = new DbContextOptionsBuilder<GameDbContext>()
+            .UseSqlite($"Data Source={path};Pooling=False").Options;
+        await using var db = new GameDbContext(options);
+        try
+        {
+            await db.Database.EnsureCreatedAsync();
+            var main = new RoomSlot
+            {
+                Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1,
+                IsMainControl = true, IsAutoEnabled = true
+            };
+            var secondary = new RoomSlot
+            {
+                Id = 2, RoomId = 1, SlotIndex = 2, UserId = 1, CharacterId = 2,
+                IsAutoEnabled = false
+            };
+            db.AddRange(
+                new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 35, MonsterAttack = 8, SlotCount = 5, SortOrder = 1 },
+                new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },
+                new Character { Id = 1, UserId = 1, Name = "Veteran", Hp = 45, MaxHp = 45, Attack = 20 },
+                new Character { Id = 2, UserId = 1, Name = "Newcomer", Hp = 45, MaxHp = 45, Attack = 20 },
+                new Monster { Id = 1, Name = "Slime", Hp = 35, MaxHp = 35, Attack = 8 },
+                new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
+                main, secondary,
+                new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
+                new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            await db.SaveChangesAsync();
+            var progression = ProgressionTestFactory.Create();
+            var skills = SkillTestFactory.Create();
+            var service = new RoomService(db, new UserService(db, progression, skills), progression,
+                ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(db, progression));
+
+            var enabled = await service.GetRoomDetailAsync(1, "token");
+
+            Assert.True(enabled!.IsCurrentUserAutoEnabled);
+            Assert.True(enabled.IsCurrentUserAutoUnlocked);
+            Assert.False(enabled.IsAllAliveMembersAuto);
+            Assert.True(enabled.Slots.Single(slot => slot.CharacterId == 1).IsAutoEnabled);
+            var newcomer = enabled.Slots.Single(slot => slot.CharacterId == 2);
+            Assert.False(newcomer.IsAutoUnlockedForCurrentUser);
+            Assert.False(newcomer.IsAutoEnabled);
+            Assert.True(newcomer.CanConfigureAuto);
+
+            main.IsAutoEnabled = false;
+            secondary.IsAutoEnabled = true;
+            await db.SaveChangesAsync();
+            var disabled = await service.GetRoomDetailAsync(1, "token");
+
+            Assert.False(disabled!.IsCurrentUserAutoEnabled);
+            Assert.All(disabled.Slots, slot => Assert.False(slot.IsAutoEnabled));
         }
         finally
         {

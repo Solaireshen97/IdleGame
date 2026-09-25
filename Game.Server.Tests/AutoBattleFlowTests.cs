@@ -1,5 +1,6 @@
 using Game.Server.Data;
 using Game.Server.Services;
+using Game.Shared;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
@@ -44,11 +45,38 @@ public sealed class AutoBattleFlowTests
     }
 
     [Fact]
+    public async Task ManualBattleDoesNotUseAutomaticallyConfiguredSkillWhenBattleAutoIsDisabled()
+    {
+        await using var test = await AutoBattleTestContext.CreateAsync(isAutoEnabled: false);
+
+        var (result, error) = await test.BattleService.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(1, test.Room.RoundNumber);
+        Assert.DoesNotContain(result!.Logs, log => log.Contains("使用 盾击"));
+        Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AutomaticSkillRequiresAutoUnlockEvenIfSlotHasAStaleEnabledFlag()
+    {
+        await using var test = await AutoBattleTestContext.CreateAsync(isAutoEnabled: true);
+        test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones.ToListAsync());
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await test.BattleService.StartPreparationAsync(1, test.Token);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(result!.Logs, log => log.Contains("使用 盾击"));
+        Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
+    }
+
+    [Fact]
     public async Task HostedRoomCycleAdvancesOfflineManualPlayersViaPreparationTimeout()
     {
         await using var test = await AutoBattleTestContext.CreateAsync(isAutoEnabled: false);
         test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         var ownerSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 1);
         ownerSlot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
         test.Db.AddRange(
@@ -93,10 +121,12 @@ public sealed class AutoBattleFlowTests
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("准备超时"));
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("1号位") && log.Text.Contains("普通攻击"));
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("2号位") && log.Text.Contains("普通攻击"));
+            Assert.DoesNotContain(test.LogStore.Get(1), log => log.Text.Contains("使用 盾击"));
             await using var state = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
                 .UseSqlite(connectionString).Options);
             Assert.Equal(Game.Shared.BattleRules.RoundCooldownSeconds,
                 (await state.Rooms.SingleAsync(room => room.Id == 1)).RoundCooldownDurationSeconds);
+            Assert.Empty(await state.BattleSkillCooldowns.ToListAsync());
         }
         finally
         {

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Game.Shared.Dtos;
 using Game.Shared.Dtos.Auth;
 using Game.Shared.Dtos.Characters;
@@ -256,6 +257,15 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "加入房间失败。");
     }
 
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetRoomVisibilityAsync(int roomId, bool isPublic)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/rooms/{roomId}/visibility", requiresAuth: true);
+        request.Content = JsonContent.Create(new SetRoomVisibilityRequest { IsPublic = isPublic });
+        using var response = await httpClient.SendAsync(request);
+        if ((int)response.StatusCode >= 500) return (null, "房间服务暂时不可用，请稍后重试。");
+        return await HandleRoomDetailResponseAsync(response, "更新房间开放状态失败。");
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> LeaveRoomAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/leave", requiresAuth: true);
@@ -423,23 +433,62 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId) => ExecuteRoundAsync(roomId);
 
-    public async Task<(BattleResult? Result, string? ErrorMessage)> StartPreparationAsync(int roomId, int expectedRoundNumber)
+    public Task<(BattleResult? Result, string? ErrorMessage)> StartPreparationAsync(
+        int roomId, int expectedRoundNumber, int expectedRunSequence) =>
+        SendPreparationRequestAsync("prepare", roomId, expectedRoundNumber, expectedRunSequence);
+
+    public Task<(BattleResult? Result, string? ErrorMessage)> CancelPreparationAsync(
+        int roomId, int expectedRoundNumber, int expectedRunSequence) =>
+        SendPreparationRequestAsync("cancel-prepare", roomId, expectedRoundNumber, expectedRunSequence);
+
+    private async Task<(BattleResult? Result, string? ErrorMessage)> SendPreparationRequestAsync(
+        string action, int roomId, int expectedRoundNumber, int expectedRunSequence)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/prepare", requiresAuth: true);
-        request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId, ExpectedRoundNumber = expectedRoundNumber });
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
+        using var request = await CreateRequestAsync(HttpMethod.Post, $"api/battle/{action}", requiresAuth: true);
+        request.Content = JsonContent.Create(new BattleRequest
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                await userSessionService.ClearToken();
-            }
+            RoomId = roomId,
+            ExpectedRoundNumber = expectedRoundNumber,
+            ExpectedRunSequence = expectedRunSequence
+        });
+        using var response = await httpClient.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+            return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
 
-            var error = await response.Content.ReadAsStringAsync();
-            return (null, string.IsNullOrWhiteSpace(error) ? "开始回合失败。" : error);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            await userSessionService.ClearToken();
+            return (null, "登录已失效，请重新登录。");
         }
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return (null, "房间或角色已不存在，请返回大厅查看。");
 
-        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
+        var error = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            try
+            {
+                using var json = JsonDocument.Parse(error);
+                if (json.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    var result = json.RootElement.Deserialize<BattleResult>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                    return (result, "回合或战斗状态已变化，请按当前状态重试。");
+                }
+            }
+            catch (JsonException) { }
+        }
+        return (null, error.Trim().Trim('"') switch
+        {
+            "StaleRound" or "ConcurrencyConflict" => "回合或战斗状态已变化，请按当前状态重试。",
+            "PreparationCancellationDenied" => "当前角色正在自动准备，请先关闭 Auto 后再取消准备。",
+            "NoOwnedAliveCharacters" => "你在房间中没有存活角色，无法操作准备。",
+            "RoomClosed" => "本次任务已结束，无法继续操作准备。",
+            "BattleOver" => "本场战斗已结束，无法继续操作准备。",
+            "WaveTransition" => "正在切换敌人，请稍后操作准备。",
+            "NotInRoom" => "你已不在这个房间中，请返回大厅查看。",
+            "AlreadyPrepared" => "你的角色已准备，请查看当前状态。",
+            _ => action == "cancel-prepare" ? "取消准备失败，请稍后重试。" : "准备失败，请稍后重试。"
+        });
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> ResetBattleAsync(int roomId)

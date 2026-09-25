@@ -18,6 +18,7 @@ public partial class BattleServiceTests
     public async Task SoulImprintWaitsForInitialCooldownThenAutoCastsAndStartsOwnCooldown()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
         {
@@ -76,6 +77,7 @@ public partial class BattleServiceTests
     public async Task EchoSoulImprintAddsDefenseIgnoringFollowUpDamage()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -97,6 +99,7 @@ public partial class BattleServiceTests
     public async Task ArmorBreakSoulImprintAppliesItsConfiguredStatus()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -120,6 +123,7 @@ public partial class BattleServiceTests
     public async Task CooldownSoulImprintOnlyReducesClassSkillCooldowns()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -148,6 +152,7 @@ public partial class BattleServiceTests
     public async Task HealingSoulImprintHealsPartyAndCleansesDebuff()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 1, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, monsterCombat) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -172,6 +177,7 @@ public partial class BattleServiceTests
     public async Task HealingSoulImprintAutoWaitsForMeaningfulDamage()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 90, characterAttack: 1, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -194,6 +200,7 @@ public partial class BattleServiceTests
     public async Task HealingSoulImprintCleansesOnlyTheConfiguredCountPerAlly()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 1, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, monsterCombat) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -217,6 +224,7 @@ public partial class BattleServiceTests
     public async Task GuardSoulImprintReducesTheCurrentMonsterAttack()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 20);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -238,6 +246,7 @@ public partial class BattleServiceTests
     public async Task GuardSoulImprintAutoWaitsUntilTheOwnerWillBeAttacked()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 20);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -266,6 +275,7 @@ public partial class BattleServiceTests
     public async Task InterruptSoulImprintCancelsPreparedInterruptibleIntent()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 20);
+        await test.EnableAutoForCharacterAsync(test.Character);
         var (service, _) = CreateProductionSoulBattleService(test);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Room.RoundNumber = 4;
@@ -1665,7 +1675,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
         await test.AddOtherMemberAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
 
@@ -1673,7 +1683,7 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.Cooldown, result!.RoomStatus);
-        Assert.Contains(result.Logs, log => log.Contains("临时切换为自动战斗"));
+        Assert.Contains(result.Logs, log => log.Contains("自动攻击") && log.Contains("不释放自动技能"));
         Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == 1).ToListAsync(), slot => Assert.False(slot.IsTemporaryAuto));
     }
 
@@ -1684,7 +1694,7 @@ public partial class BattleServiceTests
         test.Room.IsPreparationTimeoutEnabled = false;
         await test.AddOtherMemberAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
 
@@ -1765,7 +1775,7 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
         test.Room.StartedAtUtc = DateTime.UtcNow.AddMinutes(-2);
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         (await test.Db.RoomSlots.SingleAsync()).LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
         test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones.ToListAsync());
         await test.Db.SaveChangesAsync();
@@ -1957,7 +1967,7 @@ public partial class BattleServiceTests
     public async Task SyncAsync_UnpreparedRoomTimesOutAndRunsOneRound()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.SyncAsync(1, test.Token);
@@ -1977,7 +1987,7 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync();
         test.Room.IsPreparationTimeoutEnabled = false;
-        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-31);
+        test.Room.PreparationStartedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.PreparationTimeoutSeconds - 1);
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.SyncAsync(1, test.Token);
@@ -3003,6 +3013,31 @@ public partial class BattleServiceTests
                 AutoUseEnabled = autoUse,
                 AutoHpThresholdPercent = threshold
             });
+            if (autoUse) await EnableAutoForCharacterAsync(character);
+            else await Db.SaveChangesAsync();
+        }
+
+        public async Task EnableAutoForCharacterAsync(Character character)
+        {
+            foreach (var slot in await Db.RoomSlots.Where(slot => slot.RoomId == Room.Id &&
+                         slot.UserId == character.UserId).ToListAsync())
+                slot.IsAutoEnabled = true;
+            if (!await Db.CharacterBattleMilestones.AnyAsync(milestone =>
+                    milestone.CharacterId == character.Id &&
+                    milestone.Kind == BattleMilestoneService.DungeonClearKind &&
+                    milestone.TargetCode == "slime-field" && milestone.Count > 0))
+            {
+                var now = DateTime.UtcNow;
+                Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
+                {
+                    CharacterId = character.Id,
+                    Kind = BattleMilestoneService.DungeonClearKind,
+                    TargetCode = "slime-field",
+                    Count = 1,
+                    FirstAtUtc = now,
+                    LastAtUtc = now
+                });
+            }
             await Db.SaveChangesAsync();
         }
 

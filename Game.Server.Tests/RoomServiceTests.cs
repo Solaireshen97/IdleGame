@@ -207,7 +207,7 @@ public class RoomServiceTests
     }
 
     [Fact]
-    public async Task CreateRoomAsync_WithPreparationTimeoutStartsThirtySecondIdleCountdown()
+    public async Task CreateRoomAsync_WithPreparationTimeoutStartsConfiguredIdleCountdown()
     {
         await using var test = await RoomTestContext.CreateAsync();
 
@@ -215,7 +215,8 @@ public class RoomServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.NotStarted, detail!.RoomStatus);
-        Assert.InRange((detail.PreparationExpiresAtUtc!.Value - detail.ServerTimeUtc).TotalSeconds, 29, 31);
+        Assert.InRange((detail.PreparationExpiresAtUtc!.Value - detail.ServerTimeUtc).TotalSeconds,
+            BattleRules.PreparationTimeoutSeconds - 1, BattleRules.PreparationTimeoutSeconds + 1);
     }
 
     [Fact]
@@ -448,7 +449,8 @@ public class RoomServiceTests
             new JoinRoomRequest { SlotIndex = 2 }, "other-token");
         Assert.Null(joinError);
         Assert.Equal(RoomStatus.Preparing, joined!.RoomStatus);
-        Assert.InRange((joined.PreparationExpiresAtUtc!.Value - joined.ServerTimeUtc).TotalSeconds, 29, 31);
+        Assert.InRange((joined.PreparationExpiresAtUtc!.Value - joined.ServerTimeUtc).TotalSeconds,
+            BattleRules.PreparationTimeoutSeconds - 1, BattleRules.PreparationTimeoutSeconds + 1);
         Assert.False(joined.Slots.Single(slot => slot.SlotIndex == 2).IsConfirmed);
 
         var progression = ProgressionTestFactory.Create();
@@ -476,6 +478,128 @@ public class RoomServiceTests
         Assert.Null(updated);
         Assert.Equal("FormationLocked", error);
         Assert.Null((await test.Db.RoomSlots.SingleAsync(x => x.RoomId == detail.RoomId && x.SlotIndex == 2)).CharacterId);
+    }
+
+    [Fact]
+    public async Task SetRoomVisibilityAsync_UpdatesDiscoveryAndAdmissionWithoutRemovingMembers()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var roomId = created!.RoomId;
+        await test.AddOtherActiveCharacterAsync();
+
+        var (opened, openError) = await test.Service.SetRoomVisibilityAsync(roomId, true, test.Token);
+        Assert.Null(openError);
+        Assert.True(opened!.IsPublic);
+        Assert.Contains(await test.Service.GetRoomsAsync("other-token"), item => item.RoomId == roomId);
+        var (joined, joinError) = await test.Service.JoinRoomAsync(roomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+        Assert.Null(joinError);
+        Assert.True(joined!.Slots.Single(slot => slot.SlotIndex == 2).IsOccupied);
+
+        test.Db.AddRange(
+            new User { Id = 3, UserName = "visitor", PasswordHash = "x", ActiveCharacterId = 3 },
+            new Character { Id = 3, UserId = 3, Name = "Visitor", Hp = 100, MaxHp = 100, Attack = 20 },
+            new UserLoginSession { UserId = 3, Token = "visitor-token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+        await test.Db.SaveChangesAsync();
+        var (closed, closeError) = await test.Service.SetRoomVisibilityAsync(roomId, false, test.Token);
+        Assert.Null(closeError);
+        Assert.False(closed!.IsPublic);
+        Assert.Equal(2, closed.Slots.Count(slot => slot.IsOccupied));
+        Assert.Equal(2, await test.Db.CharacterActivities.CountAsync());
+        Assert.NotNull(await test.Service.GetRoomDetailAsync(roomId, "other-token"));
+        Assert.Contains(await test.Service.GetRoomsAsync("other-token"), item => item.RoomId == roomId && !item.IsPublic);
+        Assert.DoesNotContain(await test.Service.GetRoomsAsync("visitor-token"), item => item.RoomId == roomId);
+        Assert.Null(await test.Service.GetRoomDetailAsync(roomId, "visitor-token"));
+        var (denied, deniedError) = await test.Service.JoinRoomAsync(roomId, new JoinRoomRequest { SlotIndex = 3 }, "visitor-token");
+        Assert.Null(denied);
+        Assert.Equal("RoomPrivate", deniedError);
+
+        await test.Service.SetRoomVisibilityAsync(roomId, true, test.Token);
+        var (reopened, rejoinError) = await test.Service.JoinRoomAsync(roomId, new JoinRoomRequest { SlotIndex = 3 }, "visitor-token");
+        Assert.Null(rejoinError);
+        Assert.Equal(3, reopened!.Slots.Count(slot => slot.IsOccupied));
+    }
+
+    [Theory]
+    [InlineData(RoomStatus.NotStarted)]
+    [InlineData(RoomStatus.Preparing)]
+    [InlineData(RoomStatus.Cooldown)]
+    [InlineData(RoomStatus.WaveTransition)]
+    [InlineData(RoomStatus.BattleOver)]
+    public async Task SetRoomVisibilityAsync_WorksDuringCombatAndPreservesRoundState(RoomStatus status)
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        room.Status = status;
+        room.RoundNumber = 4;
+        room.NextRoundAvailableAtUtc = deadline;
+        room.PreparationStartedAtUtc = deadline.AddSeconds(-20);
+        await test.Db.SaveChangesAsync();
+
+        var (_, error) = await test.Service.SetRoomVisibilityAsync(room.Id, true, test.Token);
+        Assert.Null(error);
+        await test.Db.Entry(room).ReloadAsync();
+        Assert.True(room.IsPublic);
+        Assert.Equal(status, room.Status);
+        Assert.Equal(4, room.RoundNumber);
+        Assert.Equal(deadline, room.NextRoundAvailableAtUtc);
+        Assert.Equal(deadline.AddSeconds(-20), room.PreparationStartedAtUtc);
+    }
+
+    [Fact]
+    public async Task SetRoomVisibilityAsync_RejectsUnauthenticatedUsersAndNonOwners()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
+        await test.AddOtherActiveCharacterAsync();
+        await test.Service.JoinRoomAsync(created!.RoomId, new JoinRoomRequest { SlotIndex = 2 }, "other-token");
+
+        var (anonymous, anonymousError) = await test.Service.SetRoomVisibilityAsync(created.RoomId, false, null);
+        Assert.Null(anonymous);
+        Assert.Equal("Unauthorized", anonymousError);
+        var (member, memberError) = await test.Service.SetRoomVisibilityAsync(created.RoomId, false, "other-token");
+        Assert.Null(member);
+        Assert.Equal("NotOwner", memberError);
+        Assert.True((await test.Db.Rooms.FindAsync(created.RoomId))!.IsPublic);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetRoomVisibilityAsync_RejectsClosedOrExpiredRooms(bool expired)
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isRepeatBattle: true);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        if (expired) room.ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        else room.ClosedAtUtc = DateTime.UtcNow;
+        await test.Db.SaveChangesAsync();
+
+        var (detail, error) = await test.Service.SetRoomVisibilityAsync(room.Id, true, test.Token);
+        Assert.Null(detail);
+        Assert.Equal("RoomClosed", error);
+        Assert.False(room.IsPublic);
+    }
+
+    [Fact]
+    public async Task SetRoomVisibilityAsync_DetectsConcurrentRoomChanges()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await using var concurrentDb = test.CreateDbContext();
+        var concurrentRoom = (await concurrentDb.Rooms.FindAsync(created!.RoomId))!;
+        concurrentRoom.Status = RoomStatus.Cooldown;
+        concurrentRoom.Version++;
+        await concurrentDb.SaveChangesAsync();
+
+        var (detail, error) = await test.Service.SetRoomVisibilityAsync(created.RoomId, true, test.Token);
+        Assert.Null(detail);
+        Assert.Equal("ConcurrencyConflict", error);
+        await concurrentDb.Entry(concurrentRoom).ReloadAsync();
+        Assert.False(concurrentRoom.IsPublic);
+        Assert.Equal(RoomStatus.Cooldown, concurrentRoom.Status);
     }
 
     private sealed class RoomTestContext : IAsyncDisposable

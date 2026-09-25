@@ -282,4 +282,4 @@ code {
     color: #c02d76;
 }
 
-body:has(.weapon-overview-overlay, .weapon-detail-overlay, .weapon-quality-overlay, .monster-detail-overlay) { overflow: hidden; }
+body:has(.lobby-info-overlay, .weapon-overview-overlay, .weapon-detail-overlay, .weapon-quality-overlay, .monster-detail-overlay, .talent-modal-shade, .profession-tree-detail-shade--open) { overflow: hidden; }

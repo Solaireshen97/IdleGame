@@ -117,8 +117,10 @@ public sealed class T1WeaponEffectTests
             new Dungeon { Id = 1, Code = "slime-field", Name = "测试场", MonsterName = "史莱姆", MonsterMaxHp = monsterHp, MonsterAttack = 8, SlotCount = 5 },
             new Monster { Id = 1, Name = "史莱姆", MaxHp = monsterHp, Hp = monsterHp, Attack = 8, Defense = 0 },
             new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
-            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true },
+            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true, IsAutoEnabled = true },
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
+            new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind,
+                TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
             new CharacterSkillSlot { CharacterId = 1, SlotIndex = 1, SkillCode = "knight-strike", AutoUseEnabled = true });
         await db.SaveChangesAsync();
         var progression = ProgressionTestFactory.Create();
