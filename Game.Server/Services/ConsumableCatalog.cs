@@ -64,7 +64,8 @@ public sealed class ConsumableCatalog
         if (item.Kind == "Healing")
             return $"恢复 {ConsumableRules.ScaledPercent(item.HealAmount, item.Tier, characterLevel)} HP＋最大生命的 {item.HealMaxHpPercent * scale / 100m:0.##}% · 冷却 {item.CooldownRounds} 回合";
         if (item.Kind == "CombatBuff")
-            return $"{WeaponSkillName(item.WeaponSkillCode)} Lv{ConsumableRules.ScaledSkillLevel(item.WeaponSkillLevel, item.Tier, characterLevel)} · 持续 {item.DurationRounds} 回合 · 冷却 {item.CooldownRounds} 回合";
+            return $"{WeaponSkillName(item.WeaponSkillCode)} Lv{ConsumableRules.ScaledSkillLevel(item.WeaponSkillLevel, item.Tier, characterLevel)} · 持续 {item.DurationRounds} 回合 · 冷却 {item.CooldownRounds} 回合" +
+                (item.WeaponSkillCode == "weapon-might" ? " · 提高生命上限不恢复当前生命" : "");
         var effects = new List<string>();
         if (item.AttackPercent > 0) effects.Add($"攻击 +{ConsumableRules.ScaledPercent(item.AttackPercent, item.Tier, characterLevel)}%");
         if (item.FinalDamagePercent > 0) effects.Add($"最终伤害 +{ConsumableRules.ScaledPercent(item.FinalDamagePercent, item.Tier, characterLevel)}%");

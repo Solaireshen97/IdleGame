@@ -4,6 +4,7 @@ public class CharacterConsumablesResponse
 {
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
+    public int HealingPotionUsesLimit { get; set; }
     public List<ConsumableItemResponse> Items { get; set; } = [];
     public List<ConsumableSlotResponse> Slots { get; set; } = [];
 }

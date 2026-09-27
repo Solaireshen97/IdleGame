@@ -13,7 +13,7 @@
 
 <PageTitle>战斗房间</PageTitle>
 
-<div class="battle-page @(_roomDetail is { ClosedAtUtc: null } || _combatScene is not null ? "battle-page--focused" : null)" @onkeydown="HandleBattleLogKeyDown">
+<div class="battle-page @(_roomDetail is { ClosedAtUtc: null } || _combatScene is not null ? "battle-page--focused" : null) @(IsBattlePanelOpen ? "battle-page--panel-open" : null)" @onkeydown="HandleBattleLogKeyDown">
     <header class="battle-page__header">
         <button class="back-link" @onclick="GoToRooms">← 返回大厅</button>
         <span class="battle-page__room">ROOM · @RoomId</span>
@@ -342,12 +342,12 @@ else
                         {
                             <div class="battle-mobile-supply battle-mobile-supply--operation">
                                 <span class="battle-mobile-supply__icon" aria-hidden="true">✦</span>
-                                <span><strong>@(mobilePotion.ItemName ?? "作战药剂")</strong><small>首次结算自动使用</small></span>
+                                <span class="battle-mobile-supply__details"><strong>合剂 · @(mobilePotion.ItemName ?? "未装备")</strong><small>库存 @mobilePotion.Quantity · @(mobilePotion.IsActive ? "本轮副本已生效" : mobilePotion.HasAttempted ? "本轮副本未生效" : mobilePotion.ItemCode is null ? "前往补给页装备" : "首次结算自动使用")</small></span>
                             </div>
                         }
                         @foreach (var supply in mobileActionSlot.Consumables.OrderBy(supply => supply.SlotIndex))
                         {
-                            var selected = mobileActionSlot.PendingConsumableSlotIndex == supply.SlotIndex;
+                            var selected = IsConsumableQueued(mobileActionSlot, supply);
                             <button type="button"
                                     class="battle-mobile-supply @(selected ? "battle-mobile-supply--selected" : null)"
                                     disabled="@(_isBusy || !CanQueueConsumable(mobileActionSlot, supply))"
@@ -357,7 +357,7 @@ else
                                 <span class="battle-mobile-supply__icon" aria-hidden="true">
                                     @if (supply.ItemCode is { } supplyCode) { <img src="@ItemArt.ForCode(supplyCode)" alt="" /> } else { <text>✚</text> }
                                 </span>
-                                <span><strong>@(supply.ItemName ?? $"空槽 {supply.SlotIndex}")</strong><small>@GetConsumableStatus(supply, selected)</small></span>
+                                <span class="battle-mobile-supply__details"><strong>@ConsumableRules.SlotName(supply.SlotIndex) · @(supply.ItemName ?? "未装备")</strong><small>@GetConsumableStatus(mobileActionSlot, supply)</small><small>@GetConsumableAvailability(supply, selected)</small></span>
                             </button>
                         }
                     </div>
@@ -841,6 +841,8 @@ else
     private long _nextLocalLogId;
     private readonly HashSet<long> _seenServerLogIds = [];
     private readonly CancellationTokenSource _refreshCancellation = new();
+    private readonly string _dialogOwner = Guid.NewGuid().ToString("N");
+    private bool? _dialogScrollOpen;
     private bool _isBusy;
     private bool _isUpdatingVisibility;
     private string? _visibilityError;
@@ -907,6 +909,8 @@ else
     private sealed record BattleLogEntry(long Id, string Text);
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
+    private bool IsBattlePanelOpen => (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null) &&
+        (_isManagementOpen || _isLogOpen || _isRewardsOpen && _roomDetail?.CumulativeRewards is not null);
     private bool CanChangeFormation => _roomDetail is { ClosedAtUtc: null } &&
         (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
          _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0);
@@ -970,6 +974,12 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        var panelOpen = IsBattlePanelOpen;
+        if (_dialogScrollOpen != panelOpen)
+        {
+            _dialogScrollOpen = panelOpen;
+            await Js.InvokeVoidAsync("battleUi.setDialogState", _dialogOwner, panelOpen);
+        }
         if (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null)
             await Js.InvokeVoidAsync("battleCombat.preload", _battleStage);
         if (_cancelCombatPlayback)
@@ -1037,22 +1047,22 @@ else
         else if (_focusLogCloseButton)
         {
             _focusLogCloseButton = false;
-            await _logCloseButton.FocusAsync();
+            await _logCloseButton.FocusAsync(preventScroll: true);
         }
         else if (_focusLogTrigger)
         {
             _focusLogTrigger = false;
-            await _logTrigger.FocusAsync();
+            await _logTrigger.FocusAsync(preventScroll: true);
         }
         else if (_focusRewardsCloseButton)
         {
             _focusRewardsCloseButton = false;
-            await _rewardsCloseButton.FocusAsync();
+            await _rewardsCloseButton.FocusAsync(preventScroll: true);
         }
         else if (_focusRewardsTrigger)
         {
             _focusRewardsTrigger = false;
-            await _rewardsTrigger.FocusAsync();
+            await _rewardsTrigger.FocusAsync(preventScroll: true);
         }
     }
 
@@ -1087,12 +1097,13 @@ else
     {
         var queuedCount = slot.Skills.Count(skill => skill.SkillCode is not null && IsSkillQueued(slot, skill));
         if (slot.IsSoulImprintQueued) queuedCount++;
-        if (slot.PendingConsumableSlotIndex is not null) queuedCount++;
+        queuedCount += slot.Consumables.Count(supply => IsConsumableQueued(slot, supply));
         return queuedCount;
     }
 
     private void OpenManagement()
     {
+        ClearCombatFeedback();
         _isManagementOpen = true;
         _focusManagementClose = true;
     }
@@ -1105,6 +1116,7 @@ else
 
     private void OpenRewards()
     {
+        ClearCombatFeedback();
         _isRewardsOpen = true;
         _focusRewardsCloseButton = true;
     }
@@ -1117,6 +1129,7 @@ else
 
     private void OpenBattleLog()
     {
+        ClearCombatFeedback();
         _isLogOpen = true;
         _focusLogCloseButton = true;
     }
@@ -1372,14 +1385,14 @@ else
         var message => message
     };
 
+    private static bool IsConsumableQueued(RoomSlotResponse character, RoomConsumableSlotResponse supply) =>
+        (character.PendingConsumableSlotMask & ConsumableRules.SlotMask(supply.SlotIndex)) != 0;
+
     private bool CanQueueConsumable(RoomSlotResponse character, RoomConsumableSlotResponse supply) =>
-        _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && supply.ItemCode is not null &&
-        (character.PendingConsumableSlotIndex == supply.SlotIndex ||
-            supply.Quantity > 0 && supply.CooldownRoundsRemaining == 0 &&
-            (supply.Kind != "Healing" || character.CharacterHp < character.CharacterMaxHp) &&
-            (supply.Kind != "CombatBuff" || !character.StatusEffects.Any(effect =>
-                effect.Code == $"combat-consumable:{supply.ItemCode}")) &&
-            supply.Description != "当前等级已无效果");
+        _roomDetail is { ClosedAtUtc: null } &&
+        _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive &&
+        ConsumableRules.SlotMask(supply.SlotIndex) != 0 &&
+        (IsConsumableQueued(character, supply) || supply.UnavailableReason is null);
 
     private SkillDialogContext? GetSkillDialogContext()
     {
@@ -1683,6 +1696,7 @@ else
         "SkillNotEquipped" => "技能栏已变化，请刷新页面。",
         "CharacterDead" => "角色已阵亡。",
         "BattleOver" => "战斗已结束。",
+        "StaleRound" => "回合或副本轮次已变化，请重新安排道具。",
         "ConcurrencyConflict" => "战斗状态已变化，请重试。",
         _ => "安排技能失败，请稍后重试。"
     };
@@ -1724,38 +1738,40 @@ else
 
     private string GetConsumableHint(RoomSlotResponse character, RoomConsumableSlotResponse supply)
     {
-        if (_roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver) return "战斗已结束";
-        if (!character.IsAlive) return "角色已阵亡";
-        if (supply.ItemCode is null) return "先在战斗补给页装备道具";
-        if (character.PendingConsumableSlotIndex == supply.SlotIndex) return "点击取消本回合的手动使用";
-        if (supply.Quantity <= 0) return "背包中没有该道具";
-        if (supply.CooldownRoundsRemaining > 0) return $"还需等待 {supply.CooldownRoundsRemaining} 回合";
-        if (supply.Kind == "CombatBuff" && character.StatusEffects.Any(effect =>
-            effect.Code == $"combat-consumable:{supply.ItemCode}")) return "效果仍在持续";
-        if (supply.Description == "当前等级已无效果") return "当前等级已无效果";
-        if (supply.Kind == "Healing" && character.CharacterHp >= character.CharacterMaxHp) return "当前 HP 已满";
+        if (IsConsumableQueued(character, supply)) return "点击取消本回合该槽位的手动使用";
+        if (supply.UnavailableReason is not null) return GetConsumableError(supply.UnavailableReason);
         return supply.Kind == "Healing" ? $"安排下一次结算使用，恢复最多 {supply.HealAmount} HP" :
             $"安排下一次结算使用：{supply.Description}";
     }
 
-    private static string GetConsumableStatus(RoomConsumableSlotResponse supply, bool selected)
+    private static string GetConsumableStatus(RoomSlotResponse character, RoomConsumableSlotResponse supply)
     {
-        if (supply.ItemCode is null) return "前往补给页装备";
-        if (selected) return $"已排队 · 库存 {supply.Quantity}";
-        if (supply.CooldownRoundsRemaining > 0) return $"冷却 {supply.CooldownRoundsRemaining} 回合 · 库存 {supply.Quantity}";
-        return $"库存 {supply.Quantity} · {supply.Description}";
+        var quota = supply.SlotIndex == ConsumableRules.HealingPotionSlotIndex
+            ? $" · 本轮副本剩余 {character.HealingPotionUsesRemaining}/{character.HealingPotionUsesLimit} 次"
+            : string.Empty;
+        return $"库存 {supply.Quantity}{quota} · 冷却 {supply.CooldownRoundsRemaining} 回合";
+    }
+
+    private static string GetConsumableAvailability(RoomConsumableSlotResponse supply, bool selected)
+    {
+        var mode = supply.AutoUseEnabled
+            ? supply.Kind == "Healing" ? $"AUTO · HP ≤ {supply.AutoHpThresholdPercent}%" : "AUTO"
+            : "手动";
+        var state = selected ? "已排队 · 点击取消" : supply.UnavailableReason is not null
+            ? GetConsumableError(supply.UnavailableReason) : "点击排队";
+        return $"{mode} · {state}";
     }
 
     private async Task ToggleConsumableAsync(RoomSlotResponse character, RoomConsumableSlotResponse supply)
     {
-        if (_isBusy || character.CharacterId is null || !CanQueueConsumable(character, supply)) return;
+        if (_isBusy || _roomDetail is null || character.CharacterId is null || !CanQueueConsumable(character, supply)) return;
         _isBusy = true;
         _consumableMessage = null;
-        var cancel = character.PendingConsumableSlotIndex == supply.SlotIndex;
+        var cancel = IsConsumableQueued(character, supply);
         try
         {
             var (detail, error) = await ApiService.QueueConsumableAsync(RoomId, character.CharacterId.Value,
-                cancel ? null : supply.SlotIndex);
+                supply.SlotIndex, !cancel, _roomDetail.RoundNumber, _roomDetail.RunSequence);
             if (detail is null)
             {
                 _consumableMessage = GetConsumableError(error);
@@ -1782,6 +1798,10 @@ else
 
     private static string GetConsumableError(string? error) => error?.Trim().Trim('"') switch
     {
+        "HealingPotionLimitReached" => "本轮副本治疗药水次数已用完。",
+        "StaleRound" => "回合已经推进，请按当前回合重新安排药水。",
+        "RoomClosed" => "房间已关闭。",
+        "WrongConsumableSlot" => "道具类型与固定槽位不符。",
         "HpFull" => "当前 HP 已满，无法使用治疗道具。",
         "OutOfStock" => "该角色的道具已用完。",
         "ConsumableCooldown" => "道具仍在冷却中。",
@@ -1790,7 +1810,7 @@ else
         "CharacterDead" => "角色已阵亡，无法使用道具。",
         "BattleOver" => "战斗已结束。",
         "ConcurrencyConflict" => "战斗状态已变化，请重试。",
-        "NoConsumableEquipped" => "补给槽已变化，请刷新页面。",
+        "NoConsumableEquipped" => "先在战斗补给页装备道具。",
         _ => "安排战斗道具失败，请稍后重试。"
     };
 
@@ -1859,7 +1879,7 @@ else
         }
         _roomDetail = detail;
         SyncMobileActionCharacter(previous, detail);
-        if (!allowCombatFeedback || detail is null)
+        if (!allowCombatFeedback || detail is null || IsBattlePanelOpen)
         {
             ClearCombatFeedback();
             return;
@@ -2081,6 +2101,9 @@ else
         ActiveCharacterState.Changed -= HandleAccountCharacterChanged;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
+        try { await Js.InvokeVoidAsync("battleUi.releaseDialogState", _dialogOwner); }
+        catch (JSException) { }
+        catch (TaskCanceledException) { }
         try { await Js.InvokeVoidAsync("battleCombat.cancel", _battleStage); }
         catch (JSException) { }
         catch (TaskCanceledException) { }

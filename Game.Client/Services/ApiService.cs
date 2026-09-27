@@ -832,14 +832,18 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         SendConsumableRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/consumables/{slotIndex}", configuration);
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueConsumableAsync(
-        int roomId, int characterId, int? consumableSlotIndex)
+        int roomId, int characterId, int consumableSlotIndex, bool isQueued,
+        int expectedRoundNumber, int expectedRunSequence)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/consumable", requiresAuth: true);
         request.Content = JsonContent.Create(new QueueConsumableRequest
         {
             RoomId = roomId,
             CharacterId = characterId,
-            ConsumableSlotIndex = consumableSlotIndex
+            ConsumableSlotIndex = consumableSlotIndex,
+            IsQueued = isQueued,
+            ExpectedRoundNumber = expectedRoundNumber,
+            ExpectedRunSequence = expectedRunSequence
         });
         using var response = await httpClient.SendAsync(request);
         return await HandleRoomDetailResponseAsync(response, "安排战斗道具失败。");

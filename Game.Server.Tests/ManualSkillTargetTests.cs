@@ -297,9 +297,10 @@ public class ManualSkillTargetMigrationTests
                 VALUES (1, 1, 1, 1, 3);
                 """);
 
-            await db.Database.MigrateAsync();
+            await db.Database.GetService<IMigrator>().MigrateAsync("20260927050000_AddManualSkillTargets");
 
-            var slot = await db.RoomSlots.SingleAsync();
+            var fields = await db.RoomSlots.Select(slot => new { slot.PendingSkillSlotMask, slot.PendingSkillTargetsJson }).SingleAsync();
+            var slot = new RoomSlot { PendingSkillSlotMask = fields.PendingSkillSlotMask, PendingSkillTargetsJson = fields.PendingSkillTargetsJson };
             Assert.Equal(3, slot.PendingSkillSlotMask);
             Assert.Null(slot.PendingSkillTargetsJson);
             Assert.Null(SkillQueueRules.TargetCharacterId(slot, 1));

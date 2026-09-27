@@ -25,8 +25,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
 
         var item = request.ItemCode is null ? null : catalog.FindItem(request.ItemCode.Trim());
         if (request.ItemCode is not null && item is null) return (null, "UnknownConsumable");
-        if (item is not null && (slotIndex == ConsumableRules.OperationPotionSlotIndex) !=
-            (item.Kind == "OperationPotion")) return (null, "WrongConsumableSlot");
+        if (item is not null && !ConsumableRules.CanEquip(slotIndex, item.Kind)) return (null, "WrongConsumableSlot");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
         Room? room = null;
@@ -60,8 +59,8 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
         if (room is not null) room.Version++;
-        if (roomSlot?.PendingConsumableSlotIndex == slotIndex)
-            roomSlot.PendingConsumableSlotIndex = null;
+        if (roomSlot is not null)
+            roomSlot.PendingConsumableSlotMask &= ~ConsumableRules.SlotMask(slotIndex);
 
         try
         {
@@ -96,6 +95,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         {
             CharacterId = character.Id,
             CharacterName = character.Name,
+            HealingPotionUsesLimit = ConsumableRules.HealingPotionUsesPerRun,
             Items = catalog.Items.OrderBy(item => item.Code).Select(item => new ConsumableItemResponse
             {
                 Code = item.Code,

@@ -39,7 +39,7 @@ public sealed class ParallelPlantingMigrationTests
             }
             await using (var db = new GameDbContext(options))
             {
-                await db.Database.MigrateAsync();
+                await db.GetService<IMigrator>().MigrateAsync("20260927060000_AddParallelPlanting");
                 Assert.False(db.Database.HasPendingModelChanges());
                 Assert.Equal(47, (await db.CharacterItemStacks.SingleAsync()).Quantity);
                 Assert.Equal("Stopped", (await db.GatheringTasks.SingleAsync()).Status);

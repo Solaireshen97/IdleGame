@@ -3,6 +3,7 @@
     const tones = { fire: "#ffac69", water: "#80dbff", earth: "#e3c07c", wind: "#a5f2c6",
         light: "#fff0ad", dark: "#c6a0ff", neutral: "#ffe0a1", heal: "#8af1b7", hostile: "#ff8d82" };
     const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isCovered = root => root.closest(".battle-page--panel-open") !== null;
     const number = value => value.toLocaleString("zh-CN");
     const basicLabels = new Set(["普通攻击", "二连击", "追击", "普攻追击", "追加伤害", "持续伤害", "敌方反击", "回合伤害"]);
     const isSkill = event => event.kind === "damage" && !basicLabels.has(event.label);
@@ -45,7 +46,7 @@
 
     async function play(root, plan) {
         cancel(root);
-        if (!(root instanceof HTMLElement) || !root.isConnected || document.hidden) return;
+        if (!(root instanceof HTMLElement) || !root.isConnected || document.hidden || isCovered(root)) return;
         const field = root.querySelector(".battle-field");
         const layer = root.querySelector(".combat-fx-layer");
         if (!field || !layer) return;
@@ -438,7 +439,7 @@
             }
         };
         const onVisibility = () => { if (document.hidden) controller.abort(); };
-        const observer = new MutationObserver(() => { if (!root.isConnected) controller.abort(); });
+        const observer = new MutationObserver(() => { if (!root.isConnected || isCovered(root)) controller.abort(); });
         observer.observe(document.body, { childList: true, subtree: true });
         document.addEventListener("visibilitychange", onVisibility);
         root.classList.add("combat-preparing");
@@ -449,7 +450,7 @@
 
         try {
             const ready = await waitForSprites(root, signal);
-            if (signal.aborted || !root.isConnected) return;
+            if (signal.aborted || !root.isConnected || isCovered(root)) return;
             if (!ready) return "assets-unavailable";
             root.classList.remove("combat-preparing");
             root.classList.add("combat-playing");

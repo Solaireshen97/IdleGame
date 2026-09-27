@@ -11,7 +11,7 @@ public class RoomSlot
     public bool IsConfirmed { get; set; }
     public bool IsAutoEnabled { get; set; }
     public bool IsTemporaryAuto { get; set; }
-    public int? PendingConsumableSlotIndex { get; set; }
+    public int PendingConsumableSlotMask { get; set; }
     public int PendingSkillSlotMask { get; set; }
     public string? PendingSkillTargetsJson { get; set; }
     public bool IsSoulImprintQueued { get; set; }

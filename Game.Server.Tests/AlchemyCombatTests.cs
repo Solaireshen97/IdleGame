@@ -120,7 +120,7 @@ public sealed class AlchemyCombatTests
             new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind,
                 TargetCode = "training", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
             new CharacterItemStack { CharacterId = 1, ItemCode = potionCode, Quantity = 2 },
-            new CharacterConsumableSlot { CharacterId = 1, SlotIndex = 1, ItemCode = potionCode,
+            new CharacterConsumableSlot { CharacterId = 1, SlotIndex = 2, ItemCode = potionCode,
                 AutoHpThresholdPercent = 50 });
         db.CharacterWeapons.Add(mainWeapon);
         await db.SaveChangesAsync();
@@ -131,13 +131,14 @@ public sealed class AlchemyCombatTests
         var rooms = new RoomService(db, users, progression, consumables, skills, rewards, weaponCatalog: weapons);
         var queued = await battle.QueueConsumableAsync(new QueueConsumableRequest
         {
-            RoomId = 1, CharacterId = 1, ConsumableSlotIndex = 1
+            RoomId = 1, CharacterId = 1, ConsumableSlotIndex = 2, ExpectedRoundNumber = (await db.Rooms.SingleAsync()).RoundNumber, ExpectedRunSequence = (await db.Rooms.SingleAsync()).RunSequence
         }, "test");
         Assert.True(queued.Success);
         var first = await battle.StartPreparationAsync(1, "test");
         Assert.Null(first.Error);
         Assert.Contains(first.Result!.Logs, log => log.Contains($"使用 {consumables.FindItem(potionCode)!.Name}"));
         Assert.Equal(1, (await db.CharacterItemStacks.SingleAsync()).Quantity);
+        Assert.Equal(initialMaxHp - 1, character.Hp);
         Assert.True(character.TemporaryWeaponAttackBonusPercent > 0);
         Assert.Equal(increasesMaxHp, TalentRules.EffectiveMaxHp(character) > initialMaxHp);
         var active = Assert.Single((await rooms.GetRoomDetailAsync(1, "test"))!.Slots.Single().StatusEffects,
@@ -147,11 +148,12 @@ public sealed class AlchemyCombatTests
         var room = await db.Rooms.SingleAsync();
         for (var round = 1; round <= 6; round++)
         {
+            if (round == 2 && increasesMaxHp) character.Hp = TalentRules.EffectiveMaxHp(character);
             room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
             await db.SaveChangesAsync();
             if (round == 6)
                 Assert.True((await battle.QueueConsumableAsync(new QueueConsumableRequest
-                { RoomId = 1, CharacterId = 1, ConsumableSlotIndex = 1 }, "test")).Success);
+                { RoomId = 1, CharacterId = 1, ConsumableSlotIndex = 2, ExpectedRoundNumber = (await db.Rooms.SingleAsync()).RoundNumber, ExpectedRunSequence = (await db.Rooms.SingleAsync()).RunSequence }, "test")).Success);
             var result = await battle.StartPreparationAsync(1, "test");
             Assert.Null(result.Error);
             if (round == 3)

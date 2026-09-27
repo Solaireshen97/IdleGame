@@ -64,7 +64,8 @@ public sealed class GatheringMigrationTests
             {
                 await db.Database.MigrateAsync();
                 var slot = await db.RoomSlots.SingleAsync();
-                Assert.Equal((7, 3), (slot.RoomId, slot.CharacterId));
+                Assert.Equal(7, slot.RoomId);
+                Assert.Null(slot.CharacterId); // The later consumable cutover releases old memberships.
                 Assert.False(slot.HasParticipatedInRun);
                 Assert.Null(slot.LastParticipatedMonsterId);
                 Assert.Empty(await db.ProductionTasks.ToListAsync());

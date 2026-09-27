@@ -9,7 +9,7 @@ namespace Game.Server.Tests;
 public sealed class CharacterActivityMigrationTests
 {
     [Fact]
-    public async Task ExistingRepeatRoomGetsDeadlineAndActivityReservation()
+    public async Task ExistingRepeatRoomGetsDeadlineBeforeConsumableCutoverClosesIt()
     {
         var path = Path.Combine(Path.GetTempPath(), $"idlegame-activity-migration-{Guid.NewGuid():N}.db");
         var options = new DbContextOptionsBuilder<GameDbContext>()
@@ -36,12 +36,11 @@ public sealed class CharacterActivityMigrationTests
             {
                 await db.Database.MigrateAsync();
                 var room = await db.Rooms.SingleAsync();
-                var activity = await db.CharacterActivities.SingleAsync();
+                Assert.Empty(await db.CharacterActivities.ToListAsync());
+                Assert.NotNull(room.ClosedAtUtc);
                 Assert.InRange(room.ExpiresAtUtc!.Value - room.StartedAtUtc!.Value,
                     TimeSpan.FromHours(12).Subtract(TimeSpan.FromSeconds(1)),
                     TimeSpan.FromHours(12).Add(TimeSpan.FromSeconds(1)));
-                Assert.Equal((1, "Battle", 7), (activity.CharacterId, activity.Kind, activity.SourceId));
-                Assert.Equal(room.ExpiresAtUtc, activity.EndsAtUtc);
                 Assert.False(db.Database.HasPendingModelChanges());
             }
         }

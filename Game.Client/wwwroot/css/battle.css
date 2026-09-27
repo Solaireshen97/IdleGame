@@ -19,4 +19,6 @@
 .status-badge--gold { background: #594625; color: #f3d385; }
 .status-badge--danger { background: #572c32; color: #f1a8ad; }
 
-body:has(.battle-log-overlay, .battle-management-overlay) { overflow: hidden; }
+/* Keep scrollbar space stable; live battle DOM changes must not drive the scroll lock. */
+html.battle-dialog-host { scrollbar-gutter: stable; }
+body.battle-dialog-open { overflow: hidden; }

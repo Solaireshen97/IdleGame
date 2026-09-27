@@ -6,7 +6,10 @@ public class RoomSlotResponse
 {
     public int SlotIndex { get; set; }
     public int? CharacterId { get; set; }
-    public int? PendingConsumableSlotIndex { get; set; }
+    public int PendingConsumableSlotMask { get; set; }
+    public int HealingPotionUsesUsed { get; set; }
+    public int HealingPotionUsesRemaining { get; set; }
+    public int HealingPotionUsesLimit { get; set; }
     public int PendingSkillSlotMask { get; set; }
     public bool IsSoulImprintQueued { get; set; }
     public RoomSoulImprintResponse? SoulImprint { get; set; }
@@ -75,6 +78,7 @@ public class RoomSkillSlotResponse
 
 public class RoomConsumableSlotResponse
 {
+    public string? UnavailableReason { get; set; }
     public int SlotIndex { get; set; }
     public string? ItemCode { get; set; }
     public string? ItemName { get; set; }

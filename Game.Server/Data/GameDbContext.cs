@@ -27,6 +27,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
     public DbSet<BattleConsumableBuff> BattleConsumableBuffs => Set<BattleConsumableBuff>();
     public DbSet<BattleOperationPotionState> BattleOperationPotionStates => Set<BattleOperationPotionState>();
+    public DbSet<BattleHealingPotionState> BattleHealingPotionStates => Set<BattleHealingPotionState>();
     public DbSet<CharacterSkillSlot> CharacterSkillSlots => Set<CharacterSkillSlot>();
     public DbSet<BattleSkillCooldown> BattleSkillCooldowns => Set<BattleSkillCooldown>();
     public DbSet<CharacterSkillTalent> CharacterSkillTalents => Set<CharacterSkillTalent>();
@@ -106,6 +107,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
                 "SkillLevel > 0 AND ExpiresAfterRound >= AppliedRound"));
         modelBuilder.Entity<BattleOperationPotionState>()
             .HasKey(state => new { state.RoomId, state.RunSequence, state.CharacterId });
+        modelBuilder.Entity<BattleHealingPotionState>()
+            .HasKey(state => new { state.RoomId, state.RunSequence, state.CharacterId });
+        modelBuilder.Entity<BattleHealingPotionState>().Property(state => state.Version).IsConcurrencyToken();
+        modelBuilder.Entity<BattleHealingPotionState>().ToTable(table => table.HasCheckConstraint(
+            "CK_BattleHealingPotionStates_Uses", $"UsesUsed BETWEEN 0 AND {Game.Shared.ConsumableRules.HealingPotionUsesPerRun}"));
         modelBuilder.Entity<BattleOperationPotionState>()
             .ToTable(table => table.HasCheckConstraint("CK_BattleOperationPotionStates_AttackPercent",
                 "AttackPercent BETWEEN 0 AND 100"));

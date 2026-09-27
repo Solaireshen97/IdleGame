@@ -100,7 +100,7 @@ public partial class BattleServiceTests
         });
         await test.Db.SaveChangesAsync();
         Assert.Null((await test.Service.QueueConsumableAsync(new QueueConsumableRequest
-            { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token)).Error);
+            { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token)).Error);
         Assert.Null((await test.Service.QueueSkillAsync(new QueueSkillRequest
             { RoomId = 1, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true }, test.Token)).Error);
         Assert.Null((await test.Service.QueueSoulImprintAsync(new QueueSoulImprintRequest
@@ -111,7 +111,7 @@ public partial class BattleServiceTests
 
         var slot = await test.Db.RoomSlots.SingleAsync();
         Assert.False(slot.IsConfirmed);
-        Assert.Equal(1, slot.PendingConsumableSlotIndex);
+        Assert.Equal(1, slot.PendingConsumableSlotMask);
         Assert.Equal(SkillRules.SlotMask(1), slot.PendingSkillSlotMask);
         Assert.True(slot.IsSoulImprintQueued);
         Assert.False(slot.IsAutoEnabled);

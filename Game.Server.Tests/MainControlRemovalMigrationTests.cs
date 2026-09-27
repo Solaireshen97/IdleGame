@@ -28,14 +28,26 @@ public sealed class MainControlRemovalMigrationTests
                    (507,503,2,507,1,0,1,0), (508,504,1,508,2,0,1,0);
             """);
 
-        await migrator.MigrateAsync();
+        // Verify this migration before the explicit consumable cutover retires every old membership.
+        await migrator.MigrateAsync("20260927060000_AddParallelPlanting");
 
         Assert.False(db.Database.HasPendingModelChanges());
         var rooms = await db.Rooms.Where(room => room.Id >= 501).OrderBy(room => room.Id).ToListAsync();
         Assert.Equal(new[] { true, false, true, false }, rooms.Select(room => room.IsOwnerAutoEnabled));
-        var slots = await db.RoomSlots.OrderBy(slot => slot.Id).ToListAsync();
-        Assert.Equal(new[] { true, true, false, false, false, true, true, true }, slots.Select(slot => slot.IsAutoEnabled));
-        Assert.Equal(new[] { 501, 502, 503, 504, 505, 506, 507, 508 }, slots.Select(slot => slot.CharacterId!.Value));
+        var autoPreferences = new List<bool>();
+        var characterIds = new List<int>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT IsAutoEnabled, CharacterId FROM RoomSlots ORDER BY Id";
+            await using var membershipReader = await command.ExecuteReaderAsync();
+            while (await membershipReader.ReadAsync())
+            {
+                autoPreferences.Add(membershipReader.GetBoolean(0));
+                characterIds.Add(membershipReader.GetInt32(1));
+            }
+        }
+        Assert.Equal(new[] { true, true, false, false, false, true, true, true }, autoPreferences);
+        Assert.Equal(new[] { 501, 502, 503, 504, 505, 506, 507, 508 }, characterIds);
         await using (var command = connection.CreateCommand())
         {
             command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('RoomSlots') WHERE name = 'IsMainControl'";

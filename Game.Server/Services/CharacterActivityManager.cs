@@ -69,7 +69,7 @@ public static class CharacterActivityManager
             slot.IsConfirmed = false;
             slot.IsAutoEnabled = false;
             slot.IsTemporaryAuto = false;
-            slot.PendingConsumableSlotIndex = null;
+            slot.PendingConsumableSlotMask = 0;
             SkillQueueRules.Clear(slot);
             slot.IsSoulImprintQueued = false;
             slot.HasParticipatedInRun = false;

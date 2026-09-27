@@ -2,6 +2,7 @@ using Game.Server.Configuration;
 using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared.Dtos.Production;
+using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,51 @@ public sealed class ProductionServiceTests
 {
     private const string RecipeCode = "minor-healing-potion";
     private const string HerbCode = "peacebloom";
+
+    [Fact]
+    public async Task ProductionOutputSurvivesStaleBattleConsumptionAndFailedQuotaRollsBack()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(4);
+        test.First.Hp = 20;
+        test.Db.AddRange(
+            new Dungeon { Id = 1, Code = "training", Name = "Training", MonsterName = "Target",
+                MonsterMaxHp = 10000, MonsterAttack = 1, SlotCount = 5 },
+            new Monster { Id = 1, Name = "Target", Hp = 10000, MaxHp = 10000, Attack = 1 },
+            new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5,
+                Status = RoomStatus.NotStarted },
+            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = test.First.Id },
+            new CharacterItemStack { CharacterId = test.First.Id, ItemCode = RecipeCode, Quantity = 5 },
+            new CharacterConsumableSlot { CharacterId = test.First.Id, SlotIndex = 1, ItemCode = RecipeCode,
+                AutoUseEnabled = true, AutoHpThresholdPercent = 100 });
+        await test.Db.SaveChangesAsync();
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest
+        {
+            RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode,
+            TargetCycles = 1
+        });
+        Assert.Null(started.Error);
+        await using var staleDb = test.NewDbContext();
+        await staleDb.CharacterItemStacks.Where(stack => stack.CharacterId == test.First.Id).LoadAsync();
+        await staleDb.Characters.FindAsync(test.First.Id);
+        await staleDb.Rooms.SingleAsync();
+        Assert.Null(await test.Service.AdvanceDueAsync(started.Response!.ActiveTask!.Id,
+            started.Response.ActiveTask.NextCycleAtUtc));
+        BattleService Battle(GameDbContext db)
+        {
+            var progression = ProgressionTestFactory.Create();
+            return new BattleService(db, new UserService(db, progression, SkillTestFactory.Create()),
+                ConsumableTestFactory.Create(), SkillTestFactory.Create(), RewardTestFactory.CreateService(db, progression));
+        }
+        Assert.Equal("ConcurrencyConflict", (await Battle(staleDb).StartPreparationAsync(1, test.Token)).Error);
+        await using var verification = test.NewDbContext();
+        Assert.Equal(6, (await verification.CharacterItemStacks.SingleAsync(stack => stack.ItemCode == RecipeCode)).Quantity);
+        Assert.Empty(await verification.BattleHealingPotionStates.ToListAsync());
+        Assert.Equal(20, (await verification.Characters.FindAsync(test.First.Id))!.Hp);
+        Assert.Equal(0, (await verification.Rooms.SingleAsync()).RoundNumber);
+        Assert.Null((await Battle(verification).StartPreparationAsync(1, test.Token)).Error);
+        Assert.Equal(5, (await verification.CharacterItemStacks.SingleAsync(stack => stack.ItemCode == RecipeCode)).Quantity);
+        Assert.Equal(1, (await verification.BattleHealingPotionStates.SingleAsync()).UsesUsed);
+    }
 
     [Fact]
     public async Task FixedBatchIgnoresProfessionAndDuplicateRequestCannotProduceTwice()

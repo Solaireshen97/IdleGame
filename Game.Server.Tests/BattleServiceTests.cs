@@ -834,7 +834,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 100);
         await test.AddPotionAsync(test.Character, quantity: 1, autoUse: true, threshold: 100);
         var (queued, _) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         Assert.True(queued);
 
         var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);
@@ -853,7 +853,7 @@ public partial class BattleServiceTests
         await test.AddPotionAsync(test.Character, quantity: 2, autoUse: false);
 
         var (queued, queueError) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         Assert.True(queued);
         Assert.Null(queueError);
         Assert.Equal(60, test.Character.Hp);
@@ -871,7 +871,7 @@ public partial class BattleServiceTests
             var detail = await test.GetRoomDetailAsync();
             Assert.Equal(remaining, detail!.Slots.Single(slot => slot.CharacterId == test.Character.Id).Consumables.Single(slot => slot.SlotIndex == 1).CooldownRoundsRemaining);
             var (accepted, error) = await test.Service.QueueConsumableAsync(
-                new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+                new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
             Assert.False(accepted);
             Assert.Equal("ConsumableCooldown", error);
             await test.CompleteCooldownAndPrepareAsync();
@@ -880,7 +880,7 @@ public partial class BattleServiceTests
         Assert.Equal(4, test.Room.RoundNumber);
         Assert.Equal(0, (await test.GetRoomDetailAsync())!.Slots.Single(slot => slot.CharacterId == test.Character.Id).Consumables.Single(slot => slot.SlotIndex == 1).CooldownRoundsRemaining);
         var (ready, readyError) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         Assert.True(ready);
         Assert.Null(readyError);
         await test.CompleteCooldownAndPrepareAsync();
@@ -1121,7 +1121,7 @@ public partial class BattleServiceTests
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "northshire-battle-draught" });
         var queued = await test.Service.QueueConsumableAsync(new Game.Shared.Dtos.QueueConsumableRequest
         {
-            RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 3
+            RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 3, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence
         }, test.Token);
 
         Assert.Equal("WrongConsumableSlot", wrongOrdinary.Error);
@@ -1149,6 +1149,7 @@ public partial class BattleServiceTests
         Assert.Equal(remainingPotions == 0, round.Logs.Any(log => log.Contains("使用 小型治疗药水")));
         Assert.Equal(endingHp, test.Character.Hp);
         Assert.Equal(remainingPotions, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
+        Assert.Equal(1 - remainingPotions, await test.Db.BattleHealingPotionStates.SumAsync(state => state.UsesUsed));
     }
 
     [Fact]
@@ -1164,7 +1165,7 @@ public partial class BattleServiceTests
         await test.AddPotionAsync(guest, quantity: 1, autoUse: true, threshold: 50);
 
         var (queued, queueError) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         var (waiting, ownerError) = await test.Service.StartPreparationAsync(1, test.Token);
         Assert.True(queued);
         Assert.Null(queueError);
@@ -1439,7 +1440,7 @@ public partial class BattleServiceTests
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
 
         var (queued, queueError) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         Assert.True(queued);
         Assert.Null(queueError);
         await test.CompleteCooldownAndPrepareAsync();
@@ -1457,7 +1458,7 @@ public partial class BattleServiceTests
         await test.Db.SaveChangesAsync();
 
         var (queued, _) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, test.Token);
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, test.Token);
         Assert.True(queued);
         await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Equal(4, (await test.Db.BattleConsumableCooldowns.SingleAsync()).ReadyAtRound);
@@ -1466,6 +1467,8 @@ public partial class BattleServiceTests
         await test.CompleteCooldownAndPrepareAsync();
         Assert.Equal(RoomStatus.BattleOver, test.Room.Status);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity); // victory drop
+        var endedRun = test.Room.RunSequence;
+        Assert.Equal(1, (await test.GetRoomDetailAsync())!.Slots.Single().HealingPotionUsesUsed);
         test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-31);
         await test.Db.SaveChangesAsync();
         await test.Service.SyncRoomAsync(1);
@@ -1474,6 +1477,9 @@ public partial class BattleServiceTests
         Assert.Equal(0, (await test.Db.BattleConsumableCooldowns.SingleAsync()).ReadyAtRound);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(100, test.Character.Hp);
+        Assert.True(test.Room.RunSequence > endedRun);
+        Assert.Equal(1, (await test.Db.BattleHealingPotionStates.SingleAsync(state => state.RunSequence == endedRun)).UsesUsed);
+        Assert.Equal(2, (await test.GetRoomDetailAsync())!.Slots.Single().HealingPotionUsesRemaining);
     }
 
     [Fact]
@@ -1515,7 +1521,7 @@ public partial class BattleServiceTests
         await test.AddPotionAsync(test.Character, quantity: 1, autoUse: false);
 
         var (success, error) = await test.Service.QueueConsumableAsync(
-            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1 }, "other-token");
+            new Game.Shared.Dtos.QueueConsumableRequest { RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence }, "other-token");
 
         Assert.False(success);
         Assert.Equal("NotCharacterOwner", error);
@@ -1579,7 +1585,7 @@ public partial class BattleServiceTests
         var (_, lockedError) = await service.SetSlotAsync(test.Token, test.Character.Id, 1, request);
 
         Assert.Null(firstError);
-        Assert.Equal("ConsumableAlreadyEquipped", duplicateError);
+        Assert.Equal("WrongConsumableSlot", duplicateError);
         Assert.Equal("LoadoutLocked", lockedError);
     }
 
@@ -1591,18 +1597,18 @@ public partial class BattleServiceTests
         var (queued, queueError) = await test.Service.QueueConsumableAsync(
             new Game.Shared.Dtos.QueueConsumableRequest
             {
-                RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1
+                RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 1, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence
             }, test.Token);
         Assert.True(queued);
         Assert.Null(queueError);
         var roomSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
-        Assert.Equal(1, roomSlot.PendingConsumableSlotIndex);
+        Assert.Equal(1, roomSlot.PendingConsumableSlotMask);
 
         var (_, error) = await test.CreateConsumableService().SetSlotAsync(test.Token, test.Character.Id, 1,
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = null });
 
         Assert.Null(error);
-        Assert.Null(roomSlot.PendingConsumableSlotIndex);
+        Assert.Equal(0, roomSlot.PendingConsumableSlotMask);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 

@@ -3218,6 +3218,7 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 .battle-page--focused .battle-mobile-supply { min-width: 0; min-height: 46px; width: auto; padding: .3rem .4rem; }
 .battle-page--focused .battle-mobile-supply strong { font-size: .68rem; }
 .battle-page--focused .battle-mobile-supply small { font-size: .56rem; }
+.battle-page--focused .battle-mobile-supply .battle-mobile-supply__details small { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 .battle-page--focused .battle-mobile-quick-actions__hint { display: flex; grid-column: 1 / -1; min-height: 16px; font-size: .6rem; }
 .battle-page--focused .battle-mobile-quick-actions__hint > span { white-space: normal; }
 .battle-page--focused .battle-command .battle-countdown { display: block; grid-column: 1 / -1; grid-row: 2; padding: .25rem 0 0; border-top: 1px solid #66839833; }
@@ -3234,7 +3235,15 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 .battle-page--focused .battle-command__action .battle-controls__waiting,
 .battle-page--focused .battle-command__action .auto-indicator { min-height: 44px; font-size: .68rem; }
 .battle-command__message { grid-column: 1 / -1; grid-row: 4; margin: 0; color: #f2cba2; font-size: .72rem; }
-.battle-management-overlay { position: fixed; z-index: 1400; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: #030b14b8; backdrop-filter: blur(6px); }
+.battle-management-overlay { position: fixed; z-index: 1400; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: #030b14ed; }
+.battle-log-overlay, .battle-management-overlay { isolation: isolate; contain: layout paint; }
+/* The room still polls normally while its covered visual effects stay at rest. */
+.battle-page--panel-open .battle-stage *,
+.battle-page--panel-open .battle-stage *::before,
+.battle-page--panel-open .battle-stage *::after,
+.battle-page--panel-open .battle-command *,
+.battle-page--panel-open .battle-command *::before,
+.battle-page--panel-open .battle-command *::after { animation-play-state: paused !important; }
 .battle-management-dialog { display: flex; flex-direction: column; width: min(100%, 640px); max-height: calc(92dvh - env(safe-area-inset-top)); overflow: hidden; border: 1px solid #586d80; border-radius: 1rem 1rem 0 0; background: linear-gradient(150deg, #203448, #102231); box-shadow: 0 -20px 60px #0006; }
 .battle-management-dialog__header { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1rem; border-bottom: 1px solid #6d849533; }
 .battle-management-dialog__header h2 { margin: .15rem 0 0; color: #f0e6d5; font-size: 1.15rem; }

@@ -248,6 +248,17 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("BattleConsumableBuffs", t => t.HasCheckConstraint("CK_BattleConsumableBuffs_Values", "SkillLevel > 0 AND ExpiresAfterRound >= AppliedRound"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.BattleHealingPotionState", b =>
+                {
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("UsesUsed").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("RoomId", "RunSequence", "CharacterId");
+                    b.ToTable("BattleHealingPotionStates", t => t.HasCheckConstraint("CK_BattleHealingPotionStates_Uses", "UsesUsed BETWEEN 0 AND 2"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.BattleOperationPotionState", b =>
                 {
                     b.Property<int>("RoomId").HasColumnType("INTEGER");
@@ -708,7 +719,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<bool>("IsSoulImprintQueued")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("PendingConsumableSlotIndex")
+                    b.Property<int>("PendingConsumableSlotMask")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("PendingSkillSlotMask")

@@ -145,7 +145,7 @@ public class BattleController(BattleService battleService, RoomService roomServi
                 "Unauthorized" => Unauthorized(),
                 "NotFound" or "UserNotFound" or "MonsterNotFound" => NotFound(error),
                 "NotInRoom" or "NotCharacterOwner" => StatusCode(403, error),
-                "BattleOver" or "ConsumableCooldown" or "ConcurrencyConflict" => Conflict(error),
+                "BattleOver" or "ConsumableCooldown" or "HealingPotionLimitReached" or "StaleRound" or "ConcurrencyConflict" => Conflict(error),
                 _ => BadRequest(error)
             };
         }

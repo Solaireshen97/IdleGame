@@ -1,7 +1,25 @@
 (() => {
     const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dialogHosts = new Map();
+    const setClass = (element, name, enabled) => {
+        if (element.classList.contains(name) !== enabled) element.classList.toggle(name, enabled);
+    };
+    const syncDialogState = () => {
+        setClass(document.documentElement, "battle-dialog-host", dialogHosts.size > 0);
+        setClass(document.body, "battle-dialog-open", [...dialogHosts.values()].some(Boolean));
+    };
 
     window.battleUi = {
+        setDialogState(owner, isOpen) {
+            if (dialogHosts.get(owner) === isOpen) return;
+            dialogHosts.set(owner, isOpen);
+            syncDialogState();
+        },
+
+        releaseDialogState(owner) {
+            if (dialogHosts.delete(owner)) syncDialogState();
+        },
+
         trapDialogFocus(dialog) {
             if (!(dialog instanceof HTMLElement) || dialog.dataset.focusTrap) return;
             dialog.dataset.focusTrap = "true";

@@ -456,7 +456,7 @@ public partial class RoomServiceTests
         room.IsOwnerAutoEnabled = true;
         source.IsConfirmed = true;
         source.IsTemporaryAuto = true;
-        source.PendingConsumableSlotIndex = 2;
+        source.PendingConsumableSlotMask = 2;
         source.PendingSkillSlotMask = 5;
         source.IsSoulImprintQueued = true;
         source.HasParticipatedInRun = true;
@@ -478,7 +478,7 @@ public partial class RoomServiceTests
         Assert.Null(empty.UserId);
         Assert.Null(empty.LastSeenAtUtc);
         Assert.False(empty.IsAutoEnabled || empty.IsConfirmed || empty.IsTemporaryAuto);
-        Assert.Null(empty.PendingConsumableSlotIndex);
+        Assert.Equal(0, empty.PendingConsumableSlotMask);
         Assert.Equal(0, empty.PendingSkillSlotMask);
         Assert.False(empty.IsSoulImprintQueued || empty.HasParticipatedInRun);
         Assert.Null(empty.LastParticipatedMonsterId);
@@ -487,7 +487,7 @@ public partial class RoomServiceTests
         Assert.Equal(test.ActiveCharacter.UserId, moved.UserId);
         Assert.Equal(lastSeen, moved.LastSeenAtUtc);
         Assert.True(moved.IsAutoEnabled && moved.IsConfirmed && moved.IsTemporaryAuto);
-        Assert.Equal(2, moved.PendingConsumableSlotIndex);
+        Assert.Equal(2, moved.PendingConsumableSlotMask);
         Assert.Equal(5, moved.PendingSkillSlotMask);
         Assert.True(moved.IsSoulImprintQueued && moved.HasParticipatedInRun);
         Assert.Equal(room.MonsterId, moved.LastParticipatedMonsterId);
@@ -512,7 +512,7 @@ public partial class RoomServiceTests
         (await test.Db.Rooms.FindAsync(created.RoomId))!.IsOwnerAutoEnabled = true;
         source.PendingSkillSlotMask = 3;
         target.IsAutoEnabled = false;
-        target.PendingConsumableSlotIndex = 1;
+        target.PendingConsumableSlotMask = 1;
         test.ActiveCharacter.Hp = 27;
         second.Hp = 41;
         var now = DateTime.UtcNow;
@@ -534,7 +534,7 @@ public partial class RoomServiceTests
         var swapped = await persisted.RoomSlots.Where(slot => slot.RoomId == created.RoomId && slot.CharacterId != null).ToListAsync();
         Assert.Equal(2, swapped.Count);
         Assert.Equal(3, swapped.Single(slot => slot.CharacterId == test.ActiveCharacter.Id).PendingSkillSlotMask);
-        Assert.Equal(1, swapped.Single(slot => slot.CharacterId == second.Id).PendingConsumableSlotIndex);
+        Assert.Equal(1, swapped.Single(slot => slot.CharacterId == second.Id).PendingConsumableSlotMask);
         Assert.Equal(27, (await persisted.Characters.FindAsync(test.ActiveCharacter.Id))!.Hp);
         Assert.Equal(41, (await persisted.Characters.FindAsync(second.Id))!.Hp);
         Assert.Equal(2, await persisted.CharacterActivities.CountAsync());
