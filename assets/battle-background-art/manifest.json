@@ -1,0 +1,230 @@
+[
+  {
+    "scope": "region",
+    "code": "durotar",
+    "file": "red-ember-wastes.png",
+    "subject": "赤土地面、红岩峡谷、远处暗色山脊与暮色天空；中央保留开阔战斗空间",
+    "name": "赤烬荒原",
+    "encounters": [
+      "燧谷野猪讨伐",
+      "烬尾蝎讨伐",
+      "焦鳞疾爪龙讨伐",
+      "铁棘斥候讨伐",
+      "灰炬教徒讨伐",
+      "熔壳蠕行者讨伐",
+      "烬门守卫讨伐",
+      "烬尾蝎后 · 精英讨伐",
+      "灰炬战魁 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "ragefire-chasm",
+    "file": "suiyuan-rift.png",
+    "subject": "幽暗地下洞窟、赤褐岩壁与远处熔岩裂隙；前景为完整开阔的玄武岩地面",
+    "name": "燧渊裂隙",
+    "encounters": [
+      "燧渊裂隙"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "ragefire-heart",
+    "file": "suiyuan-ember-core.png",
+    "subject": "地下深层熔心大厅、黑曜岩层与远处熔火核心；前景为冷却的宽阔岩石战场",
+    "name": "燧渊裂隙·深层LV1",
+    "encounters": [
+      "燧渊裂隙·深层LV1"
+    ]
+  },
+  {
+    "scope": "region",
+    "code": "dun-morogh",
+    "file": "frostmist-snowlands.png",
+    "subject": "雪山松林、远处冰湖与暮色山岭；中央为覆有薄雪的深冰蓝色平坦地面",
+    "name": "雾凇雪境",
+    "encounters": [
+      "雪绒躁兔讨伐",
+      "霜纹幼狼讨伐",
+      "冰砾掘穴者讨伐",
+      "霜纹斥候讨伐",
+      "冻甲野猪讨伐",
+      "霜纹咒师讨伐",
+      "雪脊巨猿讨伐",
+      "凝牙巨狼 · 精英讨伐",
+      "冰碛巨人 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "frostspring-cavern",
+    "file": "mirror-spring-cavern.png",
+    "subject": "蓝冰洞壁、远处融冰暗河和幽暗洞穴；前景保留平坦完整的岩冰地面",
+    "name": "镜泉冰窟",
+    "encounters": [
+      "镜泉冰窟"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "frostspring-throne",
+    "file": "frost-crown-seat.png",
+    "subject": "深层冰晶大厅与远景冠形冰晶，靛蓝岩层和微弱青蓝反光；中央为深色平坦冰台",
+    "name": "镜泉冰窟·深层LV1",
+    "encounters": [
+      "镜泉冰窟·深层LV1"
+    ]
+  },
+  {
+    "scope": "region",
+    "code": "elwynn",
+    "file": "stonebud-woodland.png",
+    "subject": "农场边缘的林地、苔岩与远处木栅栏；中央保留宽阔的平坦土路",
+    "name": "岩芽林地",
+    "encounters": [
+      "岩芽幼狼讨伐",
+      "苔斑毒蛛讨伐",
+      "岩牙野猪讨伐",
+      "河汊泥鳞讨伐",
+      "烛矿采掘者讨伐",
+      "烛矿塑岩师讨伐",
+      "裂齿游掠者讨伐",
+      "苔背熊王 · 精英讨伐",
+      "裂齿匪首 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "kobold-mine",
+    "file": "candlewell-mine.png",
+    "subject": "烛光矿道、远景木支架与暗色矿脉；前景为完整平坦的岩土战场",
+    "name": "烛井矿窟",
+    "encounters": [
+      "烛井矿窟"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "kobold-mine-depths",
+    "file": "candlewell-depths.png",
+    "subject": "深层采掘大厅、厚重岩层和远景赭金矿脉；中央保留深灰褐色平坦岩台",
+    "name": "烛井矿窟·深层LV1",
+    "encounters": [
+      "烛井矿窟·深层LV1"
+    ]
+  },
+  {
+    "scope": "region",
+    "code": "mulgore",
+    "file": "longwind-prairie.png",
+    "subject": "风吹草原、远景丘陵与横向云带；中央保留平坦开阔的草土地面",
+    "name": "长风原野",
+    "encounters": [
+      "长足原鸟讨伐",
+      "长风草狼讨伐",
+      "荆鬣拾荒者讨伐",
+      "旋翼猛鹫讨伐",
+      "断枝伐木客讨伐",
+      "裂翎翼人讨伐",
+      "岚巢护卫讨伐",
+      "雷纹角蜥 · 精英讨伐",
+      "峭壁猎风者 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "windfury-nest",
+    "file": "riftfeather-high-nest.png",
+    "subject": "峭壁高巢、远景枝巢与草原层峦；前景为完整宽阔的风蚀岩台",
+    "name": "裂翎高巢",
+    "encounters": [
+      "裂翎高巢"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "windfury-spire",
+    "file": "riftfeather-storm-spire.png",
+    "subject": "云海上的风暴高台、远景尖峰与冷色风云；前景为完整开阔的深灰岩台",
+    "name": "裂翎高巢·深层LV1",
+    "encounters": [
+      "裂翎高巢·深层LV1"
+    ]
+  },
+  {
+    "scope": "region",
+    "code": "eversong",
+    "file": "glassglow-forest.png",
+    "subject": "金叶森林、层叠青绿远景与古老林道；中央保留偏暗平坦的林土地面",
+    "name": "琉辉之森",
+    "encounters": [
+      "琉叶幼豹讨伐",
+      "辉晶幼龙讨伐",
+      "棱枝树灵讨伐",
+      "迷流怨灵讨伐",
+      "光纹石哨讨伐",
+      "辉蚀山猫讨伐",
+      "琉辉构装体讨伐",
+      "辉流巨蛇 · 精英讨伐",
+      "光纹巨像 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "dawn-ruins",
+    "file": "glassglow-old-court.png",
+    "subject": "金叶林中的古老石庭、远景残拱与褪色金饰；前景为完整宽阔的灰青石铺地",
+    "name": "琉辉旧庭",
+    "encounters": [
+      "琉辉旧庭"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "dawn-core",
+    "file": "glassglow-prism-hall.png",
+    "subject": "深层棱晶大厅、远景嵌壁晶核与古老石柱；中央保留深灰蓝色平坦石台",
+    "name": "琉辉旧庭·深层LV1",
+    "encounters": [
+      "琉辉旧庭·深层LV1"
+    ]
+  },
+  {
+    "scope": "region",
+    "code": "tirisfal",
+    "file": "inkmist-woodland.png",
+    "subject": "薄雾墓园、枯枝林影与远景断碑；中央保留宽阔平坦的灰青林土",
+    "name": "墨雾幽林",
+    "encounters": [
+      "墨翼蝠讨伐",
+      "守冢灰狼讨伐",
+      "枯骸吞噬者讨伐",
+      "雾纹毒蛛讨伐",
+      "幽灯侍者讨伐",
+      "黑涎猎犬讨伐",
+      "冢穴织丝者讨伐",
+      "蚀雾潜行者 · 精英讨伐",
+      "断碑守望者 · 精英讨伐"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "spider-canyon",
+    "file": "silentsilk-canyon.png",
+    "subject": "幽暗石峡、远景灰白蛛网与枯根；前景为完整平坦的灰青岩土",
+    "name": "缄丝峡谷",
+    "encounters": [
+      "缄丝峡谷"
+    ]
+  },
+  {
+    "scope": "dungeon",
+    "code": "plague-crypt-depths",
+    "file": "silentsilk-nest-depths.png",
+    "subject": "地下墓穴巢厅、嵌壁残网与旧石拱；中央保留灰青色完整平坦岩台",
+    "name": "缄丝峡谷·深层LV1",
+    "encounters": [
+      "缄丝峡谷·深层LV1"
+    ]
+  }
+]

@@ -34,7 +34,7 @@ public static partial class BattleFeedbackPlanner
         BattleFeedbackEvent? previous = null;
         foreach (var log in newLogs)
         {
-            var current = Parse(log.Text, before);
+            var current = Parse(log.Text, before, after);
             if (current is { IsFollowUp: true })
                 current = current with { IsFollowUp = previous is { Kind: "damage", Label: "普通攻击" or "二连击" } &&
                     previous.Source == current.Source && previous.Target == current.Target };
@@ -56,7 +56,7 @@ public static partial class BattleFeedbackPlanner
         scene.RoomId == latest.RoomId && scene.RunSequence == latest.RunSequence && latest.RoundNumber == plan.Round &&
         (plan.Defeated || !latest.ClosedAtUtc.HasValue && SameEncounter(scene, latest));
 
-    private static BattleFeedbackEvent? Parse(string text, RoomDetailResponse room)
+    private static BattleFeedbackEvent? Parse(string text, RoomDetailResponse room, RoomDetailResponse latest)
     {
         var slots = room.Slots.Where(slot => slot.IsOccupied).ToList();
         var actor = slots.FirstOrDefault(slot => text.StartsWith(Prefix(slot), StringComparison.Ordinal));
@@ -74,6 +74,37 @@ public static partial class BattleFeedbackPlanner
             _ => "slash"
         };
         var label = ActionLabel(action);
+
+        var gained = GainedStatus().Match(actor is null && text.StartsWith(room.MonsterName + " ", StringComparison.Ordinal)
+            ? text[(room.MonsterName.Length + 1)..] : action);
+        if (gained.Success && (actor is not null || text.StartsWith(room.MonsterName + " ", StringComparison.Ordinal)))
+        {
+            var target = actor is null ? "enemy" : source;
+            var name = gained.Groups[1].Value;
+            var effects = actor is null ? latest.MonsterEffects.Concat(room.MonsterEffects) :
+                (latest.Slots.FirstOrDefault(slot => slot.CharacterId == actor.CharacterId)?.StatusEffects ?? [])
+                    .Concat(actor.StatusEffects);
+            var status = effects.FirstOrDefault(effect => effect.Name == name);
+            var kind = status is null ? "status" : status.IsPositive ? "buff" : "debuff";
+            return new("", target, 0, kind, "pulse", kind == "buff" ? "light" : kind == "debuff" ? "dark" : "neutral", name, false);
+        }
+        if (action.Contains("驱散了 " + room.MonsterName + " 的 ", StringComparison.Ordinal))
+            return new(source, "enemy", 0, "dispel", "pulse", "light", "强化驱散", false);
+        if (action.Contains("移除了 ", StringComparison.Ordinal))
+        {
+            var recipient = slots.FirstOrDefault(slot => text.Contains($"移除了 {Prefix(slot).TrimEnd()} 的 ", StringComparison.Ordinal)) ?? actor;
+            if (recipient is not null)
+                return new(source, recipient.SlotIndex.ToString(), 0, "cleanse", "pulse", "heal", "净化", false);
+        }
+        var cooldown = ReducedCooldown().Match(action);
+        if (actor is not null && cooldown.Success)
+            return new(source, source, 0, "cooldown", "pulse", "light", $"冷却缩短 {cooldown.Groups[1].Value} 回合", false);
+        if (actor is not null && action.StartsWith("使用 ", StringComparison.Ordinal))
+        {
+            var boosts = DamageBoost().Matches(action);
+            if (boosts.Count > 0)
+                return new(source, source, 0, "buff", "pulse", "light", string.Join(" · ", boosts.Select(match => match.Value)), false);
+        }
 
         if (heal.Success && int.TryParse(heal.Groups[1].Value, out var healing))
         {
@@ -122,7 +153,7 @@ public static partial class BattleFeedbackPlanner
                 action.EndsWith("（暴击）。", StringComparison.Ordinal), modifier, normalEcho);
         }
 
-        if (actor is not null && action.Contains("打断了 ", StringComparison.Ordinal))
+        if (action.Contains($"打断了 {room.MonsterName} 的行动", StringComparison.Ordinal))
             return new(source, "enemy", 0, "interrupt", "pulse", "light", "打断", false);
         if (actor is not null && action.Contains("，守护 ", StringComparison.Ordinal))
         {
@@ -155,6 +186,12 @@ public static partial class BattleFeedbackPlanner
     private static partial Regex SoulName();
     [GeneratedRegex("点([火水土风光暗])属性伤害")]
     private static partial Regex SoulElement();
+    [GeneratedRegex(@"^获得 (.+?)，持续 \d+ 回合")]
+    private static partial Regex GainedStatus();
+    [GeneratedRegex(@"冷却缩短 (\d+) 回合")]
+    private static partial Regex ReducedCooldown();
+    [GeneratedRegex(@"(?:普通攻击伤害|最终伤害|攻击) \+\d+(?:\.\d+)?%")]
+    private static partial Regex DamageBoost();
 }
 
 public sealed record BattleFeedbackEvent(string Source, string Target, int Amount, string Kind,

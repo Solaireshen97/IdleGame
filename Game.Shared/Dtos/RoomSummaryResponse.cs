@@ -23,4 +23,5 @@ public class RoomSummaryResponse
     public bool IsPreparationTimeoutEnabled { get; set; }
     public bool IsCurrentUserParticipant { get; set; }
     public bool IsOwnedByCurrentUser { get; set; }
+    public int PendingOperationCount { get; set; }
 }

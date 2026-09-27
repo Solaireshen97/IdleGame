@@ -113,8 +113,8 @@ public sealed class WeaponServiceTests
         test.Db.AddRange(
             new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 200, MonsterAttack = 8, MonsterDefense = 5, SlotCount = 5 },
             new Monster { Id = 1, Name = "Slime", Hp = 200, MaxHp = 200, Attack = 8, Defense = 5 },
-            new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
-            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true, IsAutoEnabled = true },
+            new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, IsOwnerAutoEnabled = true, SlotCount = 5, Status = RoomStatus.NotStarted },
+            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsAutoEnabled = true },
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
             new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind,
                 TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
@@ -213,7 +213,7 @@ public sealed class WeaponServiceTests
             new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = 8, MonsterDefense = 2, SlotCount = 5 },
             new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = 8, Defense = 2 },
             new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
-            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true },
+            new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1 },
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow });
         await test.Db.SaveChangesAsync();
         var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
@@ -451,7 +451,7 @@ public sealed class WeaponServiceTests
 
         Assert.Equal(0, shopSnapshot.QualityRank);
         Assert.Equal(3, dropSnapshot.QualityRank);
-        Assert.Equal("史诗", dropSnapshot.QualityName);
+        Assert.Equal("三晶", dropSnapshot.QualityName);
         Assert.Equal(3, weapon.QualityRank);
         Assert.Equal(new[] { 2, 1 }, weapon.Skills.Select(skill => skill.Level));
         Assert.All(weapon.Skills, skill =>
@@ -553,7 +553,7 @@ public sealed class WeaponServiceTests
         var weapon = snapshot!.ToCharacterWeapon(1);
 
         Assert.Equal(0, snapshot.QualityRank);
-        Assert.Equal("普通", snapshot.QualityName);
+        Assert.Equal("未点亮", snapshot.QualityName);
         Assert.Equal((2, 2, 0),
             (weapon.Skills.Single().Level, weapon.Skills.Single().BaseLevel,
                 weapon.Skills.Single().QualityBonusLevel));
@@ -573,7 +573,7 @@ public sealed class WeaponServiceTests
         var weapon = snapshot!.ToCharacterWeapon(1);
 
         Assert.Equal(3, weapon.QualityRank);
-        Assert.Equal("史诗", snapshot.QualityName);
+        Assert.Equal("三晶", snapshot.QualityName);
         Assert.All(weapon.Skills, skill =>
         {
             Assert.Equal(1, skill.BaseLevel);

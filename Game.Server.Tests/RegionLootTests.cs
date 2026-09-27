@@ -28,11 +28,12 @@ public sealed class RegionLootTests
         var region = world.Regions.Single(region => region.FeaturedElement.ToString() == element);
         var challenges = world.Dungeons.Where(dungeon => dungeon.IsVisible && dungeon.RegionCode == region.Code).ToList();
         Assert.Equal(11, challenges.Count);
+        // Check the whole region, including overlaps between hunts and dungeon waves.
+        var fingerprints = new Dictionary<string, string>();
 
         foreach (var dungeon in challenges)
         {
             var monsters = encounters.Dungeons[dungeon.Code].SelectMany(wave => wave.Monsters).ToList();
-            var fingerprints = new Dictionary<string, string>();
             foreach (var monster in monsters)
             {
                 var profile = string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? dungeon.Code : monster.RewardProfileCode;
@@ -43,9 +44,13 @@ public sealed class RegionLootTests
                 {
                     Assert.Equal(region.FeaturedElement, weapons.FindItem(drop.Code)!.Element);
                     Assert.Equal(1, drop.Quantity);
-                    Assert.InRange(drop.ChancePercent, 1m, 20m);
+                    Assert.InRange(drop.ChancePercent, 1m, 10m);
                 });
                 Assert.True(drops[0].ChancePercent > drops.Skip(1).Max(drop => drop.ChancePercent));
+                if (dungeon.DungeonKind == "Elite")
+                    Assert.Equal(new[] { 3m, 2m }, drops.Select(drop => drop.ChancePercent));
+                if (dungeon.Code == region.FeaturedDungeonCode && monster.IsBoss)
+                    Assert.Equal(new[] { 5m, 2m }, drops.Select(drop => drop.ChancePercent));
                 var fingerprint = string.Join(";", drops.OrderBy(drop => drop.Code)
                     .Select(drop => $"{drop.Code}:{drop.ChancePercent}"));
                 if (fingerprints.TryGetValue(fingerprint, out var otherName)) Assert.Equal(monster.Name, otherName);

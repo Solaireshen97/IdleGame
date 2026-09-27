@@ -12,6 +12,9 @@
 .weapon-detail-kicker { color: var(--weapon-tone); font-size: .64rem; font-weight: 850; letter-spacing: .08em; }
 .weapon-detail-heading h2 { margin: .18rem 0; color: #f7e9d2; font: 700 1.2rem Georgia, serif; overflow-wrap: anywhere; }
 .weapon-detail-heading p { margin: 0; color: #acc0cb; font-size: .72rem; }
+.weapon-detail-quality { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .2rem 0 .3rem; font-size: .65rem; }
+.weapon-detail-quality > span { color: #acc0cb; }
+.weapon-detail-quality strong { color: #efd498; font-size: .65rem; }
 .weapon-detail-close { width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #597184; border-radius: .55rem; background: #14283a; color: #eef2f4; font-size: 1.5rem; cursor: pointer; }
 .weapon-detail-close:hover, .weapon-detail-close:focus-visible { border-color: var(--weapon-tone); color: var(--weapon-tone); }
 .weapon-detail-body { display: grid; gap: .85rem; min-height: 0; overflow-y: auto; padding: .9rem 1rem; overscroll-behavior: contain; }

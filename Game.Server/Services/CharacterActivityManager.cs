@@ -56,6 +56,7 @@ public static class CharacterActivityManager
     {
         if (room.ClosedAtUtc.HasValue) return;
         room.ClosedAtUtc = now;
+        room.IsOwnerAutoEnabled = false;
         room.Status = RoomStatus.BattleOver;
         room.NextRoundAvailableAtUtc = null;
         room.RoundCooldownDurationSeconds = null;

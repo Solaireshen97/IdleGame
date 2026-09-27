@@ -165,7 +165,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var user = new User { Id = 1, UserName = "simulation", PasswordHash = "unused", ActiveCharacterId = 1, StarterWeaponRewardClaimed = true };
     db.AddRange(user, dungeon);
     await db.SaveChangesAsync();
-    var room = new Room { DungeonId = dungeon.Id, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted, IsPreparationTimeoutEnabled = false, TotalWaveCount = encounters.GetWaveCount(dungeon) };
+    var room = new Room { DungeonId = dungeon.Id, OwnerUserId = 1, IsOwnerAutoEnabled = true, SlotCount = 5, Status = RoomStatus.NotStarted, IsPreparationTimeoutEnabled = false, TotalWaveCount = encounters.GetWaveCount(dungeon) };
     db.Rooms.Add(room);
     await db.SaveChangesAsync();
     var monsters = encounters.CreateMonsters(dungeon).ToList();
@@ -203,7 +203,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
             LastAtUtc = DateTime.UtcNow
         });
         db.CharacterWeapons.AddRange(loadout);
-        db.RoomSlots.Add(new RoomSlot { RoomId = room.Id, SlotIndex = index, UserId = 1, CharacterId = index, IsMainControl = index == 1, IsAutoEnabled = true });
+        db.RoomSlots.Add(new RoomSlot { RoomId = room.Id, SlotIndex = index, UserId = 1, CharacterId = index, IsAutoEnabled = true });
         db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = index, ItemCode = "minor-healing-potion", Quantity = 1000 });
         db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 70 });
         foreach (var (code, rank) in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = rank });

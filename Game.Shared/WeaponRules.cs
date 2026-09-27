@@ -30,10 +30,10 @@ public static class WeaponRules
 
     public static string QualityName(int bonusLevels) => bonusLevels switch
     {
-        <= 0 => "普通",
-        1 => "精良",
-        2 => "稀有",
-        _ => "史诗"
+        <= 0 => "未点亮",
+        1 => "一晶",
+        2 => "二晶",
+        _ => "三晶"
     };
 
     public static string QualityCode(int bonusLevels) => bonusLevels switch

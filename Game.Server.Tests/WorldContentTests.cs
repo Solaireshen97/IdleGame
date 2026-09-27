@@ -146,7 +146,7 @@ public sealed class WorldContentTests
             Assert.Equal(region.FeaturedElement, bossWeapon.Element);
             var bossDrop = Assert.Single(content.RewardOptions.MonsterKills[boss.RewardProfileCode].Drops,
                 drop => drop.Code == region.FeaturedWeaponCode);
-            Assert.Equal(18m, bossDrop.ChancePercent);
+            Assert.Equal(5m, bossDrop.ChancePercent);
             Assert.Single(content.RewardOptions.MonsterKills, pair => pair.Value.Drops.Any(drop => drop.Code == region.FeaturedWeaponCode));
             Assert.DoesNotContain(content.RewardOptions.DungeonClears.Values, bundle => bundle.Drops.Any(drop => drop.Code == region.FeaturedWeaponCode));
 

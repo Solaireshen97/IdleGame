@@ -107,6 +107,19 @@ public class UserController(UserService userService, TalentService talentService
         };
     }
 
+    [HttpPut("characters/{characterId:int}/quick-skill-cast")]
+    public async Task<IActionResult> SetQuickSkillCast(int characterId, [FromBody] SetQuickSkillCastRequest request)
+    {
+        var (success, error) = await userService.SetQuickSkillCastAsync(GetBearerToken(), characterId, request.IsEnabled);
+        return success ? NoContent() : error switch
+        {
+            "Unauthorized" => Unauthorized(),
+            "UserNotFound" or "CharacterNotFound" => NotFound(error),
+            "NotOwner" => StatusCode(403, "NotOwner"),
+            _ => BadRequest(error)
+        };
+    }
+
     [HttpPost("characters")]
     public async Task<IActionResult> CreateCharacter([FromBody] CreateCharacterRequest? request)
     {

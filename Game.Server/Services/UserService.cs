@@ -219,6 +219,27 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         return (user, character, null);
     }
 
+    public async Task<(bool Success, string? Error)> SetQuickSkillCastAsync(string? token, int characterId, bool isEnabled)
+    {
+        var (user, error) = await GetCurrentUserEntityAsync(token);
+        if (error is not null) return (false, error);
+
+        // This preference is independent of combat. Update only this column so an
+        // in-flight round can still save HP and rewards without losing the choice.
+        var updated = await dbContext.Characters.Where(character => character.Id == characterId && character.UserId == user!.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(character => character.IsQuickSkillCastEnabled, isEnabled));
+        if (updated == 0)
+            return (false, await dbContext.Characters.AnyAsync(character => character.Id == characterId) ? "NotOwner" : "CharacterNotFound");
+        var tracked = dbContext.Characters.Local.FirstOrDefault(character => character.Id == characterId);
+        if (tracked is not null)
+        {
+            var property = dbContext.Entry(tracked).Property(character => character.IsQuickSkillCastEnabled);
+            property.CurrentValue = property.OriginalValue = isEnabled;
+            property.IsModified = false;
+        }
+        return (true, null);
+    }
+
     public async Task<(CharacterSummaryResponse? Response, string? Error)> CreateCurrentCharacterAsync(string? token, CreateCharacterRequest request)
     {
         var (user, error) = await GetCurrentUserEntityAsync(token);

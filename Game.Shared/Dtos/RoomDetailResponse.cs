@@ -51,6 +51,7 @@ public class RoomDetailResponse
     public MonsterIntentResponse? MonsterIntent { get; set; }
     public List<BattleStatusEffectResponse> MonsterEffects { get; set; } = [];
     public List<RoomSlotResponse> Slots { get; set; } = new();
+    public List<RoomOperationResponse> Operations { get; set; } = [];
     public RoomRewardSummaryResponse? Rewards { get; set; }
     public RoomCumulativeRewardsResponse? CumulativeRewards { get; set; }
     public List<BattleLogResponse> BattleLogs { get; set; } = [];

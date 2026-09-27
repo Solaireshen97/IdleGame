@@ -93,6 +93,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("TalentPoints")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsQuickSkillCastEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
@@ -601,6 +604,9 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("OwnerUserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsOwnerAutoEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("NextRoundAvailableAtUtc")
                         .HasColumnType("TEXT");
 
@@ -658,9 +664,6 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsAutoEnabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsMainControl")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsTemporaryAuto")
@@ -739,6 +742,27 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.RoomOperation", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("UserId").HasColumnType("INTEGER");
+                    b.Property<int>("Kind").HasColumnType("INTEGER");
+                    b.Property<int>("SlotIndex").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("CharacterName").IsRequired().HasColumnType("TEXT");
+                    b.Property<int?>("ExpectedTargetCharacterId").HasColumnType("INTEGER");
+                    b.Property<int?>("ExpectedSourceSlotIndex").HasColumnType("INTEGER");
+                    b.Property<string>("Status").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Error").HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime?>("FinishedAtUtc").HasColumnType("TEXT");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("Id");
+                    b.HasIndex("RoomId", "Status", "Id");
+                    b.ToTable("RoomOperations");
+                });
+
             modelBuilder.Entity("Game.Shared.Models.UserLoginSession", b =>
                 {
                     b.Property<int>("Id")
@@ -775,6 +799,11 @@ namespace Game.Server.Data.Migrations
             modelBuilder.Entity("Game.Shared.Models.CharacterWeapon", b =>
                 {
                     b.Navigation("Skills");
+                });
+            modelBuilder.Entity("Game.Shared.Models.RoomOperation", b =>
+                {
+                    b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade).IsRequired();
                 });
 #pragma warning restore 612, 618
         }

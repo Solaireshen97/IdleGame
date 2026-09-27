@@ -8,6 +8,7 @@ public class Room
     public int DungeonId { get; set; }
     public int MonsterId { get; set; }
     public int OwnerUserId { get; set; }
+    public bool IsOwnerAutoEnabled { get; set; }
     public int SlotCount { get; set; }
     public RoomStatus Status { get; set; }
     public DateTime? NextRoundAvailableAtUtc { get; set; }

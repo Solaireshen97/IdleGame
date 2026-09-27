@@ -5,7 +5,7 @@
     const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
     const number = value => value.toLocaleString("zh-CN");
     const spriteLoads = new WeakMap();
-    const sprites = root => [...root.querySelectorAll(".fighter__portrait img, .battle-field__enemy-art img")];
+    const sprites = root => [...root.querySelectorAll(".fighter__portrait img, .battle-field__enemy-art img, .battle-field__backdrop img")];
 
     function decodeSprite(img) {
         const src = img.src;
@@ -64,6 +64,7 @@
         const isReduced = reducedMotion();
         const numberDuration = 2200;
         const numberLanes = new Map();
+        const effectCards = [];
         let lastNumberEnd = 0;
 
         const wait = ms => new Promise(resolve => {
@@ -95,9 +96,21 @@
         };
         const portrait = unit => unit?.element.querySelector(".fighter__portrait, .battle-field__enemy-art");
         const pointOf = unit => {
-            const box = (portrait(unit) ?? unit?.element ?? field).getBoundingClientRect();
+            const art = portrait(unit);
+            const img = art?.querySelector("img");
+            const box = (img ?? art ?? unit?.element ?? field).getBoundingClientRect();
             const bounds = field.getBoundingClientRect();
-            return { x: box.left + box.width * .5 - bounds.left, y: box.top + box.height * .48 - bounds.top };
+            let top = box.top;
+            let height = box.height;
+            // Narrow party slots leave empty space above a contained sprite.
+            // Anchor hits to the rendered image, rather than that empty box.
+            if (img?.naturalWidth && getComputedStyle(img).objectFit === "contain") {
+                const scale = Math.min(box.width / img.naturalWidth, box.height / img.naturalHeight);
+                height = img.naturalHeight * scale;
+                const position = getComputedStyle(img).objectPosition.split(" ")[1];
+                top += (box.height - height) * (parseFloat(position) / 100 || 0);
+            }
+            return { x: box.left + box.width * .5 - bounds.left, y: top + height * .48 - bounds.top };
         };
         const updateHp = (unit, hp, max = unit.max, immediate = false) => {
             unit.hp = Math.max(0, Math.min(max, hp));
@@ -121,6 +134,14 @@
             }
         };
         const impact = (event, point, color) => {
+            if (event.kind === "damage") {
+                const burst = make(`combat-hit-burst${event.critical ? " combat-hit-burst--critical" : ""}`, point, color);
+                animate(burst, [
+                    { transform: "translate(-50%, -50%) scale(.65)", opacity: .95 },
+                    { transform: "translate(-50%, -50%) scale(1.2)", opacity: .75, offset: .16 },
+                    { transform: "translate(-50%, -50%) scale(1.55)", opacity: 0 }
+                ], { duration: event.critical ? 300 : 230 }, true);
+            }
             const ring = make(`combat-impact combat-impact--${event.kind}`, point, color);
             animate(ring, [{ transform: "translate(-50%, -50%) scale(.2)", opacity: .95 },
                 { transform: `translate(-50%, -50%) scale(${event.critical ? 1.65 : 1})`, opacity: 0 }], { duration: 360 }, true);
@@ -135,50 +156,70 @@
             }
             particles(point, color, event.critical ? 10 : 6, event.critical ? 64 : 40);
         };
-        const reserveNumber = async (event, point) => {
-            // Party-wide attacks share lanes too, so different allies' damage
-            // numbers cannot cover one another on the compact formation.
-            const laneGroup = event.target === "enemy" ? "enemy" : "party";
-            let pool = numberLanes.get(laneGroup);
+        const reserveNumber = async (event, point, count = 1) => {
+            let pool = numberLanes.get(event.target);
             if (!pool) {
-                const columns = event.target === "enemy" && field.clientWidth >= 240 ? 2 : 1;
-                const rowHeight = field.clientWidth > 450 ? 32 : 26;
+                const rowHeight = field.clientWidth > 450 ? 46 : 39;
                 const fieldTop = field.getBoundingClientRect().top;
-                const healthBottom = Math.max(...[...units.values()].map(unit =>
-                    unit.element.querySelector(".combat-health")?.getBoundingClientRect().bottom ?? fieldTop));
-                const top = Math.max(18, healthBottom - fieldTop + 18);
-                const rows = Math.max(1, Math.min(5, Math.floor((field.clientHeight - top - 18) / rowHeight) + 1));
-                const areaLeft = event.target === "enemy" ? field.clientWidth * .3 : 12;
-                const areaWidth = event.target === "enemy" ? field.clientWidth - areaLeft - 12 : field.clientWidth * .3 - 24;
-                const width = Math.min(116, Math.max(32, areaWidth) / columns);
-                const left = event.target === "enemy"
-                    ? Math.max(areaLeft, Math.min(field.clientWidth - columns * width - 12, point.x - columns * width / 2))
-                    : areaLeft;
-                const bottom = Math.min(field.clientHeight - 16, Math.max(top + (rows - 1) * rowHeight, point.y + 48));
-                pool = { cursor: 0, slots: Array.from({ length: rows * columns }, (_, i) => ({
-                    x: left + (i % columns + .5) * width,
-                    y: bottom - Math.floor(i / columns) * rowHeight,
-                    width: width - 10, until: 0
-                })) };
-                numberLanes.set(laneGroup, pool);
+                const target = units.get(event.target);
+                const healthBottom = target?.element.querySelector(".combat-health")?.getBoundingClientRect().bottom ?? fieldTop;
+                const top = Math.min(field.clientHeight - 28, Math.max(28, healthBottom - fieldTop + 28));
+                const bottom = Math.max(top, field.clientHeight - 24);
+                const center = Math.max(top, Math.min(bottom, point.y));
+                const targetWidth = event.target === "enemy" ? 180
+                    : Math.min(140, Math.max(64, (portrait(target)?.getBoundingClientRect().width ?? 80) + 20));
+                const width = Math.max(32, Math.min(targetWidth,
+                    (Math.min(point.x, field.clientWidth - point.x) - 10) * 2));
+                // First hit sits on the target's body. Subsequent hits stay on
+                // its vertical axis; never spread into the middle of the field.
+                let positions = [0, -1, 1].map(offset => center + offset * rowHeight)
+                    .filter(y => y >= top && y <= bottom);
+                // Keep a swing and its echo together even when the compact
+                // field only has room for two rows around the body.
+                if (positions.length < 2 && bottom > top) {
+                    const gap = Math.min(rowHeight, bottom - top);
+                    const upper = Math.max(top, Math.min(bottom - gap, center));
+                    const lower = Math.min(bottom, Math.max(top + gap, center));
+                    positions = center - upper <= lower - center ? [upper, upper + gap] : [lower, lower - gap];
+                }
+                pool = { cursor: 0, slots: positions.map(y => ({ x: point.x, y, width, until: 0 })) };
+                numberLanes.set(event.target, pool);
             }
             // Never overwrite a live number. Short fields slow the next hit just
             // enough to free a lane instead of dropping hits or stacking text.
             while (!signal.aborted) {
+                const available = [];
                 for (let i = 0; i < pool.slots.length; i++) {
                     const laneIndex = (pool.cursor + i) % pool.slots.length;
                     const lane = pool.slots[laneIndex];
-                    if (lane.until > performance.now()) continue;
-                    lane.until = Infinity;
+                    const now = performance.now();
+                    if (lane.until > now) continue;
+                    // Nearby allies retain their own anchors, but wait or use
+                    // another local row if a neighbour's number overlaps.
+                    const overlaps = [...numberLanes.values()].some(other => other !== pool && other.slots.some(active =>
+                        active.until > now && Math.abs(active.x - lane.x) < ((active.displayWidth ?? active.width) + lane.width) / 2
+                        && Math.abs(active.y - lane.y) < (field.clientWidth > 450 ? 46 : 39)));
+                    if (overlaps) continue;
+                    available.push({ lane, laneIndex });
+                    if (available.length < Math.min(count, pool.slots.length)) continue;
+                    for (const slot of available) slot.lane.until = Infinity;
                     pool.cursor = (laneIndex + 1) % pool.slots.length;
-                    return lane;
+                    return available.map(slot => slot.lane);
                 }
-                await wait(Math.max(1, Math.min(...pool.slots.map(lane => lane.until)) - performance.now()));
+                const now = performance.now();
+                const ends = [...numberLanes.values()].flatMap(other => other.slots.map(lane => lane.until)).filter(end => end > now);
+                await wait(Math.max(1, Math.min(...ends) - now));
             }
         };
         const popup = (event, lane, color) => {
-            const node = make(`combat-number${event.critical ? " combat-number--critical" : ""}${event.target !== "enemy" && event.kind === "damage" ? " combat-number--incoming" : ""} combat-number--${event.kind}`,
+            const node = make(`combat-number${event.critical ? " combat-number--critical" : ""}${event.isFollowUp ? " combat-number--echo" : ""}${event.target !== "enemy" && event.kind === "damage" ? " combat-number--incoming" : ""} combat-number--${event.kind}`,
                 lane, color);
+            if (event.isFollowUp || event.kind === "heal") {
+                const tag = document.createElement("small");
+                tag.className = "combat-number__tag";
+                tag.textContent = event.isFollowUp ? "追击" : "恢复";
+                node.append(tag);
+            }
             if (event.kind === "damage" && event.elementModifierPercent) {
                 const arrow = document.createElement("span");
                 arrow.className = "combat-number__affinity";
@@ -195,16 +236,56 @@
                 node.append(mark);
             }
             const measuredWidth = node.getBoundingClientRect().width;
-            const scale = Math.min(1, lane.width / Math.max(1, measuredWidth));
+            const scale = Math.min(1, lane.width / Math.max(1, measuredWidth) / 1.15);
+            lane.displayWidth = measuredWidth * scale * 1.15;
             lane.until = performance.now() + numberDuration;
             lastNumberEnd = Math.max(lastNumberEnd, lane.until);
             animate(node, [
-                { transform: `translate(-50%, calc(-50% + 6px)) scale(${scale * .7})`, opacity: 0 },
-                { transform: `translate(-50%, -50%) scale(${scale * 1.08})`, opacity: 1, offset: .07 },
-                { transform: `translate(-50%, -50%) scale(${scale})`, opacity: 1, offset: .16 },
+                { transform: `translate(-50%, calc(-50% + 3px)) scale(${scale * 1.15})`, opacity: 1 },
+                { transform: `translate(-50%, -50%) scale(${scale * 1.04})`, opacity: 1, offset: .045 },
+                { transform: `translate(-50%, -50%) scale(${scale})`, opacity: 1, offset: .1 },
                 { transform: `translate(-50%, calc(-50% - 3px)) scale(${scale})`, opacity: 1, offset: .82 },
                 { transform: `translate(-50%, calc(-50% - 8px)) scale(${scale * .96})`, opacity: 0 }
             ], { duration: numberDuration, easing: "linear" }, true);
+        };
+        const showEffect = (label, kind, color) => {
+            const bounds = field.getBoundingClientRect();
+            const healthBottom = Math.max(...[...units.values()].map(unit =>
+                unit.element.querySelector(".combat-health")?.getBoundingClientRect().bottom ?? bounds.top));
+            const card = make(`combat-effect combat-effect--${kind}`,
+                { x: field.clientWidth * .55, y: Math.min(field.clientHeight - 24, healthBottom - bounds.top + 22) }, color);
+            const icon = document.createElement("i");
+            icon.textContent = ({ buff: "↑", debuff: "↓", guard: "◇", interrupt: "!", cleanse: "✚", dispel: "✧", cooldown: "↻" })[kind] ?? "✦";
+            const text = document.createElement("strong");
+            text.textContent = label;
+            card.append(icon, text);
+            const measuredWidth = card.getBoundingClientRect().width;
+            const pairedWidth = (field.clientWidth - 36) / 2;
+            if (measuredWidth > pairedWidth || effectCards.some(old => old.getBoundingClientRect().width > pairedWidth)) {
+                for (const old of effectCards.splice(0)) { old.remove(); nodes.delete(old); }
+            }
+            while (effectCards.length >= 2) {
+                const old = effectCards.shift();
+                old.remove();
+                nodes.delete(old);
+            }
+            if (effectCards.length) {
+                for (const older of effectCards) older.style.left = `${field.clientWidth * .28}px`;
+                card.style.left = `${field.clientWidth * .73}px`;
+            }
+            effectCards.push(card);
+            const scale = Math.min(1, (field.clientWidth - 28) / Math.max(1, card.getBoundingClientRect().width));
+            const duration = 1400;
+            lastNumberEnd = Math.max(lastNumberEnd, performance.now() + duration);
+            animate(card, [
+                { transform: `translate(-50%, -50%) scale(${scale * 1.06})`, opacity: 1 },
+                { transform: `translate(-50%, -50%) scale(${scale})`, opacity: 1, offset: .08 },
+                { transform: `translate(-50%, calc(-50% - 3px)) scale(${scale})`, opacity: 1, offset: .75 },
+                { transform: `translate(-50%, calc(-50% - 10px)) scale(${scale})`, opacity: 0 }
+            ], { duration, easing: "linear" }, true)?.finished.then(() => {
+                const cardIndex = effectCards.indexOf(card);
+                if (cardIndex >= 0) effectCards.splice(cardIndex, 1);
+            }, () => {});
         };
         const applyHit = (event, target, lane, color) => {
             popup(event, lane, color);
@@ -283,10 +364,23 @@
                 index++;
                 const color = tones[event.tone] ?? tones.neutral;
                 const point = pointOf(target);
-                const lane = await reserveNumber(event, point);
+                if (event.amount <= 0) {
+                    if (actionText) actionText.textContent = event.label;
+                    showEffect(event.label, event.kind, color);
+                    impact(event, point, color);
+                    await wait(300);
+                    continue;
+                }
+                // Reserve the main hit and its echo together before launching, so
+                // a full damage lane cannot split one swing by several seconds.
+                const pairedEcho = plan.events[eventIndex + 1]?.isFollowUp;
+                const lanes = await reserveNumber(event, point, pairedEcho ? 2 : 1);
+                const lane = lanes?.[0];
                 if (!lane || signal.aborted) break;
                 if (actionText) actionText.textContent = `${source?.element.dataset.combatName ?? ""} · ${event.label}`.replace(/^ · /, "");
                 root.dataset.combatTone = event.target === "enemy" ? "friendly" : event.kind === "damage" ? "hostile" : "heal";
+                if (event.kind === "damage" && !["普通攻击", "二连击", "追击", "普攻追击", "追加伤害", "持续伤害", "敌方反击", "回合伤害"].includes(event.label))
+                    showEffect(event.label, "skill", color);
                 launch(event, source, target, step, color);
                 await wait(step * .42);
                 if (signal.aborted) break;
@@ -312,7 +406,7 @@
                     const echo = plan.events[++eventIndex];
                     const echoTarget = units.get(echo.target);
                     if (!echoTarget) continue;
-                    const echoLane = await reserveNumber(echo, pointOf(echoTarget));
+                    const echoLane = lanes[1] ?? (await reserveNumber(echo, pointOf(echoTarget)))?.[0];
                     if (!echoLane || signal.aborted) break;
                     await wait(90);
                     if (signal.aborted) break;

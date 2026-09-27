@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>战斗背景图鉴</title>
+  <link rel="stylesheet" href="/Game.Client/wwwroot/css/app.css">
+  <link rel="stylesheet" href="/Game.Client/Pages/Battle.razor.css">
+  <link rel="stylesheet" href="/Game.Client/wwwroot/css/battle-combat.css">
+  <style>
+    body { padding: 24px 16px; }
+    .preview-heading, .preview-tools { max-width: 960px; margin: 0 auto 16px; }
+    .preview-heading h1 { font-size: 20px; margin: 0 0 6px; color: #f0d295; }
+    .preview-heading p { font-size: 13px; margin: 0; color: #a5bac8; }
+    .preview-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+    .preview-tools button { min-height: 40px; padding: 8px 14px; color: #ddedf6; border: 1px solid #4c687b; border-radius: 8px; background: #172c3d; }
+    .preview-tools button[aria-pressed="true"] { color: #f5d99f; border-color: #c49a50; background: #473b27; }
+    .demo-shell { container: game-shell / inline-size; width: 100%; max-width: 480px; margin: 0 auto; }
+    .demo-shell--wide { max-width: 960px; }
+    .demo-page.battle-page--focused { display: block; min-height: 0; }
+    .demo-page .battle-stage { height: 430px; }
+    .demo-page .battle-feed { cursor: default; }
+    .demo-page .fighter__vitals strong { text-shadow: 0 2px 2px #06121c; }
+    .demo-page .battle-field__label { text-shadow: 0 2px 2px #06121c; }
+    .demo-page .fighter__portrait img { animation: none; }
+    .demo--solo .demo-extra { display: none; }
+    .preview-caption { margin: 14px 0 0; padding: 12px 14px; border: 1px solid #354a60; border-radius: 10px; color: #a9bdc9; font-size: 12px; line-height: 1.7; background: #132536; }
+    @media (max-width: 400px) { body { padding: 16px 8px; } .demo-page .battle-stage { height: 400px; } }
+  </style>
+</head>
+<body>
+  <header class="preview-heading"><h1>战斗背景图鉴</h1><p id="preview-description">红岩峡谷与赤土地面。四周柔和融入面板底色。</p></header>
+  <nav class="preview-tools" aria-label="场景选择">
+    <button type="button" data-scene="region" aria-pressed="true">赤烬荒原</button>
+    <button type="button" data-scene="rift" aria-pressed="false">燧渊裂隙</button>
+    <button type="button" data-scene="core" aria-pressed="false">燧渊裂隙·深层LV1</button>
+    <button type="button" data-scene="snowlands" aria-pressed="false">雾凇雪境</button>
+    <button type="button" data-scene="ice-cavern" aria-pressed="false">镜泉冰窟</button>
+    <button type="button" data-scene="frost-crown" aria-pressed="false">镜泉冰窟·深层LV1</button>
+    <button type="button" data-scene="woodland" aria-pressed="false">岩芽林地</button>
+    <button type="button" data-scene="mine" aria-pressed="false">烛井矿窟</button>
+    <button type="button" data-scene="mine-depths" aria-pressed="false">烛井矿窟·深层LV1</button>
+    <button type="button" data-scene="prairie" aria-pressed="false">长风原野</button>
+    <button type="button" data-scene="high-nest" aria-pressed="false">裂翎高巢</button>
+    <button type="button" data-scene="storm-spire" aria-pressed="false">裂翎高巢·深层LV1</button>
+    <button type="button" data-scene="golden-forest" aria-pressed="false">琉辉之森</button>
+    <button type="button" data-scene="old-court" aria-pressed="false">琉辉旧庭</button>
+    <button type="button" data-scene="prism-hall" aria-pressed="false">琉辉旧庭·深层LV1</button>
+    <button type="button" data-scene="mist-woodland" aria-pressed="false">墨雾幽林</button>
+    <button type="button" data-scene="silk-canyon" aria-pressed="false">缄丝峡谷</button>
+    <button type="button" data-scene="nest-depths" aria-pressed="false">缄丝峡谷·深层LV1</button>
+  </nav>
+  <nav class="preview-tools" aria-label="预览设置">
+    <button type="button" data-width="phone" aria-pressed="true">手机</button>
+    <button type="button" data-width="wide" aria-pressed="false">宽屏</button>
+    <button type="button" data-party="solo" aria-pressed="true">1 人队伍</button>
+    <button type="button" data-party="full" aria-pressed="false">5 人队伍</button>
+  </nav>
+  <main class="demo-shell">
+    <div class="battle-page battle-page--focused demo-page demo--solo">
+      <section class="battle-stage" aria-label="战斗场景预览">
+        <div class="battle-stage__header"><div><h1 id="encounter-name">烬尾蝎讨伐</h1></div><div class="battle-stage__meta"><span class="battle-mode" id="wave-label">第 1 / 1 波</span><span class="battle-status">等待开战</span></div></div>
+        <section class="monster-intent monster-intent--waiting"><div class="monster-intent__icon">!</div><div class="monster-intent__body"><strong>场景预览</strong><small>角色、怪物与血条叠加效果。</small></div><div class="monster-intent__target"><strong>1 号位 Knight</strong></div></section>
+        <div class="combat-readout"><span class="combat-readout__round">ROUND <b>00</b></span><strong class="combat-readout__action">等待出手</strong></div>
+        <div class="battle-field battle-field--illustrated" id="preview-field">
+          <div class="battle-field__backdrop" aria-hidden="true"><img id="scene-background" src="/Game.Client/wwwroot/art/battle-backgrounds/red-ember-wastes.png" alt=""></div>
+          <div class="battle-field__party">
+            <div class="battle-field__label"><span>我方队伍</span><strong id="party-count">1 / 5 人</strong></div>
+            <div class="fighter-line">
+              <button class="fighter fighter--occupied demo-extra" type="button"><span class="fighter__vitals"><strong>猎人</strong><span class="combat-health"><progress class="fighter__health" value="580" max="580"></progress></span></span><div class="fighter__portrait"><img src="/Game.Client/wwwroot/art/professions/hunter.png" alt="猎人"></div></button>
+              <button class="fighter fighter--occupied demo-extra" type="button"><span class="fighter__vitals"><strong>法师</strong><span class="combat-health"><progress class="fighter__health" value="500" max="500"></progress></span></span><div class="fighter__portrait"><img src="/Game.Client/wwwroot/art/professions/mage.png" alt="法师"></div></button>
+              <button class="fighter fighter--occupied demo-extra" type="button"><span class="fighter__vitals"><strong>祭司</strong><span class="combat-health"><progress class="fighter__health" value="620" max="620"></progress></span></span><div class="fighter__portrait"><img src="/Game.Client/wwwroot/art/professions/acolyte.png" alt="祭司"></div></button>
+              <button class="fighter fighter--occupied demo-extra" type="button"><span class="fighter__vitals"><strong>剑士</strong><span class="combat-health"><progress class="fighter__health" value="650" max="650"></progress></span></span><div class="fighter__portrait"><img src="/Game.Client/wwwroot/art/professions/swordsman.png" alt="剑士"></div></button>
+              <button class="fighter fighter--occupied" type="button"><span class="fighter__vitals"><strong>Knight</strong><span class="combat-health"><progress class="fighter__health" value="702" max="702"></progress></span><small class="fighter__hp-text">702 / 702</small></span><div class="fighter__portrait"><img src="/Game.Client/wwwroot/art/professions/knight.png" alt="骑士"><span class="fighter__number">1</span></div></button>
+            </div>
+          </div>
+          <div class="battle-field__enemy">
+            <button type="button" class="enemy-vitals"><span class="enemy-vitals__name"><strong id="enemy-name">烬尾蝎</strong><span id="enemy-hp">180 / 180 HP</span></span><span class="combat-health combat-health--enemy"><progress id="enemy-health" class="enemy-vitals__health" value="180" max="180"></progress></span></button>
+            <button type="button" class="battle-field__enemy-art"><img id="enemy-art" src="/Game.Client/wwwroot/art/monsters/monster-029.png" alt="烬尾蝎"></button>
+          </div>
+        </div>
+        <div class="battle-feed"><span class="battle-feed__live">战报</span><span class="battle-feed__latest">战斗尚未开始，行动记录会在这里出现。</span><span class="battle-feed__open">↗</span></div>
+      </section>
+      <p class="preview-caption" id="preview-caption">区域讨伐共用：赤烬荒原。两个副本分别使用独立背景。</p>
+    </div>
+  </main>
+  <script>
+    const scenes = {
+      region: { name: '烬尾蝎讨伐', file: 'red-ember-wastes.png', monster: '烬尾蝎', sprite: 'monster-029.png', hp: 180, waves: 1, description: '红岩峡谷与赤土地面。四周柔和融入面板底色。', caption: '区域讨伐共用：赤烬荒原。两个副本分别使用独立背景。' },
+      rift: { name: '燧渊裂隙', file: 'suiyuan-rift.png', monster: '燧渊领主', sprite: 'monster-035.png', hp: 9000, waves: 4, description: '幽暗熔岩洞窟，远处岩壁透出火光。', caption: '普通副本：燧渊裂隙。全部遭遇共用此副本背景。' },
+      core: { name: '燧渊裂隙·深层LV1', file: 'suiyuan-ember-core.png', monster: '烬核督战者', sprite: 'monster-082.png', hp: 48000, waves: 3, description: '深层熔心大厅，远处熔火映照黑曜岩层。', caption: '深层精英副本：燧渊裂隙·深层LV1。全部遭遇共用此副本背景。' },
+      snowlands: { name: '霜纹幼狼讨伐', file: 'frostmist-snowlands.png', monster: '霜纹幼狼', sprite: 'monster-039.png', hp: 120, waves: 1, description: '雾凇雪境：霜雪松林、远处冰湖与暮色山岭。', caption: '水属性区域：雾凇雪境。区域普通讨伐与精英讨伐共用背景。' },
+      'ice-cavern': { name: '镜泉冰窟', file: 'mirror-spring-cavern.png', monster: '凝牙狼王', sprite: 'monster-045.png', hp: 9000, waves: 4, description: '镜泉冰窟：蓝冰洞壁与远处融冰暗河。', caption: '水属性普通副本：镜泉冰窟。全部遭遇共用此副本背景。' },
+      'frost-crown': { name: '镜泉冰窟·深层LV1', file: 'frost-crown-seat.png', monster: '凝霜冠主', sprite: 'monster-087.png', hp: 56000, waves: 3, description: '凝霜冠座：深层冰晶大厅，靛蓝岩壁与远处冠形冰晶。', caption: '水属性深层精英副本：镜泉冰窟·深层LV1。全部遭遇共用背景。' },
+      woodland: { name: '岩芽幼狼讨伐', file: 'stonebud-woodland.png', monster: '岩芽幼狼', sprite: 'monster-005.png', hp: 50, waves: 1, description: '岩芽林地：农场边缘的森林、苔岩与平坦土路。', caption: '土属性区域：岩芽林地。区域普通讨伐与精英讨伐共用背景。' },
+      mine: { name: '烛井矿窟', file: 'candlewell-mine.png', monster: '砾牙矿主', sprite: 'monster-015.png', hp: 9000, waves: 4, description: '烛井矿窟：烛光矿道、远景木支架与赭色矿脉。', caption: '土属性普通副本：烛井矿窟。全部遭遇共用此副本背景。' },
+      'mine-depths': { name: '烛井矿窟·深层LV1', file: 'candlewell-depths.png', monster: '沉岩督造者', sprite: 'monster-072.png', hp: 57000, waves: 3, description: '深层采掘大厅：厚重岩层与远处赭金矿脉。', caption: '土属性深层精英副本：烛井矿窟·深层LV1。全部遭遇共用背景。' },
+      prairie: { name: '长风草狼讨伐', file: 'longwind-prairie.png', monster: '长风草狼', sprite: 'monster-049.png', hp: 120, waves: 1, description: '长风原野：风吹草原、层叠丘陵与横向云带。', caption: '风属性区域：长风原野。区域普通讨伐与精英讨伐共用背景。' },
+      'high-nest': { name: '裂翎高巢', file: 'riftfeather-high-nest.png', monster: '裂翎巢母', sprite: 'monster-055.png', hp: 9000, waves: 4, description: '裂翎高巢：峭壁巢地、远景枝巢与风蚀岩台。', caption: '风属性普通副本：裂翎高巢。全部遭遇共用此副本背景。' },
+      'storm-spire': { name: '裂翎高巢·深层LV1', file: 'riftfeather-storm-spire.png', monster: '岚穹巢主', sprite: 'monster-092.png', hp: 50000, waves: 3, description: '风暴高台：云海、尖峰与冷色风云。', caption: '风属性深层精英副本：裂翎高巢·深层LV1。全部遭遇共用背景。' },
+      'golden-forest': { name: '琉叶幼豹讨伐', file: 'glassglow-forest.png', monster: '琉叶幼豹', sprite: 'monster-058.png', hp: 50, waves: 1, description: '琉辉之森：金叶林道、青绿远景与古老石拱。', caption: '光属性区域：琉辉之森。区域普通讨伐与精英讨伐共用背景。' },
+      'old-court': { name: '琉辉旧庭', file: 'glassglow-old-court.png', monster: '失序辉庭卫', sprite: 'monster-065.png', hp: 9000, waves: 4, description: '琉辉旧庭：金叶林中的旧庭遗迹、残拱与褪色金饰。', caption: '光属性普通副本：琉辉旧庭。全部遭遇共用此副本背景。' },
+      'prism-hall': { name: '琉辉旧庭·深层LV1', file: 'glassglow-prism-hall.png', monster: '棱核守望者', sprite: 'monster-097.png', hp: 55000, waves: 3, description: '深层棱晶大厅：嵌壁晶核、古老石柱与冷色石台。', caption: '光属性深层精英副本：琉辉旧庭·深层LV1。全部遭遇共用背景。' },
+      'mist-woodland': { name: '守冢灰狼讨伐', file: 'inkmist-woodland.png', monster: '守冢灰狼', sprite: 'monster-019.png', hp: 120, waves: 1, description: '墨雾幽林：薄雾墓园、枯枝林影与远景断碑。', caption: '暗属性区域：墨雾幽林。区域普通讨伐与精英讨伐共用背景。' },
+      'silk-canyon': { name: '缄丝峡谷', file: 'silentsilk-canyon.png', monster: '缄丝蛛后', sprite: 'monster-025.png', hp: 9000, waves: 4, description: '缄丝峡谷：幽暗石峡、远景蛛网与枯根。', caption: '暗属性普通副本：缄丝峡谷。全部遭遇共用此副本背景。' },
+      'nest-depths': { name: '缄丝峡谷·深层LV1', file: 'silentsilk-nest-depths.png', monster: '缄丝巢主', sprite: 'monster-077.png', hp: 52000, waves: 3, description: '地下墓穴巢厅：嵌壁残网、旧石拱与灰青岩台。', caption: '暗属性深层精英副本：缄丝峡谷·深层LV1。全部遭遇共用背景。' }
+    };
+    document.querySelectorAll('[data-scene]').forEach(button => button.addEventListener('click', () => {
+      const scene = scenes[button.dataset.scene];
+      document.querySelector('#encounter-name').textContent = scene.name;
+      document.querySelector('#preview-description').textContent = scene.description;
+      document.querySelector('#preview-caption').textContent = scene.caption;
+      document.querySelector('#wave-label').textContent = `第 ${scene.waves} / ${scene.waves} 波`;
+      document.querySelector('#scene-background').src = `/Game.Client/wwwroot/art/battle-backgrounds/${scene.file}`;
+      document.querySelector('#enemy-name').textContent = scene.monster;
+      document.querySelector('#enemy-hp').textContent = `${scene.hp} / ${scene.hp} HP`;
+      document.querySelector('#enemy-health').max = scene.hp;
+      document.querySelector('#enemy-health').value = scene.hp;
+      document.querySelector('#enemy-art').src = `/Game.Client/wwwroot/art/monsters/${scene.sprite}`;
+      document.querySelector('#enemy-art').alt = scene.monster;
+      document.querySelectorAll('[data-scene]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    }));
+    document.querySelectorAll('[data-width]').forEach(button => button.addEventListener('click', () => {
+      document.querySelector('.demo-shell').classList.toggle('demo-shell--wide', button.dataset.width === 'wide');
+      document.querySelectorAll('[data-width]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    }));
+    document.querySelectorAll('[data-party]').forEach(button => button.addEventListener('click', () => {
+      const full = button.dataset.party === 'full';
+      document.querySelector('.demo-page').classList.toggle('demo--solo', !full);
+      document.querySelector('#preview-field').classList.toggle('battle-field--crowded', full);
+      document.querySelector('#party-count').textContent = full ? '5 / 5 人' : '1 / 5 人';
+      document.querySelectorAll('[data-party]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    }));
+  </script>
+</body>
+</html>

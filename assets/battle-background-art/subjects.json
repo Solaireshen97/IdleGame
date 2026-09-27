@@ -1,0 +1,110 @@
+[
+  {
+    "scope": "region",
+    "code": "durotar",
+    "file": "red-ember-wastes.png",
+    "subject": "赤土地面、红岩峡谷、远处暗色山脊与暮色天空；中央保留开阔战斗空间"
+  },
+  {
+    "scope": "dungeon",
+    "code": "ragefire-chasm",
+    "file": "suiyuan-rift.png",
+    "subject": "幽暗地下洞窟、赤褐岩壁与远处熔岩裂隙；前景为完整开阔的玄武岩地面"
+  },
+  {
+    "scope": "dungeon",
+    "code": "ragefire-heart",
+    "file": "suiyuan-ember-core.png",
+    "subject": "地下深层熔心大厅、黑曜岩层与远处熔火核心；前景为冷却的宽阔岩石战场"
+  },
+  {
+    "scope": "region",
+    "code": "dun-morogh",
+    "file": "frostmist-snowlands.png",
+    "subject": "雪山松林、远处冰湖与暮色山岭；中央为覆有薄雪的深冰蓝色平坦地面"
+  },
+  {
+    "scope": "dungeon",
+    "code": "frostspring-cavern",
+    "file": "mirror-spring-cavern.png",
+    "subject": "蓝冰洞壁、远处融冰暗河和幽暗洞穴；前景保留平坦完整的岩冰地面"
+  },
+  {
+    "scope": "dungeon",
+    "code": "frostspring-throne",
+    "file": "frost-crown-seat.png",
+    "subject": "深层冰晶大厅与远景冠形冰晶，靛蓝岩层和微弱青蓝反光；中央为深色平坦冰台"
+  },
+  {
+    "scope": "region",
+    "code": "elwynn",
+    "file": "stonebud-woodland.png",
+    "subject": "农场边缘的林地、苔岩与远处木栅栏；中央保留宽阔的平坦土路"
+  },
+  {
+    "scope": "dungeon",
+    "code": "kobold-mine",
+    "file": "candlewell-mine.png",
+    "subject": "烛光矿道、远景木支架与暗色矿脉；前景为完整平坦的岩土战场"
+  },
+  {
+    "scope": "dungeon",
+    "code": "kobold-mine-depths",
+    "file": "candlewell-depths.png",
+    "subject": "深层采掘大厅、厚重岩层和远景赭金矿脉；中央保留深灰褐色平坦岩台"
+  },
+  {
+    "scope": "region",
+    "code": "mulgore",
+    "file": "longwind-prairie.png",
+    "subject": "风吹草原、远景丘陵与横向云带；中央保留平坦开阔的草土地面"
+  },
+  {
+    "scope": "dungeon",
+    "code": "windfury-nest",
+    "file": "riftfeather-high-nest.png",
+    "subject": "峭壁高巢、远景枝巢与草原层峦；前景为完整宽阔的风蚀岩台"
+  },
+  {
+    "scope": "dungeon",
+    "code": "windfury-spire",
+    "file": "riftfeather-storm-spire.png",
+    "subject": "云海上的风暴高台、远景尖峰与冷色风云；前景为完整开阔的深灰岩台"
+  },
+  {
+    "scope": "region",
+    "code": "eversong",
+    "file": "glassglow-forest.png",
+    "subject": "金叶森林、层叠青绿远景与古老林道；中央保留偏暗平坦的林土地面"
+  },
+  {
+    "scope": "dungeon",
+    "code": "dawn-ruins",
+    "file": "glassglow-old-court.png",
+    "subject": "金叶林中的古老石庭、远景残拱与褪色金饰；前景为完整宽阔的灰青石铺地"
+  },
+  {
+    "scope": "dungeon",
+    "code": "dawn-core",
+    "file": "glassglow-prism-hall.png",
+    "subject": "深层棱晶大厅、远景嵌壁晶核与古老石柱；中央保留深灰蓝色平坦石台"
+  },
+  {
+    "scope": "region",
+    "code": "tirisfal",
+    "file": "inkmist-woodland.png",
+    "subject": "薄雾墓园、枯枝林影与远景断碑；中央保留宽阔平坦的灰青林土"
+  },
+  {
+    "scope": "dungeon",
+    "code": "spider-canyon",
+    "file": "silentsilk-canyon.png",
+    "subject": "幽暗石峡、远景灰白蛛网与枯根；前景为完整平坦的灰青岩土"
+  },
+  {
+    "scope": "dungeon",
+    "code": "plague-crypt-depths",
+    "file": "silentsilk-nest-depths.png",
+    "subject": "地下墓穴巢厅、嵌壁残网与旧石拱；中央保留灰青色完整平坦岩台"
+  }
+]

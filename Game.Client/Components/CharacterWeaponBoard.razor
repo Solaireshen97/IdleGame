@@ -98,7 +98,7 @@
             </div>
             <div class="weapon-board__grid">
                 @{ var main = FindEquipped(1); }
-                <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() quality-@(main?.QualityCode ?? "common") @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
+                <button type="button" class="weapon-card weapon-card--main element-@main?.Element.ToString().ToLowerInvariant() @(_selectedSlot == 1 ? "weapon-card--selected" : null)"
                         @onclick="() => SelectSlotAsync(1)" aria-pressed="@(_selectedSlot == 1 ? "true" : "false")" disabled="@_isSaving">
                     <span class="weapon-card__slot">主武器 <b>01</b></span>
                     <span class="weapon-card__crest" aria-hidden="true">@if (main is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(main.WeaponCode)" alt="" /> }</span>
@@ -106,6 +106,7 @@
                     <span class="weapon-card__element">@(main is null ? "主武器" : $"{WeaponRules.ElementName(main.Element)}属性")</span>
                     @if (main is not null)
                     {
+                        <span class="weapon-card__quality"><WeaponQualityCrystals Rank="@main.QualityRank" /></span>
                         <span class="weapon-card__skills">@foreach (var skill in main.Skills) { <span>@skill.Name Lv @skill.Level</span> }</span>
                     }
                     <span class="weapon-card__stats"><span>⚔ @(main?.Attack ?? 0)</span><span>✚ @(main?.MaxHp ?? 0)</span></span>
@@ -115,7 +116,7 @@
                     {
                         var slotIndex = index;
                         var weapon = FindEquipped(slotIndex);
-                        <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() quality-@(weapon?.QualityCode ?? "common") @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
+                        <button type="button" class="weapon-card weapon-card--sub element-@weapon?.Element.ToString().ToLowerInvariant() @(_selectedSlot == slotIndex ? "weapon-card--selected" : null) @(weapon is null ? "weapon-card--empty" : null)"
                                 @onclick="() => SelectSlotAsync(slotIndex)" aria-pressed="@(_selectedSlot == slotIndex ? "true" : "false")" disabled="@_isSaving">
                             <span class="weapon-card__slot">SUB WEAPON <b>@slotIndex.ToString("00")</b></span>
                             <span class="weapon-card__crest" aria-hidden="true">@if (weapon is null) { <span>+</span> } else { <img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /> }</span>
@@ -123,6 +124,7 @@
                             <span class="weapon-card__element">@(weapon is null ? "点击选择" : $"{WeaponRules.ElementName(weapon.Element)}属性")</span>
                             @if (weapon is not null)
                             {
+                                <span class="weapon-card__quality"><WeaponQualityCrystals Rank="@weapon.QualityRank" /></span>
                                 <span class="weapon-card__skills">@foreach (var skill in weapon.Skills) { <span class="@(skill.IsActive ? null : "weapon-skill--inactive")">@skill.Name Lv @skill.Level</span> }</span>
                                 <span class="weapon-card__stats"><span>⚔ @weapon.Attack</span><span>✚ @weapon.MaxHp</span></span>
                             }
@@ -152,6 +154,7 @@
             </div>
             <div class="weapon-board__inventory-tools"><small aria-live="polite">@FilteredWeapons.Count / @_data.Weapons.Count 把</small><label><input type="checkbox" checked="@_onlyUnequipped" @onchange="ToggleOnlyUnequipped" />未装备</label><button type="button" class="@(_batchMode ? "active" : null)" aria-pressed="@(_batchMode ? "true" : "false")" @onclick="ToggleBatchMode">@(_batchMode ? "退出批量" : "批量管理")</button></div>
         </div>
+        <p class="weapon-board__crystal-hint">水晶品质：三格由空到满，每点亮一格提高技能强化上限。</p>
         <div class="weapon-board__inventory" @ref="_inventoryList">
             @if (FilteredWeapons.Count == 0)
             {
@@ -161,7 +164,7 @@
             {
                 var isBatchSelected = _selectedWeaponIds.Contains(weapon.Id);
                 var canBatchProcess = CanBatchProcess(weapon);
-                <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() quality-@weapon.QualityCode @(weapon.EquippedSlotIndex.HasValue ? "weapon-tile--equipped" : null) @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
+                <article class="weapon-tile element-@weapon.Element.ToString().ToLowerInvariant() @(weapon.EquippedSlotIndex.HasValue ? "weapon-tile--equipped" : null) @(isBatchSelected ? "weapon-tile--selected" : null)" @key="weapon.Id">
                     @if (_batchMode && weapon.EquippedSlotIndex is null)
                     {
                         <label class="weapon-tile__select" title="@(canBatchProcess ? "加入批量处理" : weapon.IsLocked ? "请先解锁武器" : "这把武器暂不可批量处理")">
@@ -171,15 +174,16 @@
                     }
                     <button type="button" id="@($"weapon-tile-{weapon.Id}")" class="weapon-tile__open" @onclick="() => OpenWeaponDetails(weapon.Id)" disabled="@_isSaving"
                             aria-haspopup="dialog" aria-label="@GetWeaponTileLabel(weapon)">
-                        @if (weapon.EquippedSlotIndex.HasValue)
+                        @if (weapon.EquippedSlotIndex is int equippedSlot)
                         {
-                            <span class="weapon-tile__equipped">装备中</span>
+                            <span class="weapon-tile__equipped" title="@($"已装备于{(equippedSlot == 1 ? "主武器" : $"副武器 {equippedSlot:00}")}")">@(equippedSlot == 1 ? "主武器" : $"副 {equippedSlot:00}")</span>
                         }
-                        <span class="weapon-tile__quality">@weapon.QualityName</span>
+                        <span class="weapon-tile__element">@WeaponRules.ElementName(weapon.Element)</span>
                         <span class="weapon-tile__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(weapon.WeaponCode)" alt="" loading="lazy" /></span>
                         <strong>@weapon.Name</strong>
                         <span class="weapon-tile__stats">Lv.@weapon.ItemLevel · ⚔ @weapon.Attack</span>
-                        <span class="weapon-tile__flags">@if (weapon.EquippedSlotIndex is int slot) { <span>@(slot == 1 ? "主武器" : $"副武器 {slot:00}")</span> } @if (weapon.IsLocked) { <span>🔒</span> } @if (weapon.Skills.Count > 0) { <span title="含 @weapon.Skills.Count 项武器技能">✦@weapon.Skills.Count</span> }</span>
+                        <span class="weapon-tile__quality"><WeaponQualityCrystals Rank="@weapon.QualityRank" /></span>
+                        @if (weapon.IsLocked) { <span class="weapon-tile__lock" aria-hidden="true">🔒</span> }
                     </button>
                 </article>
             }
@@ -237,25 +241,26 @@
             var inspectedLocation = inspected.EquippedSlotIndex is int equipped
                 ? equipped == WeaponRules.MainSlotIndex ? "主武器" : $"副武器 {equipped:00}"
                 : "背包";
-            var detailSubtitle = $"{inspected.QualityName} · 装等 {inspected.ItemLevel} · {inspectedLocation}";
+            var detailSubtitle = $"装等 {inspected.ItemLevel} · {inspectedLocation}";
             if (isSelectionMode) detailSubtitle += $" · {(isHere ? $"当前{targetSlotName}" : $"目标 {targetSlotName}")}";
             var previewAttack = inspected.EquippedSlotIndex.HasValue ? _data.TotalAttack : _data.TotalAttack - (FindEquipped(_selectedSlot)?.Attack ?? 0) + inspected.Attack;
             var previewHp = inspected.EquippedSlotIndex.HasValue ? _data.TotalMaxHp : _data.TotalMaxHp - (FindEquipped(_selectedSlot)?.MaxHp ?? 0) + inspected.MaxHp;
             <WeaponDetailDialog @key="inspected.Id" Name="@inspected.Name" Element="@inspected.Element" ItemLevel="@inspected.ItemLevel"
                                 Attack="@inspected.Attack" MaxHp="@inspected.MaxHp" Skills="@GetDetailSkills(inspected)"
-                                Category="OWNED WEAPON" Subtitle="@detailSubtitle" ManagementLabel="强化 / 升品"
+                                Category="OWNED WEAPON" Subtitle="@detailSubtitle" QualityRank="@inspected.QualityRank" ManagementLabel="强化 / 点晶"
                                 Note="@(inspected.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop ? "初始或商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
                                 CloseLabel="@(_detailFromSlot ? "← 返回武器盘" : "← 返回武器仓库")" OnClose="CloseWeaponDetails">
                 <AdditionalContent>
-                    <section class="weapon-detail-management" aria-label="武器升品">
-                        <h3>品质提升 <small>@inspected.QualityName · 每条技能强化上限 +@(WeaponRules.MaxEnhancementPerSkill + inspected.QualityRank)</small></h3>
+                    <section class="weapon-detail-management" aria-label="点亮品质水晶">
+                        <h3>点亮水晶 <small>@inspected.QualityName · 每条技能强化上限 +@(WeaponRules.MaxEnhancementPerSkill + inspected.QualityRank)</small></h3>
+                        <p class="weapon-detail-preview">三格水晶表示武器品质，每点亮一格，每条技能的强化上限 +1；基础攻击与生命不变。</p>
                         @if (inspected.QualityRank >= WeaponRules.MaxQualityBonusLevels)
                         {
-                            <p class="weapon-detail-preview">已达最高品质。</p>
+                            <p class="weapon-detail-preview">三枚水晶已全部点亮。</p>
                         }
                         else if (MatchingQualityMaterials(inspected).Count == 0)
                         {
-                            <p class="weapon-detail-preview">需要另一把未装备、未锁定的同名武器，品质不限。初始赠送武器不能作为素材。</p>
+                            <p class="weapon-detail-preview">需要另一把未装备、未锁定的同名武器，点亮水晶数量不限。初始赠送武器不能作为素材。</p>
                         }
                         else
                         {
@@ -315,21 +320,22 @@
             <div class="weapon-quality-overlay" @onclick="CloseQualityPicker" @onkeydown="HandleQualityPickerKeyDown" @onkeydown:stopPropagation>
                 <section class="weapon-quality-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-quality-title" aria-describedby="weapon-quality-description" @onclick:stopPropagation>
                     <header class="weapon-quality-header">
-                        <div><span>QUALITY UPGRADE · @qualityTarget.Name</span><h2 id="weapon-quality-title">选择升品素材</h2><p>@qualityTarget.QualityName → @WeaponRules.QualityName(qualityTarget.QualityRank + 1) · 选择一把同款武器</p></div>
+                        <div><span>CRYSTAL AWAKENING · @qualityTarget.Name</span><h2 id="weapon-quality-title">选择点晶素材</h2><p>@qualityTarget.QualityName → @WeaponRules.QualityName(qualityTarget.QualityRank + 1) · 点亮下一枚水晶</p></div>
                         <button type="button" class="weapon-quality-close" @onclick="CloseQualityPicker" @ref="_qualityPickerCloseButton" aria-label="关闭素材选择">×</button>
                     </header>
                     <div class="weapon-quality-body">
-                        <p id="weapon-quality-description" class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示低品质、低装等素材。</p>
+                        <p id="weapon-quality-description" class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示点亮水晶较少、装等较低的素材。</p>
                         <div class="weapon-quality-grid" role="group" aria-label="同款武器素材">
                             @foreach (var material in MatchingQualityMaterials(qualityTarget))
                             {
                                 var blockedReason = QualityMaterialBlockReason(material);
-                                <button type="button" class="weapon-quality-option element-@material.Element.ToString().ToLowerInvariant() quality-@material.QualityCode @(_qualityMaterialId == material.Id ? "weapon-quality-option--selected" : null)"
+                                <button type="button" class="weapon-quality-option element-@material.Element.ToString().ToLowerInvariant() @(_qualityMaterialId == material.Id ? "weapon-quality-option--selected" : null)"
                                         @key="material.Id" @onclick="() => _qualityMaterialId = material.Id" disabled="@(_isSaving || blockedReason is not null)" aria-pressed="@(_qualityMaterialId == material.Id)"
                                         aria-label="@material.QualityName @material.Name，装等 @material.ItemLevel，攻击 @material.Attack，生命 @material.MaxHp，@(blockedReason ?? "可作为素材")">
-                                    <span class="weapon-quality-option__top"><b>@material.QualityName · @WeaponRules.ElementName(material.Element)</b><small>#@material.Id</small></span>
+                                    <span class="weapon-quality-option__top"><b>@WeaponRules.ElementName(material.Element)属性</b><small>#@material.Id</small></span>
                                     <span class="weapon-quality-option__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(material.WeaponCode)" alt="" loading="lazy" /></span>
                                     <strong>@material.Name</strong>
+                                    <span class="weapon-quality-option__crystals"><WeaponQualityCrystals Rank="@material.QualityRank" /></span>
                                     <span class="weapon-quality-option__stats">装等 @material.ItemLevel · ⚔ @material.Attack · ✚ @material.MaxHp</span>
                                     <span class="weapon-quality-option__skills">@(material.Skills.Count == 0 ? "无武器技能" : string.Join(" · ", material.Skills.Select(skill => $"{skill.Name} Lv{skill.Level}")))</span>
                                     <span class="weapon-quality-option__state">@(blockedReason ?? (material.Skills.Sum(skill => skill.EnhancementLevel) > 0 ? $"可消耗 · 已强化 +{material.Skills.Sum(skill => skill.EnhancementLevel)}" : "可作为素材"))</span>
@@ -344,7 +350,7 @@
                         {
                             <div class="weapon-quality-selection"><strong>已选：@chosen.QualityName · @chosen.Name #@chosen.Id</strong><span>装等 @chosen.ItemLevel · 攻击 @chosen.Attack · HP @chosen.MaxHp · 强化投入 +@chosen.Skills.Sum(skill => skill.EnhancementLevel)</span></div>
                         }
-                        <p class="weapon-quality-warning">升品后素材会消失，素材的品质与技能强化投入不会继承，也不会返还。</p>
+                        <p class="weapon-quality-warning">点亮后素材会消失，素材已点亮的水晶与技能强化投入不会继承，也不会返还。</p>
                         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
                     </div>
                     <footer class="weapon-quality-footer">
@@ -723,7 +729,7 @@
             : string.Empty;
         var locked = weapon.IsLocked ? "，已锁定" : string.Empty;
         var skills = weapon.Skills.Count > 0 ? $"，含 {weapon.Skills.Count} 项武器技能" : string.Empty;
-        return $"查看 {weapon.Name}，{WeaponRules.ElementName(weapon.Element)}属性，装等 {weapon.ItemLevel}{equipped}{locked}{skills} 的详情";
+        return $"查看 {weapon.Name}，{WeaponRules.ElementName(weapon.Element)}属性，水晶品质 {weapon.QualityName}，已点亮 {weapon.QualityRank}/3 枚水晶，装等 {weapon.ItemLevel}{equipped}{locked}{skills} 的详情";
     }
 
     private Task SelectSlotAsync(int index)
@@ -876,7 +882,7 @@
         var material = SelectedQualityMaterial;
         if (material is null) return;
         if (!await Js.InvokeAsync<bool>("confirm",
-                $"消耗 {material.QualityName}·{material.Name} #{material.Id}（装等 {material.ItemLevel}，攻击 {material.Attack}，HP {material.MaxHp}，技能强化 +{material.Skills.Sum(skill => skill.EnhancementLevel)}）提升 {weapon.Name}？素材会消失且强化投入不返还，目标品质将变为 {WeaponRules.QualityName(weapon.QualityRank + 1)}。")) return;
+                $"消耗 {material.QualityName}·{material.Name} #{material.Id}（装等 {material.ItemLevel}，攻击 {material.Attack}，HP {material.MaxHp}，技能强化 +{material.Skills.Sum(skill => skill.EnhancementLevel)}）为 {weapon.Name} 点亮下一枚水晶？素材会消失且强化投入不返还，目标将变为 {WeaponRules.QualityName(weapon.QualityRank + 1)}。")) return;
         await RunWeaponActionAsync(
             () => ApiService.UpgradeWeaponQualityAsync(CharacterId, weapon.Id, material.Id),
             $"{weapon.Name} 已提升至{WeaponRules.QualityName(weapon.QualityRank + 1)}。");
@@ -972,10 +978,10 @@
         "WeaponLocked" => "锁定的武器不能出售或分解。",
         "WeaponSkillNotFound" => "没有找到需要强化的武器技能。",
         "WeaponSkillAtMaximum" => "这项武器技能已经强化至当前上限。",
-        "WeaponQualityAtMaximum" => "这把武器已达最高品质。",
-        "QualityMaterialMustMatch" => "只能消耗同名武器升品。",
+        "WeaponQualityAtMaximum" => "这把武器的三枚水晶已全部点亮。",
+        "QualityMaterialMustMatch" => "只能消耗同名武器点亮水晶。",
         "InvalidQualityMaterial" => "请选择另一把武器作为素材。",
-        "StarterWeaponCannotBeConsumed" => "初始赠送武器不能作为升品素材。",
+        "StarterWeaponCannotBeConsumed" => "初始赠送武器不能作为点晶素材。",
         "StarterWeaponCannotBeSold" => "初始赠送武器不能出售。",
         "WeaponCannotBeDismantled" => "这把武器没有可回收的材料；商店武器需强化后才能分解。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",

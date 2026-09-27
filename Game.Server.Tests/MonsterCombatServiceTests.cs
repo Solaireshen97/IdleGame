@@ -309,7 +309,7 @@ public class MonsterCombatServiceTests
                 Attack = 10, Defense = 2, CombatProfileCode = profileCode
             };
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 20};
-            var slot = new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, CharacterId = 1, UserId = 1, IsMainControl = true };
+            var slot = new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, CharacterId = 1, UserId = 1 };
             db.AddRange(room, monster, character, slot);
             await db.SaveChangesAsync();
             return new Context(path, db, room, monster, character, slot);

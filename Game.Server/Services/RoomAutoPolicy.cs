@@ -13,9 +13,7 @@ internal static class RoomAutoPolicy
     }
 
     public static bool IsEnabled(Room room, RoomSlot slot, IReadOnlyCollection<RoomSlot> roomSlots) =>
-        (slot.UserId == room.OwnerUserId
-            ? roomSlots.FirstOrDefault(candidate => candidate.UserId == room.OwnerUserId && candidate.IsMainControl) ?? slot
-            : slot).IsAutoEnabled;
+        slot.UserId == room.OwnerUserId ? room.IsOwnerAutoEnabled : slot.IsAutoEnabled;
 
     public static bool IsAuto(Room room, RoomSlot slot, IReadOnlyCollection<int> clearedCharacterIds,
         IReadOnlyCollection<RoomSlot> roomSlots) =>

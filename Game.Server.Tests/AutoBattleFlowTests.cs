@@ -165,7 +165,7 @@ public sealed class AutoBattleFlowTests
             await db.Database.EnsureCreatedAsync();
             var room = new Room
             {
-                Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5,
+                Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, IsOwnerAutoEnabled = isAutoEnabled, SlotCount = 5,
                 Status = RoomStatus.NotStarted, PreparationStartedAtUtc = DateTime.UtcNow
             };
             db.AddRange(
@@ -174,7 +174,7 @@ public sealed class AutoBattleFlowTests
                 new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 100, MaxHp = 100, Attack = 10},
                 new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = 1, Defense = 5 },
                 room,
-                new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true, IsAutoEnabled = isAutoEnabled },
+                new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsAutoEnabled = isAutoEnabled },
                 new CharacterSkillSlot { CharacterId = 1, SlotIndex = 1, SkillCode = "knight-strike", AutoUseEnabled = true, AutoHpThresholdPercent = 70 },
                 new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
                 new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },

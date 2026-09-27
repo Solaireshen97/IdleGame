@@ -28,6 +28,18 @@
 .shop-item__kind { color: #b9c9d8; font-size: .68rem; font-weight: 800; letter-spacing: .14em; }
 .shop-item h2 { margin: 14px 0 6px; font-size: 1.3rem; }
 .shop-item p { margin: 0; color: #b9c9d8; font-size: .9rem; }
+.shop-item--weapon { --element-color: #b7d9d9; --element-glow: #719aa433; border-color: color-mix(in srgb, var(--element-color), #40556c 65%); border-left: 3px solid var(--element-color); background: radial-gradient(ellipse at 0 0, var(--element-glow), transparent 65%), linear-gradient(145deg, #1d3043, #172637); }
+.shop-item--fire { --element-color: #f4a779; --element-glow: #e6765433; }
+.shop-item--water { --element-color: #8ed9f2; --element-glow: #4baed633; }
+.shop-item--earth { --element-color: #dfba79; --element-glow: #b38a4733; }
+.shop-item--wind { --element-color: #99dfb8; --element-glow: #5cb58033; }
+.shop-item--light { --element-color: #f5e49b; --element-glow: #dfc76033; }
+.shop-item--dark { --element-color: #c6a7ef; --element-glow: #9767cf33; }
+.shop-item--weapon .shop-item__symbol { border: 1px solid color-mix(in srgb, var(--element-color), #30495e 50%); background: color-mix(in srgb, var(--element-glow), #10202b 80%); }
+.shop-item__weapon-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; margin-top: .65rem; }
+.shop-item__element { display: inline-flex; align-items: center; min-height: 25px; padding: .15rem .45rem; border: 1px solid color-mix(in srgb, var(--element-color), #40556c 45%); border-radius: .35rem; background: color-mix(in srgb, var(--element-glow), #10202b 75%); color: var(--element-color); font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.shop-item__quality { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; min-height: 25px; color: #aabed0; font-size: .68rem; }
+.shop-item__quality strong { color: #eed7a5; font-size: inherit; font-weight: 700; white-space: nowrap; }
 .shop-item__skills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .shop-item__skills span { padding: 4px 7px; border: 1px solid #435d71; border-radius: 6px; color: #d6e2ed; font-size: .74rem; }
 .shop-item__foot { margin-top: auto; padding-top: 20px; }
@@ -128,6 +140,9 @@
     .shop-item__kind { display: none; }
     .shop-item h2 { grid-column: 2; grid-row: 1; align-self: end; margin: 0; font-size: .96rem; }
     .shop-item > p { grid-column: 2; grid-row: 2; font-size: .7rem; }
+    .shop-item__weapon-meta { grid-column: 1 / -1; gap: .25rem .5rem; margin-top: .35rem; }
+    .shop-item__element { font-size: .66rem; }
+    .shop-item__quality { font-size: .63rem; }
     .shop-item__skills { grid-column: 1 / -1; gap: .3rem; margin-top: .45rem; }
     .shop-item__skills span { padding: .25rem .38rem; font-size: .63rem; }
     .shop-item__foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: .55rem; margin-top: .5rem; border-top: 1px solid #3d5366; padding-top: .55rem; }

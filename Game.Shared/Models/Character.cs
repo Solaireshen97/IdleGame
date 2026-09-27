@@ -9,6 +9,7 @@ public class Character
     public string Name { get; set; } = string.Empty;
     public string ProfessionCode { get; set; } = "swordsman";
     public string? AdvancedProfessionCode { get; set; }
+    public bool IsQuickSkillCastEnabled { get; set; }
     public int Hp { get; set; }
     public int MaxHp { get; set; }
     public int Attack { get; set; }

@@ -1,0 +1,11 @@
+.weapon-crystals { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 3px; height: 16px; vertical-align: middle; }
+.weapon-crystals__gem { display: block; width: 10px; height: 14px; overflow: visible; }
+.weapon-crystals__outline { fill: #10202b; stroke: #8b9eaa; stroke-width: 1.25; stroke-linejoin: round; }
+.weapon-crystals__gem--lit { filter: drop-shadow(0 0 2px #efc97b45); }
+.weapon-crystals__gem--lit .weapon-crystals__outline { fill: #edc16f; stroke: #ffe0a2; }
+.weapon-crystals__facet--light { fill: #fff0be; }
+.weapon-crystals__facet--top { fill: #eac16f; }
+.weapon-crystals__facet--bottom { fill: #d4a455; }
+.weapon-crystals__facet--shade { fill: #9f7335; }
+.weapon-crystals__shine { fill: none; stroke: #fff9dc; stroke-width: 1; stroke-linecap: round; }
+.weapon-crystals__unknown { fill: #eed7a5; font: 700 11px system-ui, sans-serif; }

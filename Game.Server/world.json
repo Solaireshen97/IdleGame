@@ -1262,7 +1262,7 @@
       },
       {
         "Code": "kobold-mine-depths",
-        "Name": "烛井矿窟·地脉深层",
+        "Name": "烛井矿窟·深层LV1",
         "RegionName": "岩芽林地",
         "RegionCode": "elwynn",
         "DungeonKind": "Dungeon",
@@ -1281,7 +1281,7 @@
       },
       {
         "Code": "plague-crypt-depths",
-        "Name": "墨雾地穴·织骸深层",
+        "Name": "缄丝峡谷·深层LV1",
         "RegionName": "墨雾幽林",
         "RegionCode": "tirisfal",
         "DungeonKind": "Dungeon",
@@ -1300,7 +1300,7 @@
       },
       {
         "Code": "ragefire-heart",
-        "Name": "燧渊裂隙·烬核",
+        "Name": "燧渊裂隙·深层LV1",
         "RegionName": "赤烬荒原",
         "RegionCode": "durotar",
         "DungeonKind": "Dungeon",
@@ -1319,7 +1319,7 @@
       },
       {
         "Code": "frostspring-throne",
-        "Name": "镜泉冰窟·凝霜冠座",
+        "Name": "镜泉冰窟·深层LV1",
         "RegionName": "雾凇雪境",
         "RegionCode": "dun-morogh",
         "DungeonKind": "Dungeon",
@@ -1338,7 +1338,7 @@
       },
       {
         "Code": "windfury-spire",
-        "Name": "裂翎高巢·岚穹之顶",
+        "Name": "裂翎高巢·深层LV1",
         "RegionName": "长风原野",
         "RegionCode": "mulgore",
         "DungeonKind": "Dungeon",
@@ -1357,7 +1357,7 @@
       },
       {
         "Code": "dawn-core",
-        "Name": "琉辉旧庭·棱核密室",
+        "Name": "琉辉旧庭·深层LV1",
         "RegionName": "琉辉之森",
         "RegionCode": "eversong",
         "DungeonKind": "Dungeon",

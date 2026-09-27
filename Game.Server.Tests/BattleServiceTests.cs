@@ -494,8 +494,9 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 100);
         test.Room.IsRepeatBattle = true;
-        var mainSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl);
+        var mainSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.CharacterId == test.Character.Id);
         mainSlot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
         test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
@@ -532,6 +533,7 @@ public partial class BattleServiceTests
         test.Room.IsRepeatBattle = true;
         test.Room.ExpiresAtUtc = DateTime.UtcNow.AddMinutes(1);
         (await test.Db.RoomSlots.SingleAsync()).IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(test.Room.Id, test.Token);
         test.Room.BattleEndedAtUtc = DateTime.UtcNow.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
@@ -590,7 +592,7 @@ public partial class BattleServiceTests
         test.Db.Characters.Add(newcomer);
         await test.Db.SaveChangesAsync();
         (await test.Db.Users.SingleAsync()).ActiveCharacterId = newcomer.Id;
-        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl)).CharacterId = newcomer.Id;
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.CharacterId == test.Character.Id)).CharacterId = newcomer.Id;
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await test.Service.SetSlotAutoAsync(1,
@@ -749,14 +751,14 @@ public partial class BattleServiceTests
         Assert.Equal(3, weapon.QualityRank);
         Assert.Equal((2, 2, 0, 0),
             (skill.Level, skill.BaseLevel, skill.QualityBonusLevel, skill.EnhancementLevel));
-        Assert.Contains(victory.Logs, log => log.Contains("史诗·疾风短弓"));
+        Assert.Contains(victory.Logs, log => log.Contains("三晶·疾风短弓"));
         Assert.Contains(await test.Db.RewardEntries.ToListAsync(), entry =>
             entry.Kind == "Weapon" && entry.EventKey == "monster:1" && entry.WeaponSnapshotJson is not null);
         var roomService = new RoomService(test.Db,
             new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
             ConsumableTestFactory.Create(), SkillTestFactory.Create(), rewardService);
         var detail = await roomService.GetRoomDetailAsync(test.Room.Id, test.Token);
-        Assert.Equal("史诗·疾风短弓", detail!.Rewards!.Items.Single(item => item.Kind == "Weapon").Name);
+        Assert.Equal("三晶·疾风短弓", detail!.Rewards!.Items.Single(item => item.Kind == "Weapon").Name);
     }
 
     [Fact]
@@ -954,7 +956,8 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100, monsterAttack: 1);
         test.Room.IsRepeatBattle = true;
-        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.IsMainControl)).IsAutoEnabled = true;
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.CharacterId == test.Character.Id)).IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.AddOperationPotionAsync(test.Character, quantity: 2);
 
         var (first, error) = await test.Service.StartPreparationAsync(1, test.Token);
@@ -1478,8 +1481,9 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         test.Room.IsRepeatBattle = true;
-        var mainSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl);
+        var mainSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
         mainSlot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
@@ -1712,6 +1716,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1, characterDefense: 99);
         var otherSlot = await test.AddOtherMemberAsync();
         (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == 1 && slot.SlotIndex == 1)).IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         otherSlot.IsAutoEnabled = true;
         await test.Db.SaveChangesAsync();
 
@@ -1734,6 +1739,7 @@ public partial class BattleServiceTests
         {
             slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
             slot.IsAutoEnabled = true;
+            test.Room.IsOwnerAutoEnabled = true;
         }
         await test.Db.SaveChangesAsync();
 
@@ -1806,6 +1812,7 @@ public partial class BattleServiceTests
         {
             slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
             slot.IsAutoEnabled = true;
+            test.Room.IsOwnerAutoEnabled = true;
         }
         await test.Db.SaveChangesAsync();
 
@@ -1832,6 +1839,7 @@ public partial class BattleServiceTests
         {
             slot.LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-2);
             slot.IsAutoEnabled = true;
+            test.Room.IsOwnerAutoEnabled = true;
         }
         await test.Db.SaveChangesAsync();
 
@@ -1906,9 +1914,11 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync();
         var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.SyncAsync(1, test.Token);
         slot.IsAutoEnabled = false;
+        test.Room.IsOwnerAutoEnabled = false;
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
@@ -1926,6 +1936,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync();
         var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.SyncAsync(1, test.Token);
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(9);
@@ -1951,6 +1962,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync();
         var slot = await test.Db.RoomSlots.SingleAsync(x => x.RoomId == 1 && x.SlotIndex == 1);
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
         await test.Service.SyncAsync(1, test.Token);
 
@@ -2383,6 +2395,7 @@ public partial class BattleServiceTests
         });
         var slot = await test.Db.RoomSlots.SingleAsync();
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
 
         var (firstKill, firstError) = await test.Service.StartPreparationAsync(1, test.Token);
@@ -3019,6 +3032,7 @@ public partial class BattleServiceTests
 
         public async Task EnableAutoForCharacterAsync(Character character)
         {
+            if (character.UserId == Room.OwnerUserId) Room.IsOwnerAutoEnabled = true;
             foreach (var slot in await Db.RoomSlots.Where(slot => slot.RoomId == Room.Id &&
                          slot.UserId == character.UserId).ToListAsync())
                 slot.IsAutoEnabled = true;
@@ -3088,7 +3102,7 @@ public partial class BattleServiceTests
             var character = new Character { Id = 1, UserId = 1, Name = "Knight", Hp = characterHp, MaxHp = 100, Attack = characterAttack};
             var monster = new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = monsterAttack, Defense = monsterDefense };
             var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted, IsPublic = true };
-            db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
+            db.AddRange(new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = monsterAttack, MonsterDefense = monsterDefense, SlotCount = 5, SortOrder = 1 }, user, character, monster, room, new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow }, new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow }, new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1 }, new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
             await db.SaveChangesAsync();
             return new BattleTestContext(path, options, db, room, character, monster);
         }

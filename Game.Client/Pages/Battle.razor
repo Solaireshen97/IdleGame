@@ -5,6 +5,7 @@
 @using Game.Shared.Dtos.Characters
 @using Game.Shared
 @inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacterState
 @inject NavigationManager Navigation
 @inject IJSRuntime Js
 @implements IAsyncDisposable
@@ -17,7 +18,19 @@
         <span class="battle-page__room">ROOM · @RoomId</span>
     </header>
 
-@if (_roomDetail is null)
+    @if (_roomDetail is not null && !_isManagementOpen)
+    {
+        <RoomOperations Operations="_roomDetail.Operations" IsBusy="_isBusy" OnCancel="CancelRoomOperationAsync" />
+    }
+
+@if (_roomUnavailableMessage is not null)
+{
+    <section class="battle-rewards" aria-label="房间操作结果">
+        <p role="status">@_roomUnavailableMessage</p>
+        <button class="button button--secondary" @onclick="GoToRooms">返回大厅</button>
+    </section>
+}
+else if (_roomDetail is null)
 {
     <GameStateCard Compact="true" Title="正在进入战场" Detail="同步房间成员与敌方状态…" />
 }
@@ -42,7 +55,7 @@ else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
 }
 else
 {
-    var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && (slot.IsMainControl || !IsOwner))
+    var autoSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.CharacterId == _accountCharacterId)
         ?? _roomDetail.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied);
     var canConfigureOwnAuto = _roomDetail.ClosedAtUtc is null &&
         (_roomDetail.IsCurrentUserAutoUnlocked || _roomDetail.IsCurrentUserAutoEnabled);
@@ -50,6 +63,7 @@ else
     var isCurrentUserPrepared = ownSlots.Any(slot => slot.IsAlive) && ownSlots.Where(slot => slot.IsAlive).All(slot => slot.IsConfirmed);
     var countdown = GetActiveCountdown();
     var scene = _combatScene ?? _roomDetail;
+    var backgroundArt = BattleBackgroundArt.ForEncounter(scene.DungeonName);
 
     <section class="battle-stage" aria-label="战斗场景" @ref="_battleStage">
         <div class="battle-stage__header">
@@ -123,7 +137,13 @@ else
             <span class="combat-readout__result combat-readout__live"><b data-combat-hits></b><span data-combat-total></span></span>
         </div>
         <span class="combat-announcement" role="status">@_combatAnnouncement</span>
-        <div class="battle-field @(scene.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
+        <div class="battle-field @(backgroundArt is not null ? "battle-field--illustrated" : null) @(scene.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
+            @if (backgroundArt is not null)
+            {
+                <div class="battle-field__backdrop" aria-hidden="true">
+                    <img src="@backgroundArt" alt="" decoding="async" fetchpriority="high" />
+                </div>
+            }
             <div class="battle-field__party">
                 <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@scene.Slots.Count(slot => slot.IsOccupied) / @scene.SlotCount 人</strong></div>
                 <div class="fighter-line">
@@ -242,7 +262,7 @@ else
                     </div>
                     <div class="battle-mobile-quick-actions__tools">
                         <label class="quick-skill-toggle quick-skill-toggle--compact" title="开启后，点按可用技能直接安排本回合">
-                            <input type="checkbox" @bind="_isQuickSkillCastEnabled" />
+                            <input type="checkbox" checked="@mobileActionSlot.IsQuickSkillCastEnabled" @onchange="e => SetQuickSkillCastAsync(mobileActionSlot.CharacterId, (bool)e.Value!)" disabled="@_isQuickSkillCastSaving" />
                             <strong>快速释放</strong>
                         </label>
                     </div>
@@ -663,6 +683,7 @@ else
                     <button type="button" class="battle-log-dialog__close" @onclick="CloseManagement" aria-label="关闭队伍与房间" @ref="_managementCloseButton">×</button>
                 </header>
                 <div class="battle-management-dialog__content">
+                    <RoomOperations Operations="_roomDetail.Operations" IsBusy="_isBusy" ShowLatest="true" OnCancel="CancelRoomOperationAsync" />
                     <div class="battle-management-summary">
                         <strong>@_roomDetail.DungeonName <span>· 第 @_roomDetail.RunSequence 轮</span></strong>
                         <span>@(_roomDetail.IsPublic ? "公开房间 · 允许其他玩家加入" : "私人房间 · 不接受新玩家加入")</span>
@@ -682,6 +703,14 @@ else
                         <span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击（不自动施放技能）" : "无准备超时") · 按槽位 1 → @_roomDetail.SlotCount 行动</span>
                     </div>
                     <p class="formation-panel__progress-note">角色升级会获得天赋点；可在职业天赋页分配点数并配置技能。</p>
+                    @if (IsOwner)
+                    {
+                        <p class="formation-panel__progress-note">在空位选择已上阵角色可直接移入；在已占用位置选择其他自有队员可交换站位。可直接点击自己任意队员的技能进行操作。</p>
+                        @if (!CanChangeFormation && _roomDetail.ClosedAtUtc is null)
+                        {
+                            <p class="formation-panel__progress-note">战斗中也可预约调整，本场战斗结束后自动执行；预约可随时取消。</p>
+                        }
+                    }
                     <div class="slot-grid">
                         @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
                         {
@@ -697,7 +726,7 @@ else
                                         <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
                                         <small>未分配天赋点 @slot.TalentPoints</small>
                                     </div>
-                                    <div class="party-slot__badges">@if (slot.IsMainControl) { <span class="status-badge status-badge--gold">主控</span> } @if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsOffline) { <span class="status-badge">@(_roomDetail.IsPreparationTimeoutEnabled ? "离线 · 等待准备超时" : "离线 · 等待准备")</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动攻击</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
+                                    <div class="party-slot__badges">@if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsOffline) { <span class="status-badge">@(_roomDetail.IsPreparationTimeoutEnabled ? "离线 · 等待准备超时" : "离线 · 等待准备")</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动攻击</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                                 }
                                 else
                                 {
@@ -708,21 +737,20 @@ else
                                     }
                                 }
 
-                                @if (IsOwner)
+                                @if (IsOwner && (!slot.IsOccupied || slot.IsCurrentUserCharacter))
                                 {
                                     <div class="slot-management">
-                                        <select @bind="_selectedCharacterIds[slot.SlotIndex]" disabled="@(_isBusy || !CanChangeFormation)">
-                                            <option value="0">选择自有角色</option>
-                                            @foreach (var character in _characters)
+                                        <select @bind="_selectedCharacterIds[slot.SlotIndex]" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)" aria-label="@($"选择放到 {slot.SlotIndex} 号位的角色")">
+                                            <option value="0">@(slot.IsOccupied ? "选择队员交换站位" : "选择自有角色")</option>
+                                            @foreach (var character in GetFormationCharacters(slot))
                                             {
-                                                <option value="@character.CharacterId">@character.Name · Lv @character.Level (@character.Hp / @character.MaxHp)</option>
+                                                <option value="@character.CharacterId">@GetFormationCharacterLabel(character)</option>
                                             }
                                         </select>
-                                        <button class="button button--quiet" @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || _selectedCharacterIds[slot.SlotIndex] == 0)">@(slot.IsOccupied ? "替换" : "上阵")</button>
+                                        <button class="button button--quiet" @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue || _selectedCharacterIds[slot.SlotIndex] == 0)">@GetFormationActionLabel(slot)</button>
                                         @if (slot.IsOccupied)
                                         {
-                                            <button class="button button--quiet" @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">移除</button>
-                                            <button class="button button--quiet" @onclick="() => SetMainControlAsync(slot.CharacterId!.Value)" disabled="@(_isBusy || !CanChangeFormation || slot.IsMainControl)">设为主控</button>
+                                            <button class="button button--quiet" @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)">@(CanChangeFormation ? "移除" : "预约移除")</button>
                                         }
                                     </div>
                                 }
@@ -745,7 +773,7 @@ else
                         </div>
                         @if (_visibilityError is not null) { <p class="room-visibility-error" role="alert">@_visibilityError</p> }
                     }
-                    @if (IsOwner || _roomDetail.CanLeaveRoom)
+                    @if (IsOwner || CanRequestLeave)
                     {
                     <section class="battle-controls battle-controls--room-actions" aria-label="房间操作">
                         <div class="battle-controls__tools">
@@ -753,9 +781,9 @@ else
                             {
                                 <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
                             }
-                            else if (_roomDetail.CanLeaveRoom)
+                            else if (CanRequestLeave)
                             {
-                                <button class="button button--secondary" @onclick="LeaveRoomAsync" disabled="@_isBusy">离开房间</button>
+                                <button class="button button--secondary" @onclick="LeaveRoomAsync" disabled="@_isBusy">@(_roomDetail.CanLeaveRoom ? "离开房间" : "预约退出")</button>
                             }
                             @if (IsOwner)
                             {
@@ -784,6 +812,7 @@ else
     private bool _isUpdatingVisibility;
     private string? _visibilityError;
     private string? _message;
+    private string? _roomUnavailableMessage;
     private string? _consumableMessage;
     private string? _skillMessage;
     private readonly Dictionary<int, int> _selectedCharacterIds = new();
@@ -812,9 +841,10 @@ else
     private bool _focusRewardsTrigger;
     private bool _focusLogCloseButton;
     private bool _focusLogTrigger;
-    private bool _isQuickSkillCastEnabled;
+    private bool _isQuickSkillCastSaving;
     private string _mobileLoadoutView = "skills";
     private int? _mobileActionCharacterId;
+    private int? _accountCharacterId;
     private bool _scrollToMobileActionCharacter;
     private bool _alignMobileQuickActions;
     private bool _hasRevealedShortViewport;
@@ -840,18 +870,24 @@ else
     private sealed record BattleLogEntry(long Id, string Text);
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
-    private bool CanChangeFormation => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
-        _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0;
+    private bool CanChangeFormation => _roomDetail is { ClosedAtUtc: null } &&
+        (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
+         _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0);
     private bool CanJoinRoom => _roomDetail?.IsPublic == true && _roomDetail.ClosedAtUtc is null &&
         (_roomDetail?.RoomStatus is Game.Shared.Enums.RoomStatus.NotStarted or Game.Shared.Enums.RoomStatus.Preparing or
             Game.Shared.Enums.RoomStatus.Cooldown or Game.Shared.Enums.RoomStatus.WaveTransition ||
          _roomDetail?.NextBattleStartAtUtc is not null);
+    private bool CanRequestLeave => !IsOwner && _roomDetail is { ClosedAtUtc: null } &&
+        _roomDetail.Slots.Any(slot => slot.IsOccupied && slot.IsCurrentUserCharacter);
 
     protected override async Task OnInitializedAsync()
     {
         _currentUser = await ApiService.GetCurrentUserAsync();
         if (_currentUser is null) { Navigation.NavigateTo("/login", replace: true); return; }
         _characters = await ApiService.GetCurrentCharactersAsync() ?? new();
+        await ActiveCharacterState.RefreshAsync();
+        _accountCharacterId = ActiveCharacterState.Current?.CharacterId;
+        ActiveCharacterState.Changed += HandleAccountCharacterChanged;
         await RefreshRoomDetailAsync();
         if (_roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter) == true)
         {
@@ -971,7 +1007,7 @@ else
 
         return _skillMessage ?? _consumableMessage ?? (queuedCount > 0
             ? $"本回合已安排 {queuedCount} 项 · 再点已选项可取消"
-            : _isQuickSkillCastEnabled
+            : slot.IsQuickSkillCastEnabled
                 ? "快速释放已开启 · 点按可用技能直接安排"
             : "点按技能先查看效果，再确认使用");
     }
@@ -1076,28 +1112,65 @@ else
     private static string GetStatusEffectDuration(BattleStatusEffectResponse effect) =>
         effect.ExpiresWithRun ? "本场持续" : $"剩余 {effect.RemainingRounds} 回合";
 
+    private IEnumerable<CharacterSummaryResponse> GetFormationCharacters(RoomSlotResponse target) =>
+        _characters.Where(character => character.CharacterId != target.CharacterId &&
+            (!target.IsOccupied || GetFormationCharacterSlot(character.CharacterId) is not null));
+
+    private RoomSlotResponse? GetFormationCharacterSlot(int characterId) =>
+        _roomDetail?.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.CharacterId == characterId);
+
+    private string GetFormationCharacterLabel(CharacterSummaryResponse character)
+    {
+        var position = GetFormationCharacterSlot(character.CharacterId) is { } slot ? $" · 当前 {slot.SlotIndex} 号位" : "";
+        return $"{character.Name} · Lv {character.Level}{position}";
+    }
+
+    private string GetFormationActionLabel(RoomSlotResponse target) => (CanChangeFormation ? "" : "预约") +
+        (target.IsOccupied ? "交换站位" : GetFormationCharacterSlot(_selectedCharacterIds[target.SlotIndex]) is not null ? "移动至此" : "上阵");
+
     private async Task AssignSlotAsync(int slotIndex)
     {
-        _isBusy = true; _message = null;
-        var (detail, error) = await ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]);
-        if (detail is null) _message = GetRoomOperationError(error, "上阵角色失败。"); else _roomDetail = detail;
-        _isBusy = false;
+        if (await RunRoomOperationAsync(() => ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]), "调整队伍失败。"))
+            foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0;
     }
 
-    private async Task RemoveSlotAsync(int slotIndex)
+    private async Task RemoveSlotAsync(int slotIndex) =>
+        await RunRoomOperationAsync(() => ApiService.RemoveRoomSlotAsync(RoomId, slotIndex), "移除角色失败。");
+
+    private async Task<bool> RunRoomOperationAsync(Func<Task<(RoomDetailResponse? Detail, string? ErrorMessage)>> action, string fallback)
     {
+        if (_isBusy) return false;
+        var requestRoomId = RoomId;
         _isBusy = true; _message = null;
-        var (detail, error) = await ApiService.RemoveRoomSlotAsync(RoomId, slotIndex);
-        if (detail is null) _message = error ?? "移除角色失败。"; else _roomDetail = detail;
-        _isBusy = false;
+        try
+        {
+            var (detail, error) = await action();
+            if (RoomId != requestRoomId || _refreshCancellation.IsCancellationRequested) return false;
+            if (detail is null) { _message = GetRoomOperationError(error, fallback); return false; }
+            ApplyRoomDetail(detail, allowCombatFeedback: false);
+            _message = detail.Operations.FirstOrDefault()?.Message;
+            return true;
+        }
+        catch
+        {
+            _message = "连接中断，暂未确认操作结果；请查看刷新后的预约列表，避免重复提交。";
+            return false;
+        }
+        finally { _isBusy = false; }
     }
 
-    private async Task SetMainControlAsync(int characterId)
+    private async Task CancelRoomOperationAsync(int operationId)
     {
-        _isBusy = true; _message = null;
-        var (detail, error) = await ApiService.SetMainControlAsync(RoomId, characterId);
-        if (detail is null) _message = error ?? "切换主控失败。"; else _roomDetail = detail;
-        _isBusy = false;
+        if (_isBusy) return;
+        _isBusy = true;
+        try
+        {
+            var error = await ApiService.CancelRoomOperationAsync(RoomId, operationId);
+            _message = error is null ? "已取消预约。" : GetRoomOperationError(error, "取消预约失败。");
+            await RefreshRoomDetailAsync();
+        }
+        catch { _message = "连接中断，暂未确认取消结果，请查看预约状态。"; }
+        finally { _isBusy = false; }
     }
 
     private Task StartPreparationAsync() => SetPreparationAsync(cancel: false);
@@ -1144,13 +1217,8 @@ else
         }
     }
 
-    private async Task JoinRoomAsync(int slotIndex)
-    {
-        _isBusy = true;
-        var (detail, error) = await ApiService.JoinRoomAsync(RoomId, slotIndex);
-        if (detail is null) _message = GetRoomOperationError(error, "加入房间失败。"); else _roomDetail = detail;
-        _isBusy = false;
-    }
+    private async Task JoinRoomAsync(int slotIndex) =>
+        await RunRoomOperationAsync(() => ApiService.JoinRoomAsync(RoomId, slotIndex), "加入房间失败。");
 
     private async Task SetRoomVisibilityAsync(bool isPublic)
     {
@@ -1174,13 +1242,8 @@ else
         finally { _isUpdatingVisibility = false; _isBusy = false; }
     }
 
-    private async Task LeaveRoomAsync()
-    {
-        _isBusy = true;
-        var (detail, error) = await ApiService.LeaveRoomAsync(RoomId);
-        if (detail is null) _message = error ?? "离开房间失败。"; else _roomDetail = detail;
-        _isBusy = false;
-    }
+    private async Task LeaveRoomAsync() =>
+        await RunRoomOperationAsync(() => ApiService.LeaveRoomAsync(RoomId), "离开房间失败。");
 
     private async Task SetSlotAutoAsync(int slotIndex, bool isAutoEnabled)
     {
@@ -1221,10 +1284,15 @@ else
         "AutoNotUnlocked" => "至少一名存活角色通关当前副本后，才能开启 Auto。",
         "AutoConfigurationDenied" => "只能控制自己在这个房间中的角色。",
         "CharacterLevelTooLow" => "当前角色等级未达到该副本的最低进入要求。",
+        "FormationLocked" => "战斗进行中无法调整站位，请在首回合前或战斗结束后操作。",
+        "NotCharacterOwner" => "只能调整自己的角色，不能移动其他玩家的队员。",
+        "CharacterAlreadyInRoom" => "该角色正在其他房间或任务中，请先结束当前任务。",
         "SlotOccupied" => "该槽位已被占用。",
         "RoomLocked" => "当前阶段无法加入，请等待回合冷却或下一场战斗。",
         "ConcurrencyConflict" => "房间状态刚刚变化，请刷新后重试。",
-        "NotOwner" => "只有房主可以修改房间开放状态。",
+        "OperationAlreadyFinished" => "这项操作已经结束，请查看最新结果。",
+        "FormationChanged" => "队伍站位已变化，请重新选择。",
+        "NotOwner" => "只有房主可以调整队伍或修改房间开放状态。",
         "RoomPrivate" => "房主已关闭房间，暂不接受新玩家加入。",
         "RoomClosed" => "本次任务已结束，无法修改或加入房间。",
         "NotFound" => "房间已不存在，请返回大厅。",
@@ -1251,10 +1319,36 @@ else
         return character is null || skill is null ? null : new SkillDialogContext(character, skill);
     }
 
+    private async Task SetQuickSkillCastAsync(int? characterId, bool isEnabled)
+    {
+        if (_isQuickSkillCastSaving || characterId is null) return;
+        var requestRoomId = RoomId;
+        _isQuickSkillCastSaving = true;
+        _skillMessage = null;
+        try
+        {
+            var error = await ApiService.SetQuickSkillCastAsync(characterId.Value, isEnabled);
+            if (requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+            if (error is not null)
+            {
+                _skillMessage = "快速释放设置未能保存，请重试。";
+                return;
+            }
+            if (_roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == characterId && slot.IsCurrentUserCharacter) is { } slot)
+                slot.IsQuickSkillCastEnabled = isEnabled;
+        }
+        catch
+        {
+            if (requestRoomId == RoomId && !_refreshCancellation.IsCancellationRequested)
+                _skillMessage = "连接中断，暂未确认快速释放设置，请稍后重试。";
+        }
+        finally { _isQuickSkillCastSaving = false; }
+    }
+
     private async Task HandleSkillClickAsync(RoomSlotResponse character, RoomSkillSlotResponse skill)
     {
         if (_isBusy) return;
-        if (IsSkillQueued(character, skill) || _isQuickSkillCastEnabled && CanQueueSkill(character, skill))
+        if (IsSkillQueued(character, skill) || character.IsQuickSkillCastEnabled && CanQueueSkill(character, skill))
         {
             await ToggleSkillAsync(character, skill);
             return;
@@ -1637,7 +1731,19 @@ else
     {
         var requestRoomId = expectedRoomId ?? RoomId;
         var latest = await ApiService.GetRoomDetailAsync(requestRoomId);
-        if (latest is null || requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+        if (requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+        if (latest is null)
+        {
+            var operations = await ApiService.GetRoomOperationsAsync(requestRoomId);
+            if (requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+            if (_roomDetail is not null && operations is not null) _roomDetail.Operations = operations;
+            _roomUnavailableMessage = operations?.FirstOrDefault() is { Kind: Game.Shared.Enums.RoomOperationKind.Leave, Status: "Completed" }
+                ? "已退出房间，角色可以开始新的活动。"
+                : "暂时无法查看房间，请返回大厅确认房间状态。";
+            _message = operations?.FirstOrDefault()?.Message;
+            return;
+        }
+        _roomUnavailableMessage = null;
         ApplyRoomDetail(latest);
         if (_roomDetail is not null)
         {
@@ -1650,6 +1756,12 @@ else
     private void ApplyRoomDetail(RoomDetailResponse? detail, bool allowCombatFeedback = true)
     {
         var previous = _roomDetail;
+        if (previous is not null && detail is not null)
+        {
+            var finished = detail.Operations.FirstOrDefault(operation => operation.Status != "Pending" &&
+                previous.Operations.Any(old => old.Id == operation.Id && old.Status == "Pending"));
+            if (finished is not null) _message = finished.Message;
+        }
         if (_isMonsterStatusDialogOpen && (detail is null || previous is null || detail.ClosedAtUtc.HasValue ||
             detail.RunSequence != previous.RunSequence || detail.CurrentWaveNumber != previous.CurrentWaveNumber ||
             detail.CurrentEnemyNumber != previous.CurrentEnemyNumber ||
@@ -1698,7 +1810,8 @@ else
             slot.IsCurrentUserCharacter && slot.IsOccupied);
         if (selected is null)
         {
-            SetMobileActionCharacter(current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive)?.CharacterId
+            SetMobileActionCharacter(current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.CharacterId == _accountCharacterId)?.CharacterId
+                ?? current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive)?.CharacterId
                 ?? current.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.IsOccupied)?.CharacterId);
             return;
         }
@@ -1717,6 +1830,16 @@ else
         _mobileActionCharacterId = characterId;
         _scrollToMobileActionCharacter = true;
         _alignMobileQuickActions = true;
+    }
+
+    private void HandleAccountCharacterChanged()
+    {
+        var characterId = ActiveCharacterState.Current?.CharacterId;
+        if (_accountCharacterId == characterId) return;
+        _accountCharacterId = characterId;
+        if (_roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.CharacterId == characterId) == true)
+            SetMobileActionCharacter(characterId);
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private static int HealthPercent(int? hp, int? maxHp) =>
@@ -1868,6 +1991,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        ActiveCharacterState.Changed -= HandleAccountCharacterChanged;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
         try { await Js.InvokeVoidAsync("battleCombat.cancel", _battleStage); }

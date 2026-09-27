@@ -294,6 +294,43 @@ public class BattleFeedbackPlannerTests
         Assert.Equal(2, plan.HitCount);
     }
 
+    [Fact]
+    public void ActualStatusesAndUtilityEffectsHaveCalloutsWithoutAddingDamageHits()
+    {
+        var before = Room(0);
+        var after = Room(1, 480);
+        after.Slots[0].StatusEffects.Add(new() { Name = "攻击提升", IsPositive = true });
+        after.MonsterEffects.Add(new() { Name = "破甲", IsPositive = false });
+        AddLogs(after, "1号位 岚 获得 攻击提升，持续 3 回合。",
+            "史莱姆 获得 破甲，持续 2 回合。",
+            "1号位 岚 使用 净化，移除了 2号位 星 的 中毒。",
+            "2号位 星 使用 驱散，驱散了 史莱姆 的 防御提升。",
+            "2号位 星 的 稳定引导 使 1 个伤害技能的冷却缩短 1 回合。",
+            "魂印「冰心」打断了 史莱姆 的行动。",
+            "1号位 岚 普通攻击 史莱姆，造成 20 点伤害。");
+        var plan = BattleFeedbackPlanner.Create(before, after)!;
+        Assert.Equal(new[] { "buff", "debuff", "cleanse", "dispel", "cooldown", "interrupt", "damage" }, plan.Events.Select(e => e.Kind));
+        Assert.Equal(new[] { "1", "enemy", "2", "enemy", "2", "enemy", "enemy" }, plan.Events.Select(e => e.Target));
+        Assert.Equal(new[] { "攻击提升", "破甲", "净化", "强化驱散", "冷却缩短 1 回合", "打断" }, plan.Events.Take(6).Select(e => e.Label));
+        Assert.Equal(20, plan.TotalDamage);
+        Assert.Equal(1, plan.HitCount);
+    }
+
+    [Fact]
+    public void OperationPotionShowsItsActualBoostsAndUnknownStatusStaysNeutral()
+    {
+        var after = Room(1);
+        AddLogs(after, "1号位 岚 使用 猛攻药剂，获得 攻击 +20% · 普通攻击伤害 +15% · 每场 1 瓶。",
+            "史莱姆 获得 未知状态，持续 2 回合。");
+        var plan = BattleFeedbackPlanner.Create(Room(0), after)!;
+        Assert.Equal("攻击 +20% · 普通攻击伤害 +15%", plan.Events[0].Label);
+        Assert.Equal("buff", plan.Events[0].Kind);
+        Assert.Equal("status", plan.Events[1].Kind);
+        Assert.Equal("neutral", plan.Events[1].Tone);
+        Assert.Equal(0, plan.HitCount);
+        Assert.Equal(0, plan.TotalDamage);
+    }
+
     private static void AddLogs(RoomDetailResponse room, params string[] texts)
     {
         for (var i = 0; i < texts.Length; i++) room.BattleLogs.Add(new() { Id = 101 + i, Text = texts[i] });

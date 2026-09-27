@@ -311,6 +311,7 @@ public partial class BattleServiceTests
         // Talent tests exercise skill Auto inside an explicitly enabled character Auto slot.
         var slot = await test.Db.RoomSlots.SingleAsync(entry => entry.CharacterId == test.Character.Id);
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
     }
 }

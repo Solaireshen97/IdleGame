@@ -16,6 +16,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
+    public DbSet<RoomOperation> RoomOperations => Set<RoomOperation>();
     public DbSet<UserLoginSession> UserLoginSessions => Set<UserLoginSession>();
     public DbSet<Dungeon> Dungeons => Set<Dungeon>();
     public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
@@ -203,6 +204,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
             .IsUnique();
         modelBuilder.Entity<RoomSlot>()
             .HasIndex(slot => slot.RoomId);
+        modelBuilder.Entity<RoomOperation>().Property(operation => operation.Version).IsConcurrencyToken();
+        modelBuilder.Entity<RoomOperation>().HasIndex(operation => new { operation.RoomId, operation.Status, operation.Id });
+        modelBuilder.Entity<RoomOperation>().HasOne<Room>().WithMany()
+            .HasForeignKey(operation => operation.RoomId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Dungeon>()
             .HasIndex(dungeon => dungeon.Code)
             .IsUnique();

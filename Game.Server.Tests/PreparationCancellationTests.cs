@@ -52,7 +52,8 @@ public partial class BattleServiceTests
         var manualAlt = await test.AddSlotAsync(3, "Manual alt", attack: 1);
         var autoAlt = await test.AddSlotAsync(4, "Auto alt", attack: 1);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
-        (await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl)).IsAutoEnabled = true;
+        (await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id)).IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones
             .Where(milestone => milestone.CharacterId == test.Character.Id).ToListAsync());
         test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
@@ -71,7 +72,7 @@ public partial class BattleServiceTests
 
         Assert.Null((await test.Service.CancelPreparationAsync(1, test.Token, 1, 1)).Error);
 
-        Assert.False(slots.Single(slot => slot.IsMainControl).IsConfirmed);
+        Assert.False(slots.Single(slot => slot.CharacterId == test.Character.Id).IsConfirmed);
         Assert.False(slots.Single(slot => slot.CharacterId == manualAlt.Id).IsConfirmed);
         Assert.True(guest.IsConfirmed);
         // The group switch only makes characters with their own clear unlock effectively Auto.
@@ -156,7 +157,7 @@ public partial class BattleServiceTests
         Assert.Equal(hp, test.Monster.Hp);
         Assert.Equal(started, test.Room.PreparationStartedAtUtc);
         Assert.Equal(deadline, test.Room.NextRoundAvailableAtUtc);
-        Assert.False((await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl)).IsConfirmed);
+        Assert.False((await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id)).IsConfirmed);
     }
 
     [Fact]
@@ -231,7 +232,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
         await test.AddOtherMemberAsync();
         Assert.Null((await test.Service.StartPreparationAsync(1, test.Token)).Error);
-        var slot = await test.Db.RoomSlots.SingleAsync(entry => entry.IsMainControl);
+        var slot = await test.Db.RoomSlots.SingleAsync(entry => entry.CharacterId == test.Character.Id);
         string? token = test.Token;
         if (scenario == "invalid-token") token = "invalid-token";
         if (scenario == "spectator")
@@ -243,6 +244,7 @@ public partial class BattleServiceTests
         }
         if (scenario == "dead") test.Character.Hp = 0;
         if (scenario == "auto") slot.IsAutoEnabled = true;
+        if (scenario == "auto") test.Room.IsOwnerAutoEnabled = true;
         await test.Db.SaveChangesAsync();
 
         var (_, error) = await test.Service.CancelPreparationAsync(1, token, 0, 1);
@@ -260,8 +262,9 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
         await test.AddOtherMemberAsync();
-        var slot = await test.Db.RoomSlots.SingleAsync(entry => entry.IsMainControl);
+        var slot = await test.Db.RoomSlots.SingleAsync(entry => entry.CharacterId == test.Character.Id);
         slot.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones
             .Where(milestone => milestone.CharacterId == test.Character.Id).ToListAsync());
         await test.Db.SaveChangesAsync();

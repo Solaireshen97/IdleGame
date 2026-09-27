@@ -25,8 +25,8 @@ public class RoomSlotResponse
     public int? ExperienceToNextLevel { get; set; }
     public int? TalentPoints { get; set; }
     public bool IsOccupied { get; set; }
-    public bool IsMainControl { get; set; }
     public bool IsCurrentUserCharacter { get; set; }
+    public bool IsQuickSkillCastEnabled { get; set; }
     public bool IsAlive { get; set; }
     public bool IsConfirmed { get; set; }
     public string? PlayerName { get; set; }

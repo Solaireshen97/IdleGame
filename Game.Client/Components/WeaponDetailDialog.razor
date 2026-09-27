@@ -13,6 +13,10 @@
             <div class="weapon-detail-heading">
                 <span class="weapon-detail-kicker">@Category · @WeaponRules.ElementName(Element)属性</span>
                 <h2 id="weapon-detail-title">@Name</h2>
+                @if (QualityRank is int qualityRank)
+                {
+                    <div class="weapon-detail-quality"><span>水晶品质</span><WeaponQualityCrystals Rank="@qualityRank" /><strong>@WeaponRules.QualityName(qualityRank)</strong></div>
+                }
                 <p id="weapon-detail-subtitle">@(string.IsNullOrWhiteSpace(Subtitle) ? $"装等 {ItemLevel}" : Subtitle)</p>
             </div>
             <button type="button" class="weapon-detail-close" @onclick="CloseAsync" @ref="_closeButton" aria-label="关闭武器详情">×</button>
@@ -73,6 +77,7 @@
     [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
     [Parameter] public ElementType Element { get; set; }
     [Parameter] public int ItemLevel { get; set; }
+    [Parameter] public int? QualityRank { get; set; }
     [Parameter] public int Attack { get; set; }
     [Parameter] public int MaxHp { get; set; }
     [Parameter] public string Category { get; set; } = "WEAPON DETAIL";

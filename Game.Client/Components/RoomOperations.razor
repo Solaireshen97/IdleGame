@@ -1,0 +1,25 @@
+@using Game.Shared.Dtos
+
+@if (Operations.Any(operation => operation.Status == "Pending") || ShowLatest && Operations.Count > 0)
+{
+    <section class="room-operations" aria-label="队伍操作预约" aria-live="polite">
+        @foreach (var operation in Operations.Where(item => item.Status == "Pending").OrderBy(item => item.Id))
+        {
+            <div class="room-operations__item" @key="operation.Id">
+                <div><strong>待执行</strong><span>@operation.Message</span></div>
+                <button type="button" class="button button--quiet" disabled="@IsBusy" aria-label="@($"取消预约：{operation.CharacterName}，{operation.SlotIndex} 号位")" @onclick="() => OnCancel.InvokeAsync(operation.Id)">取消</button>
+            </div>
+        }
+        @if (ShowLatest && Operations.FirstOrDefault() is { Status: not "Pending" } latest)
+        {
+            <p class="room-operations__result @(latest.Status == "Failed" ? "room-operations__result--failed" : null)">@latest.Message</p>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public List<RoomOperationResponse> Operations { get; set; } = [];
+    [Parameter] public bool IsBusy { get; set; }
+    [Parameter] public bool ShowLatest { get; set; }
+    [Parameter] public EventCallback<int> OnCancel { get; set; }
+}

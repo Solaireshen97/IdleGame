@@ -10,7 +10,7 @@ namespace Game.Server.Tests;
 public sealed class RoomAutoConfigurationTests
 {
     [Fact]
-    public async Task RoomDetailAllowsUnlockedMainCharacterToConfigureAuto()
+    public async Task RoomDetailAllowsUnlockedAccountCharacterToConfigureAuto()
     {
         var path = Path.Combine(Path.GetTempPath(), $"idlegame-room-auto-{Guid.NewGuid():N}.db");
         var options = new DbContextOptionsBuilder<GameDbContext>()
@@ -25,7 +25,7 @@ public sealed class RoomAutoConfigurationTests
                 new Character { Id = 1, UserId = 1, Name = "Knight", Hp = 45, MaxHp = 45, Attack = 20},
                 new Monster { Id = 1, Name = "Slime", Hp = 35, MaxHp = 35, Attack = 8, Defense = 2 },
                 new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted, RoundNumber = 3 },
-                new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1, IsMainControl = true },
+                new RoomSlot { Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1 },
                 new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow },
                 new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
                 new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
@@ -54,6 +54,7 @@ public sealed class RoomAutoConfigurationTests
             Assert.False(detail.IsCurrentUserAutoEnabled);
 
             ownerSlot.IsAutoEnabled = true;
+            (await db.Rooms.SingleAsync()).IsOwnerAutoEnabled = true;
             await db.SaveChangesAsync();
             detail = await service.GetRoomDetailAsync(1, "token");
             Assert.True(detail!.Slots.Single().CanConfigureAuto);
@@ -61,6 +62,7 @@ public sealed class RoomAutoConfigurationTests
 
             character.Hp = character.MaxHp;
             ownerSlot.IsAutoEnabled = false;
+            (await db.Rooms.SingleAsync()).IsOwnerAutoEnabled = false;
             await db.SaveChangesAsync();
             await db.CharacterBattleMilestones.ExecuteDeleteAsync();
             detail = await service.GetRoomDetailAsync(1, "token");
@@ -124,7 +126,7 @@ public sealed class RoomAutoConfigurationTests
             var main = new RoomSlot
             {
                 Id = 1, RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1,
-                IsMainControl = true, IsAutoEnabled = true
+                IsAutoEnabled = true
             };
             var secondary = new RoomSlot
             {
@@ -137,7 +139,7 @@ public sealed class RoomAutoConfigurationTests
                 new Character { Id = 1, UserId = 1, Name = "Veteran", Hp = 45, MaxHp = 45, Attack = 20 },
                 new Character { Id = 2, UserId = 1, Name = "Newcomer", Hp = 45, MaxHp = 45, Attack = 20 },
                 new Monster { Id = 1, Name = "Slime", Hp = 35, MaxHp = 35, Attack = 8 },
-                new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 5, Status = RoomStatus.NotStarted },
+                new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, IsOwnerAutoEnabled = true, SlotCount = 5, Status = RoomStatus.NotStarted },
                 main, secondary,
                 new CharacterBattleMilestone { CharacterId = 1, Kind = BattleMilestoneService.DungeonClearKind, TargetCode = "slime-field", Count = 1, FirstAtUtc = DateTime.UtcNow, LastAtUtc = DateTime.UtcNow },
                 new UserLoginSession { Id = 1, UserId = 1, Token = "token", CreatedAt = DateTime.UtcNow, ExpireAt = DateTime.UtcNow.AddDays(1) });
@@ -159,6 +161,7 @@ public sealed class RoomAutoConfigurationTests
             Assert.True(newcomer.CanConfigureAuto);
 
             main.IsAutoEnabled = false;
+            (await db.Rooms.SingleAsync()).IsOwnerAutoEnabled = false;
             secondary.IsAutoEnabled = true;
             await db.SaveChangesAsync();
             var disabled = await service.GetRoomDetailAsync(1, "token");

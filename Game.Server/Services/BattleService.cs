@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null)
 {
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
@@ -311,6 +311,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         var wasUserAutoEnabled = RoomAutoPolicy.IsEnabled(room, entry.Slot, slots.Select(slot => slot.Slot).ToArray());
         var wasAllAliveMembersAuto = slots.Where(slot => slot.Character.Hp > 0)
             .All(slot => IsSlotAuto(room, slot, clearedCharacterIds, slots));
+        if (user.Id == room.OwnerUserId) room.IsOwnerAutoEnabled = request.IsAutoEnabled;
         foreach (var owned in ownedSlots)
         {
             owned.Slot.IsAutoEnabled = request.IsAutoEnabled;
@@ -1644,6 +1645,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
     private async Task<(Room? Room, List<SlotCharacter>? Slots, Monster? Monster, string? Error)> GetRoomStateAsync(int roomId)
     {
+        // Apply reservations before reading the party and before an automatic restart or round.
+        if (roomService is not null) await roomService.ProcessPendingOperationsAsync(roomId);
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null) return (null, null, null, "NotFound");
         var slotRows = await dbContext.RoomSlots.Where(x => x.RoomId == roomId && x.CharacterId.HasValue).OrderBy(x => x.SlotIndex).ToListAsync();

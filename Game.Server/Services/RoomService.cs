@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
+public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
 {
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
     private const int SlotCount = 5;
@@ -134,8 +134,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             SlotIndex = index,
             CharacterId = index == 1 ? character.Id : null,
             UserId = index == 1 ? user.Id : null,
-            LastSeenAtUtc = index == 1 ? now : null,
-            IsMainControl = index == 1
+            LastSeenAtUtc = index == 1 ? now : null
         }));
         CharacterActivityManager.StartBattle(dbContext, character.Id, room, now);
         try { await dbContext.SaveChangesAsync(); }
@@ -153,10 +152,15 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomAsync(int roomId, JoinRoomRequest request, string? token)
     {
-        var room = await dbContext.Rooms.FindAsync(roomId);
-        if (room is null) return (null, "NotFound");
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
+        return await JoinRoomCoreAsync(roomId, request, user!, character!);
+    }
+
+    private async Task<(RoomDetailResponse? Detail, string? Error)> JoinRoomCoreAsync(int roomId, JoinRoomRequest request, User user, Character character)
+    {
+        var room = await dbContext.Rooms.FindAsync(roomId);
+        if (room is null) return (null, "NotFound");
         if (room.ClosedAtUtc.HasValue) return (null, "RoomClosed");
         if (!room.IsPublic && room.OwnerUserId != user!.Id) return (null, "RoomPrivate");
         if (room.IsRepeatBattle && room.ExpiresAtUtc <= DateTime.UtcNow)
@@ -245,10 +249,15 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> LeaveRoomAsync(int roomId, string? token)
     {
-        var room = await dbContext.Rooms.FindAsync(roomId);
-        if (room is null) return (null, "NotFound");
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
+        return await LeaveRoomCoreAsync(roomId, user!);
+    }
+
+    private async Task<(RoomDetailResponse? Detail, string? Error)> LeaveRoomCoreAsync(int roomId, User user)
+    {
+        var room = await dbContext.Rooms.FindAsync(roomId);
+        if (room is null) return (null, "NotFound");
         if (room.OwnerUserId == user!.Id) return (null, "NotRoomParticipant");
         if (room.Status != RoomStatus.BattleOver && (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (null, "RoomLocked");
         var slot = await dbContext.RoomSlots.SingleOrDefaultAsync(x => x.RoomId == roomId && x.UserId == user.Id);
@@ -275,7 +284,14 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
 
     public async Task<(RoomDetailResponse? Detail, string? Error)> AssignSlotAsync(int roomId, AssignRoomSlotRequest request, string? token)
     {
-        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        if (error is not null) return (null, error);
+        return await AssignSlotCoreAsync(roomId, request, user!);
+    }
+
+    private async Task<(RoomDetailResponse? Detail, string? Error)> AssignSlotCoreAsync(int roomId, AssignRoomSlotRequest request, User user)
+    {
+        var (room, error) = await GetOwnerEditableRoomAsync(roomId, user);
         if (error is not null) return (null, error);
         if (request.SlotIndex < 1 || request.SlotIndex > room!.SlotCount) return (null, "InvalidSlotIndex");
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == request.CharacterId);
@@ -289,13 +305,18 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (existingSlot is null && await dbContext.CharacterActivities.AnyAsync(activity => activity.CharacterId == character.Id))
             return (null, "CharacterAlreadyInRoom");
         if (existingSlot is not null && existingSlot.RoomId != room!.Id) return (null, "CharacterAlreadyInRoom");
-        if (existingSlot is not null && existingSlot.SlotIndex != request.SlotIndex) return (null, "CharacterAlreadyInTargetRoom");
         var target = await dbContext.RoomSlots.SingleAsync(x => x.RoomId == room!.Id && x.SlotIndex == request.SlotIndex);
+        if (existingSlot is not null)
+        {
+            if (existingSlot.Id == target.Id) return (await BuildRoomDetailAsync(room!, user.Id), null);
+            if (target.CharacterId.HasValue && target.UserId != user.Id) return (null, "NotCharacterOwner");
+            return await MoveSlotAsync(room!, user.Id, existingSlot, target);
+        }
         if (target.CharacterId.HasValue && target.CharacterId != character.Id) return (null, "SlotOccupied");
-        if (target.IsMainControl && target.CharacterId != character.Id) return (null, "CannotReplaceMainControl");
         character.Hp = TalentRules.EffectiveMaxHp(character);
         target.CharacterId = character.Id;
         target.UserId = user.Id;
+        target.IsAutoEnabled = room!.IsOwnerAutoEnabled;
         target.LastSeenAtUtc = DateTime.UtcNow;
         if (existingSlot is null)
         {
@@ -316,13 +337,64 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
+    private async Task<(RoomDetailResponse? Detail, string? Error)> MoveSlotAsync(
+        Room room, int userId, RoomSlot source, RoomSlot target)
+    {
+        var sourceCharacterId = source.CharacterId;
+        var targetCharacterId = target.CharacterId;
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync() : null;
+        try
+        {
+            // Release the unique character keys before exchanging occupants. Both saves are atomic.
+            source.CharacterId = null;
+            target.CharacterId = null;
+            room.Version++;
+            await dbContext.SaveChangesAsync();
+
+            source.CharacterId = targetCharacterId;
+            target.CharacterId = sourceCharacterId;
+            (source.UserId, target.UserId) = (target.UserId, source.UserId);
+            (source.LastSeenAtUtc, target.LastSeenAtUtc) = (target.LastSeenAtUtc, source.LastSeenAtUtc);
+            (source.IsConfirmed, target.IsConfirmed) = (target.IsConfirmed, source.IsConfirmed);
+            (source.IsAutoEnabled, target.IsAutoEnabled) = (target.IsAutoEnabled, source.IsAutoEnabled);
+            (source.IsTemporaryAuto, target.IsTemporaryAuto) = (target.IsTemporaryAuto, source.IsTemporaryAuto);
+            (source.PendingConsumableSlotIndex, target.PendingConsumableSlotIndex) =
+                (target.PendingConsumableSlotIndex, source.PendingConsumableSlotIndex);
+            (source.PendingSkillSlotMask, target.PendingSkillSlotMask) = (target.PendingSkillSlotMask, source.PendingSkillSlotMask);
+            (source.IsSoulImprintQueued, target.IsSoulImprintQueued) = (target.IsSoulImprintQueued, source.IsSoulImprintQueued);
+            (source.HasParticipatedInRun, target.HasParticipatedInRun) = (target.HasParticipatedInRun, source.HasParticipatedInRun);
+            (source.LastParticipatedMonsterId, target.LastParticipatedMonsterId) =
+                (target.LastParticipatedMonsterId, source.LastParticipatedMonsterId);
+            await dbContext.SaveChangesAsync();
+            if (transaction is not null) await transaction.CommitAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (transaction is not null) { await transaction.RollbackAsync(); dbContext.ChangeTracker.Clear(); }
+            return (null, "ConcurrencyConflict");
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+        {
+            if (transaction is not null) { await transaction.RollbackAsync(); dbContext.ChangeTracker.Clear(); }
+            return (null, "CharacterAlreadyInRoom");
+        }
+        return (await BuildRoomDetailAsync(room, userId), null);
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? Error)> RemoveSlotAsync(int roomId, int slotIndex, string? token)
     {
-        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
+        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
+        if (error is not null) return (null, error);
+        return await RemoveSlotCoreAsync(roomId, slotIndex, user!);
+    }
+
+    private async Task<(RoomDetailResponse? Detail, string? Error)> RemoveSlotCoreAsync(int roomId, int slotIndex, User user)
+    {
+        var (room, error) = await GetOwnerEditableRoomAsync(roomId, user);
         if (error is not null) return (null, error);
         if (slotIndex < 1 || slotIndex > room!.SlotCount) return (null, "InvalidSlotIndex");
         var slot = await dbContext.RoomSlots.SingleAsync(x => x.RoomId == room!.Id && x.SlotIndex == slotIndex);
-        if (slot.IsMainControl) return (null, "CannotRemoveMainControl");
         if (slot.UserId != user!.Id) return (null, "NotCharacterOwner");
         var character = slot.CharacterId.HasValue ? await dbContext.Characters.FindAsync(slot.CharacterId.Value) : null;
         if (character is not null) character.Hp = TalentRules.EffectiveMaxHp(character);
@@ -342,24 +414,6 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user!.Id), null);
-    }
-
-    public async Task<(RoomDetailResponse? Detail, string? Error)> SetMainControlAsync(int roomId, SetMainControlRequest request, string? token)
-    {
-        var (room, user, error) = await GetOwnerEditableRoomAsync(roomId, token);
-        if (error is not null) return (null, error);
-        var slot = await dbContext.RoomSlots.SingleOrDefaultAsync(x => x.RoomId == room!.Id && x.CharacterId == request.CharacterId && x.UserId == user!.Id);
-        if (slot is null) return (null, "CharacterNotInRoom");
-        var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).ToListAsync();
-        var autoEnabled = RoomAutoPolicy.IsEnabled(room, slot, slots);
-        foreach (var item in slots)
-        {
-            item.IsMainControl = item.Id == slot.Id;
-            if (item.UserId == user.Id) item.IsAutoEnabled = autoEnabled;
-        }
-        room.Version++;
-        await dbContext.SaveChangesAsync();
-        return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
     public async Task<(bool Success, string? Error)> DeleteRoomAsync(int roomId, string? token)
@@ -395,24 +449,22 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return (true, null);
     }
 
-    private async Task<(Room? Room, User? User, string? Error)> GetOwnerEditableRoomAsync(int roomId, string? token)
+    private async Task<(Room? Room, string? Error)> GetOwnerEditableRoomAsync(int roomId, User user)
     {
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
-        if (room is null) return (null, null, "NotFound");
-        var (user, error) = await userService.GetCurrentUserEntityAsync(token);
-        if (error is not null) return (room, null, error);
-        if (room.OwnerUserId != user!.Id) return (room, user, "NotOwner");
-        if (room.ClosedAtUtc.HasValue) return (room, null, "RoomClosed");
+        if (room is null) return (null, "NotFound");
+        if (room.OwnerUserId != user.Id) return (room, "NotOwner");
+        if (room.ClosedAtUtc.HasValue) return (room, "RoomClosed");
         if (room.IsRepeatBattle && room.ExpiresAtUtc <= DateTime.UtcNow &&
             (room.Status == RoomStatus.BattleOver || room.Status == RoomStatus.NotStarted && room.RoundNumber == 0))
         {
             await CharacterActivityManager.CloseBattleRoomAsync(dbContext, room, DateTime.UtcNow);
             room.Version++;
             await dbContext.SaveChangesAsync();
-            return (room, null, "RoomClosed");
+            return (room, "RoomClosed");
         }
-        if (room.Status != RoomStatus.BattleOver && (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (room, user, "FormationLocked");
-        return (room, user, null);
+        if (room.Status != RoomStatus.BattleOver && (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (room, "FormationLocked");
+        return (room, null);
     }
 
     private async Task<RoomDetailResponse?> BuildRoomDetailAsync(Room room, int? currentUserId)
@@ -482,9 +534,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 group => group.ToDictionary(entry => entry.NodeCode, entry => entry.PointsSpent, StringComparer.OrdinalIgnoreCase));
         var isCurrentUserAutoUnlocked = currentUserAliveSlots.Any(slot =>
             slot.CharacterId.HasValue && clearedDungeonCharacterIds.Contains(slot.CharacterId.Value));
-        var currentUserSlot = slots.FirstOrDefault(slot => slot.UserId == currentUserId && slot.IsMainControl)
-            ?? slots.FirstOrDefault(slot => slot.UserId == currentUserId);
-        var isCurrentUserAutoEnabled = currentUserSlot is not null && RoomAutoPolicy.IsEnabled(room, currentUserSlot, slots);
+        var currentUserSlot = slots.FirstOrDefault(slot => slot.UserId == currentUserId && slot.CharacterId.HasValue);
+        var isCurrentUserAutoEnabled = currentUserId == room.OwnerUserId ? room.IsOwnerAutoEnabled :
+            currentUserSlot is not null && RoomAutoPolicy.IsEnabled(room, currentUserSlot, slots);
         var isMixedTeam = slots.Any(slot => slot.UserId.HasValue && slot.UserId != room.OwnerUserId);
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
         var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot =>
@@ -527,6 +579,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         return new RoomDetailResponse
         {
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
+            Operations = await GetOperationResponsesAsync(room.Id, currentUserId),
             RegionName = dungeon.RegionName,
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             MonsterBaseMaxHp = monster.BaseMaxHp > 0 ? monster.BaseMaxHp : monster.MaxHp,
@@ -720,7 +773,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 }
                 var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots);
                 var isOffline = RoomAutoPolicy.IsOffline(room, slot, now);
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsMainControl = slot.IsMainControl, IsCurrentUserCharacter = slot.UserId == currentUserId, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotIndex = ownCharacterId.HasValue ? slot.PendingConsumableSlotIndex : null, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsCurrentUserCharacter = slot.UserId == currentUserId, IsQuickSkillCastEnabled = ownCharacterId.HasValue && character?.IsQuickSkillCastEnabled == true, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }
@@ -804,6 +857,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             ExpiresAtUtc = room.ExpiresAtUtc, ClosedAtUtc = room.ClosedAtUtc,
             IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled,
             IsCurrentUserParticipant = isCurrentUserParticipant,
+            PendingOperationCount = currentUserId.HasValue ? await dbContext.RoomOperations.CountAsync(operation =>
+                operation.RoomId == room.Id && operation.UserId == currentUserId.Value && operation.Status == "Pending") : 0,
             IsOwnedByCurrentUser = currentUserId.HasValue && room.OwnerUserId == currentUserId.Value
         };
     }

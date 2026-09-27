@@ -13,30 +13,29 @@ public partial class BattleServiceTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ChangingMainControlPreservesOwnAutoPreferenceAndIndividualUnlocks(bool autoEnabled)
+    public async Task ChangingAccountCharacterPreservesOwnAutoPreferenceAndIndividualUnlocks(bool autoEnabled)
     {
         await using var test = await BattleTestContext.CreateAsync();
         var guest = await test.AddOtherMemberAsync();
         var newcomer = await test.AddSlotAsync(3, "Newcomer");
-        var oldMain = await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl);
+        var oldMain = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
         var newMain = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == newcomer.Id);
         oldMain.IsAutoEnabled = autoEnabled;
         newMain.IsAutoEnabled = !autoEnabled;
         guest.IsAutoEnabled = !autoEnabled;
+        test.Room.IsOwnerAutoEnabled = autoEnabled;
         await test.Db.SaveChangesAsync();
         var progression = ProgressionTestFactory.Create();
         var skills = SkillTestFactory.Create();
         var rooms = new RoomService(test.Db, new UserService(test.Db, progression, skills), progression,
             ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
 
-        var (detail, error) = await rooms.SetMainControlAsync(test.Room.Id,
-            new SetMainControlRequest { CharacterId = newcomer.Id }, test.Token);
-
+        var userService = new UserService(test.Db, progression, skills);
+        var (_, error) = await userService.SelectCurrentCharacterAsync(test.Token, newcomer.Id);
         Assert.Null(error);
-        Assert.False(oldMain.IsMainControl);
-        Assert.True(newMain.IsMainControl);
+        var detail = await rooms.GetRoomDetailAsync(test.Room.Id, test.Token);
         Assert.Equal(autoEnabled, oldMain.IsAutoEnabled);
-        Assert.Equal(autoEnabled, newMain.IsAutoEnabled);
+        Assert.Equal(!autoEnabled, newMain.IsAutoEnabled);
         Assert.Equal(!autoEnabled, guest.IsAutoEnabled);
         Assert.Equal(autoEnabled, detail!.IsCurrentUserAutoEnabled);
         var veteranState = detail.Slots.Single(slot => slot.CharacterId == test.Character.Id);
@@ -62,6 +61,7 @@ public partial class BattleServiceTests
         test.Room.RoundNumber = 3;
         var owner = await test.Db.RoomSlots.SingleAsync();
         owner.IsAutoEnabled = autoEnabled;
+        test.Room.IsOwnerAutoEnabled = autoEnabled;
         if (!unlocked)
             test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones.ToListAsync());
         test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
@@ -138,8 +138,9 @@ public partial class BattleServiceTests
         var secondary = await test.AddSlotAsync(2, "Secondary");
         await test.AddSkillAsync(secondary, 1, "knight-strike", autoUse: true);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
-        var main = await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl);
+        var main = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
         main.IsAutoEnabled = false;
+        test.Room.IsOwnerAutoEnabled = false;
         var secondarySlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == secondary.Id);
         secondarySlot.IsAutoEnabled = true;
         await test.Db.SaveChangesAsync();
@@ -162,7 +163,8 @@ public partial class BattleServiceTests
         test.Db.CharacterBattleMilestones.RemoveRange(await test.Db.CharacterBattleMilestones
             .Where(milestone => milestone.CharacterId == newcomer.Id).ToListAsync());
         var slots = await test.Db.RoomSlots.ToListAsync();
-        foreach (var slot in slots) slot.IsAutoEnabled = slot.IsMainControl;
+        foreach (var slot in slots) slot.IsAutoEnabled = slot.CharacterId == test.Character.Id;
+        test.Room.IsOwnerAutoEnabled = true;
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         await test.Db.SaveChangesAsync();
 
@@ -210,14 +212,15 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task DeadMainCharacterStillSuppliesTheOwnerGroupsExplicitAutoSwitch()
+    public async Task AccountAutoStillAppliesWhenTheSelectedCharacterIsDead()
     {
         await using var test = await BattleTestContext.CreateAsync(monsterAttack: 1);
         var secondary = await test.AddSlotAsync(2, "Secondary");
         await test.AddSkillAsync(secondary, 1, "knight-strike", autoUse: true);
-        var main = await test.Db.RoomSlots.SingleAsync(slot => slot.IsMainControl);
+        var main = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.Character.Id);
         var secondarySlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == secondary.Id);
         main.IsAutoEnabled = true;
+        test.Room.IsOwnerAutoEnabled = true;
         secondarySlot.IsAutoEnabled = false;
         test.Character.Hp = 0;
         test.Monster.Hp = test.Monster.MaxHp = 1000;
@@ -288,6 +291,7 @@ public partial class BattleServiceTests
             slot.IsAutoEnabled = true;
             slot.IsConfirmed = true;
         }
+        test.Room.IsOwnerAutoEnabled = true;
         guest.IsAutoEnabled = false;
         guest.IsConfirmed = false;
         test.Room.Status = RoomStatus.Preparing;
@@ -307,7 +311,7 @@ public partial class BattleServiceTests
         Assert.False(guest.IsAutoEnabled);
         Assert.False(guest.IsConfirmed);
         Assert.Equal(preparationStarted, test.Room.PreparationStartedAtUtc);
-        var main = slots.Single(slot => slot.IsMainControl);
+        var main = slots.Single(slot => slot.CharacterId == test.Character.Id);
         Assert.Equal(SkillRules.SlotMask(1), main.PendingSkillSlotMask);
         Assert.True(main.IsSoulImprintQueued);
         Assert.Equal(3, test.Room.RoundNumber);

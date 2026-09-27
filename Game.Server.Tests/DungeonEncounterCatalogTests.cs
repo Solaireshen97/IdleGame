@@ -47,7 +47,7 @@ public class DungeonEncounterCatalogTests
         Assert.True(monsters[^1].IsBoss);
         Assert.Equal("kobold-mine-goldtooth", monsters[^1].RewardProfileCode);
         Assert.Contains(rewards.GetDropPreview("kobold-mine-goldtooth", false),
-            reward => reward.Name == "砾牙精工矿镐" && reward.ChancePercent == 18);
+            reward => reward.Name == "砾牙精工矿镐" && reward.ChancePercent == 5);
         Assert.Contains(rewards.GetDropPreview("kobold-mine", true),
             reward => reward.Name == "矿洞徽记" && reward.Quantity == 1);
         Assert.Contains(rewards.GetDropPreview("kobold-mine-first-clear", true),

@@ -2,6 +2,7 @@
 @using Game.Client.Services
 @using Game.Shared
 @using Game.Shared.Dtos.Shop
+@using Game.Shared.Enums
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject AccountBalanceState AccountBalance
@@ -102,11 +103,11 @@
                 var balance = GetMaterialQuantity(firstOffer.CurrencyCode);
                 <section class="exchange-section">
                     <header><div><span class="section-kicker">DUNGEON EXCHANGE</span><h2>@dungeon.Key.DungeonName</h2></div><strong>◆ @firstOffer.CurrencyName × @balance</strong></header>
-                    <p>武器兑换会正常生成品质；材料兑换的数量固定并直接存入当前角色背包。</p>
+                    <p>武器兑换会随机点亮 0～3 枚品质水晶；材料兑换的数量固定并直接存入当前角色背包。</p>
                     <div class="shop-grid">
                     @foreach (var offer in dungeon)
                     {
-                        <article class="shop-item exchange-item" @key="offer.Code">
+                        <article class="shop-item exchange-item @(offer.RewardKind == "Weapon" ? $"shop-item--weapon {WeaponElementClass(offer.Element)}" : null)" @key="offer.Code">
                             <div class="shop-item__top">
                                 <span class="shop-item__symbol" aria-hidden="true"><img src="@(offer.RewardKind == "Weapon" ? WeaponArt.ForCode(offer.WeaponCode) : ItemArt.ForCode(offer.RewardCode))" alt="" loading="lazy" /></span>
                                 <span class="shop-item__kind">@(offer.RewardKind == "Weapon" && offer.Element is { } element ? $"{WeaponRules.ElementName(element)} · WEAPON" : offer.RewardKind == "SoulImprint" ? "SOUL IMPRINT" : "MATERIAL")</span>
@@ -114,7 +115,11 @@
                             <h2>@offer.RewardName</h2>
                             @if (offer.RewardKind == "Weapon" && offer.Element is { } weaponElement)
                             {
-                                <p>@WeaponRules.ElementName(weaponElement)属性 · 攻击 +@offer.Attack · HP +@offer.MaxHp</p>
+                                <p>攻击 +@offer.Attack · HP +@offer.MaxHp</p>
+                                <div class="shop-item__weapon-meta">
+                                    <span class="shop-item__element">@WeaponRules.ElementName(weaponElement)属性</span>
+                                    <span class="shop-item__quality" title="兑换后随机点亮 0～3 枚品质水晶，基础攻击与生命固定。"><span>水晶品质</span><WeaponQualityCrystals Unrevealed="true" /><strong>随机 0～@(WeaponRules.MaxQualityBonusLevels) 晶</strong></span>
+                                </div>
                                 <div class="shop-item__skills">
                                     @foreach (var skill in offer.WeaponSkills)
                                     { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
@@ -149,7 +154,7 @@
                 {
                     var quantity = GetQuantity(item);
                     var total = item.Price * quantity;
-                    <article class="shop-item" @key="item.Code">
+                    <article class="shop-item @(item.Kind == "Weapon" ? $"shop-item--weapon {WeaponElementClass(item.Element)}" : null)" @key="item.Code">
                         <div class="shop-item__top">
                             <span class="shop-item__symbol" aria-hidden="true">@if (item.Kind == "Weapon") { <img src="@WeaponArt.ForCode(item.Code)" alt="" loading="lazy" /> } else { <img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /> }</span>
                             <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : item.AttackPercent.HasValue ? "OPERATION POTION" : "CONSUMABLE")</span>
@@ -159,7 +164,11 @@
                         { <p>@(item.AttackPercent.HasValue ? $"作战药剂 · 整场攻击 +{item.AttackPercent}% · 每场消耗 1 瓶" : $"恢复 {item.HealAmount} HP · 冷却 {item.CooldownRounds} 回合")</p> }
                         else
                         {
-                            <p>@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性 · 攻击 +@item.Attack · HP +@item.MaxHp</p>
+                            <p>攻击 +@item.Attack · HP +@item.MaxHp</p>
+                            <div class="shop-item__weapon-meta">
+                                <span class="shop-item__element">@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性</span>
+                                <span class="shop-item__quality" title="金币购买的武器固定为未点亮，可在武器详情中消耗同款武器点亮水晶。"><span>水晶品质</span><WeaponQualityCrystals Rank="0" /><strong>@WeaponRules.QualityName(0) · 固定</strong></span>
+                            </div>
                             <div class="shop-item__skills">
                                 @foreach (var skill in item.WeaponSkills)
                                 { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
@@ -201,6 +210,9 @@
     private void ShowWeapons() => _kind = "Weapon";
     private void ShowExchange() => _kind = "Exchange";
     private void ShowCharacterSlots() => _kind = "CharacterSlot";
+
+    private static string WeaponElementClass(ElementType? element) =>
+        element is { } value ? $"shop-item--{value.ToString().ToLowerInvariant()}" : string.Empty;
 
     protected override async Task OnInitializedAsync()
     {

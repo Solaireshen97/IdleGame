@@ -98,11 +98,25 @@ public class RoomController(RoomService roomService, BattleService battleService
         return detail is null ? RoomOperationError(error) : Ok(detail);
     }
 
-    [HttpPost("{roomId:int}/main-control")]
-    public async Task<IActionResult> SetMainControl(int roomId, [FromBody] SetMainControlRequest request)
+    [HttpPost("{roomId:int}/operations")]
+    public async Task<IActionResult> SubmitOperation(int roomId, [FromBody] SubmitRoomOperationRequest request)
     {
-        var (detail, error) = await roomService.SetMainControlAsync(roomId, request, GetBearerToken());
+        var (detail, error) = await roomService.SubmitOperationAsync(roomId, request, GetBearerToken());
         return detail is null ? RoomOperationError(error) : Ok(detail);
+    }
+
+    [HttpGet("{roomId:int}/operations")]
+    public async Task<IActionResult> GetOperations(int roomId)
+    {
+        var (operations, error) = await roomService.GetOperationsAsync(roomId, GetBearerToken());
+        return operations is null ? RoomOperationError(error) : Ok(operations);
+    }
+
+    [HttpDelete("{roomId:int}/operations/{operationId:int}")]
+    public async Task<IActionResult> CancelOperation(int roomId, int operationId)
+    {
+        var (success, error) = await roomService.CancelOperationAsync(roomId, operationId, GetBearerToken());
+        return success ? NoContent() : RoomOperationError(error);
     }
 
     [HttpDelete("{roomId:int}")]

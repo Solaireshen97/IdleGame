@@ -53,7 +53,7 @@ public sealed class T1WeaponContentTests
         var elites = WorldCatalog.LoadDefault().Dungeons.Where(dungeon => dungeon.DungeonKind == "Elite").ToList();
         var weapons = elites.Select(dungeon => catalog.FindItem(Assert.Single(
             rewards.MonsterKills[dungeon.Code].Drops,
-            drop => drop.Kind == "Weapon" && drop.ChancePercent == 20).Code)!).ToList();
+            drop => drop.Kind == "Weapon" && drop.ChancePercent == 3).Code)!).ToList();
         Assert.Equal(12, weapons.Select(item => item.Code).Distinct().Count());
         Assert.All(weapons.GroupBy(item => item.Element), group => Assert.Equal(2, group.Count()));
         Assert.All(weapons, item =>

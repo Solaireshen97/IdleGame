@@ -66,6 +66,10 @@ else
                     <article class="room-card @(room.ClosedAtUtc.HasValue ? "room-card--closed" : null)" @key="room.RoomId">
                         <div class="room-card__topline"><span>#@room.RoomId · @room.RegionName</span><span class="status-badge status-badge--@(room.ClosedAtUtc.HasValue ? "warning" : RoomStatusTone(room.RoomStatus))">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
                         <div class="room-card__identity"><h3>@room.DungeonName</h3><p>@room.MonsterName · 第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</p></div>
+                        @if (room.PendingOperationCount > 0)
+                        {
+                            <span class="status-badge">@room.PendingOperationCount 项队伍操作待执行</span>
+                        }
                         <button type="button" class="button button--primary room-card__enter" aria-label="@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗")：@room.DungeonName" @onclick="() => EnterRoom(room.RoomId)">@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗") <span aria-hidden="true">→</span></button>
                         <div class="room-card__bottom"><span class="room-card__rules">@(room.IsPublic ? "公开" : "私人") · @(room.IsRepeatBattle ? "循环" : "单次") · @(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span><span class="room-card__hp">HP @room.MonsterHp / @room.MonsterMaxHp</span></div>
                         <progress class="health-bar" value="@room.MonsterHp" max="@Math.Max(1, room.MonsterMaxHp)" aria-label="@room.MonsterName 的剩余生命"></progress>

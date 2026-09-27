@@ -241,6 +241,16 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<DungeonExchangeResultResponse>(), null);
     }
 
+    public async Task<string?> SetQuickSkillCastAsync(int characterId, bool isEnabled)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/quick-skill-cast", requiresAuth: true);
+        request.Content = JsonContent.Create(new SetQuickSkillCastRequest { IsEnabled = isEnabled });
+        using var response = await httpClient.SendAsync(request);
+        if (response.IsSuccessStatusCode) return null;
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return await response.Content.ReadAsStringAsync();
+    }
+
     public async Task<List<RoomSummaryResponse>?> GetRoomsAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/rooms", requiresAuth: true);
@@ -261,8 +271,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/join", requiresAuth: true);
-        request.Content = JsonContent.Create(new JoinRoomRequest { SlotIndex = slotIndex });
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Join, SlotIndex = slotIndex });
         return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "加入房间失败。");
     }
 
@@ -277,7 +287,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> LeaveRoomAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/leave", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Leave });
         return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "离开房间失败。");
     }
 
@@ -342,8 +353,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots", requiresAuth: true);
-        request.Content = JsonContent.Create(new AssignRoomSlotRequest { SlotIndex = slotIndex, CharacterId = characterId });
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Assign, SlotIndex = slotIndex, CharacterId = characterId });
         var response = await httpClient.SendAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -366,17 +377,24 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> RemoveRoomSlotAsync(int roomId, int slotIndex)
     {
-        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/slots/{slotIndex}", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Remove, SlotIndex = slotIndex });
         var response = await httpClient.SendAsync(request);
         return await HandleRoomDetailResponseAsync(response, "移除角色失败。");
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetMainControlAsync(int roomId, int characterId)
+    public async Task<List<RoomOperationResponse>?> GetRoomOperationsAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/main-control", requiresAuth: true);
-        request.Content = JsonContent.Create(new SetMainControlRequest { CharacterId = characterId });
-        var response = await httpClient.SendAsync(request);
-        return await HandleRoomDetailResponseAsync(response, "切换主控失败。");
+        using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomOperationResponse>>() : null;
+    }
+
+    public async Task<string?> CancelRoomOperationAsync(int roomId, int operationId)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/operations/{operationId}", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        return response.IsSuccessStatusCode ? null : await response.Content.ReadAsStringAsync();
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)

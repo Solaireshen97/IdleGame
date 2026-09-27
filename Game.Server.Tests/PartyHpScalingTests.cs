@@ -227,7 +227,7 @@ public sealed class PartyHpScalingTests
             db.RoomSlots.AddRange(Enumerable.Range(1, 5).Select(index => new RoomSlot
             {
                 RoomId = 1, SlotIndex = index, CharacterId = index == 1 ? 1 : null,
-                UserId = index == 1 ? 1 : null, IsMainControl = index == 1
+                UserId = index == 1 ? 1 : null
             }));
             await db.SaveChangesAsync();
             return new(connection, db, room, monster, owner, guest);

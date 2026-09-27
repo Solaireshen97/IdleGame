@@ -1,0 +1,9 @@
+.room-operations { margin: 12px 0; padding: 12px; border: 1px solid #69775f; border-radius: 12px; background: #1d302e; color: #e9f2ec; }
+.room-operations__item { display: flex; align-items: center; gap: 12px; }
+.room-operations__item + .room-operations__item { margin-top: 12px; padding-top: 12px; border-top: 1px solid #405653; }
+.room-operations__item > div { flex: 1; min-width: 0; }
+.room-operations__item strong { display: block; margin-bottom: 4px; color: #e5bc6d; font-size: 12px; }
+.room-operations__item span, .room-operations__result { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.room-operations__result { margin: 8px 0 0; color: #b6daca; }
+.room-operations__result--failed { color: #ffb1b6; }
+.room-operations__item button { flex-shrink: 0; }

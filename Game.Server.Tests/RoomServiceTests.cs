@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public class RoomServiceTests
+public partial class RoomServiceTests
 {
     [Fact]
     public async Task CumulativeRewardsIncludeAllRoomRunsAndKeepSameNamedCharactersSeparate()
@@ -367,7 +367,7 @@ public class RoomServiceTests
     }
 
     [Fact]
-    public async Task CreateRoomAsync_CreatesFiveSlotsAndMainControl()
+    public async Task CreateRoomAsync_CreatesFiveSlotsWithTheAccountSelectedCharacter()
     {
         await using var test = await RoomTestContext.CreateAsync();
         test.ActiveCharacter.Hp = 23;
@@ -380,7 +380,7 @@ public class RoomServiceTests
         Assert.Equal(5, detail!.Slots.Count);
         var firstSlot = Assert.Single(detail.Slots, x => x.SlotIndex == 1);
         Assert.Equal(test.ActiveCharacter.Id, firstSlot.CharacterId);
-        Assert.True(firstSlot.IsMainControl);
+        Assert.False(detail.IsCurrentUserAutoEnabled);
     }
 
     [Fact]
@@ -442,6 +442,221 @@ public class RoomServiceTests
     }
 
     [Fact]
+    public async Task AssignSlotAsync_MovesCharacterToEmptySlotWithItsStateAndActivity()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        room.Status = RoomStatus.BattleOver;
+        room.RoundNumber = 3;
+        var source = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == room.Id && slot.SlotIndex == 1);
+        var lastSeen = DateTime.UtcNow.AddSeconds(-5);
+        source.LastSeenAtUtc = lastSeen;
+        source.IsAutoEnabled = true;
+        room.IsOwnerAutoEnabled = true;
+        source.IsConfirmed = true;
+        source.IsTemporaryAuto = true;
+        source.PendingConsumableSlotIndex = 2;
+        source.PendingSkillSlotMask = 5;
+        source.IsSoulImprintQueued = true;
+        source.HasParticipatedInRun = true;
+        source.LastParticipatedMonsterId = room.MonsterId;
+        test.ActiveCharacter.Hp = 17;
+        await test.Db.SaveChangesAsync();
+        var activity = await test.Db.CharacterActivities.AsNoTracking().SingleAsync();
+        var version = room.Version;
+
+        var (updated, error) = await test.Service.AssignSlotAsync(room.Id,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = test.ActiveCharacter.Id }, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(5, Assert.Single(updated!.Slots, slot => slot.IsOccupied).SlotIndex);
+        Assert.True(updated.IsCurrentUserAutoEnabled);
+        await using var persisted = test.CreateDbContext();
+        var empty = await persisted.RoomSlots.SingleAsync(slot => slot.RoomId == room.Id && slot.SlotIndex == 1);
+        Assert.Null(empty.CharacterId);
+        Assert.Null(empty.UserId);
+        Assert.Null(empty.LastSeenAtUtc);
+        Assert.False(empty.IsAutoEnabled || empty.IsConfirmed || empty.IsTemporaryAuto);
+        Assert.Null(empty.PendingConsumableSlotIndex);
+        Assert.Equal(0, empty.PendingSkillSlotMask);
+        Assert.False(empty.IsSoulImprintQueued || empty.HasParticipatedInRun);
+        Assert.Null(empty.LastParticipatedMonsterId);
+        var moved = await persisted.RoomSlots.SingleAsync(slot => slot.RoomId == room.Id && slot.SlotIndex == 5);
+        Assert.Equal(test.ActiveCharacter.Id, moved.CharacterId);
+        Assert.Equal(test.ActiveCharacter.UserId, moved.UserId);
+        Assert.Equal(lastSeen, moved.LastSeenAtUtc);
+        Assert.True(moved.IsAutoEnabled && moved.IsConfirmed && moved.IsTemporaryAuto);
+        Assert.Equal(2, moved.PendingConsumableSlotIndex);
+        Assert.Equal(5, moved.PendingSkillSlotMask);
+        Assert.True(moved.IsSoulImprintQueued && moved.HasParticipatedInRun);
+        Assert.Equal(room.MonsterId, moved.LastParticipatedMonsterId);
+        Assert.Equal(17, (await persisted.Characters.FindAsync(test.ActiveCharacter.Id))!.Hp);
+        var currentActivity = await persisted.CharacterActivities.SingleAsync();
+        Assert.Equal((activity.CharacterId, activity.Kind, activity.SourceId, activity.StartedAtUtc, activity.EndsAtUtc),
+            (currentActivity.CharacterId, currentActivity.Kind, currentActivity.SourceId, currentActivity.StartedAtUtc, currentActivity.EndsAtUtc));
+        Assert.Equal(version + 1, (await persisted.Rooms.FindAsync(room.Id))!.Version);
+    }
+
+    [Fact]
+    public async Task AssignSlotAsync_SwapsOwnedCharactersAndPreservesAccountAutoAndCharacterCommands()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var second = await test.AddCharacterAsync("Priest");
+        Assert.Null((await test.Service.AssignSlotAsync(created!.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = second.Id }, test.Token)).Error);
+        var source = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == created.RoomId && slot.SlotIndex == 1);
+        var target = await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == created.RoomId && slot.SlotIndex == 5);
+        source.IsAutoEnabled = true;
+        (await test.Db.Rooms.FindAsync(created.RoomId))!.IsOwnerAutoEnabled = true;
+        source.PendingSkillSlotMask = 3;
+        target.IsAutoEnabled = false;
+        target.PendingConsumableSlotIndex = 1;
+        test.ActiveCharacter.Hp = 27;
+        second.Hp = 41;
+        var now = DateTime.UtcNow;
+        test.Db.CharacterBattleMilestones.AddRange(new[] { test.ActiveCharacter, second }.Select(character =>
+            new CharacterBattleMilestone { CharacterId = character.Id, Kind = BattleMilestoneService.DungeonClearKind,
+                TargetCode = "slime-field", Count = 1, FirstAtUtc = now, LastAtUtc = now }));
+        await test.Db.SaveChangesAsync();
+
+        var (updated, error) = await test.Service.AssignSlotAsync(created.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 1, CharacterId = second.Id }, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(second.Id, updated!.Slots.Single(slot => slot.SlotIndex == 1).CharacterId);
+        var main = Assert.Single(updated.Slots, slot => slot.CharacterId == test.ActiveCharacter.Id);
+        Assert.Equal((5, test.ActiveCharacter.Id), (main.SlotIndex, main.CharacterId));
+        Assert.True(updated.IsCurrentUserAutoEnabled);
+        Assert.All(updated.Slots.Where(slot => slot.IsOccupied), slot => Assert.True(slot.IsAutoEnabled));
+        await using var persisted = test.CreateDbContext();
+        var swapped = await persisted.RoomSlots.Where(slot => slot.RoomId == created.RoomId && slot.CharacterId != null).ToListAsync();
+        Assert.Equal(2, swapped.Count);
+        Assert.Equal(3, swapped.Single(slot => slot.CharacterId == test.ActiveCharacter.Id).PendingSkillSlotMask);
+        Assert.Equal(1, swapped.Single(slot => slot.CharacterId == second.Id).PendingConsumableSlotIndex);
+        Assert.Equal(27, (await persisted.Characters.FindAsync(test.ActiveCharacter.Id))!.Hp);
+        Assert.Equal(41, (await persisted.Characters.FindAsync(second.Id))!.Hp);
+        Assert.Equal(2, await persisted.CharacterActivities.CountAsync());
+
+        // Swapping back exercises both directions of the unique character index.
+        Assert.Null((await test.Service.AssignSlotAsync(created.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 1, CharacterId = test.ActiveCharacter.Id }, test.Token)).Error);
+        var restored = await test.Service.GetRoomDetailAsync(created.RoomId, test.Token);
+        Assert.Equal(1, restored!.Slots.Single(slot => slot.CharacterId == test.ActiveCharacter.Id).SlotIndex);
+    }
+
+    [Fact]
+    public async Task AssignSlotAsync_CurrentPositionIsANoOpWithoutHealingOrClearingCommands()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        var slot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == test.ActiveCharacter.Id);
+        test.ActiveCharacter.Hp = 23;
+        slot.PendingSkillSlotMask = 7;
+        await test.Db.SaveChangesAsync();
+        var version = room.Version;
+
+        var (updated, error) = await test.Service.AssignSlotAsync(room.Id,
+            new AssignRoomSlotRequest { SlotIndex = 1, CharacterId = test.ActiveCharacter.Id }, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(23, updated!.Slots.Single(slot => slot.IsOccupied).CharacterHp);
+        Assert.Equal(7, slot.PendingSkillSlotMask);
+        Assert.Equal(version, room.Version);
+    }
+
+    [Fact]
+    public async Task AssignSlotAsync_CannotMoveIntoAnotherPlayersPosition()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
+        await test.AddOtherActiveCharacterAsync();
+        Assert.Null((await test.Service.JoinRoomAsync(created!.RoomId,
+            new JoinRoomRequest { SlotIndex = 5 }, "other-token")).Error);
+
+        var (updated, error) = await test.Service.AssignSlotAsync(created.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = test.ActiveCharacter.Id }, test.Token);
+
+        Assert.Null(updated);
+        Assert.Equal("NotCharacterOwner", error);
+        Assert.Equal(test.ActiveCharacter.Id, (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == created.RoomId && slot.SlotIndex == 1)).CharacterId);
+        Assert.Equal(2, (await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == created.RoomId && slot.SlotIndex == 5)).CharacterId);
+        Assert.Equal(2, await test.Db.CharacterActivities.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(RoomStatus.Preparing, 0)]
+    [InlineData(RoomStatus.Cooldown, 1)]
+    [InlineData(RoomStatus.WaveTransition, 1)]
+    [InlineData(RoomStatus.NotStarted, 1)]
+    public async Task AssignSlotAsync_CannotMoveCharactersDuringAnActiveBattle(RoomStatus status, int roundNumber)
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        room.Status = status;
+        room.RoundNumber = roundNumber;
+        await test.Db.SaveChangesAsync();
+
+        var (updated, error) = await test.Service.AssignSlotAsync(room.Id,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = test.ActiveCharacter.Id }, test.Token);
+
+        Assert.Null(updated);
+        Assert.Equal("FormationLocked", error);
+        var slot = Assert.Single(await test.Db.RoomSlots.Where(slot => slot.RoomId == room.Id && slot.CharacterId != null).ToListAsync());
+        Assert.Equal(1, slot.SlotIndex);
+        Assert.Equal(test.ActiveCharacter.Id, slot.CharacterId);
+    }
+
+    [Fact]
+    public async Task AssignSlotAsync_CannotMoveACharacterFromAnotherRoom()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (first, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var second = await test.AddCharacterAsync("Mage");
+        (await test.Db.Users.FindAsync(1))!.ActiveCharacterId = second.Id;
+        await test.Db.SaveChangesAsync();
+        var (other, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+
+        var (updated, error) = await test.Service.AssignSlotAsync(first!.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = second.Id }, test.Token);
+
+        Assert.Null(updated);
+        Assert.Equal("CharacterAlreadyInRoom", error);
+        Assert.Equal(other!.RoomId, (await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == second.Id)).RoomId);
+        Assert.Null((await test.Db.RoomSlots.SingleAsync(slot => slot.RoomId == first.RoomId && slot.SlotIndex == 5)).CharacterId);
+    }
+
+    [Fact]
+    public async Task AssignSlotAsync_StaleMoveReturnsConflictWithoutClearingOrDuplicatingCharacters()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        await using var staleDb = test.CreateDbContext();
+        await staleDb.Rooms.SingleAsync(room => room.Id == created!.RoomId);
+        var progression = ProgressionTestFactory.Create();
+        var skills = SkillTestFactory.Create();
+        var staleService = new RoomService(staleDb, new UserService(staleDb, progression, skills), progression,
+            ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(staleDb, progression));
+        Assert.Null((await test.Service.AssignSlotAsync(created!.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = test.ActiveCharacter.Id }, test.Token)).Error);
+
+        var (updated, error) = await staleService.AssignSlotAsync(created.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 3, CharacterId = test.ActiveCharacter.Id }, test.Token);
+
+        Assert.Null(updated);
+        Assert.Equal("ConcurrencyConflict", error);
+        await using var persisted = test.CreateDbContext();
+        var slot = Assert.Single(await persisted.RoomSlots.Where(slot => slot.CharacterId != null).ToListAsync());
+        Assert.Equal((5, test.ActiveCharacter.Id), (slot.SlotIndex, slot.CharacterId));
+        Assert.Single(await persisted.CharacterActivities.ToListAsync());
+        var refreshed = await staleService.GetRoomDetailAsync(created.RoomId, test.Token);
+        Assert.Equal(5, refreshed!.Slots.Single(slot => slot.IsOccupied).SlotIndex);
+    }
+
+    [Fact]
     public async Task AssignSlotAsync_RejectsOtherUsersCharacter()
     {
         await using var test = await RoomTestContext.CreateAsync();
@@ -453,6 +668,58 @@ public class RoomServiceTests
         Assert.Null(updated);
         Assert.Equal("NotCharacterOwner", error);
         Assert.Null((await test.Db.RoomSlots.SingleAsync(x => x.RoomId == detail.RoomId && x.SlotIndex == 2)).CharacterId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RemoveSlotAsync_CanRemoveTheOnlyOwnedCharacterAndKeepsAccountAutoWhenAddingAnother(bool autoEnabled)
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        room.IsOwnerAutoEnabled = autoEnabled;
+        test.ActiveCharacter.Hp = 17;
+        await test.Db.SaveChangesAsync();
+
+        var (empty, removeError) = await test.Service.RemoveSlotAsync(room.Id, 1, test.Token);
+
+        Assert.Null(removeError);
+        Assert.All(empty!.Slots, slot => Assert.False(slot.IsOccupied));
+        Assert.Equal(autoEnabled, empty.IsCurrentUserAutoEnabled);
+        Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
+        Assert.Equal(100, test.ActiveCharacter.Hp);
+        // The account still owns the room even when none of its characters is currently in it.
+        Assert.Null((await test.Service.SetRoomVisibilityAsync(room.Id, true, test.Token)).Error);
+        var next = await test.AddCharacterAsync("Next character");
+        var (updated, assignError) = await test.Service.AssignSlotAsync(room.Id,
+            new AssignRoomSlotRequest { SlotIndex = 5, CharacterId = next.Id }, test.Token);
+
+        Assert.Null(assignError);
+        Assert.Equal(autoEnabled, updated!.IsCurrentUserAutoEnabled);
+        var slot = Assert.Single(updated.Slots, slot => slot.IsOccupied);
+        Assert.Equal(next.Id, slot.CharacterId);
+        Assert.False(slot.IsAutoEnabled); // This character has not cleared this dungeon yet.
+        Assert.Equal(autoEnabled, (await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == next.Id)).IsAutoEnabled);
+        Assert.Single(await test.Db.CharacterActivities.ToListAsync());
+    }
+
+    [Fact]
+    public async Task AccountAutoIsIndependentBetweenRooms()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (first, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        (await test.Db.Rooms.FindAsync(first!.RoomId))!.IsOwnerAutoEnabled = true;
+        var next = await test.AddCharacterAsync("Next character");
+        var progression = ProgressionTestFactory.Create();
+        var users = new UserService(test.Db, progression, SkillTestFactory.Create());
+        Assert.Null((await users.SelectCurrentCharacterAsync(test.Token, next.Id)).Error);
+        var (second, error) = await test.Service.CreateRoomAsync("Slime", test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(next.Id, Assert.Single(second!.Slots, slot => slot.IsOccupied).CharacterId);
+        Assert.False(second.IsCurrentUserAutoEnabled);
+        Assert.True((await test.Service.GetRoomDetailAsync(first.RoomId, test.Token))!.IsCurrentUserAutoEnabled);
     }
 
     [Fact]

@@ -39,7 +39,8 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
         var now = DateTime.UtcNow;
         var repeatCutoff = now.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
         var roomIds = await dbContext.Rooms.AsNoTracking()
-            .Where(room => room.ClosedAtUtc == null && (room.Status == RoomStatus.NotStarted ||
+            .Where(room => dbContext.RoomOperations.Any(operation => operation.RoomId == room.Id && operation.Status == "Pending") ||
+                room.ClosedAtUtc == null && (room.Status == RoomStatus.NotStarted ||
                 room.Status == RoomStatus.Preparing ||
                 room.Status == RoomStatus.Cooldown && room.NextRoundAvailableAtUtc <= now ||
                 room.Status == RoomStatus.WaveTransition && room.NextRoundAvailableAtUtc <= now ||
