@@ -254,7 +254,7 @@ public sealed class T1WeaponContentTests
         await connection.OpenAsync();
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.MigrateAsync();
-        var weapon = new CharacterWeapon { Id = 1, CharacterId = 1, WeaponCode = "goldtooth-pickaxe", Name = "旧金牙矿镐",
+        var weapon = new CharacterWeapon { Id = 1, CharacterId = 1, WeaponCode = "goldtooth-pickaxe", Name = "旧砾牙矿主矿镐",
             Element = ElementType.Earth, Attack = 14, MaxHp = 38, ItemLevel = 9, IsLocked = true, EquippedSlotIndex = 1, QualityRank = 3,
             Skills = [new() { SlotIndex = 1, SkillCode = "weapon-attack", BaseLevel = 2, EnhancementLevel = 2, Level = 4 },
                 new() { SlotIndex = 2, SkillCode = "weapon-health", BaseLevel = 1, EnhancementLevel = 1, Level = 2 }] };

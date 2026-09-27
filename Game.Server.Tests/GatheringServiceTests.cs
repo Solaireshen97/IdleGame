@@ -296,8 +296,8 @@ public sealed class GatheringServiceTests
         await using var test = await GatheringTestContext.CreateAsync();
         var dungeon = new Dungeon
         {
-            Id = 1, Code = "elwynn-grizzled-bear", Name = "林地灰熊王", DungeonKind = "Elite",
-            MonsterName = "林地灰熊王", MonsterMaxHp = 100, MonsterAttack = 10, MonsterDefense = 2
+            Id = 1, Code = "elwynn-grizzled-bear", Name = "苔背熊王", DungeonKind = "Elite",
+            MonsterName = "苔背熊王", MonsterMaxHp = 100, MonsterAttack = 10, MonsterDefense = 2
         };
         test.Db.Dungeons.Add(dungeon);
         await test.Db.SaveChangesAsync();
@@ -316,7 +316,7 @@ public sealed class GatheringServiceTests
             var monster = new Monster
             {
                 Id = id, RoomId = id, WaveNumber = 1, Position = 1,
-                Name = "林地灰熊王", MaxHp = 100, Hp = 0,
+                Name = "苔背熊王", MaxHp = 100, Hp = 0,
                 RewardProfileCode = dungeon.Code
             };
             test.Db.AddRange(room, monster);
@@ -433,7 +433,7 @@ public sealed class GatheringServiceTests
                 [
                     new GatheringPointOptions
                     {
-                        Code = "elwynn-peacebloom", Name = "北郡宁神花", RegionCode = "elwynn",
+                        Code = "elwynn-peacebloom", Name = "岩芽宁神花", RegionCode = "elwynn",
                         MaterialCode = "peacebloom", CycleSeconds = cycleSeconds, OutputQuantity = 1,
                         UnlockKind = BattleMilestoneService.MonsterKillKind,
                         UnlockTargetCode = "northshire-wolves",

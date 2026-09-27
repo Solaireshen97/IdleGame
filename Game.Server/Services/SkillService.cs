@@ -205,6 +205,60 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         }
     }
 
+    public async Task<(CharacterSkillsResponse? Response, string? Error)> RefundTalentNodeAsync(
+        string? token, int characterId, string nodeCode)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        var node = catalog.FindTalentNode(nodeCode);
+        if (node is null || !string.Equals(node.ProfessionCode, character!.ProfessionCode, StringComparison.OrdinalIgnoreCase))
+            return (null, "InvalidSkillTalent");
+        if (await IsLoadoutLockedAsync(characterId)) return (null, "LoadoutLocked");
+        var ranks = await GetPurchasedNodeRanksAsync(characterId);
+        if (ranks.GetValueOrDefault(node.Code) <= 0) return (null, "SkillTalentNotLearned");
+        if (catalog.RefundBlockReason(character, node, ranks) is { } reason)
+            return (null, $"TalentRefundBlocked:{reason}");
+
+        var learnedBefore = catalog.LearnedSkills(character, ranks).Select(skill => skill.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ranks[node.Code]--;
+        var learnedAfter = catalog.LearnedSkills(character, ranks).Select(skill => skill.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        learnedBefore.ExceptWith(learnedAfter);
+        var record = await dbContext.CharacterSkillTalents.SingleAsync(item => item.CharacterId == characterId && item.NodeCode == node.Code);
+        if (--record.PointsSpent == 0) dbContext.CharacterSkillTalents.Remove(record);
+        character.TalentPoints += node.Cost;
+        ApplyTalentAggregates(character, node, -1);
+        character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
+        character.Version++;
+
+        if (learnedBefore.Count > 0)
+        {
+            var slots = await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync();
+            var removedMask = 0;
+            foreach (var slot in slots.Where(slot => slot.SkillCode is not null && learnedBefore.Contains(slot.SkillCode)))
+            {
+                removedMask |= SkillRules.SlotMask(slot.SlotIndex);
+                slot.SkillCode = null;
+                slot.AutoUseEnabled = false;
+                slot.Version++;
+            }
+            var removedCodes = learnedBefore.ToArray();
+            var cooldowns = await dbContext.BattleSkillCooldowns.Where(entry =>
+                entry.CharacterId == characterId && removedCodes.Contains(entry.SkillCode)).ToListAsync();
+            dbContext.BattleSkillCooldowns.RemoveRange(cooldowns);
+            if (removedMask != 0 && await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId) is { } roomSlot)
+            {
+                roomSlot.PendingSkillSlotMask &= ~removedMask;
+                if (await dbContext.Rooms.FindAsync(roomSlot.RoomId) is { } room) room.Version++;
+            }
+        }
+        try { await dbContext.SaveChangesAsync(); return (await BuildResponseAsync(character), null); }
+        catch (DbUpdateException)
+        {
+            dbContext.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
     public async Task<(CharacterSkillsResponse? Response, string? Error)> ResetTalentTreeAsync(string? token, int characterId)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);

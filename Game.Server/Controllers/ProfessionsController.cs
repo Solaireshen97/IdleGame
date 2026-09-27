@@ -21,6 +21,13 @@ public sealed class ProfessionsController(ProfessionService professions) : Contr
         return error is null ? Ok(progress) : ToError(error);
     }
 
+    [HttpPost("{professionCode}/talents/{nodeCode}/refund")]
+    public async Task<IActionResult> Refund(string professionCode, string nodeCode)
+    {
+        var (progress, error) = await professions.RefundAsync(Token(), professionCode, nodeCode);
+        return error is null ? Ok(progress) : ToError(error);
+    }
+
     [HttpPost("{professionCode}/talents/reset")]
     public async Task<IActionResult> Reset(string professionCode)
     {

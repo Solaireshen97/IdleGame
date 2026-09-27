@@ -38,7 +38,7 @@ public sealed class WorldCatalog
                 !(partyScaling ?? PartyScalingCatalog.Default).HasProfile(dungeon.PartyScalingProfileCode) ||
                 dungeon.DungeonKind is not ("Hunt" or "Elite" or "Dungeon" or "Legacy") ||
                 dungeon.IsVisible && (region is null || dungeon.MinimumLevel < region.MinimumLevel ||
-                    dungeon.RecommendedLevel > region.MaximumLevel))
+                    dungeon.RecommendedLevel > region.MaximumLevel || dungeon.MonsterElement != region.FeaturedElement))
                 throw new InvalidOperationException($"Invalid world dungeon: {dungeon.Code}");
             if (region is not null) dungeon.RegionName = region.Name;
         }
@@ -51,6 +51,9 @@ public sealed class WorldCatalog
         {
             if (!encounters.HasDefinition(dungeon.Code) || !rewards.HasRewardProfile(dungeon.Code, true))
                 throw new InvalidOperationException($"Missing encounter or clear rewards: {dungeon.Code}");
+            var region = Regions.Single(region => region.Code == dungeon.RegionCode);
+            if (encounters.CreateMonsters(dungeon).Any(monster => monster.Element != region.FeaturedElement))
+                throw new InvalidOperationException($"Monster element must match region {region.Code}: {dungeon.Code}");
         }
         foreach (var region in Regions)
         {

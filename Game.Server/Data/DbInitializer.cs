@@ -14,11 +14,14 @@ public static class DbInitializer
     private const string InitialCreateMigrationId = "20260612043042_InitialCreate";
     private const string AddActiveCharacterMigrationId = "20260612044400_AddActiveCharacterId";
 
-    public static async Task InitializeAsync(GameDbContext dbContext, WeaponCatalog? weaponCatalog = null, WorldCatalog? world = null)
+    public static async Task InitializeAsync(GameDbContext dbContext, WeaponCatalog? weaponCatalog = null,
+        WorldCatalog? world = null, DungeonEncounterCatalog? encounters = null)
     {
         await AdoptLegacyEnsureCreatedDatabaseAsync(dbContext);
         await dbContext.Database.MigrateAsync();
+        world ??= WorldCatalog.LoadDefault();
         await EnsureDefaultDungeonsAsync(dbContext, world);
+        await SynchronizeRegionalMonstersAsync(dbContext, world, encounters);
         if (weaponCatalog is not null)
         {
             await SynchronizeWeaponTemplatesAsync(dbContext, weaponCatalog);
@@ -26,11 +29,54 @@ public static class DbInitializer
         }
     }
 
+    private static async Task SynchronizeRegionalMonstersAsync(GameDbContext dbContext, WorldCatalog world,
+        DungeonEncounterCatalog? encounters)
+    {
+        var elements = world.Regions.ToDictionary(region => region.Code, region => region.FeaturedElement);
+        var names = world.Dungeons.Where(dungeon => dungeon.IsVisible && encounters?.HasDefinition(dungeon.Code) == true)
+            .ToDictionary(dungeon => dungeon.Code, dungeon => encounters!.CreateMonsters(dungeon)
+                .ToDictionary(monster => (monster.WaveNumber, monster.Position), monster => monster.Name));
+        // Run at startup before room cycles begin. Include every saved wave and old single-monster rooms.
+        var entries = await (from room in dbContext.Rooms
+            join dungeon in dbContext.Dungeons on room.DungeonId equals dungeon.Id
+            from monster in dbContext.Monsters
+            where dungeon.IsVisible && (monster.RoomId == room.Id ||
+                monster.RoomId == null && monster.Id == room.MonsterId)
+            select new { Room = room, Monster = monster, Dungeon = dungeon }).ToListAsync();
+        var changedRooms = new Dictionary<int, Room>();
+        foreach (var entry in entries)
+        {
+            if (!elements.TryGetValue(entry.Dungeon.RegionCode, out var element)) continue;
+            var changed = entry.Monster.Element != element;
+            entry.Monster.Element = element;
+            if (names.TryGetValue(entry.Dungeon.Code, out var encounterNames))
+            {
+                // Old single-monster rooms use the dungeon summary monster, not the first new wave.
+                var name = entry.Monster.RoomId is null ? entry.Dungeon.MonsterName :
+                    encounterNames.GetValueOrDefault((entry.Monster.WaveNumber, entry.Monster.Position));
+                if (name is not null && entry.Monster.Name != name)
+                {
+                    entry.Monster.Name = name;
+                    changed = true;
+                }
+            }
+            if (changed) changedRooms.TryAdd(entry.Room.Id, entry.Room);
+        }
+        foreach (var room in changedRooms.Values) room.Version++;
+        await dbContext.SaveChangesAsync();
+    }
+
     private static async Task SynchronizeWeaponTemplatesAsync(GameDbContext dbContext, WeaponCatalog catalog)
     {
         var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills).ToListAsync();
         var changed = weapons.Where(catalog.NeedsTemplateUpdate).ToList();
-        if (changed.Count == 0) return;
+        foreach (var weapon in weapons.Where(weapon => !catalog.NeedsTemplateUpdate(weapon)))
+            catalog.SynchronizeName(weapon);
+        if (changed.Count == 0)
+        {
+            await dbContext.SaveChangesAsync();
+            return;
+        }
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         // Delete old skill rows first, then insert the rebased rows within one transaction.
         // Otherwise changing two skill codes can transiently violate the unique index.

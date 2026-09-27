@@ -54,11 +54,12 @@
         </div>
         @if (SelectedNode is { } selected)
         {
-            <div class="profession-selection">
-                <div><strong>@selected.Name</strong><small>@(Progress.IsTalentLocked ? "工作中，结束任务后可加点" : selected.LockReason ?? "可以投入 1 点")</small></div>
-                <button type="button" id="profession-details" @onclick="OpenNodeDetails">详情</button>
-                <button type="button" class="profession-selection__spend" @onclick="() => OnSpend.InvokeAsync(selected.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !selected.CanPurchase)">@(IsBusy ? "保存中" : selected.Rank >= selected.MaxRank ? "已满级" : "加 1 点")</button>
-            </div>
+            <TalentNodePreview @key="selected.Code" Name="@selected.Name" Rank="selected.Rank" MaxRank="selected.MaxRank"
+                               Requirement='@(Progress.IsTalentLocked ? "工作中，结束任务后可加点" : selected.LockReason ?? "可以投入 1 点")'
+                               CanSpend="@(!Progress.IsTalentLocked && selected.CanPurchase)" CanRefund="@(!Progress.IsTalentLocked && selected.Rank > 0)" IsBusy="IsBusy" ExpandButtonId="profession-details" Message="@Notice"
+                               OnExpand="OpenNodeDetails" OnSpend="() => OnSpend.InvokeAsync(selected.Code)" OnRefund="() => OnRefund.InvokeAsync(selected.Code)">
+                <p>@selected.Description</p>
+            </TalentNodePreview>
             <div class="profession-tree-detail-shade @(_detailOpen ? "profession-tree-detail-shade--open" : null)" @onclick="CloseNodeDetails"></div>
             <section class="profession-tree-detail @(_detailOpen ? "profession-tree-detail--open" : null)" role="@(_detailOpen ? "dialog" : "region")" aria-modal="@(_detailOpen ? "true" : null)" aria-label="@selected.Name 详情"
                      tabindex="-1" @ref="_detailElement" @onkeydown="HandleDetailKeyDown" @onkeydown:stopPropagation>
@@ -86,7 +87,10 @@
                     <small class="profession-tree-detail__requirement">@(selected.LockReason ?? "可以投入 1 点")</small>
                 </div>
                 @if (Notice is not null) { <p class="profession-tree-detail__notice" role="status">@Notice</p> }
-                <button type="button" class="profession-tree-detail__spend" @onclick="() => OnSpend.InvokeAsync(selected.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !selected.CanPurchase)">@(IsBusy ? "保存中…" : selected.Rank >= selected.MaxRank ? "已满级" : selected.CanPurchase ? "投入 1 点" : "暂不可加点")</button>
+                <div class="profession-tree-detail__actions">
+                    <button type="button" class="profession-tree-detail__refund" @onclick="() => OnRefund.InvokeAsync(selected.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || selected.Rank <= 0)">退 1 点</button>
+                    <button type="button" class="profession-tree-detail__spend" @onclick="() => OnSpend.InvokeAsync(selected.Code)" disabled="@(IsBusy || Progress.IsTalentLocked || !selected.CanPurchase)">@(IsBusy ? "保存中…" : selected.Rank >= selected.MaxRank ? "已满级" : selected.CanPurchase ? "投入 1 点" : "暂不可加点")</button>
+                </div>
             </section>
         }
     </div>
@@ -95,6 +99,8 @@
 @code {
     [Parameter, EditorRequired] public ProfessionProgressResponse Progress { get; set; } = new();
     [Parameter] public EventCallback<string> OnSpend { get; set; }
+    [Parameter] public EventCallback<string> OnRefund { get; set; }
+    [Parameter] public EventCallback OnSelect { get; set; }
     [Parameter] public EventCallback OnReset { get; set; }
     [Parameter] public bool IsBusy { get; set; }
     [Parameter] public string? Notice { get; set; }
@@ -125,13 +131,13 @@
         }
     }
 
-    private void SelectNode(string code) { _selectedNodeCode = code; }
+    private async Task SelectNode(string code) { _selectedNodeCode = code; await OnSelect.InvokeAsync(); }
     private void OpenNodeDetails() { _detailOpen = true; _focusDetail = true; }
     private async Task CloseNodeDetails() { _detailOpen = false; _focusDetail = false; await Js.InvokeVoidAsync("talentUi.focus", "profession-details"); }
     private async Task JumpToParent()
     {
         if (SelectedNode is not { } selected || FindParent(selected) is not { } parent) return;
-        _selectedNodeCode = parent.Code; _detailOpen = false; _focusDetail = false;
+        await SelectNode(parent.Code); _detailOpen = false; _focusDetail = false;
         await Js.InvokeVoidAsync("talentUi.focus", $"profession-node-{parent.Code}");
     }
     private async Task HandleDetailKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") await CloseNodeDetails(); }

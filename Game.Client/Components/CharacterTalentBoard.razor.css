@@ -45,12 +45,6 @@
 .talent-tree-map__node.complete b { color:#a7ebcc; border-color:#579680; }
 .talent-tree-map__node.locked .talent-tree-map__icon img { filter:saturate(.25); opacity:.7; }
 .talent-tree-map__node>strong { color:#c6d5de; font-size:.72rem; line-height:1.1; font-weight:600; overflow-wrap:anywhere; }
-.talent-selection { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.4rem; padding-top:.5rem; border-top:1px solid #3f586b; min-height:62px; flex-shrink:0; }
-.talent-selection__copy { display:flex; flex-direction:column; gap:.25rem; min-width:0; }
-.talent-selection__copy>strong { color:#f0dfbd; font-size:.8rem; }
-.talent-selection__copy small { color:#8da9bc; font-size:.6rem; font-weight:400; }
-.talent-selection__copy>span { color:#a4bdcd; font-size:.62rem; line-height:1.35; }
-.talent-selection>button { min-height:44px; padding:.25rem .5rem; }
 .talent-board button.talent-spend { background:#d9ad5e; color:#142333; border-color:#e8c681; font-weight:800; }
 .talent-board button.talent-spend:disabled { opacity:1; color:#8da7b8; background:#263c4c; border-color:#415c6e; }
 .talent-board__error { color:#ffb8b8; margin:0; font-size:.7rem; line-height:1.4; }
@@ -87,4 +81,4 @@
 .promotion-options img { width:100%; height:80px; object-fit:contain; image-rendering:pixelated; }
 .promotion-options strong { color:#e5c48b; }
 .promotion-options span, .promotion-options small { font-size:.7rem; color:#a9bfcd; }
-@media(max-height:650px) { .talent-board { gap:.2rem; padding:.45rem; } .talent-board__guide { font-size:.6rem; } .talent-selection__copy small { display:none; } }
+@media(max-height:650px) { .talent-board { gap:.2rem; padding:.45rem; } .talent-board__guide { font-size:.6rem; } }

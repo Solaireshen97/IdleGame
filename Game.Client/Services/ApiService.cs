@@ -31,6 +31,14 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
     }
 
+    public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> RefundProfessionTalentAsync(
+        string professionCode, string nodeCode)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Post,
+            $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/{Uri.EscapeDataString(nodeCode)}/refund", requiresAuth: true);
+        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+    }
+
     public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> ResetProfessionTalentsAsync(string professionCode)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post,
@@ -46,16 +54,17 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             if (response.IsSuccessStatusCode)
                 return (await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>(), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
-            return (null, error switch
+            return (null, error.StartsWith("TalentRefundBlocked:", StringComparison.Ordinal) ? error["TalentRefundBlocked:".Length..] : error switch
             {
                 "ProfessionLevelTooLow" => "专业等级还未达到要求。",
                 "TalentPointsExhausted" => "当前没有可用的专业天赋点。",
                 "TalentAtMaximum" => "这个天赋已经达到上限。",
+                "TalentNotLearned" => "这个天赋还没有投入点数。",
                 "TalentPrerequisiteMissing" => "请先点满要求的前置天赋等级。",
                 "ProfessionTalentLocked" => "当前专业任务进行中，请结束任务后再修改该专业天赋。",
                 "ConcurrencyConflict" => "专业数据刚刚变化，请刷新后重试。",
                 "TalentNotFound" or "ProfessionNotFound" => "这个专业天赋已不存在，请刷新页面。",
-                _ => "加点失败，请稍后重试。"
+                _ => "专业天赋操作失败，请稍后重试。"
             });
         }
     }
@@ -615,6 +624,11 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         int characterId, string nodeCode) =>
         SendSkillRequestAsync(HttpMethod.Post,
             $"api/user/characters/{characterId}/skills/talents/{Uri.EscapeDataString(nodeCode)}/unlock");
+
+    public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> RefundSkillTalentAsync(
+        int characterId, string nodeCode) =>
+        SendSkillRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/skills/talents/{Uri.EscapeDataString(nodeCode)}/refund");
 
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> ResetSkillTalentsAsync(int characterId) =>
         SendSkillRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/skills/talents/reset");

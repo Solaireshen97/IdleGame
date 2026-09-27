@@ -23,7 +23,7 @@
             <strong class="talent-board__points">@_skills.TalentPoints <small>可用</small></strong>
             <button id="talent-manage" type="button" @onclick='() => OpenModal("manage")'>@(_skills.CanPromote ? "可转职" : "管理")</button>
         </header>
-        <div class="talent-board__guide"><span>上下拖动天赋树，点选查看前置</span><button type="button" disabled="@(!_skills.TalentNodes.Any(node => node.CanUnlock))" @onclick="SelectAvailable">定位可加点</button></div>
+        <div class="talent-board__guide"><span>上下拖动天赋树，点选查看效果与前置</span><button type="button" disabled="@(!_skills.TalentNodes.Any(node => node.CanUnlock))" @onclick="SelectAvailable">定位可加点</button></div>
         <div class="talent-tree-legend"><span><i class="learned"></i>已学习</span><span><i class="available"></i>可加点</span><span><i class="required"></i>必需</span><span><i class="optional"></i>任选其一</span></div>
         <div class="talent-tree-map" @ref="_mapElement" style="--tree-tiers:@TreeTierCount" role="region" tabindex="0" aria-label="@($"{_skills.ProfessionName}完整天赋树，共 {TreeTierCount} 层，可上下滚动")">
             <div class="talent-tree-map__content">
@@ -53,13 +53,16 @@
         </div>
         @if (SelectedNode is { } selected)
         {
-            <div class="talent-selection" aria-live="polite">
-                <div class="talent-selection__copy"><strong>@selected.Name <small>@BranchName(selected.BranchCode)</small></strong><span>@Requirement(selected)</span></div>
-                <button id="talent-details" type="button" @onclick='() => OpenModal("detail")'>详情</button>
-                <button class="talent-spend" type="button" disabled="@(_isSubmitting || !selected.CanUnlock)" @onclick="() => AllocateAsync(selected.Code)">@(_isSubmitting ? "保存中" : selected.IsMaxRank ? "已满级" : "加 1 点")</button>
-            </div>
+            <TalentNodePreview @key="selected.Code" Name="@selected.Name" Branch="@BranchName(selected.BranchCode)"
+                               Rank="selected.Rank" MaxRank="selected.MaxRank" Cost="selected.Cost" Requirement="@Requirement(selected)"
+                               CanSpend="selected.CanUnlock" CanRefund="@(selected.Rank > 0)" IsBusy="_isSubmitting" ExpandButtonId="talent-details" Message="@_error"
+                               OnExpand='() => OpenModal("detail")' OnSpend="() => AllocateAsync(selected.Code)" OnRefund="() => RefundAsync(selected.Code)">
+                @if (RankEffectSummary(selected) is { } summary) { <p class="talent-preview__rank-effect">@summary</p> }
+                <p>@selected.Description</p>
+                @if (!string.IsNullOrWhiteSpace(selected.SkillName)) { <p><strong>技能 · @selected.SkillName</strong> @selected.SkillDescription</p> }
+            </TalentNodePreview>
         }
-        @if (_error is not null && _modal is null) { <p class="talent-board__error" role="alert">@_error</p> }
+        @if (_error is not null && _modal is null && SelectedNode is null) { <p class="talent-board__error" role="alert">@_error</p> }
         @if (_modal is not null)
         {
             <div class="talent-modal-shade" @onclick="CloseModal"></div>
@@ -96,7 +99,7 @@
                 </div>
                 <footer class="talent-dialog__footer">
                     @if (_error is not null) { <p class="talent-board__error" role="alert">@_error</p> }
-                    @if (_modal == "detail" && SelectedNode is { } current) { <span>@Requirement(current)</span><button class="talent-spend" type="button" disabled="@(_isSubmitting || !current.CanUnlock)" @onclick="() => AllocateAsync(current.Code)">@(_isSubmitting ? "保存中…" : current.IsMaxRank ? "已满级" : $"投入 {current.Cost} 点")</button> }
+                    @if (_modal == "detail" && SelectedNode is { } current) { <span>@Requirement(current)</span><button type="button" disabled="@(_isSubmitting || current.Rank <= 0)" @onclick="() => RefundAsync(current.Code)">退 1 点</button><button class="talent-spend" type="button" disabled="@(_isSubmitting || !current.CanUnlock)" @onclick="() => AllocateAsync(current.Code)">@(_isSubmitting ? "保存中…" : current.IsMaxRank ? "已满级" : $"投入 {current.Cost} 点")</button> }
                     else { <button type="button" @onclick="CloseModal">返回天赋树</button> }
                 </footer>
             </section>
@@ -127,7 +130,7 @@
         if (_focusDetail) { _focusDetail = false; await Js.InvokeVoidAsync("talentUi.openDialog", _detailElement); }
         if (_returnFocus is { } id) { _returnFocus = null; await Js.InvokeVoidAsync("talentUi.focus", id); }
     }
-    private void SelectNode(string code) { _selectedNodeCode = code; }
+    private void SelectNode(string code) { _selectedNodeCode = code; _error = null; }
     private void SelectAvailable()
     {
         var available = _skills!.TalentNodes.Where(node => node.CanUnlock).OrderBy(node => node.Tier).ThenBy(node => node.Column).ToList();
@@ -139,13 +142,33 @@
     private void CloseModal() { _returnFocus = _modal == "detail" ? "talent-details" : "talent-manage"; _modal = null; _focusDetail = false; }
     private void JumpToParent(string code)
     {
-        _selectedNodeCode = code; _revealNodeCode = code;
+        SelectNode(code); _revealNodeCode = code;
         _modal = null; _focusDetail = false; _returnFocus = NodeId(code);
     }
     private void HandleDialogKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseModal(); }
     private string RelationLabel(SkillTalentNodeResponse node) => SelectedNode?.Prerequisites.Contains(node.Code) == true ? "必需" : SelectedNode?.AnyPrerequisites.Contains(node.Code) == true ? "任选" : "";
     private string RelationClass(SkillTalentNodeResponse node) => RelationLabel(node) switch { "必需" => "prerequisite required", "任选" => "prerequisite optional", _ => "" };
     private static string NodeClass(SkillTalentNodeResponse node) => node.IsMaxRank ? "complete" : node.CanUnlock ? "available" : node.Rank > 0 ? "learned" : "locked";
+    private static string? RankEffectSummary(SkillTalentNodeResponse node)
+    {
+        if (node.MaxRank <= 1 || node.ValuePerRank <= 0) return null;
+        var label = node.EffectCode switch
+        {
+            "MaxHpPercent" => "最大生命",
+            "NormalAttackPercent" => "普攻伤害",
+            "SkillDamagePercent" => "技能伤害",
+            "HealingDonePercent" => "治疗效果",
+            "HealingReceivedPercent" => "受治疗与道具恢复",
+            "SkillCriticalChancePercent" => "技能暴击率",
+            "HolyBoltPercent" => "圣光箭伤害",
+            "HealSkillPercent" => "治疗术恢复",
+            _ => null
+        };
+        if (label is null) return null;
+        var current = (node.ValuePerRank * node.Rank).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        var next = (node.ValuePerRank * Math.Min(node.Rank + 1, node.MaxRank)).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        return node.IsMaxRank ? $"本天赋{label} +{current}% · 已满级" : $"本天赋{label}：+{current}% → 下一级 +{next}%";
+    }
     private string PrerequisiteNames(IEnumerable<string> codes) => string.Join("、", codes.Select(code => _skills?.TalentNodes.FirstOrDefault(node => node.Code == code)?.Name ?? code));
     public async ValueTask DisposeAsync()
     {
@@ -167,6 +190,7 @@
         finally { _isLoading = false; }
     }
     private Task AllocateAsync(string code) => ChangeAsync(() => ApiService.UnlockSkillTalentAsync(CharacterId, code));
+    private Task RefundAsync(string code) => ChangeAsync(() => ApiService.RefundSkillTalentAsync(CharacterId, code));
     private Task ResetAsync() => ChangeAsync(() => ApiService.ResetSkillTalentsAsync(CharacterId));
     private Task PromoteAsync(string code) => ChangeAsync(() => ApiService.PromoteCharacterAsync(CharacterId, code));
     private async Task ChangeAsync(Func<Task<(CharacterSkillsResponse? Response, string? ErrorMessage)>> action)
@@ -215,20 +239,27 @@
         "precision" => "狙猎", "survival" => "游猎", "endurance" => "生存",
         "assassination" => "刺杀", "subtlety" => "诡道", "evasion" => "脱身", _ => code
     };
-    private static string? GetError(string? error) => error?.Trim().Trim('"') switch
+    private static string? GetError(string? error)
     {
-        null or "" => null,
-        "InsufficientTalentPoints" => "天赋点不足。",
-        "SkillTalentPrerequisiteRequired" => "请先完成必需前置，并满足任一可选前置节点。",
-        "SkillTalentTreePointsRequired" => "基础树已投入的天赋点不足。",
-        "SkillTalentLevelRequired" => "角色等级尚未达到要求。",
-        "SkillTalentBranchLocked" => "已经选择了互斥的另一条路线。",
-        "SkillTalentMaxRank" => "该节点已满级。",
-        "PromotionLevelRequired" => "达到 10 级后才能转职。",
-        "AlreadyPromoted" => "该角色已经完成转职。",
-        "InvalidPromotion" => "该转职路线不可用。",
-        "LoadoutLocked" => "战斗进行时不能修改职业天赋或转职。",
-        "ConcurrencyConflict" => "角色数据已变化，请刷新后重试。",
-        _ => "职业操作失败，请稍后重试。"
-    };
+        var code = error?.Trim().Trim('"');
+        if (code?.StartsWith("TalentRefundBlocked:", StringComparison.Ordinal) == true)
+            return code["TalentRefundBlocked:".Length..];
+        return code switch
+        {
+            null or "" => null,
+            "InsufficientTalentPoints" => "天赋点不足。",
+            "SkillTalentPrerequisiteRequired" => "请先完成必需前置，并满足任一可选前置节点。",
+            "SkillTalentTreePointsRequired" => "基础树已投入的天赋点不足。",
+            "SkillTalentLevelRequired" => "角色等级尚未达到要求。",
+            "SkillTalentBranchLocked" => "已经选择了互斥的另一条路线。",
+            "SkillTalentMaxRank" => "该节点已满级。",
+            "SkillTalentNotLearned" => "这个天赋还没有投入点数。",
+            "PromotionLevelRequired" => "达到 10 级后才能转职。",
+            "AlreadyPromoted" => "该角色已经完成转职。",
+            "InvalidPromotion" => "该转职路线不可用。",
+            "LoadoutLocked" => "战斗进行时不能修改职业天赋或转职。",
+            "ConcurrencyConflict" => "角色数据已变化，请刷新后重试。",
+            _ => "职业操作失败，请稍后重试。"
+        };
+    }
 }

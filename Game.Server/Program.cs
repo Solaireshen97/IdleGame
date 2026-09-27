@@ -96,12 +96,13 @@ using (var scope = app.Services.CreateScope())
     var world = scope.ServiceProvider.GetRequiredService<WorldCatalog>();
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<SoulImprintCatalog>();
-    world.ValidateContent(weapons, scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>(),
+    var encounters = scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>();
+    world.ValidateContent(weapons, encounters,
         scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
     _ = scope.ServiceProvider.GetRequiredService<GatheringCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProfessionCatalog>();
-    await DbInitializer.InitializeAsync(dbContext, weapons, world);
+    await DbInitializer.InitializeAsync(dbContext, weapons, world, encounters);
 }
 
 if (app.Environment.IsDevelopment())

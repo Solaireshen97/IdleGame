@@ -303,16 +303,16 @@ public class ShopServiceTests
             {
                 Offers = [new DungeonExchangeOfferOptions
                 {
-                    Code = "kobold-fire", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    Code = "kobold-fire", DungeonCode = "kobold-mine", DungeonName = "烛井矿窟",
                     CurrencyCode = "kobold-mine-token", Cost = 6, WeaponCode = "cinder-knife"
                 }, new DungeonExchangeOfferOptions
                 {
-                    Code = "kobold-fragments", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    Code = "kobold-fragments", DungeonCode = "kobold-mine", DungeonName = "烛井矿窟",
                     CurrencyCode = "kobold-mine-token", Cost = 1, RewardKind = "Material",
                     RewardCode = "weapon-fragment-t1", RewardQuantity = 3
                 }, new DungeonExchangeOfferOptions
                 {
-                    Code = "kobold-soul", DungeonCode = "kobold-mine", DungeonName = "狗头人矿洞",
+                    Code = "kobold-soul", DungeonCode = "kobold-mine", DungeonName = "烛井矿窟",
                     CurrencyCode = "kobold-mine-token", Cost = 100, RewardKind = "SoulImprint",
                     RewardCode = "deep-core"
                 }]

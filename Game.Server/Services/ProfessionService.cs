@@ -53,6 +53,39 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
         return (await catalog.BuildProgressAsync(db, character, professionCode), null);
     }
 
+    public async Task<(ProfessionProgressResponse? Progress, string? Error)> RefundAsync(
+        string? token, string professionCode, string nodeCode)
+    {
+        var (_, character, error) = await users.GetCurrentUserAndActiveCharacterAsync(token);
+        if (error is not null) return (null, error);
+        if (!ProfessionCatalog.IsValidProfession(professionCode)) return (null, "ProfessionNotFound");
+        if (await IsProfessionActiveAsync(character!.Id, professionCode)) return (null, "ProfessionTalentLocked");
+        var node = catalog.FindNode(nodeCode);
+        if (node is null || node.ProfessionCode != professionCode) return (null, "TalentNotFound");
+        var talents = await db.CharacterProfessionTalents.Where(item =>
+            item.CharacterId == character.Id && item.ProfessionCode == professionCode).ToListAsync();
+        var current = talents.FirstOrDefault(item => item.NodeCode == node.Code);
+        if (current is null || current.Rank <= 0) return (null, "TalentNotLearned");
+        foreach (var talent in talents.Where(item => item.NodeCode != node.Code && item.Rank > 0))
+        {
+            var dependent = catalog.FindNode(talent.NodeCode);
+            if (dependent?.PrerequisiteCode is not null &&
+                dependent.PrerequisiteCode.Equals(node.Code, StringComparison.OrdinalIgnoreCase) && current.Rank - 1 < dependent.PrerequisiteRank)
+                return (null, $"TalentRefundBlocked:请先回退「{dependent.Name}」：它需要「{node.Name}」{dependent.PrerequisiteRank} 级。");
+        }
+        if (--current.Rank == 0) db.CharacterProfessionTalents.Remove(current);
+        if (professionCode == ProfessionCatalog.GatheringCode) character.GatheringTalentPoints++;
+        else character.AlchemyTalentPoints++;
+        character.Version++;
+        try { await db.SaveChangesAsync(); }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
+        }
+        return (await catalog.BuildProgressAsync(db, character, professionCode), null);
+    }
+
     public async Task<(ProfessionProgressResponse? Progress, string? Error)> ResetAsync(
         string? token, string professionCode)
     {

@@ -44,7 +44,7 @@ public partial class BattleServiceTests
         var (cast, castError) = await test.Service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(castError);
-        Assert.Contains(cast!.Logs, log => log.Contains("释放魂印") && log.Contains("深岩监工的震核"));
+        Assert.Contains(cast!.Logs, log => log.Contains("释放魂印") && log.Contains("沉岩督造者的震核"));
         var cooldown = await test.Db.BattleSkillCooldowns.SingleAsync(item =>
             item.SkillCode == SoulImprintRules.CooldownCode("deep-core"));
         Assert.Equal(12, cooldown.ReadyAtRound);
@@ -113,7 +113,7 @@ public partial class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("深岩监工的震核") && log.Contains("土属性伤害"));
+        Assert.Contains(result!.Logs, log => log.Contains("沉岩督造者的震核") && log.Contains("土属性伤害"));
         var status = await test.Db.BattleStatusEffects.SingleAsync(effect =>
             effect.TargetType == "Monster" && effect.EffectCode == "armor-break");
         Assert.True(status.ExpiresAfterRound >= test.Room.RoundNumber);
@@ -266,7 +266,7 @@ public partial class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.DoesNotContain(result!.Logs, log => log.Contains("霜脉之王的冻心"));
+        Assert.DoesNotContain(result!.Logs, log => log.Contains("凝霜冠主的冻心"));
         Assert.DoesNotContain(await test.Db.BattleSkillCooldowns.ToListAsync(), cooldown =>
             cooldown.SkillCode == SoulImprintRules.CooldownCode("frost-king-heart"));
     }
@@ -912,7 +912,7 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(482, first!.MonsterHp); // floor(20 * 1.15 - 5)
-        Assert.Contains(first.Logs, log => log.Contains("使用 北郡战意药剂"));
+        Assert.Contains(first.Logs, log => log.Contains("使用 岩芽战意药剂"));
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         var firstSlot = (await test.GetRoomDetailAsync())!.Slots.Single(slot => slot.CharacterId == test.Character.Id);
         var effect = firstSlot.OperationPotion;
@@ -1058,7 +1058,7 @@ public partial class BattleServiceTests
         var (round, roundError) = await test.Service.StartPreparationAsync(1, "other-token");
 
         Assert.Null(roundError);
-        Assert.Contains(round!.Logs, log => log.Contains("Guest 使用 北郡战意药剂"));
+        Assert.Contains(round!.Logs, log => log.Contains("Guest 使用 岩芽战意药剂"));
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(item => item.CharacterId == 2)).Quantity);
         Assert.Equal(15, (await test.Db.BattleOperationPotionStates.SingleAsync(state => state.CharacterId == 2)).AttackPercent);
         var guestStatus = (await roomService.GetRoomDetailAsync(1, test.Token))!.Slots.Single(slot => slot.CharacterId == guest.Id).StatusEffects;
@@ -1098,7 +1098,7 @@ public partial class BattleServiceTests
         var (second, secondError) = await test.Service.StartPreparationAsync(1, "other-token");
 
         Assert.Null(secondError);
-        Assert.Contains(second!.Logs, log => log.Contains("Guest 使用 北郡战意药剂"));
+        Assert.Contains(second!.Logs, log => log.Contains("Guest 使用 岩芽战意药剂"));
         Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(stack =>
             stack.CharacterId == guest.Id && stack.ItemCode == "northshire-battle-draught")).Quantity);
         Assert.Equal(2, (await test.Db.BattleOperationPotionStates.SingleAsync(state =>

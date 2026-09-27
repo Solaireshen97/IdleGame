@@ -3,6 +3,7 @@ using Game.Server.Data;
 using Game.Server.Services;
 using Game.Shared.Dtos;
 using Game.Shared.Dtos.Shop;
+using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -106,6 +107,9 @@ public sealed class WorldContentTests
         content.World.ValidateContent(content.Weapons, content.Encounters, content.Rewards, content.Exchanges);
         Assert.Equal(6, content.World.Regions.Count);
         Assert.Equal(6, content.World.Regions.Select(region => region.FeaturedElement).Distinct().Count());
+        Assert.Equal(new[] { ElementType.Fire, ElementType.Water, ElementType.Earth,
+            ElementType.Wind, ElementType.Light, ElementType.Dark },
+            content.World.Regions.Select(region => region.FeaturedElement));
         Assert.Equal(12, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
         var weaponOffers = content.Exchanges.Offers.Where(offer => offer.RewardKind == "Weapon").ToList();
         Assert.Equal(72, weaponOffers.Select(offer => offer.EffectiveRewardCode).Distinct().Count());
@@ -121,6 +125,12 @@ public sealed class WorldContentTests
             Assert.Equal(2, dungeons.Count(dungeon => dungeon.DungeonKind == "Elite"));
             Assert.Equal(2, dungeons.Count(dungeon => dungeon.DungeonKind == "Dungeon"));
             Assert.All(dungeons, dungeon => Assert.True(dungeon.IsVisible));
+            Assert.All(dungeons, challenge =>
+            {
+                Assert.Equal(region.FeaturedElement, challenge.MonsterElement);
+                Assert.All(content.Encounters.CreateMonsters(challenge), monster =>
+                    Assert.Equal(region.FeaturedElement, monster.Element));
+            });
             var dungeon = Assert.Single(dungeons, dungeon => dungeon.Code == region.FeaturedDungeonCode);
             Assert.Equal((8, 10), (dungeon.MinimumLevel, dungeon.RecommendedLevel));
             Assert.Equal(region.FeaturedDungeonCode, dungeon.Code);
@@ -263,12 +273,13 @@ public sealed class WorldContentTests
         await connection.OpenAsync();
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.GetService<IMigrator>().MigrateAsync("20260921100000_AddDungeonContentProgression");
-        await db.Database.ExecuteSqlRawAsync("INSERT INTO Dungeons (Id,Code,Name,MonsterName,MonsterMaxHp,MonsterAttack,MonsterDefense,MonsterElement,SlotCount,SortOrder,RegionName,DungeonKind,Description,MinimumLevel,RecommendedLevel,IsVisible) VALUES (55,'kobold-mine','狗头人矿洞','金牙',140,15,5,'Earth',5,8,'艾尔文森林','Dungeon','旧描述',8,8,1)");
-        await db.Database.ExecuteSqlRawAsync("INSERT INTO Monsters (Id,Name,Element,Hp,MaxHp,Attack,Defense,RoomId,WaveNumber,Position,CombatProfileCode,RewardProfileCode,IsBoss) VALUES (7,'金牙','Earth',41,140,15,5,9,4,1,'','',1)");
+        await db.Database.ExecuteSqlRawAsync("INSERT INTO Dungeons (Id,Code,Name,MonsterName,MonsterMaxHp,MonsterAttack,MonsterDefense,MonsterElement,SlotCount,SortOrder,RegionName,DungeonKind,Description,MinimumLevel,RecommendedLevel,IsVisible) VALUES (55,'kobold-mine','烛井矿窟','砾牙矿主',140,15,5,'Earth',5,8,'岩芽林地','Dungeon','旧描述',8,8,1)");
+        await db.Database.ExecuteSqlRawAsync("INSERT INTO Monsters (Id,Name,Element,Hp,MaxHp,Attack,Defense,RoomId,WaveNumber,Position,CombatProfileCode,RewardProfileCode,IsBoss) VALUES (7,'砾牙矿主','Earth',41,140,15,5,9,4,1,'','',1)");
         await db.Database.ExecuteSqlRawAsync("INSERT INTO Rooms (Id,DungeonId,MonsterId,OwnerUserId,SlotCount,Status,IsPreparationTimeoutEnabled,IsRepeatBattle,RoundNumber,RunSequence,Version,CurrentWaveNumber,TotalWaveCount) VALUES (9,55,7,1,5,0,1,0,0,1,0,4,4)");
         await db.Database.ExecuteSqlRawAsync("INSERT INTO UserDungeonClears (UserId,DungeonId,ClearedAtUtc) VALUES (1,55,'2026-09-21 00:00:00')");
-        var world = WorldCatalog.LoadDefault();
-        await DbInitializer.InitializeAsync(db, world: world);
+        var content = new Content();
+        var world = content.World;
+        await DbInitializer.InitializeAsync(db, world: world, encounters: content.Encounters);
         await DbInitializer.InitializeAsync(db, world: world);
         Assert.Equal(69, await db.Dungeons.CountAsync());
         Assert.Equal(55, (await db.Dungeons.SingleAsync(dungeon => dungeon.Code == "kobold-mine")).Id);
@@ -278,6 +289,95 @@ public sealed class WorldContentTests
         Assert.Equal(55, (await db.UserDungeonClears.SingleAsync()).DungeonId);
         Assert.All(world.Dungeons, dungeon => Assert.Equal(0, dungeon.Id));
         Assert.False(db.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public void WorldRejectsChallengeSummaryWithDifferentRegionalElement()
+    {
+        var content = new Content();
+        content.World.Dungeons.Single(dungeon => dungeon.Code == "northshire-wolves").MonsterElement = ElementType.Wind;
+        Assert.Throws<InvalidOperationException>(() => new WorldCatalog(Options.Create(new WorldOptions
+        {
+            Regions = content.World.Regions.ToList(), Dungeons = content.World.Dungeons.ToList()
+        })));
+    }
+
+    [Fact]
+    public void WorldRejectsNonBossEncounterWithDifferentRegionalElement()
+    {
+        var content = new Content();
+        var options = content.Bind<DungeonEncounterOptions>(DungeonEncounterOptions.SectionName);
+        options.Value.Dungeons["kobold-mine"][0].Monsters[0].Element = ElementType.Fire;
+        var encounters = new DungeonEncounterCatalog(options, content.Combat, content.Rewards);
+        var error = Assert.Throws<InvalidOperationException>(() => content.World.ValidateContent(
+            content.Weapons, encounters, content.Rewards, content.Exchanges));
+        Assert.Contains("kobold-mine", error.Message);
+    }
+
+    [Fact]
+    public async Task StartupUnifiesSavedRegionalMonstersWithoutResettingBattleOrRewards()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
+        var content = new Content();
+        var world = content.World;
+        await DbInitializer.InitializeAsync(db, world: world, encounters: content.Encounters);
+        var dungeon = await db.Dungeons.SingleAsync(item => item.Code == "kobold-mine");
+        var hiddenDungeon = await db.Dungeons.SingleAsync(item => item.Code == "slime-field");
+        var room = new Room { Id = 101, DungeonId = dungeon.Id, MonsterId = 202, Status = RoomStatus.Preparing,
+            CurrentWaveNumber = 2, TotalWaveCount = 4, RoundNumber = 7, RunSequence = 3,
+            ScalingPartySize = 2, Version = 9, IsRepeatBattle = true };
+        var oldRoom = new Room { Id = 102, DungeonId = dungeon.Id, MonsterId = 204 };
+        var hiddenRoom = new Room { Id = 103, DungeonId = hiddenDungeon.Id, MonsterId = 205 };
+        db.Rooms.AddRange(room, oldRoom, hiddenRoom);
+        db.Monsters.AddRange(
+            new Monster { Id = 201, RoomId = room.Id, Name = "狗头人矿工", Element = ElementType.Fire,
+                WaveNumber = 1, Position = 1, Hp = 0, BaseMaxHp = 50, MaxHp = 90 },
+            new Monster { Id = 202, RoomId = room.Id, Name = "狗头人掘地工", Element = ElementType.Wind,
+                WaveNumber = 2, Position = 1, Hp = 41, BaseMaxHp = 140, MaxHp = 252,
+                Attack = 15, Defense = 5, CombatProfileCode = "saved-profile", RewardProfileCode = "saved-rewards" },
+            new Monster { Id = 203, RoomId = room.Id, Name = "金牙", Element = ElementType.Earth,
+                WaveNumber = 4, Position = 1, Hp = 252, BaseMaxHp = 140, MaxHp = 252, IsBoss = true },
+            new Monster { Id = 204, Name = "金牙", Element = ElementType.Dark, Hp = 21, MaxHp = 50 },
+            new Monster { Id = 205, RoomId = hiddenRoom.Id, Name = "隐藏旧内容", Element = ElementType.Water, Hp = 31, MaxHp = 50 },
+            new Monster { Id = 206, Name = "未关联怪物", Element = ElementType.Light, Hp = 11, MaxHp = 50 });
+        var intent = new MonsterIntent { RoomId = room.Id, RunSequence = 3, RoundNumber = 7,
+            MonsterId = room.MonsterId, ActionType = "Skill", SkillCode = "saved-skill" };
+        db.MonsterIntents.Add(intent);
+        db.UserDungeonClears.Add(new UserDungeonClear { UserId = 1, DungeonId = dungeon.Id });
+        db.RewardRuns.Add(new RewardRun { RoomId = room.Id, Sequence = 3 });
+        db.RewardEvents.Add(new RewardEvent { RoomId = room.Id, Sequence = 3, EventKey = "monster:1:1" });
+        db.RewardEntries.Add(new RewardEntry { RoomId = room.Id, Sequence = 3, EventKey = "monster:1:1",
+            UserId = 1, CharacterId = 1, Kind = "Gold", Quantity = 12 });
+        await db.SaveChangesAsync();
+
+        await DbInitializer.InitializeAsync(db, world: world, encounters: content.Encounters);
+        await DbInitializer.InitializeAsync(db, world: world, encounters: content.Encounters);
+        db.ChangeTracker.Clear();
+        var monsters = await db.Monsters.OrderBy(monster => monster.Id).ToListAsync();
+        Assert.Equal(new[] { ElementType.Earth, ElementType.Earth, ElementType.Earth,
+            ElementType.Earth, ElementType.Water, ElementType.Light }, monsters.Select(monster => monster.Element));
+        Assert.Equal(new[] { 0, 41, 252, 21, 31, 11 }, monsters.Select(monster => monster.Hp));
+        Assert.Equal(new[] { "烛矿采掘者", "烛矿掘道者", "砾牙矿主", "砾牙矿主", "隐藏旧内容", "未关联怪物" },
+            monsters.Select(monster => monster.Name));
+        Assert.Equal("/art/monsters/monster-009.png", Game.Client.Services.MonsterArt.ForName(monsters[0].Name));
+        Assert.Equal("/art/monsters/monster-015.png", Game.Client.Services.MonsterArt.ForName(monsters[3].Name));
+        var active = monsters[1];
+        Assert.Equal((140, 252, 15, 5, "saved-profile", "saved-rewards"),
+            (active.BaseMaxHp, active.MaxHp, active.Attack, active.Defense, active.CombatProfileCode, active.RewardProfileCode));
+        var saved = await db.Rooms.FindAsync(room.Id);
+        Assert.Equal((202, RoomStatus.Preparing, 2, 4, 7, 3, 2, 10, true),
+            (saved!.MonsterId, saved.Status, saved.CurrentWaveNumber, saved.TotalWaveCount,
+                saved.RoundNumber, saved.RunSequence, saved.ScalingPartySize, saved.Version, saved.IsRepeatBattle));
+        Assert.Equal(1, (await db.Rooms.FindAsync(oldRoom.Id))!.Version);
+        Assert.Equal(0, (await db.Rooms.FindAsync(hiddenRoom.Id))!.Version);
+        Assert.Equal(intent.Id, (await db.MonsterIntents.SingleAsync()).Id);
+        Assert.Equal("saved-skill", (await db.MonsterIntents.SingleAsync()).SkillCode);
+        Assert.Equal(dungeon.Id, (await db.UserDungeonClears.SingleAsync()).DungeonId);
+        Assert.Equal("Pending", (await db.RewardRuns.SingleAsync()).Status);
+        Assert.Equal("monster:1:1", (await db.RewardEvents.SingleAsync()).EventKey);
+        Assert.Equal(12, (await db.RewardEntries.SingleAsync()).Quantity);
     }
 
     private sealed class Content

@@ -148,6 +148,15 @@ public sealed class WeaponCatalog
     public bool NeedsTemplateUpdate(CharacterWeapon weapon) => FindItem(weapon.WeaponCode) is { } item &&
         (weapon.TemplateRevision < item.Revision || !string.Equals(weapon.WeaponCode, item.Code, StringComparison.OrdinalIgnoreCase));
 
+    public void SynchronizeName(CharacterWeapon weapon)
+    {
+        var item = FindItem(weapon.WeaponCode);
+        if (item is null || weapon.Name == item.Name) return;
+        // Renaming must not rebase stats, replace skill rows, or reset existing investments.
+        weapon.Name = item.Name;
+        weapon.Version++;
+    }
+
     public void ApplyTemplate(CharacterWeapon weapon)
     {
         var item = FindItem(weapon.WeaponCode) ?? throw new InvalidOperationException($"Unknown weapon: {weapon.WeaponCode}");
@@ -180,6 +189,7 @@ public sealed class WeaponCatalog
     {
         var weapon = snapshot.ToCharacterWeapon(characterId);
         if (NeedsTemplateUpdate(weapon)) ApplyTemplate(weapon);
+        else SynchronizeName(weapon);
         return weapon;
     }
 

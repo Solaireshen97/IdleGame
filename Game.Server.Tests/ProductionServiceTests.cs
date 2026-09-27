@@ -318,7 +318,7 @@ public sealed class ProductionServiceTests
             {
                 Points = [new GatheringPointOptions
                 {
-                    Code = "elwynn-peacebloom", Name = "北郡宁神花", RegionCode = "elwynn",
+                    Code = "elwynn-peacebloom", Name = "岩芽宁神花", RegionCode = "elwynn",
                     MaterialCode = HerbCode, CycleSeconds = 20, OutputQuantity = 1,
                     UnlockKind = BattleMilestoneService.MonsterKillKind,
                     UnlockTargetCode = "northshire-wolves"

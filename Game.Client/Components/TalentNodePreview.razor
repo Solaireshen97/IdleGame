@@ -1,0 +1,34 @@
+<section class="talent-preview" aria-label="@($"{Name}天赋预览")" aria-live="polite">
+    <header class="talent-preview__header">
+        <strong title="@Name">@Name @if (!string.IsNullOrWhiteSpace(Branch)) { <small>@Branch</small> }</strong>
+        <span>@Rank/@MaxRank 级</span>
+    </header>
+    <div class="talent-preview__effect" @key="(Rank, Message)" role="region" tabindex="0" aria-label="@($"{Name}效果说明，可上下滚动")">
+        @if (!string.IsNullOrWhiteSpace(Message)) { <p class="talent-preview__message" role="status">@Message</p> }
+        @ChildContent
+    </div>
+    <footer class="talent-preview__actions">
+        <span title="@Requirement">@Requirement</span>
+        <button id="@ExpandButtonId" type="button" @onclick="OnExpand" aria-label="@($"展开{Name}完整详情")">展开</button>
+        <button type="button" disabled="@(IsBusy || !CanRefund)" @onclick="OnRefund" aria-label="@($"回退{Name} 1 级并返还 1 点")">退 1 点</button>
+        <button class="talent-preview__spend" type="button" disabled="@(IsBusy || !CanSpend)" @onclick="OnSpend">@(IsBusy ? "保存中" : Rank >= MaxRank ? "已满级" : Cost == 1 ? "加 1 点" : $"投入 {Cost} 点")</button>
+    </footer>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public string? Branch { get; set; }
+    [Parameter] public int Rank { get; set; }
+    [Parameter] public int MaxRank { get; set; } = 1;
+    [Parameter] public int Cost { get; set; } = 1;
+    [Parameter] public string Requirement { get; set; } = string.Empty;
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string? ExpandButtonId { get; set; }
+    [Parameter] public bool CanSpend { get; set; }
+    [Parameter] public bool CanRefund { get; set; }
+    [Parameter] public bool IsBusy { get; set; }
+    [Parameter] public EventCallback OnExpand { get; set; }
+    [Parameter] public EventCallback OnSpend { get; set; }
+    [Parameter] public EventCallback OnRefund { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

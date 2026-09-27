@@ -221,6 +221,13 @@ public class UserController(UserService userService, TalentService talentService
         return SkillResult(response, error);
     }
 
+    [HttpPost("characters/{characterId:int}/skills/talents/{nodeCode}/refund")]
+    public async Task<IActionResult> RefundSkillTalent(int characterId, string nodeCode)
+    {
+        var (response, error) = await skillService.RefundTalentNodeAsync(GetBearerToken(), characterId, nodeCode);
+        return SkillResult(response, error);
+    }
+
     [HttpPost("characters/{characterId:int}/skills/talents/reset")]
     public async Task<IActionResult> ResetSkillTalents(int characterId)
     {

@@ -1,0 +1,18 @@
+.talent-preview { display:flex; flex-direction:column; flex:0 0 132px; height:132px; min-height:0; max-height:132px; gap:4px; padding-top:8px; border-top:1px solid #3f586b; overflow:hidden; }
+.talent-preview__header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:18px; flex-shrink:0; }
+.talent-preview__header strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f0dfbd; font-size:.8rem; }
+.talent-preview__header small { color:#8da9bc; font-size:.6rem; font-weight:400; }
+.talent-preview__header>span { flex-shrink:0; color:#a7c4d3; font-size:.65rem; font-variant-numeric:tabular-nums; }
+.talent-preview__effect { flex:1; min-height:0; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; scrollbar-width:thin; scrollbar-color:#4c687c #102030; color:#d0dfe7; font-size:.72rem; line-height:1.4; overflow-wrap:anywhere; }
+.talent-preview__effect:focus-visible { outline:1px solid #edc77f; outline-offset:-1px; }
+.talent-preview__effect ::deep p { margin:0 0 4px; }
+.talent-preview__effect ::deep p:last-child { margin-bottom:0; }
+.talent-preview__effect ::deep .talent-preview__rank-effect, .talent-preview__effect ::deep strong { color:#e8c582; font-weight:600; }
+.talent-preview__effect .talent-preview__message { color:#f3c68d; }
+.talent-preview__actions { display:grid; grid-template-columns:minmax(0,1fr) 48px 58px 64px; align-items:center; gap:4px; flex-shrink:0; min-height:44px; }
+.talent-preview__actions>span { min-width:0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; overflow-wrap:anywhere; color:#a4bdcd; font-size:.62rem; line-height:1.35; }
+.talent-preview__actions button { min-width:0; height:44px; border:1px solid #526c7e; border-radius:.45rem; background:#1a3042; color:#d4e2e9; padding:4px; font-size:.7rem; cursor:pointer; }
+.talent-preview__actions button:focus-visible { outline:2px solid #ffe1a5; outline-offset:-2px; }
+.talent-preview__actions .talent-preview__spend { background:#d9ad5e; color:#142333; border-color:#e8c681; font-weight:800; }
+.talent-preview__actions button:disabled { opacity:1; color:#8da7b8; background:#263c4c; border-color:#415c6e; cursor:not-allowed; }
+@media (max-height:650px) { .talent-preview { flex-basis:112px; height:112px; max-height:112px; padding-top:6px; gap:3px; } }

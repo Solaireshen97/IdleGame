@@ -26,7 +26,7 @@ public sealed class DungeonRewardMaterialTests
             };
             var dungeon = new Dungeon
             {
-                Id = 1, Code = "kobold-mine", Name = "狗头人矿洞", MonsterName = "金牙",
+                Id = 1, Code = "kobold-mine", Name = "烛井矿窟", MonsterName = "砾牙矿主",
                 MonsterMaxHp = 100, MonsterAttack = 10, MonsterDefense = 3
             };
             db.AddRange(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 },
@@ -103,7 +103,7 @@ public sealed class DungeonRewardMaterialTests
     {
         var monster = new Monster
         {
-            Id = id, RoomId = id, WaveNumber = 1, Position = 1, Name = "金牙",
+            Id = id, RoomId = id, WaveNumber = 1, Position = 1, Name = "砾牙矿主",
             Hp = 0, MaxHp = 100, Attack = 10, Defense = 3, RewardProfileCode = "kobold-mine"
         };
         var room = new Room

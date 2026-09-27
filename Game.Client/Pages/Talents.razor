@@ -48,7 +48,7 @@
             else
             {
                 <div class="talents-page__profession-tools"><span role="status">@(_professionNotice ?? "工作升级获得专业点数")</span><button type="button" @onclick="LoadProfessionAsync" disabled="@_isProfessionBusy">刷新</button></div>
-                <ProfessionTalentBoard @key='(character.CharacterId, _activeTalentTree)' Progress="_professionProgress" OnSpend="SpendProfessionTalentAsync" OnReset="ResetProfessionTalentsAsync" IsBusy="_isProfessionBusy" Notice="@_professionNotice" />
+                <ProfessionTalentBoard @key='(character.CharacterId, _activeTalentTree)' Progress="_professionProgress" OnSpend="SpendProfessionTalentAsync" OnRefund="RefundProfessionTalentAsync" OnSelect="ClearProfessionNotice" OnReset="ResetProfessionTalentsAsync" IsBusy="_isProfessionBusy" Notice="@_professionNotice" />
             }
         </div>
     }
@@ -139,9 +139,11 @@
     }
 
     private Task SpendProfessionTalentAsync(string nodeCode) => ChangeProfessionTalentsAsync(nodeCode);
+    private Task RefundProfessionTalentAsync(string nodeCode) => ChangeProfessionTalentsAsync(nodeCode, refund: true);
     private Task ResetProfessionTalentsAsync() => ChangeProfessionTalentsAsync(null);
+    private void ClearProfessionNotice() => _professionNotice = null;
 
-    private async Task ChangeProfessionTalentsAsync(string? nodeCode)
+    private async Task ChangeProfessionTalentsAsync(string? nodeCode, bool refund = false)
     {
         if (_isProfessionBusy || _professionProgress is null || _activeTalentTree == "battle") return;
         _isProfessionBusy = true;
@@ -153,6 +155,7 @@
         {
             var (progress, error) = nodeCode is null
                 ? await ApiService.ResetProfessionTalentsAsync(expectedTree)
+                : refund ? await ApiService.RefundProfessionTalentAsync(expectedTree, nodeCode)
                 : await ApiService.SpendProfessionTalentAsync(expectedTree, nodeCode);
             if (expectedCharacterId == ActiveCharacters.Current?.CharacterId && expectedTree == _activeTalentTree)
             {
@@ -164,7 +167,7 @@
                 else if (progress is not null)
                 {
                     _professionProgress = progress;
-                    _professionNotice = nodeCode is null ? "天赋已重置，点数已返还。" : "天赋已升级。";
+                    _professionNotice = nodeCode is null ? "天赋已重置，点数已返还。" : refund ? "已回退 1 级，返还 1 点天赋点。" : "天赋已升级。";
                 }
             }
         }

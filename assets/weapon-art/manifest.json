@@ -98,7 +98,7 @@
   },
   {
     "code": "goldtooth-pickaxe",
-    "name": "金牙的精工矿镐",
+    "name": "砾牙精工矿镐",
     "element": "Earth",
     "shape": "pickaxe",
     "file": "goldtooth-pickaxe.png",
@@ -154,7 +154,7 @@
   },
   {
     "code": "widow-silk-fang",
-    "name": "织亡者之牙",
+    "name": "缄丝者之牙",
     "element": "Dark",
     "shape": "dagger",
     "file": "widow-silk-fang.png",
@@ -210,7 +210,7 @@
   },
   {
     "code": "ragefire-cleaver",
-    "name": "怒焰裂刃",
+    "name": "燧渊裂刃",
     "element": "Fire",
     "shape": "sword",
     "file": "ragefire-cleaver.png",
@@ -266,7 +266,7 @@
   },
   {
     "code": "frostfang-spear",
-    "name": "冰牙寒泉枪",
+    "name": "凝牙镜泉枪",
     "element": "Water",
     "shape": "spear",
     "file": "frostfang-spear.png",
@@ -322,7 +322,7 @@
   },
   {
     "code": "stormfeather-bow",
-    "name": "风怒翎羽弓",
+    "name": "裂翎猎风弓",
     "element": "Wind",
     "shape": "bow",
     "file": "stormfeather-bow.png",
@@ -362,7 +362,7 @@
   },
   {
     "code": "dawn-totem-scepter",
-    "name": "晨曦图腾杖",
+    "name": "琉辉图腾杖",
     "element": "Light",
     "shape": "scepter",
     "file": "dawn-totem-scepter.png",
@@ -378,7 +378,7 @@
   },
   {
     "code": "dawnwarden-staff",
-    "name": "晨曦守望之杖",
+    "name": "琉辉守望之杖",
     "element": "Light",
     "shape": "staff",
     "file": "dawnwarden-staff.png",
@@ -434,7 +434,7 @@
   },
   {
     "code": "t1-burning-blade-hatchet",
-    "name": "燃刃短斧",
+    "name": "灰炬短斧",
     "element": "Fire",
     "shape": "axe",
     "file": "t1-burning-blade-hatchet.png",
@@ -474,7 +474,7 @@
   },
   {
     "code": "t1-frostmane-hunting-spear",
-    "name": "霜鬃猎矛",
+    "name": "霜纹猎矛",
     "element": "Water",
     "shape": "spear",
     "file": "t1-frostmane-hunting-spear.png",
@@ -490,7 +490,7 @@
   },
   {
     "code": "t1-ice-tusk-mallet",
-    "name": "冰牙骨槌",
+    "name": "凝牙骨槌",
     "element": "Water",
     "shape": "club",
     "file": "t1-ice-tusk-mallet.png",
@@ -634,7 +634,7 @@
   },
   {
     "code": "riverpaw-chief-cleaver",
-    "name": "河爪首领砍刀",
+    "name": "裂齿首领砍刀",
     "element": "Earth",
     "shape": "saber",
     "file": "riverpaw-chief-cleaver.png",
@@ -666,7 +666,7 @@
   },
   {
     "code": "burning-champion-axe",
-    "name": "燃刃勇士战斧",
+    "name": "灰炬战魁战斧",
     "element": "Fire",
     "shape": "axe",
     "file": "burning-champion-axe.png",
@@ -810,7 +810,7 @@
   },
   {
     "code": "blackstone-ritual-dagger",
-    "name": "黑石仪式匕",
+    "name": "玄砾仪式匕",
     "element": "Dark",
     "shape": "dagger",
     "file": "blackstone-ritual-dagger.png",
@@ -818,7 +818,7 @@
   },
   {
     "code": "deep-overseer-pickaxe",
-    "name": "深岩监工的震地镐",
+    "name": "沉岩督造者的震地镐",
     "element": "Earth",
     "shape": "pickaxe",
     "file": "deep-overseer-pickaxe.png",
@@ -831,7 +831,7 @@
     "shape": "sword",
     "file": "crypt-censer-blade.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a straight tomb-flame sword with a tiny ember-filled censer set into the guard, soot-dark steel and wrapped hilt",
     "palette": "dark steel, ember orange, old bronze"
   },
@@ -842,7 +842,7 @@
     "shape": "staff",
     "file": "gravewater-crook.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a curved soul-guide staff of dark wood with one blue droplet crystal hanging inside the hooked head",
     "palette": "dark wood, watery blue, aged bronze"
   },
@@ -853,7 +853,7 @@
     "shape": "hammer",
     "file": "tombstone-ward-maul.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a heavy square tombstone maul, weathered stone head with one simple oath rune, long leather-bound haft",
     "palette": "stone gray, ochre, dark leather"
   },
@@ -864,7 +864,7 @@
     "shape": "bow",
     "file": "silkline-longbow.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a slender gnarled longbow with ivory spider-silk string and sparse web bindings on its dark wooden tips, no arrow",
     "palette": "dark wood, ivory silk, muted teal"
   },
@@ -875,18 +875,18 @@
     "shape": "scepter",
     "file": "last-rites-scepter.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a short last-rites ritual scepter, ivory candle-shaped crystal held in an old brass fork above a dark grip",
     "palette": "ivory, aged gold, dark brown"
   },
   {
     "code": "widows-fang",
-    "name": "腐巢寡妇之牙",
+    "name": "缄丝巢主之牙",
     "element": "Dark",
     "shape": "dagger",
     "file": "widows-fang.png",
     "source": "individual",
-    "group": "瘟疫地穴·深层",
+    "group": "墨雾地穴·织骸深层",
     "subject": "a hooked widow-spider fang dagger, dark violet chitin blade with a small green venom groove and wrapped grip",
     "palette": "dark violet, muted venom green, charcoal"
   },
@@ -897,7 +897,7 @@
     "shape": "axe",
     "file": "cinder-guard-cleaver.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a single-headed ash cleaver axe with broad blackened steel blade and one glowing ember crack near the edge",
     "palette": "blackened steel, ember red, bronze"
   },
@@ -908,7 +908,7 @@
     "shape": "staff",
     "file": "steam-channel-staff.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a slim steam-channel staff, copper pipe shaft and a small blue valve crystal enclosed at the top",
     "palette": "copper brown, steam blue, dark steel"
   },
@@ -919,7 +919,7 @@
     "shape": "hammer",
     "file": "rage-basalt-warhammer.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a broad basalt warhammer with angular dark stone head, ochre mineral veins and iron-collared wooden haft",
     "palette": "basalt gray, ochre, dark wood"
   },
@@ -930,7 +930,7 @@
     "shape": "bow",
     "file": "smoke-runner-bow.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a lightweight recurve bow of charcoal wood, bronze limb caps and teal cloth grip, no arrow",
     "palette": "charcoal wood, muted teal, bronze"
   },
@@ -941,7 +941,7 @@
     "shape": "hammer",
     "file": "ember-oath-mace.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a one-handed oath mace with a small golden sun-shaped metal head, ivory inset and dark leather grip",
     "palette": "warm gold, ivory, dark leather"
   },
@@ -952,7 +952,7 @@
     "shape": "dagger",
     "file": "ashen-ritual-blade.png",
     "source": "individual",
-    "group": "怒焰裂谷·熔心",
+    "group": "燧渊裂隙·烬核",
     "subject": "a short black ritual blade with jagged charcoal edge and a violet jewel in its simple bronze guard",
     "palette": "charcoal, muted violet, aged bronze"
   },
@@ -963,7 +963,7 @@
     "shape": "sword",
     "file": "hearth-thaw-blade.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a straight hearthfire sword with warm red-orange steel core, silver edge and small frost-blue guard caps",
     "palette": "warm orange, silver steel, ice blue"
   },
@@ -974,7 +974,7 @@
     "shape": "staff",
     "file": "glacial-channel-staff.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a frostwood staff with a single elongated blue ice crystal held in a simple silver cage",
     "palette": "ice blue, silver, dark frostwood"
   },
@@ -985,7 +985,7 @@
     "shape": "hammer",
     "file": "permafrost-maul.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a squat permafrost rock maul with square gray stone head capped by a thin pale ice layer",
     "palette": "stone gray, pale cyan, dark wood"
   },
@@ -996,7 +996,7 @@
     "shape": "bow",
     "file": "snowdrift-longbow.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a pale birch longbow with frost-blue grip, two small teal feather ties and taut white string, no arrow",
     "palette": "pale birch, frost blue, muted teal"
   },
@@ -1007,7 +1007,7 @@
     "shape": "scepter",
     "file": "aurora-prayer-staff.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a prayer staff with a compact ivory-gold fork surrounding one pale teal aurora crystal",
     "palette": "ivory, warm gold, pale teal"
   },
@@ -1018,7 +1018,7 @@
     "shape": "dagger",
     "file": "black-ice-dagger.png",
     "source": "individual",
-    "group": "寒泉深窟·霜王座",
+    "group": "镜泉冰窟·凝霜冠座",
     "subject": "a short angular black-ice dagger with translucent indigo blade and a small silver guard",
     "palette": "indigo, cold silver, charcoal"
   },
@@ -1029,7 +1029,7 @@
     "shape": "saber",
     "file": "lightning-brand-saber.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "a curved steel saber with one simple orange lightning-shaped groove and brass handguard",
     "palette": "steel gray, orange, old brass"
   },
@@ -1040,7 +1040,7 @@
     "shape": "staff",
     "file": "raincaller-staff.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "a long dark wooden raincalling staff crowned by a blue water-drop stone and a small feather tie",
     "palette": "rain blue, dark wood, muted silver"
   },
@@ -1051,7 +1051,7 @@
     "shape": "hammer",
     "file": "thunderhoof-maul.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "a heavy earthbound maul with squared stone head, brass hoof-shaped band and leather-wrapped shaft",
     "palette": "ochre stone, brass, dark leather"
   },
@@ -1062,7 +1062,7 @@
     "shape": "bow",
     "file": "gale-feather-bow.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "a recurved gale bow with swept teal feather-like limb tips and simple bronze grip, no arrow",
     "palette": "teal, dark wood, bronze"
   },
@@ -1073,7 +1073,7 @@
     "shape": "scepter",
     "file": "skyfather-scepter.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "an ancestral sky scepter with a compact golden wing-shaped head surrounding an ivory stone",
     "palette": "warm gold, ivory, dark wood"
   },
@@ -1084,7 +1084,7 @@
     "shape": "dagger",
     "file": "stormshadow-knife.png",
     "source": "individual",
-    "group": "风怒巢穴·雷鸣峰",
+    "group": "裂翎高巢·岚穹之顶",
     "subject": "a lean curved shadow knife with dark indigo edge, one violet notch and a teal feather tied to the pommel",
     "palette": "indigo, muted violet, teal"
   },
@@ -1095,7 +1095,7 @@
     "shape": "sword",
     "file": "sunflare-blade.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a long straight sunflare sword with copper-gold guard, clean silver edge and a restrained ember-orange center stripe",
     "palette": "silver steel, copper gold, ember orange"
   },
@@ -1106,7 +1106,7 @@
     "shape": "staff",
     "file": "manaflow-staff.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a slim mana-guiding staff, dark blue wooden shaft with silver rings and one faceted watery blue crystal",
     "palette": "water blue, silver, dark navy wood"
   },
@@ -1117,7 +1117,7 @@
     "shape": "hammer",
     "file": "runestone-core-maul.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a blocky runestone core maul with gray stone head, one large ochre rune inset and short brass collars",
     "palette": "stone gray, ochre, brass"
   },
@@ -1128,7 +1128,7 @@
     "shape": "bow",
     "file": "arcwind-bow.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a sleek arcane longbow of dark wood with teal crystal limb tips and two simple gold binding rings, no arrow",
     "palette": "dark wood, teal, gold"
   },
@@ -1139,7 +1139,7 @@
     "shape": "scepter",
     "file": "dawncore-scepter.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a dawn-core scepter with a compact ivory-gold cage holding one luminous pale gold crystal",
     "palette": "ivory, warm gold, pale cyan"
   },
@@ -1150,7 +1150,7 @@
     "shape": "dagger",
     "file": "voidglass-dagger.png",
     "source": "individual",
-    "group": "晨曦遗迹·失控核心",
+    "group": "琉辉旧庭·棱核密室",
     "subject": "a short faceted voidglass dagger with translucent violet blade, angular silver guard and charcoal grip",
     "palette": "violet, cold silver, charcoal"
   }

@@ -13,7 +13,7 @@ internal static class SoulImprintTestFactory
         [
             new SoulImprintDefinitionOptions
             {
-                Code = "deep-core", Name = "深岩监工的震核", Description = "造成伤害并施加破甲。",
+                Code = "deep-core", Name = "沉岩督造者的震核", Description = "造成伤害并施加破甲。",
                 DungeonCode = "slime-field", Tier = 1, Element = ElementType.Earth,
                 EffectType = SoulImprintEffectType.DamageArmorBreak, StatusCode = "armor-break", PowerPercent = 180,
                 SecondaryPowerPercent = 20, DurationRounds = 3, InitialCooldownRounds = 3,

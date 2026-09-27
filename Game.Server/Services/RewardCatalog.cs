@@ -129,10 +129,18 @@ public sealed class RewardCatalog
         "Experience" => "经验",
         "Consumable" => _consumables.FindItem(entry.Code)?.Name ?? entry.Code,
         "Material" => _materials?.FindItem(entry.Code)?.Name ?? entry.Code,
-        "Weapon" => DeserializeWeapon(entry)?.DisplayName ?? _weapons.FindItem(entry.Code)?.Name ?? entry.Code,
+        "Weapon" => DescribeWeapon(entry),
         "SoulImprint" => _soulImprints?.Find(entry.Code)?.Name ?? entry.Code,
         _ => entry.Code
     };
+
+    private string DescribeWeapon(RewardEntry entry)
+    {
+        var snapshot = DeserializeWeapon(entry);
+        var name = _weapons.FindItem(entry.Code)?.Name;
+        return snapshot is null ? name ?? entry.Code :
+            (name is null ? snapshot : snapshot with { Name = name }).DisplayName;
+    }
 
     public static WeaponRewardSnapshot? DeserializeWeapon(RewardEntry entry) =>
         string.IsNullOrWhiteSpace(entry.WeaponSnapshotJson)

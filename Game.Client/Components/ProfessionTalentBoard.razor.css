@@ -84,18 +84,16 @@
 .profession-tree-map__icon { width:clamp(27px,4.5vh,48px); height:clamp(27px,4.5vh,48px); font-size:1.3rem; border-width:2px; box-shadow:none; }
 .profession-tree-map__icon b { font-size:.65rem; min-width:22px; right:-12px; bottom:-3px; }
 .profession-tree-map__node>strong { font-size:.72rem; }
-.profession-selection { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.4rem; padding-top:.4rem; border-top:1px solid #40596c; flex-shrink:0; min-height:60px; }
-.profession-selection>div { display:grid; gap:.2rem; }
-.profession-selection strong { color:#f0dfbd; font-size:.8rem; }
-.profession-selection small { color:#a4bdcd; font-size:.62rem; line-height:1.3; }
-.profession-selection button, .profession-parent { min-height:44px; border:1px solid #526c7e; border-radius:.45rem; background:#1a3042; color:#d4e2e9; padding:.3rem .5rem; font-size:.7rem; cursor:pointer; }
-.profession-selection .profession-selection__spend { background:#d9ad5e; color:#142333; border-color:#e8c681; font-weight:800; }
-.profession-selection button:disabled { opacity:.48; cursor:not-allowed; }
+.profession-parent { min-height:44px; border:1px solid #526c7e; border-radius:.45rem; background:#1a3042; color:#d4e2e9; padding:.3rem .5rem; font-size:.7rem; cursor:pointer; }
 .profession-tree-detail { display:none; }
 .profession-tree-detail-shade--open { position:fixed; inset:0; display:block; z-index:1500; background:#030b15bd; backdrop-filter:blur(4px); }
 .profession-tree-detail--open { position:fixed; left:50%; right:auto; bottom:0; transform:translateX(-50%); z-index:1501; display:flex; flex-direction:column; width:min(100% - 12px,600px); max-height:88dvh; overflow:hidden; border-radius:1rem 1rem 0 0; padding-bottom:env(safe-area-inset-bottom); }
 .profession-tree-detail__header { flex-shrink:0; }
 .profession-tree-detail__body { overflow-y:auto; min-height:0; overscroll-behavior:contain; }
 .profession-tree-detail__spend { flex-shrink:0; }
+.profession-tree-detail__actions { display:flex; gap:.5rem; margin:0 .85rem .85rem; flex-shrink:0; }
+.profession-tree-detail__actions .profession-tree-detail__spend { width:auto; flex:1; margin:0; }
+.profession-tree-detail__refund { min-height:46px; min-width:88px; border:1px solid #526c7e; border-radius:.48rem; color:#d4e2e9; background:#1a3042; font-size:.8rem; cursor:pointer; }
+.profession-tree-detail__refund:disabled { color:#8da7b8; background:#263c4c; cursor:not-allowed; }
 .profession-tree-detail__notice { padding:0 .85rem .5rem; font-size:.7rem !important; color:#f3c68d !important; flex-shrink:0; }
 .profession-tree-detail__close { display:grid; place-items:center; width:44px; height:44px; border:1px solid #6e8492; border-radius:.45rem; color:#e9f0ef; background:#172b3a; font-size:1.4rem; cursor:pointer; }

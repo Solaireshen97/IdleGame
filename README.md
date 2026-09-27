@@ -139,6 +139,8 @@
 - `POST /api/user/characters/{characterId}/skills/swap`：交换两个技能栏位及其自动设置。
 - `POST /api/user/characters/{characterId}/talents/{type}/allocate`：为攻击、防御或生命加一级，并据此开放对应技能节点。
 - `POST /api/user/characters/{characterId}/skills/talents/{nodeCode}/unlock`：消耗天赋点，按属性等级和技能前置点亮职业技能节点。
+- `POST /api/user/characters/{characterId}/skills/talents/{nodeCode}/refund`：回退指定职业天赋一级并返还一点；若破坏已学天赋的前置或树内投入要求，返回 `TalentRefundBlocked:` 及具体原因。
+- `POST /api/professions/{professionCode}/talents/{nodeCode}/refund`：回退指定采集或炼金天赋一级并返还该专业一点；保留前置等级要求与工作期间的修改限制。
 - `POST /api/user/characters/{characterId}/talents/reset`：重置整张职业天赋树并返还点数；旧 `skills/talents/reset` 路径执行相同的统一重置。
 - `POST /api/battle/skill`：手动排队或取消一个技能栏位；请求体为 `roomId`、`characterId`、`skillSlotIndex`、`isQueued`。
 

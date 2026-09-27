@@ -21,7 +21,7 @@ internal static class ConsumableTestFactory
             new ConsumableItemOptions
             {
                 Code = "northshire-battle-draught",
-                Name = "北郡战意药剂",
+                Name = "岩芽战意药剂",
                 Kind = "OperationPotion",
                 AttackPercent = 15
             }

@@ -104,6 +104,38 @@ public sealed class SkillCatalog
     public bool IsNodeActive(Character character, SkillTalentNodeOptions node, IReadOnlyDictionary<string, int> ranks) =>
         ranks.GetValueOrDefault(node.Code) > 0 && node.RequiredLevel <= character.Level && ArePrerequisitesMet(node, ranks);
 
+    public string? RefundBlockReason(Character character, SkillTalentNodeOptions refundedNode, IReadOnlyDictionary<string, int> ranks)
+    {
+        var remaining = new Dictionary<string, int>(ranks, StringComparer.OrdinalIgnoreCase);
+        remaining[refundedNode.Code] = remaining.GetValueOrDefault(refundedNode.Code) - 1;
+        var nodes = TalentNodesForProfession(character.ProfessionCode);
+        foreach (var node in nodes.Where(node => remaining.GetValueOrDefault(node.Code) > 0))
+            if (!ArePrerequisitesMet(node, remaining))
+                return $"请先回退「{node.Name}」：它仍需要当前天赋作为前置。";
+
+        // Replay purchases to prevent retained ranks from supplying their own entry-point requirement.
+        var rebuilt = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var total = nodes.Sum(node => remaining.GetValueOrDefault(node.Code));
+        var spent = 0;
+        while (spent < total)
+        {
+            var progressed = false;
+            foreach (var node in nodes)
+            {
+                var rank = rebuilt.GetValueOrDefault(node.Code);
+                if (rank >= remaining.GetValueOrDefault(node.Code) || character.Level < node.RequiredLevel + rank ||
+                    spent < node.RequiredTreePoints || !ArePrerequisitesMet(node, rebuilt)) continue;
+                rebuilt[node.Code] = rank + 1;
+                spent++;
+                progressed = true;
+            }
+            if (progressed) continue;
+            var blocked = nodes.First(node => rebuilt.GetValueOrDefault(node.Code) < remaining.GetValueOrDefault(node.Code));
+            return $"请先回退「{blocked.Name}」：回退后基础树投入不足以保留该天赋。";
+        }
+        return null;
+    }
+
     private bool AreValidPrerequisites(SkillTalentNodeOptions node, IReadOnlyCollection<string> prerequisites) =>
         prerequisites.Distinct(StringComparer.OrdinalIgnoreCase).Count() == prerequisites.Count &&
         prerequisites.All(code => _talentNodes.TryGetValue(code, out var parent) &&

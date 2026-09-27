@@ -43,11 +43,11 @@ public class DungeonEncounterCatalogTests
 
         Assert.Equal(4, encounters.GetWaveCount(mine));
         Assert.Equal(7, encounters.GetMonsterCount(mine));
-        Assert.Equal("金牙", monsters[^1].Name);
+        Assert.Equal("砾牙矿主", monsters[^1].Name);
         Assert.True(monsters[^1].IsBoss);
         Assert.Equal("kobold-mine-goldtooth", monsters[^1].RewardProfileCode);
         Assert.Contains(rewards.GetDropPreview("kobold-mine-goldtooth", false),
-            reward => reward.Name == "金牙的精工矿镐" && reward.ChancePercent == 18);
+            reward => reward.Name == "砾牙精工矿镐" && reward.ChancePercent == 18);
         Assert.Contains(rewards.GetDropPreview("kobold-mine", true),
             reward => reward.Name == "矿洞徽记" && reward.Quantity == 1);
         Assert.Contains(rewards.GetDropPreview("kobold-mine-first-clear", true),
