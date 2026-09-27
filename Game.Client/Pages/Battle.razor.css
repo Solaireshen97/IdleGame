@@ -3279,7 +3279,8 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
     .battle-page--focused { grid-template-rows: minmax(180px, 1fr) auto; min-height: calc(100svh - 9.3rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); gap: .4rem; }
     .battle-page--focused .battle-stage__header { padding-block: .4rem; }
     .battle-page--focused .battle-field__label { display: none; }
-    .battle-page--focused .battle-field { --unit-height: 64px; padding-block: .25rem; }
+    .battle-page--focused .battle-field { --unit-height: 64px; min-height: 108px; padding-block: .25rem; }
+    .battle-page--focused .combat-readout { min-height: 24px; margin-top: .15rem; padding-block: .12rem; }
     .battle-page--focused .monster-intent { min-height: 36px; padding-block: .3rem; }
     .battle-page--focused .monster-intent__body { display: flex; }
     .battle-page--focused .battle-feed { min-height: 32px; padding-block: .3rem; }
@@ -3295,7 +3296,7 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 
 @media (max-height: 620px) {
     .battle-page--focused { grid-template-rows: minmax(160px, 1fr) auto; }
-    .battle-page--focused .battle-field { --unit-height: 48px; padding-block: .2rem; }
+    .battle-page--focused .battle-field { --unit-height: 48px; min-height: 84px; padding-block: .2rem; }
     .battle-page--focused .battle-stage__header { padding-block: .3rem; }
     .battle-page--focused .battle-mobile-quick-actions__hint:not(.battle-mobile-quick-actions__hint--feedback) { display: none; }
     .battle-page--focused .battle-mobile-character-tab { min-height: 34px; }
@@ -3321,3 +3322,5 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 .monster-intent--victory .monster-intent__icon { background: #e7c178; color: #423318; }
 .monster-intent--victory .monster-intent__body > strong,
 .monster-intent--victory .monster-intent__target strong { color: #f6dba8; }
+
+.battle-page--focused .battle-supplies-panel { grid-column: 1 / -1; min-width: 0; width: 100%; }

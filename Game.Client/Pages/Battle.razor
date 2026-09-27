@@ -266,12 +266,15 @@ else
                         <strong>@mobileActionSlot.CharacterName <span class="battle-action-profession">· @mobileActionSlot.ProfessionName</span></strong>
                         <small class="battle-action-health">@(mobileActionSlot.IsAlive ? $"HP {mobileActionSlot.CharacterHp} / {mobileActionSlot.CharacterMaxHp}" : "已阵亡 · 请选择其他角色")</small>
                     </div>
-                    <div class="battle-mobile-quick-actions__tools">
-                        <label class="quick-skill-toggle quick-skill-toggle--compact" title="开启后，点按可用技能直接安排；可指定队友的技能仍需选人">
-                            <input type="checkbox" checked="@mobileActionSlot.IsQuickSkillCastEnabled" @onchange="e => SetQuickSkillCastAsync(mobileActionSlot.CharacterId, (bool)e.Value!)" disabled="@_isQuickSkillCastSaving" />
-                            <strong>快速释放</strong>
-                        </label>
-                    </div>
+                    @if (_mobileLoadoutView == "skills")
+                    {
+                        <div class="battle-mobile-quick-actions__tools">
+                            <label class="quick-skill-toggle quick-skill-toggle--compact" title="开启后，点按可用技能直接安排；可指定队友的技能仍需选人">
+                                <input type="checkbox" checked="@mobileActionSlot.IsQuickSkillCastEnabled" @onchange="e => SetQuickSkillCastAsync(mobileActionSlot.CharacterId, (bool)e.Value!)" disabled="@_isQuickSkillCastSaving" />
+                                <strong>快速释放</strong>
+                            </label>
+                        </div>
+                    }
                 </div>
                 <div class="battle-loadout-switch" role="group" aria-label="选择技能或补给">
                     <button type="button" class='@(_mobileLoadoutView == "skills" ? "active" : null)' aria-pressed='@(_mobileLoadoutView == "skills" ? "true" : "false")' aria-controls="mobile-action-rail" @onclick='() => SetMobileLoadoutView("skills")'>✦ 技能</button>
@@ -337,34 +340,19 @@ else
                 }
                 else
                 {
-                    <div id="mobile-action-rail" class="battle-mobile-supply-rail" role="tabpanel" aria-label="当前角色战斗补给">
-                        @if (mobileActionSlot.OperationPotion is { } mobilePotion)
-                        {
-                            <div class="battle-mobile-supply battle-mobile-supply--operation">
-                                <span class="battle-mobile-supply__icon" aria-hidden="true">✦</span>
-                                <span class="battle-mobile-supply__details"><strong>合剂 · @(mobilePotion.ItemName ?? "未装备")</strong><small>库存 @mobilePotion.Quantity · @(mobilePotion.IsActive ? "本轮副本已生效" : mobilePotion.HasAttempted ? "本轮副本未生效" : mobilePotion.ItemCode is null ? "前往补给页装备" : "首次结算自动使用")</small></span>
-                            </div>
-                        }
-                        @foreach (var supply in mobileActionSlot.Consumables.OrderBy(supply => supply.SlotIndex))
-                        {
-                            var selected = IsConsumableQueued(mobileActionSlot, supply);
-                            <button type="button"
-                                    class="battle-mobile-supply @(selected ? "battle-mobile-supply--selected" : null)"
-                                    disabled="@(_isBusy || !CanQueueConsumable(mobileActionSlot, supply))"
-                                    aria-pressed="@(selected ? "true" : "false")"
-                                    title="@GetConsumableHint(mobileActionSlot, supply)"
-                                    @onclick="() => ToggleConsumableAsync(mobileActionSlot, supply)">
-                                <span class="battle-mobile-supply__icon" aria-hidden="true">
-                                    @if (supply.ItemCode is { } supplyCode) { <img src="@ItemArt.ForCode(supplyCode)" alt="" /> } else { <text>✚</text> }
-                                </span>
-                                <span class="battle-mobile-supply__details"><strong>@ConsumableRules.SlotName(supply.SlotIndex) · @(supply.ItemName ?? "未装备")</strong><small>@GetConsumableStatus(mobileActionSlot, supply)</small><small>@GetConsumableAvailability(supply, selected)</small></span>
-                            </button>
-                        }
+                    <div id="mobile-action-rail" class="battle-supplies-panel" role="tabpanel" aria-label="当前角色战斗补给">
+                        <BattleConsumablesPanel Character="mobileActionSlot" IsBusy="_isBusy"
+                                                IsBattleOver="@(_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver || _roomDetail.ClosedAtUtc is not null)"
+                                                CanQueue="@(supply => CanQueueConsumable(mobileActionSlot, supply))"
+                                                OnToggle="@(supply => ToggleConsumableAsync(mobileActionSlot, supply))" />
                     </div>
                 }
-                <div class="battle-mobile-quick-actions__hint @(_skillMessage is not null || _consumableMessage is not null ? "battle-mobile-quick-actions__hint--feedback" : null)" aria-live="polite">
-                    <span>@GetMobileActionFooterHint(mobileActionSlot)</span>
-                </div>
+                @if (_mobileLoadoutView == "skills" || _consumableMessage is not null)
+                {
+                    <div class="battle-mobile-quick-actions__hint @(_skillMessage is not null || _consumableMessage is not null ? "battle-mobile-quick-actions__hint--feedback" : null)" aria-live="polite">
+                        <span>@GetMobileActionFooterHint(mobileActionSlot)</span>
+                    </div>
+                }
             </div>
         }
         @if (countdown is not null)
@@ -1084,6 +1072,10 @@ else
 
     private string GetMobileActionFooterHint(RoomSlotResponse slot)
     {
+        if (_mobileLoadoutView == "supplies")
+        {
+            return _consumableMessage ?? string.Empty;
+        }
         var queuedCount = GetMobileQueuedActionCount(slot);
 
         return _skillMessage ?? _consumableMessage ?? (queuedCount > 0
@@ -1734,32 +1726,6 @@ else
         }
         catch { _skillMessage = "连接失败，请稍后重试。"; }
         finally { _isBusy = false; }
-    }
-
-    private string GetConsumableHint(RoomSlotResponse character, RoomConsumableSlotResponse supply)
-    {
-        if (IsConsumableQueued(character, supply)) return "点击取消本回合该槽位的手动使用";
-        if (supply.UnavailableReason is not null) return GetConsumableError(supply.UnavailableReason);
-        return supply.Kind == "Healing" ? $"安排下一次结算使用，恢复最多 {supply.HealAmount} HP" :
-            $"安排下一次结算使用：{supply.Description}";
-    }
-
-    private static string GetConsumableStatus(RoomSlotResponse character, RoomConsumableSlotResponse supply)
-    {
-        var quota = supply.SlotIndex == ConsumableRules.HealingPotionSlotIndex
-            ? $" · 本轮副本剩余 {character.HealingPotionUsesRemaining}/{character.HealingPotionUsesLimit} 次"
-            : string.Empty;
-        return $"库存 {supply.Quantity}{quota} · 冷却 {supply.CooldownRoundsRemaining} 回合";
-    }
-
-    private static string GetConsumableAvailability(RoomConsumableSlotResponse supply, bool selected)
-    {
-        var mode = supply.AutoUseEnabled
-            ? supply.Kind == "Healing" ? $"AUTO · HP ≤ {supply.AutoHpThresholdPercent}%" : "AUTO"
-            : "手动";
-        var state = selected ? "已排队 · 点击取消" : supply.UnavailableReason is not null
-            ? GetConsumableError(supply.UnavailableReason) : "点击排队";
-        return $"{mode} · {state}";
     }
 
     private async Task ToggleConsumableAsync(RoomSlotResponse character, RoomConsumableSlotResponse supply)

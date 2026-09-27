@@ -1,0 +1,37 @@
+.battle-supplies { display: grid; min-width: 0; gap: 4px; }
+.battle-supplies__potions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+/* Keep both potion targets at thumb size without growing the battle command area. */
+.battle-supplies__potion { --supply-accent: #98d2bf; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: .45rem; width: 100%; min-width: 0; height: 44px; padding: 4px .5rem; border: 1px solid #3c5a6d; border-left: 2px solid var(--supply-accent); border-radius: .45rem; background: #132b3b; color: #e5edf1; text-align: left; cursor: pointer; }
+.battle-supplies__potion--buff { --supply-accent: #c0b1de; background: #192b3e; }
+.battle-supplies__potion:not(:disabled):hover { border-color: var(--supply-accent); background: #203b4a; }
+.battle-supplies__potion:focus-visible { outline: 2px solid #f0cb86; outline-offset: 2px; }
+.battle-supplies__potion:disabled { opacity: 1; cursor: default; }
+.battle-supplies__potion.is-empty { border-style: dashed; border-left-color: #657e8f; background: #122534; }
+.battle-supplies__potion.is-queued { border-color: #dbb269; background: #34372e; }
+.battle-supplies__icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: .35rem; background: #0c202c; color: #8fa8b7; font-size: 1rem; }
+.battle-supplies__icon img { width: 28px; height: 28px; object-fit: contain; image-rendering: pixelated; }
+.battle-supplies__content { display: grid; min-width: 0; gap: 2px; }
+.battle-supplies__identity { display: flex; align-items: baseline; min-width: 0; gap: .4rem; line-height: 1.25; }
+.battle-supplies__type { flex-shrink: 0; color: var(--supply-accent, #d3b473); font-size: .625rem; font-weight: 600; }
+.battle-supplies__name { min-width: 0; overflow: hidden; color: #edf2f4; font-size: .72rem; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+.battle-supplies__metrics { display: flex; align-items: center; gap: .5rem; min-width: 0; color: #a4bbc7; font-size: .6rem; line-height: 1.3; white-space: nowrap; }
+.battle-supplies__metrics b { color: #d9e5eb; font-weight: 600; font-variant-numeric: tabular-nums; }
+.battle-supplies__quota b { color: #a7ddc8; }
+.battle-supplies__quota.is-exhausted b { color: #e8b38c; }
+.battle-supplies__mode { overflow: hidden; text-overflow: ellipsis; }
+.battle-supplies__state { display: grid; gap: 1px; min-width: 3rem; padding: .25rem .35rem; border-radius: .3rem; color: #b6c7d0; background: #ffffff08; font-size: .625rem; line-height: 1.3; text-align: center; white-space: nowrap; }
+.battle-supplies__state small { font-size: .55rem; font-weight: 400; }
+.battle-supplies__state.is-ready { color: #b6e4d1; background: #71c9a81a; }
+.battle-supplies__state.is-queued { color: #f5d492; background: #d3a85f24; }
+.battle-supplies__flask { display: flex; align-items: center; gap: .4rem; min-width: 0; height: 24px; padding: 0 .5rem; border-radius: .3rem; background: #b295550e; }
+.battle-supplies__flask-icon { color: #d8bc7d; font-size: .75rem; }
+.battle-supplies__flask .battle-supplies__name { flex: 1; color: #c9c4b6; font-size: .625rem; font-weight: 500; }
+.battle-supplies__flask-stock, .battle-supplies__flask-state { flex-shrink: 0; color: #baa982; font-size: .6rem; white-space: nowrap; }
+
+@container game-shell (max-width: 360px) {
+    .battle-supplies__potion { gap: .3rem; padding-inline: .35rem; grid-template-columns: 24px minmax(0, 1fr) auto; }
+    .battle-supplies__icon, .battle-supplies__icon img { width: 24px; height: 24px; }
+    .battle-supplies__identity { gap: .3rem; }
+    .battle-supplies__metrics { gap: .35rem; }
+    .battle-supplies__state { min-width: 2.6rem; padding-inline: .25rem; }
+}

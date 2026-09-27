@@ -5,14 +5,14 @@
 <section class="consumables-board" aria-labelledby="consumables-title">
     <header class="consumables-board__header">
         <div>
-            <span class="consumables-board__eyebrow">CHARACTER INVENTORY</span>
-            <h2 id="consumables-title">背包与补给槽</h2>
-            <p>每名角色独立配置治疗药水、强化药水与合剂。</p>
+            <span class="consumables-board__eyebrow">COMBAT SUPPLIES</span>
+            <h2 id="consumables-title">战斗补给</h2>
+            <p>为下一场战斗，做好准备。</p>
         </div>
         <div class="consumables-board__header-tools">
             @if (_data is not null)
             {
-                <span class="consumables-board__summary"><strong>@_data.Slots.Count(slot => slot.ItemCode is not null) / @_data.Slots.Count</strong> 已配置 · <strong>@_data.Items.Sum(item => item.Quantity)</strong> 库存</span>
+                <span class="consumables-board__summary">已配置 <strong>@_data.Slots.Count(slot => slot.ItemCode is not null) / @_data.Slots.Count</strong></span>
             }
             <button type="button" class="button button--quiet" @onclick="LoadAsync" disabled="@(_isLoading || _isSaving)" aria-label="刷新补给数据">刷新</button>
         </div>
@@ -34,68 +34,75 @@
         var selectedItem = _data.Items.FirstOrDefault(item => item.Code == selectedSlot.ItemCode);
 
         <div class="consumables-board__section-heading">
-            <div><span class="consumables-board__eyebrow">BATTLE LOADOUT</span><h3>补给编成</h3></div>
-            <small>槽位 1 治疗 · 槽位 2 强化，各自可手动使用或设置 Auto</small>
+            <h3>出战配置</h3>
+            <small>治疗与强化可同回合使用</small>
         </div>
-
-        <div class="consumables-board__slot-strip" role="group" aria-label="战斗补给槽位">
-            @foreach (var slot in _drafts.Where(slot => slot.SlotIndex <= Game.Shared.ConsumableRules.SlotCount).OrderBy(slot => slot.SlotIndex))
+        <div class="consumables-board__loadout" role="group" aria-label="战斗补给配置">
+            @foreach (var slot in _drafts.OrderBy(slot => slot.SlotIndex))
             {
-                var equippedItem = _data.Items.FirstOrDefault(item => item.Code == slot.ItemCode);
+                var item = _data.Items.FirstOrDefault(item => item.Code == slot.ItemCode);
                 <button type="button"
-                        class="consumables-board__slot-card @(equippedItem is null ? "consumables-board__slot-card--empty" : null) @(IsDirty(slot) ? "consumables-board__slot-card--dirty" : null) @(slot.SlotIndex == _selectedSlotIndex ? "active" : null)"
-                        aria-haspopup="dialog"
+                        class="supply-loadout supply-loadout--@SlotTone(slot.SlotIndex) @(item is null ? "is-empty" : null) @(IsDirty(slot) ? "is-dirty" : null)"
+                        disabled="@_isSaving" aria-haspopup="dialog"
                         aria-expanded="@(_isEditorOpen && slot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
-                        aria-label="@($"{Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)}槽：{equippedItem?.Name ?? "空槽位"}")"
+                        aria-label="@($"配置{Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)}：{item?.Name ?? "未装备"}")"
                         @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
-                    <span class="consumables-board__slot-index">@Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)</span>
-                    <span class="inventory-item__icon" aria-hidden="true">@if (equippedItem is null) { <text>+</text> } else { <img src="@ItemArt.ForCode(equippedItem.Code)" alt="" /> }</span>
-                    <span><strong>@(equippedItem?.Name ?? $"未装备{Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)}")</strong><small>@(equippedItem is null ? "点击配置" : !slot.AutoUseEnabled ? "手动使用" : equippedItem.Kind == "Healing" ? $"AUTO · HP ≤ {slot.AutoHpThresholdPercent}%" : "AUTO · 条件满足时使用")</small></span>
-                    @if (IsDirty(slot)) { <b>未保存</b> }
+                    <span class="supply-loadout__heading">
+                        <span class="supply-loadout__category"><span aria-hidden="true"></span>@Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)</span>
+                        <span class="supply-loadout__rule">@SlotRule(slot.SlotIndex)</span>
+                    </span>
+                    <span class="supply-loadout__main">
+                        <span class="supply-loadout__art" aria-hidden="true">
+                            @if (item is null) { <span>+</span> } else { <img src="@ItemArt.ForCode(item.Code)" alt="" /> }
+                        </span>
+                        <span class="supply-loadout__body">
+                            <strong>@(item?.Name ?? "选择一瓶药剂")</strong>
+                            <span class="supply-loadout__meta">
+                                @if (item is null) { <span>空槽位 · 点击配置</span> }
+                                else
+                                {
+                                    <span class="@(item.Quantity == 0 ? "is-depleted" : null)">库存 <b>@item.Quantity</b></span>
+                                    <span>@SlotMode(slot, item)</span>
+                                }
+                            </span>
+                        </span>
+                        <span class="supply-loadout__action">@if (IsDirty(slot)) { <span>未保存</span> }<span aria-hidden="true">›</span></span>
+                    </span>
                 </button>
             }
         </div>
-
-        @if (_drafts.FirstOrDefault(slot => slot.SlotIndex == Game.Shared.ConsumableRules.OperationPotionSlotIndex) is { } potionSlot)
-        {
-            var potionItem = _data.Items.FirstOrDefault(item => item.Code == potionSlot.ItemCode);
-            <div class="consumables-board__section-heading consumables-board__operation-heading">
-                <div><span class="consumables-board__eyebrow">OPERATION POTION</span><h3>合剂</h3></div>
-                <small>本轮副本首次结算使用 1 瓶，独立生效</small>
-            </div>
-            <button type="button" class="consumables-board__slot-card consumables-board__slot-card--operation @(potionItem is null ? "consumables-board__slot-card--empty" : null) @(IsDirty(potionSlot) ? "consumables-board__slot-card--dirty" : null) @(potionSlot.SlotIndex == _selectedSlotIndex ? "active" : null)"
-                    aria-haspopup="dialog" aria-expanded="@(_isEditorOpen && potionSlot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
-                    aria-label="@($"合剂槽：{potionItem?.Name ?? "空槽位"}")" @onclick="() => OpenEditor(potionSlot.SlotIndex)">
-                <span class="consumables-board__slot-index">合剂</span>
-                <span class="inventory-item__icon" aria-hidden="true">@if (potionItem is null) { <text>✦</text> } else { <img src="@ItemArt.ForCode(potionItem.Code)" alt="" /> }</span>
-                <span><strong>@(potionItem?.Name ?? "未装备合剂")</strong><small>@(potionItem is null ? "点击配置" : $"{potionItem.Description} · 库存 {potionItem.Quantity}")</small></span>
-                @if (IsDirty(potionSlot)) { <b>未保存</b> }
-            </button>
-        }
+        <p class="consumables-board__loadout-note">战斗进行时无法更换补给，可提前设置自动使用条件。</p>
 
         <section class="consumables-board__inventory-section" aria-labelledby="inventory-title">
             <header class="consumables-board__section-heading">
-                <div><span class="consumables-board__eyebrow">INVENTORY</span><h3 id="inventory-title">角色背包</h3></div>
-                <small>点按道具后可装备到对应槽位 · 共 @_data.Items.Sum(item => item.Quantity) 件</small>
+                <h3 id="inventory-title">药剂背包</h3>
+                <small>点选药剂即可配置</small>
             </header>
-            <div class="consumables-board__inventory">
-                @if (!_data.Items.Any(item => item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)))
+            <div class="consumables-board__filters" role="group" aria-label="按药剂用途筛选">
+                @foreach (var filter in InventoryFilters)
                 {
-                    <p class="consumables-board__inventory-empty">背包里还没有可用道具，可前往商店补充。</p>
+                    <button type="button" class="@(_inventoryFilter == filter.Kind ? "is-active" : null)"
+                            aria-pressed="@(_inventoryFilter == filter.Kind ? "true" : "false")"
+                            @onclick="() => _inventoryFilter = filter.Kind">@filter.Label</button>
                 }
-                @foreach (var item in _data.Items.Where(item => item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)))
+            </div>
+            <div class="consumables-board__inventory">
+                @if (!VisibleItems().Any())
                 {
-                    var equippedSlot = _drafts.FirstOrDefault(slot => slot.ItemCode == item.Code);
-                    <button type="button" class="inventory-item @(equippedSlot is not null ? "inventory-item--equipped" : null)"
-                            disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)">
+                    <div class="consumables-board__inventory-empty"><span aria-hidden="true">◇</span><strong>暂无@(_inventoryFilter == "All" ? "药剂" : InventoryFilters.First(filter => filter.Kind == _inventoryFilter).Label + "药剂")</strong><p>可以通过炼金制作，或前往商店补充。</p></div>
+                }
+                @foreach (var item in VisibleItems())
+                {
+                    var equipped = _drafts.Any(slot => slot.ItemCode == item.Code);
+                    <button type="button" class="inventory-item @(equipped ? "inventory-item--equipped" : null)"
+                            disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)" @key="item.Code">
                         <span class="inventory-item__icon" aria-hidden="true"><img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /></span>
-                        <span><strong>@item.Name</strong><small>@item.Description</small></span>
-                        <span class="inventory-item__meta"><b>×@item.Quantity</b><small>@(equippedSlot is null ? "点击装备" : Game.Shared.ConsumableRules.SlotName(equippedSlot.SlotIndex))</small></span>
+                        <span class="inventory-item__body"><strong>@item.Name</strong><small>@item.Description</small></span>
+                        <span class="inventory-item__meta"><b>× @item.Quantity</b><small>@(equipped ? "已配置" : "配置 ›")</small></span>
                     </button>
                 }
             </div>
         </section>
-
         @if (_isEditorOpen)
         {
             <div class="consumables-board__editor-backdrop" @onclick="CloseEditor">
@@ -128,7 +135,8 @@
                     {
                         @if (selectedItem.Kind == "OperationPotion")
                         {
-                            <p class="consumables-board__item-description">本轮副本首次参与回合结算时消耗 1 瓶，<span>@selectedItem.Description</span>，持续本轮副本。无需开启 Auto。</p>
+                            <p class="consumables-board__item-description">@selectedItem.Description</p>
+                            <p class="consumables-board__empty-hint">本轮副本首次参战时自动消耗 1 瓶，效果持续整轮。</p>
                         }
                         else
                         {
@@ -150,6 +158,7 @@
                         }
                     }
                     @if (selectedSlot.AutoHpThresholdPercent is < 1 or > 100) { <small class="consumable-slot__invalid">请输入 1%～100% 的阈值。</small> }
+                    @if (_error is not null) { <p class="consumables-board__error" role="alert">@_error</p> }
                     <footer>
                         <small>战斗进行时无法修改编成</small>
                         <div>
@@ -161,9 +170,9 @@
             </div>
         }
 
-        @if (_error is not null) { <p class="consumables-board__error" role="alert">@_error</p> }
+        @if (_error is not null && !_isEditorOpen) { <p class="consumables-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="consumables-board__success" role="status">@_notice</p> }
-        <p class="consumables-board__footnote">每轮副本每名角色最多成功使用 @_data.HealingPotionUsesLimit 次治疗药水；治疗与强化每回合各可使用一次，可同时排队。合剂独立使用，缺货时跳过本轮。战斗进行时补给槽无法调整。</p>
+        <p class="consumables-board__footnote">每名角色独立拥有药剂库存。库存耗尽后保留配置，不会自动换药或购买。</p>
     }
 </section>
 
@@ -171,6 +180,21 @@
     [Parameter, EditorRequired]
     public int CharacterId { get; set; }
 
+    private string _inventoryFilter = "All";
+    private static readonly (string Kind, string Label)[] InventoryFilters = [("All", "全部"), ("Healing", "治疗"), ("CombatBuff", "强化"), ("OperationPotion", "合剂")];
+    private IEnumerable<ConsumableItemResponse> VisibleItems() => (_data?.Items ?? [])
+        .Where(item => (item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)) &&
+            (_inventoryFilter == "All" || item.Kind == _inventoryFilter));
+    private static string SlotTone(int index) => index switch { 1 => "healing", 2 => "buff", _ => "flask" };
+    private string SlotRule(int index) => index switch
+    {
+        1 => $"每轮副本 {_data?.HealingPotionUsesLimit} 次",
+        2 => "短时增益 · 按冷却使用",
+        _ => "首次参战使用 · 整轮生效"
+    };
+    private static string SlotMode(SlotDraft slot, ConsumableItemResponse item) => item.Kind == "OperationPotion"
+        ? "首次参战自动使用" : !slot.AutoUseEnabled ? "手动使用"
+        : item.Kind == "Healing" ? $"自动 · HP ≤ {slot.AutoHpThresholdPercent}%" : "自动使用";
     private CharacterConsumablesResponse? _data;
     private readonly List<SlotDraft> _drafts = [];
     private bool _isLoading = true;

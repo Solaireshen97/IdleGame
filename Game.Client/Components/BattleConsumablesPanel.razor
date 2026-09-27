@@ -1,0 +1,112 @@
+@using Game.Shared
+@using Game.Shared.Dtos
+@using Game.Client.Services
+
+<div class="battle-supplies" aria-label="当前角色战斗补给">
+    <div class="battle-supplies__potions">
+        @foreach (var supply in Character.Consumables.OrderBy(supply => supply.SlotIndex))
+        {
+            var selected = (Character.PendingConsumableSlotMask & ConsumableRules.SlotMask(supply.SlotIndex)) != 0;
+            var available = CanQueue?.Invoke(supply) == true && !IsBattleOver;
+            var healing = supply.SlotIndex == ConsumableRules.HealingPotionSlotIndex;
+            <button type="button"
+                    class="battle-supplies__potion @(healing ? "battle-supplies__potion--healing" : "battle-supplies__potion--buff") @(selected ? "is-queued" : null) @(supply.ItemCode is null ? "is-empty" : null)"
+                    disabled="@(IsBusy || !available)"
+                    aria-pressed="@(selected ? "true" : "false")"
+                    aria-label="@($"{ConsumableRules.SlotName(supply.SlotIndex)}，{supply.ItemName ?? "未装备"}，{Status(supply, selected)}。{Details(supply)}")"
+                    title="@($"{supply.ItemName ?? "未装备"}：{supply.Description} {Details(supply)}{(selected ? "。点击取消这瓶药水的排队" : null)}")"
+                    @onclick="() => OnToggle.InvokeAsync(supply)" @key="supply.SlotIndex">
+                <span class="battle-supplies__icon" aria-hidden="true">
+                    @if (supply.ItemCode is { } itemCode) { <img src="@ItemArt.ForCode(itemCode)" alt="" /> }
+                    else { <span>+</span> }
+                </span>
+                <span class="battle-supplies__content">
+                    <span class="battle-supplies__identity">
+                        <span class="battle-supplies__type">@(healing ? "治疗" : "强化")</span>
+                        <strong class="battle-supplies__name">@(supply.ItemName ?? "未装备")</strong>
+                    </span>
+                    <span class="battle-supplies__metrics">
+                        @if (supply.ItemCode is not null)
+                        {
+                            <span>库存 <b>@supply.Quantity</b></span>
+                        }
+                        @if (healing)
+                        {
+                            <span class="battle-supplies__quota @(Character.HealingPotionUsesRemaining == 0 ? "is-exhausted" : null)">剩余 <b>@Character.HealingPotionUsesRemaining/@Character.HealingPotionUsesLimit</b> 次</span>
+                        }
+                        @if (supply.ItemCode is null)
+                        {
+                            <span>在补给页配置</span>
+                        }
+                        else
+                        {
+                            <span class="battle-supplies__mode">@(supply.AutoUseEnabled ? healing ? $"自动≤{supply.AutoHpThresholdPercent}%" : "自动" : "手动")</span>
+                        }
+                    </span>
+                </span>
+                <span class="battle-supplies__state @(selected ? "is-queued" : available ? "is-ready" : null)">
+                    <span>@Status(supply, selected)</span>
+                    @if (supply.CooldownRoundsRemaining > 0 && supply.UnavailableReason != "ConsumableCooldown")
+                    {
+                        <small>冷却 @supply.CooldownRoundsRemaining 回合</small>
+                    }
+                </span>
+            </button>
+        }
+    </div>
+    @if (Character.OperationPotion is { } flask)
+    {
+        <div class="battle-supplies__flask" title="@($"{flask.ItemName ?? "合剂未装备"}：{flask.Description} 首次参战自动使用，效果持续本轮副本。")">
+            <span class="battle-supplies__flask-icon" aria-hidden="true">✦</span>
+            <span class="battle-supplies__type">合剂</span>
+            <strong class="battle-supplies__name">@(flask.ItemName ?? "未装备")</strong>
+            @if (flask.ItemCode is not null) { <span class="battle-supplies__flask-stock">×@flask.Quantity</span> }
+            <span class="battle-supplies__flask-state">@(IsBattleOver ? "本轮结束" : flask.IsActive ? "已生效" : flask.HasAttempted ? "未生效" : flask.ItemCode is null ? "整轮增益" : "自动使用")</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RoomSlotResponse Character { get; set; } = default!;
+    [Parameter] public bool IsBusy { get; set; }
+    [Parameter] public bool IsBattleOver { get; set; }
+    [Parameter] public Func<RoomConsumableSlotResponse, bool>? CanQueue { get; set; }
+    [Parameter] public EventCallback<RoomConsumableSlotResponse> OnToggle { get; set; }
+
+    private string Details(RoomConsumableSlotResponse supply)
+    {
+        var quota = supply.SlotIndex == ConsumableRules.HealingPotionSlotIndex
+            ? $"，本轮剩余 {Character.HealingPotionUsesRemaining}/{Character.HealingPotionUsesLimit} 次" : string.Empty;
+        var mode = supply.AutoUseEnabled
+            ? supply.Kind == "Healing" ? $"HP ≤ {supply.AutoHpThresholdPercent}% 时自动使用" : "自动使用"
+            : "手动使用";
+        return $"库存 {supply.Quantity}{quota}，冷却 {supply.CooldownRoundsRemaining} 回合，{mode}";
+    }
+
+    private string Status(RoomConsumableSlotResponse supply, bool selected)
+    {
+        if (IsBattleOver) return "已结束";
+        if (selected) return "取消排队";
+        return supply.UnavailableReason switch
+        {
+            "HealingPotionLimitReached" => "次数用完",
+            "HpFull" => "已满血",
+            "OutOfStock" => "无库存",
+            "ConsumableCooldown" => $"冷却 {supply.CooldownRoundsRemaining} 回合",
+            "BuffAlreadyActive" => ActiveBuffStatus(supply),
+            "CharacterDead" => "已阵亡",
+            "NoConsumableEquipped" => "未配置",
+            "ConsumableIneffective" => "已无效",
+            "WrongConsumableSlot" => "需重配",
+            "BattleOver" => "已结束",
+            null => "排队",
+            _ => "不可用"
+        };
+    }
+
+    private string ActiveBuffStatus(RoomConsumableSlotResponse supply)
+    {
+        var effect = Character.StatusEffects.FirstOrDefault(effect => effect.Code == $"combat-consumable:{supply.ItemCode}");
+        return effect is null ? "生效中" : $"生效 {effect.RemainingRounds} 回合";
+    }
+}
