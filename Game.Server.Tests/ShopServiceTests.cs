@@ -22,6 +22,7 @@ public class ShopServiceTests
 
         var (response, error) = await test.Service.PurchaseAsync(test.Token, new PurchaseShopItemRequest
         {
+            RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, Code = "minor-healing-potion", Quantity = 5
         });
 
@@ -43,6 +44,7 @@ public class ShopServiceTests
 
         var (response, error) = await test.Service.PurchaseAsync(test.Token, new PurchaseShopItemRequest
         {
+            RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, Code = "cinder-knife", Quantity = 1
         });
 
@@ -64,12 +66,12 @@ public class ShopServiceTests
         await using var test = await ShopTestContext.CreateAsync();
         var requests = new[]
         {
-            (new PurchaseShopItemRequest { CharacterId = 2, Code = "minor-healing-potion", Quantity = 1 }, "ActiveCharacterChanged"),
-            (new PurchaseShopItemRequest { CharacterId = 1, Code = "unknown", Quantity = 1 }, "ProductNotFound"),
-            (new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion", Quantity = 0 }, "InvalidQuantity"),
-            (new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion", Quantity = 100 }, "InvalidQuantity"),
-            (new PurchaseShopItemRequest { CharacterId = 1, Code = "cinder-knife", Quantity = 2 }, "InvalidQuantity"),
-            (new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion", Quantity = 11 }, "InsufficientGold")
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 2, Code = "minor-healing-potion", Quantity = 1 }, "ActiveCharacterChanged"),
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "unknown", Quantity = 1 }, "ProductNotFound"),
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "minor-healing-potion", Quantity = 0 }, "InvalidQuantity"),
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "minor-healing-potion", Quantity = 100 }, "InvalidQuantity"),
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "cinder-knife", Quantity = 2 }, "InvalidQuantity"),
+            (new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "minor-healing-potion", Quantity = 11 }, "InsufficientGold")
         };
         foreach (var (request, expectedError) in requests)
         {
@@ -88,6 +90,7 @@ public class ShopServiceTests
         await test.Db.SaveChangesAsync();
         var (limitResponse, limitError) = await test.Service.PurchaseAsync(test.Token, new PurchaseShopItemRequest
         {
+            RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, Code = "minor-healing-potion", Quantity = 1
         });
         Assert.Null(limitResponse);
@@ -107,9 +110,10 @@ public class ShopServiceTests
         var second = ShopTestContext.CreateService(secondDb);
         await first.GetAsync(test.Token);
         await second.GetAsync(test.Token);
-        var request = new PurchaseShopItemRequest { CharacterId = 1, Code = "cinder-knife", Quantity = 1 };
+        var request = new PurchaseShopItemRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = 1, Code = "cinder-knife", Quantity = 1 };
 
         var (firstResponse, firstError) = await first.PurchaseAsync(test.Token, request);
+        request.RequestId = Guid.NewGuid().ToString("N");
         var (secondResponse, secondError) = await second.PurchaseAsync(test.Token, request);
 
         Assert.Null(firstError);
@@ -130,6 +134,7 @@ public class ShopServiceTests
         await test.Db.SaveChangesAsync();
         await test.Service.PurchaseAsync(test.Token, new PurchaseShopItemRequest
         {
+            RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, Code = "minor-healing-potion", Quantity = 1
         });
         test.User.ActiveCharacterId = second.Id;
@@ -221,6 +226,89 @@ public class ShopServiceTests
         Assert.Equal("deep-core", (await test.Db.CharacterSoulImprints.SingleAsync()).SoulImprintCode);
     }
 
+    [Fact]
+    public async Task RepeatedPurchaseIdReturnsInventoryWithoutSpendingAgain()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        var request = new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion", Quantity = 2,
+            RequestId = Guid.NewGuid().ToString("D") };
+        Assert.Null((await test.Service.PurchaseAsync(test.Token, request)).Error);
+        request.RequestId = Guid.Parse(request.RequestId).ToString("N");
+        var repeated = await test.Service.PurchaseAsync(test.Token, request);
+        Assert.Null(repeated.Error);
+        Assert.Equal(80, repeated.Response!.Gold);
+        Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
+        request.Quantity = 3;
+        Assert.Equal("RequestIdReused", (await test.Service.PurchaseAsync(test.Token, request)).Error);
+        Assert.Single(await test.Db.LogisticsRequests.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DirectPurchaseCannotBypassMilestoneOrCharacterLevel()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        var service = ShopTestContext.CreateService(test.Db, true);
+        var request = new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion", Quantity = 1,
+            RequestId = Guid.NewGuid().ToString("N") };
+        Assert.False((await service.GetAsync(test.Token)).Response!.Items.First().IsUnlocked);
+        Assert.Equal("ProductLocked", (await service.PurchaseAsync(test.Token, request)).Error);
+        test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone { CharacterId = 1, Kind = "MonsterKill",
+            TargetCode = "alternative-monster", Count = 1 });
+        await test.Db.SaveChangesAsync();
+        Assert.Equal("ProductLocked", (await service.PurchaseAsync(test.Token, request)).Error);
+        test.Character.Level = 2;
+        await test.Db.SaveChangesAsync();
+        Assert.Null((await service.PurchaseAsync(test.Token, request)).Error);
+    }
+
+    [Fact]
+    public async Task MissingPurchaseIdIsRejectedBeforeSpending()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        Assert.Equal("InvalidRequestId", (await test.Service.PurchaseAsync(test.Token,
+            new PurchaseShopItemRequest { CharacterId = 1, Code = "minor-healing-potion" })).Error);
+        Assert.Equal(100, test.Character.Gold);
+    }
+
+    [Fact]
+    public async Task OrdinarySeedPurchaseStacksAndCraftedRareRequestCannotBuy()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        var request = new PurchaseShopItemRequest { CharacterId = 1, Code = "seed-ordinary", Quantity = 2,
+            RequestId = Guid.NewGuid().ToString("N") };
+        var result = await test.Service.PurchaseAsync(test.Token, request);
+        Assert.Null(result.Error);
+        Assert.Equal(40, result.Response!.Gold);
+        Assert.Equal(2, result.Response.Items.Single(item => item.Code == "seed-ordinary").OwnedQuantity);
+        request.RequestId = Guid.NewGuid().ToString("N");
+        request.Code = "seed-rare";
+        Assert.Equal("ProductNotFound", (await test.Service.PurchaseAsync(test.Token, request)).Error);
+        Assert.Throws<InvalidOperationException>(() => ShopTestContext.CreateService(test.Db, rareSeedOffer: true));
+    }
+
+    [Fact]
+    public async Task ConcurrentInventoryChangeRollsBackGoldAndPurchaseReceipt()
+    {
+        await using var test = await ShopTestContext.CreateAsync();
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = 1, ItemCode = "minor-healing-potion", Quantity = 5 });
+        await test.Db.SaveChangesAsync();
+        await using var staleDb = test.CreateDbContext();
+        var stale = ShopTestContext.CreateService(staleDb);
+        await stale.GetAsync(test.Token);
+        var stack = await test.Db.CharacterItemStacks.SingleAsync();
+        stack.Quantity = 4;
+        stack.Version++;
+        await test.Db.SaveChangesAsync();
+        var result = await stale.PurchaseAsync(test.Token, new PurchaseShopItemRequest { CharacterId = 1,
+            Code = "minor-healing-potion", Quantity = 1, RequestId = Guid.NewGuid().ToString("N") });
+        Assert.Equal("ConcurrencyConflict", result.Error);
+        await test.Db.Entry(test.Character).ReloadAsync();
+        Assert.Equal(100, test.Character.Gold);
+        Assert.Equal(4, stack.Quantity);
+        Assert.Empty(await test.Db.LogisticsRequests.ToListAsync());
+        Assert.Empty(staleDb.ChangeTracker.Entries());
+    }
+
     private sealed class ShopTestContext : IAsyncDisposable
     {
         private readonly string _path;
@@ -259,7 +347,7 @@ public class ShopServiceTests
             return new ShopTestContext(path, options, db, user, character);
         }
 
-        public static ShopService CreateService(GameDbContext db)
+        public static ShopService CreateService(GameDbContext db, bool locked = false, bool rareSeedOffer = false)
         {
             var consumables = ConsumableTestFactory.Create();
             var weapons = new WeaponCatalog(Options.Create(new WeaponOptions
@@ -277,18 +365,12 @@ public class ShopServiceTests
                 }],
                 StarterPacks = new Dictionary<string, List<string>> { ["knight"] = ["cinder-knife"] }
             }));
-            var catalog = new ShopCatalog(Options.Create(new ShopOptions
-            {
-                Items =
-                [
-                    new ShopItemOptions { Kind = "Consumable", Code = "minor-healing-potion", Price = 10 },
-                    new ShopItemOptions { Kind = "Weapon", Code = "cinder-knife", Price = 45 }
-                ]
-            }), consumables, weapons);
             var materials = new MaterialCatalog(Options.Create(new MaterialOptions
             {
                 Items =
                 [
+                    new MaterialItemOptions { Code = "seed-ordinary", Name = "普通种子", Description = "普通植物种子。" },
+                    new MaterialItemOptions { Code = "seed-rare", Name = "稀有种子", Description = "稀有植物种子。" },
                     new MaterialItemOptions
                     {
                         Code = "kobold-mine-token", Name = "矿洞徽记", Description = "测试副本材料。"
@@ -299,6 +381,24 @@ public class ShopServiceTests
                     }
                 ]
             }));
+            var plants = new PlantingCatalog(Options.Create(new PlantingOptions
+            {
+                Plants = [new PlantOptions { Code = "ordinary", Name = "普通草药", SeedCode = "seed-ordinary", MaterialCode = "ordinary",
+                    GrowthSeconds = 100, HarvestQuantity = 3, SeedPrice = 30, UnlockTargetCode = "required-monster" },
+                    new PlantOptions { Code = "rare", Name = "稀有草药", SeedCode = "seed-rare", MaterialCode = "rare",
+                    GrowthSeconds = 100, HarvestQuantity = 3, IsRare = true, UnlockTargetCode = "rare-monster" }]
+            }));
+            var catalog = new ShopCatalog(Options.Create(new ShopOptions
+            {
+                Items =
+                [
+                    new ShopItemOptions { Kind = "Consumable", Code = "minor-healing-potion", Price = 10,
+                        UnlockKind = locked ? "MonsterKill" : null, UnlockTargetCode = "required-monster",
+                        AlternativeUnlockTargetCodes = ["alternative-monster"], MinimumCharacterLevel = locked ? 2 : 1 },
+                    new ShopItemOptions { Kind = "Weapon", Code = "cinder-knife", Price = 45 },
+                    new ShopItemOptions { Kind = "Seed", Code = rareSeedOffer ? "seed-rare" : "seed-ordinary", Price = 30 }
+                ]
+            }), consumables, weapons, plants, materials);
             var exchanges = new DungeonExchangeCatalog(Options.Create(new DungeonExchangeOptions
             {
                 Offers = [new DungeonExchangeOfferOptions
@@ -318,7 +418,7 @@ public class ShopServiceTests
                 }]
             }), materials, weapons, CreateSoulImprints());
             return new ShopService(db, new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create()),
-                catalog, consumables, weapons, materials, exchanges, CreateSoulImprints());
+                catalog, consumables, weapons, materials, exchanges, CreateSoulImprints(), plants: plants);
         }
 
         private static SoulImprintCatalog CreateSoulImprints() => new(Options.Create(new SoulImprintOptions

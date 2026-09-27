@@ -233,7 +233,24 @@
             particles(point, color, event.critical ? 10 : 6, event.critical ? 64 : 40,
                 event.style === "magic" ? "crystal" : event.style === "holy" ? "star" : "spark");
         };
-        const reserveNumber = async (event, point, count = 1) => {
+        const retireNumber = lane => {
+            const node = lane.node;
+            if (node) {
+                const { transform, opacity } = getComputedStyle(node);
+                lane.animation?.cancel();
+                animations.delete(lane.animation);
+                // Make room during the next attack's windup, before its impact.
+                animate(node, [
+                    { transform, opacity },
+                    { transform: `${transform} translateY(-6px)`, opacity: 0 }
+                ], { duration: 70, easing: "linear" }, true);
+            }
+            lane.node = null;
+            lane.animation = null;
+            lane.until = 0;
+            lane.displayWidth = null;
+        };
+        const reserveNumber = (event, point, count = 1) => {
             let pool = numberLanes.get(event.target);
             if (!pool) {
                 const rowHeight = field.clientWidth > 450 ? 46 : 39;
@@ -262,31 +279,26 @@
                 pool = { cursor: 0, slots: positions.map(y => ({ x: point.x, y, width, until: 0 })) };
                 numberLanes.set(event.target, pool);
             }
-            // Never overwrite a live number. Short fields slow the next hit just
-            // enough to free a lane instead of dropping hits or stacking text.
-            while (!signal.aborted) {
-                const available = [];
-                for (let i = 0; i < pool.slots.length; i++) {
-                    const laneIndex = (pool.cursor + i) % pool.slots.length;
-                    const lane = pool.slots[laneIndex];
-                    const now = performance.now();
-                    if (lane.until > now) continue;
-                    // Nearby allies retain their own anchors, but wait or use
-                    // another local row if a neighbour's number overlaps.
-                    const overlaps = [...numberLanes.values()].some(other => other !== pool && other.slots.some(active =>
-                        active.until > now && Math.abs(active.x - lane.x) < ((active.displayWidth ?? active.width) + lane.width) / 2
-                        && Math.abs(active.y - lane.y) < (field.clientWidth > 450 ? 46 : 39)));
-                    if (overlaps) continue;
-                    available.push({ lane, laneIndex });
-                    if (available.length < Math.min(count, pool.slots.length)) continue;
-                    for (const slot of available) slot.lane.until = Infinity;
-                    pool.cursor = (laneIndex + 1) % pool.slots.length;
-                    return available.map(slot => slot.lane);
-                }
-                const now = performance.now();
-                const ends = [...numberLanes.values()].flatMap(other => other.slots.map(lane => lane.until)).filter(end => end > now);
-                await wait(Math.max(1, Math.min(...ends) - now));
+            const now = performance.now();
+            const candidates = pool.slots.map((_, i) => {
+                const laneIndex = (pool.cursor + i) % pool.slots.length;
+                const lane = pool.slots[laneIndex];
+                const overlaps = [...numberLanes.values()].flatMap(other => other === pool ? [] : other.slots.filter(active =>
+                    active.until > now && Math.abs(active.x - lane.x) < ((active.displayWidth ?? active.width) + lane.width) / 2
+                    && Math.abs(active.y - lane.y) < (field.clientWidth > 450 ? 46 : 39)));
+                return { lane, laneIndex, overlaps, readyAt: Math.max(lane.until, ...overlaps.map(active => active.until)) };
+            });
+            // Prefer free local rows, then replace the oldest numbers. Text
+            // lifetime must never add a pause between characters' attacks.
+            candidates.sort((a, b) => Math.max(now, a.readyAt) - Math.max(now, b.readyAt));
+            const selected = candidates.slice(0, Math.min(count, pool.slots.length));
+            for (const slot of selected) {
+                retireNumber(slot.lane);
+                for (const overlap of slot.overlaps) retireNumber(overlap);
             }
+            for (const slot of selected) slot.lane.until = Infinity;
+            pool.cursor = (selected[selected.length - 1].laneIndex + 1) % pool.slots.length;
+            return selected.map(slot => slot.lane);
         };
         const popup = (event, lane, color) => {
             const node = make(`combat-number${event.critical ? " combat-number--critical" : ""}${event.isFollowUp ? " combat-number--echo" : ""}${event.target !== "enemy" && event.kind === "damage" ? " combat-number--incoming" : ""} combat-number--${event.kind}`,
@@ -317,13 +329,21 @@
             lane.displayWidth = measuredWidth * scale * 1.15;
             lane.until = performance.now() + numberDuration;
             lastNumberEnd = Math.max(lastNumberEnd, lane.until);
-            animate(node, [
+            lane.node = node;
+            lane.animation = animate(node, [
                 { transform: `translate(-50%, calc(-50% + 3px)) scale(${scale * 1.15})`, opacity: 1 },
                 { transform: `translate(-50%, -50%) scale(${scale * 1.04})`, opacity: 1, offset: .045 },
                 { transform: `translate(-50%, -50%) scale(${scale})`, opacity: 1, offset: .1 },
                 { transform: `translate(-50%, calc(-50% - 3px)) scale(${scale})`, opacity: 1, offset: .82 },
                 { transform: `translate(-50%, calc(-50% - 8px)) scale(${scale * .96})`, opacity: 0 }
             ], { duration: numberDuration, easing: "linear" }, true);
+            lane.animation?.finished.then(() => {
+                if (lane.node !== node) return;
+                lane.node = null;
+                lane.animation = null;
+                lane.until = 0;
+                lane.displayWidth = null;
+            }, () => {});
         };
         const showEffect = (label, kind, color, anchor) => {
             const bounds = field.getBoundingClientRect();
@@ -460,10 +480,10 @@
                     await wait(300);
                     continue;
                 }
-                // Reserve the main hit and its echo together before launching, so
-                // a full damage lane cannot split one swing by several seconds.
+                // Reserve the main hit and echo together without waiting for
+                // previous numbers to finish fading.
                 const pairedEcho = plan.events[eventIndex + 1]?.isFollowUp;
-                const lanes = await reserveNumber(event, point, pairedEcho ? 2 : 1);
+                const lanes = reserveNumber(event, point, pairedEcho ? 2 : 1);
                 const lane = lanes?.[0];
                 if (!lane || signal.aborted) break;
                 if (actionText) actionText.textContent = `${source?.element.dataset.combatName ?? ""} · ${event.label}`.replace(/^ · /, "");
@@ -491,11 +511,13 @@
                 // A normal-attack echo belongs to this swing/projectile. Show its
                 // own number during recovery without a second launch or impact.
                 let followUpDelay = 0;
+                let followUpIndex = 1;
                 while (!signal.aborted && plan.events[eventIndex + 1]?.isFollowUp) {
                     const echo = plan.events[++eventIndex];
                     const echoTarget = units.get(echo.target);
                     if (!echoTarget) continue;
-                    const echoLane = lanes[1] ?? (await reserveNumber(echo, pointOf(echoTarget)))?.[0];
+                    const echoLane = (echo.target === event.target ? lanes[followUpIndex++] : null)
+                        ?? reserveNumber(echo, pointOf(echoTarget))[0];
                     if (!echoLane || signal.aborted) break;
                     await wait(90);
                     if (signal.aborted) break;

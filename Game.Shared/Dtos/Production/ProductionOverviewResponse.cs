@@ -4,7 +4,6 @@ public sealed class ProductionOverviewResponse
 {
     public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
-    public int AlchemyLevel { get; set; }
     public DateTime ServerTimeUtc { get; set; }
     public List<ProductionRecipeResponse> Recipes { get; set; } = [];
     public ProductionTaskResponse? ActiveTask { get; set; }
@@ -22,7 +21,6 @@ public sealed class ProductionRecipeResponse
     public int CharacterQuantity { get; set; }
     public int CycleSeconds { get; set; }
     public int MinimumCharacterLevel { get; set; }
-    public int MinimumAlchemyLevel { get; set; }
     public string UnlockDescription { get; set; } = string.Empty;
     public int UnlockProgress { get; set; }
     public int UnlockRequired { get; set; }
@@ -50,6 +48,7 @@ public sealed class ProductionTaskResponse
     public DateTime EndsAtUtc { get; set; }
     public DateTime NextCycleAtUtc { get; set; }
     public DateTime? StoppedAtUtc { get; set; }
+    public int? TargetCycles { get; set; }
     public int CompletedCycles { get; set; }
     public int TotalQuantity { get; set; }
     public int ExtraYieldQuantity { get; set; }

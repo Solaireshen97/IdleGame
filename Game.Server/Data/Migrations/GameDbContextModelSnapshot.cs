@@ -513,6 +513,36 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("CharacterProfessionTalents", t => t.HasCheckConstraint("CK_CharacterProfessionTalents_Rank", "Rank > 0"));
                 });
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterGardenPlot", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("PlotIndex").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.Property<string>("PlantCode").HasColumnType("TEXT");
+                    b.Property<string>("SeedCode").HasColumnType("TEXT");
+                    b.Property<string>("MaterialCode").HasColumnType("TEXT");
+                    b.Property<string>("PlantName").HasColumnType("TEXT");
+                    b.Property<int>("HarvestQuantity").HasColumnType("INTEGER");
+                    b.Property<int>("GrowthSeconds").HasColumnType("INTEGER");
+                    b.Property<DateTime?>("PlantedAtUtc").HasColumnType("TEXT");
+                    b.Property<DateTime?>("MaturesAtUtc").HasColumnType("TEXT");
+                    b.HasKey("Id");
+                    b.HasIndex("CharacterId", "PlotIndex").IsUnique();
+                    b.ToTable("CharacterGardenPlots", t => t.HasCheckConstraint("CK_CharacterGardenPlots_Values", "PlotIndex >= 0 AND PlotIndex < 4 AND HarvestQuantity >= 0 AND GrowthSeconds >= 0"));
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.LogisticsRequest", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("RequestId").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Kind").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("Fingerprint").IsRequired().HasColumnType("TEXT");
+                    b.Property<DateTime>("CompletedAtUtc").HasColumnType("TEXT");
+                    b.HasKey("CharacterId", "RequestId");
+                    b.ToTable("LogisticsRequests");
+                });
+
             modelBuilder.Entity("Game.Shared.Models.GatheringTask", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
@@ -544,6 +574,8 @@ namespace Game.Server.Data.Migrations
             modelBuilder.Entity("Game.Shared.Models.ProductionTask", b =>
                 {
                     b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                    b.Property<int?>("TargetCycles").HasColumnType("INTEGER");
+                    b.Property<string>("RequestId").HasColumnType("TEXT");
                     b.Property<int>("UserId").HasColumnType("INTEGER");
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<string>("RecipeCode").IsRequired().HasColumnType("TEXT");
@@ -565,6 +597,8 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("Id");
                     b.HasIndex("CharacterId", "Status");
+                    b.HasIndex("CharacterId").IsUnique().HasFilter("Status = 'Running'");
+                    b.HasIndex("CharacterId", "RequestId").IsUnique().HasFilter("RequestId IS NOT NULL");
                     b.ToTable("ProductionTasks", t => t.HasCheckConstraint("CK_ProductionTasks_Quantities",
                         "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
                 });

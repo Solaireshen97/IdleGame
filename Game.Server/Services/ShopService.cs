@@ -10,7 +10,8 @@ namespace Game.Server.Services;
 public sealed class ShopService(GameDbContext dbContext, UserService userService, ShopCatalog shopCatalog,
     ConsumableCatalog consumables, WeaponCatalog weapons, MaterialCatalog materials,
     DungeonExchangeCatalog dungeonExchanges, SoulImprintCatalog? soulImprints = null,
-    CharacterSlotCatalog? characterSlotCatalog = null)
+    CharacterSlotCatalog? characterSlotCatalog = null, ProductionService? production = null,
+    PlantingCatalog? plants = null, WorldCatalog? world = null)
 {
     private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
 
@@ -25,54 +26,86 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (character!.Id != request.CharacterId) return (null, "ActiveCharacterChanged");
+        if (!Guid.TryParse(request.RequestId, out var requestGuid) || requestGuid == Guid.Empty)
+            return (null, "InvalidRequestId");
+        var requestId = requestGuid.ToString("N");
         var product = shopCatalog.Find(request.Code);
         if (product is null) return (null, "ProductNotFound");
         if (request.Quantity is < 1 or > 99 || product.Kind == "Weapon" && request.Quantity != 1)
             return (null, "InvalidQuantity");
-
+        if (product.Kind == "Seed" && plants?.FindSeed(product.Code) is not { IsRare: false })
+            return (null, "ProductNotFound");
+        var fingerprint = $"{product.Code.ToLowerInvariant()}:{request.Quantity}";
+        var previous = await dbContext.LogisticsRequests.AsNoTracking().SingleOrDefaultAsync(item =>
+            item.CharacterId == character.Id && item.RequestId == requestId);
+        if (previous is not null)
+        {
+            if (previous.Kind != "ShopPurchase" || previous.Fingerprint != fingerprint)
+                return (null, "RequestIdReused");
+            dbContext.ChangeTracker.Clear();
+            (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+            return error is null ? (await BuildResponseAsync(user!, character!), null) : (null, error);
+        }
+        if (!await IsUnlockedAsync(character, product)) return (null, "ProductLocked");
         var cost = checked(product.Price * request.Quantity);
         if (character.Gold < cost) return (null, "InsufficientGold");
-        CharacterItemStack? stack = null;
-        if (product.Kind == "Consumable")
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
         {
-            stack = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(item =>
-                item.CharacterId == character.Id && item.ItemCode == product.Code);
+            var now = DateTime.UtcNow;
+            if (production is not null) await production.SettleCharacterTrackedAsync(character.Id, now);
+            var stack = product.Kind == "Weapon" ? null :
+                dbContext.CharacterItemStacks.Local.FirstOrDefault(item => item.CharacterId == character.Id && item.ItemCode == product.Code)
+                ?? await dbContext.CharacterItemStacks.SingleOrDefaultAsync(item => item.CharacterId == character.Id && item.ItemCode == product.Code);
             if (stack is not null && stack.Quantity > int.MaxValue - request.Quantity)
-                return (null, "InventoryLimitReached");
-        }
-        character.Gold -= cost;
-        character.Version++;
-
-        if (product.Kind == "Consumable")
-        {
-            if (stack is null)
             {
-                dbContext.CharacterItemStacks.Add(new CharacterItemStack
-                {
-                    CharacterId = character.Id, ItemCode = product.Code, Quantity = request.Quantity
-                });
+                await transaction.RollbackAsync();
+                dbContext.ChangeTracker.Clear();
+                return (null, "InventoryLimitReached");
             }
+            character.Gold -= cost;
+            character.Version++;
+            if (product.Kind == "Weapon")
+                dbContext.CharacterWeapons.Add((weapons.CreateRewardSnapshot(product.Code) with { Origin = WeaponOrigin.Shop }).ToCharacterWeapon(character.Id));
+            else if (stack is null)
+                dbContext.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = character.Id, ItemCode = product.Code, Quantity = request.Quantity });
             else
             {
                 stack.Quantity += request.Quantity;
                 stack.Version++;
             }
-        }
-        else
-        {
-            dbContext.CharacterWeapons.Add((weapons.CreateRewardSnapshot(product.Code) with { Origin = WeaponOrigin.Shop }).ToCharacterWeapon(character.Id));
-        }
-
-        try
-        {
+            dbContext.LogisticsRequests.Add(new LogisticsRequest { CharacterId = character.Id, RequestId = requestId,
+                Kind = "ShopPurchase", Fingerprint = fingerprint, CompletedAtUtc = now });
             await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
         catch (DbUpdateException)
         {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
-        return (await BuildResponseAsync(user, character), null);
+        catch
+        {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
+        return (await BuildResponseAsync(user!, character), null);
     }
+
+    private async Task<bool> IsUnlockedAsync(Character character, Game.Server.Configuration.ShopItemOptions product)
+    {
+        if (character.Level < product.MinimumCharacterLevel) return false;
+        if (product.UnlockKind is null) return true;
+        var targets = product.AlternativeUnlockTargetCodes.Append(product.UnlockTargetCode).ToList();
+        return await dbContext.CharacterBattleMilestones.AnyAsync(item => item.CharacterId == character.Id &&
+            item.Kind == product.UnlockKind && targets.Contains(item.TargetCode) && item.Count >= product.RequiredCount);
+    }
+
+    private string UnlockDescription(Game.Server.Configuration.ShopItemOptions product) =>
+        product.UnlockKind is null ? (product.MinimumCharacterLevel > 1 ? $"角色等级达到 {product.MinimumCharacterLevel}" : "初始开放") :
+        $"角色等级达到 {product.MinimumCharacterLevel}，完成 {string.Join(" / ", product.AlternativeUnlockTargetCodes.Prepend(product.UnlockTargetCode).Select(code => world?.Dungeons.FirstOrDefault(item => item.Code == code)?.Name ?? code))} {(product.UnlockKind == "MonsterKill" ? "击杀" : "通关")} {product.RequiredCount} 次";
 
     public async Task<(DungeonExchangeResultResponse? Response, string? Error)> ExchangeAsync(
         string? token, ExchangeDungeonWeaponRequest request)
@@ -82,9 +115,16 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         if (character!.Id != request.CharacterId) return (null, "ActiveCharacterChanged");
         var offer = dungeonExchanges.Find(request.OfferCode);
         if (offer is null) return (null, "ExchangeOfferNotFound");
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        if (production is not null) await production.SettleCharacterTrackedAsync(character.Id, DateTime.UtcNow);
         var currency = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(stack =>
             stack.CharacterId == character.Id && stack.ItemCode == offer.CurrencyCode);
-        if (currency is null || currency.Quantity < offer.Cost) return (null, "InsufficientDungeonCurrency");
+        if (currency is null || currency.Quantity < offer.Cost)
+        {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
+            return (null, "InsufficientDungeonCurrency");
+        }
 
         var rewardCode = offer.EffectiveRewardCode;
         WeaponRewardSnapshot? weaponSnapshot = null;
@@ -99,7 +139,11 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             materialStack = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(stack =>
                 stack.CharacterId == character.Id && stack.ItemCode == rewardCode);
             if (materialStack is not null && materialStack.Quantity > int.MaxValue - offer.RewardQuantity)
+            {
+                await transaction.RollbackAsync();
+                dbContext.ChangeTracker.Clear();
                 return (null, "InventoryLimitReached");
+            }
         }
         else
         {
@@ -132,6 +176,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         try
         {
             await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
         }
         catch (DbUpdateException)
         {
@@ -187,6 +232,8 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             .ToDictionaryAsync(item => item.Code, item => item.Count);
         var characterCount = await dbContext.Characters.CountAsync(item => item.UserId == user.Id);
 
+        var unlocked = new Dictionary<string, bool>();
+        foreach (var product in shopCatalog.Items) unlocked[product.Code] = await IsUnlockedAsync(character, product);
         return new ShopResponse
         {
             CharacterId = character.Id, CharacterName = character.Name, Gold = character.Gold,
@@ -206,11 +253,13 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
                 return new ShopItemResponse
                 {
                     Code = product.Code, Kind = product.Kind, Price = product.Price,
-                    Name = consumable?.Name ?? weapon?.Name ?? product.Code,
-                    OwnedQuantity = consumable is not null
+                    Name = consumable?.Name ?? weapon?.Name ?? materials.FindItem(product.Code)?.Name ?? product.Code,
+                    Description = consumable is not null ? ConsumableCatalog.Description(consumable, character.Level) : materials.FindItem(product.Code)?.Description ?? string.Empty,
+                    IsUnlocked = unlocked[product.Code], UnlockDescription = UnlockDescription(product),
+                    OwnedQuantity = product.Kind != "Weapon"
                         ? stocks.FirstOrDefault(item => item.ItemCode == product.Code)?.Quantity ?? 0
                         : ownedWeapons.GetValueOrDefault(product.Code),
-                    HealAmount = consumable is { Kind: "Healing" } ? ConsumableCatalog.HealAmountFor(consumable, TalentRules.EffectiveMaxHp(character)) : null,
+                    HealAmount = consumable is { Kind: "Healing" } ? ConsumableCatalog.HealAmountFor(consumable, TalentRules.EffectiveMaxHp(character), character.Level) : null,
                     AttackPercent = consumable is { Kind: "OperationPotion" } ? consumable.AttackPercent : null,
                     CooldownRounds = consumable is { Kind: "Healing" } ? consumable.CooldownRounds : null,
                     Element = weapon?.Element, Attack = weapon?.Attack, MaxHp = weapon?.MaxHp,

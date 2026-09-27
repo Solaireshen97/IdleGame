@@ -9,7 +9,7 @@
 - `Game.Client`：Blazor WebAssembly 客户端
 - `Game.Server.Tests`：服务层测试
 
-当前 T1 草药、采集点、炼金配方与药剂效果见 [T1 草药采集与炼金设计](docs/t1-alchemy-gathering.md)。
+当前四块药田、并行炼金、普通/次级/强效药剂与测试配表见 [并行种植与炼金实施稿](docs/planting-alchemy-redesign.md)。
 
 ## V1.0：副本、首通、准备超时与 Auto
 
@@ -148,7 +148,10 @@ Auto 开关在每个房间内按账号控制自有队员；房主的设置独立
 - `POST /api/user/characters/{characterId}/talents/{type}/allocate`：为攻击、防御或生命加一级，并据此开放对应技能节点。
 - `POST /api/user/characters/{characterId}/skills/talents/{nodeCode}/unlock`：消耗天赋点，按属性等级和技能前置点亮职业技能节点。
 - `POST /api/user/characters/{characterId}/skills/talents/{nodeCode}/refund`：回退指定职业天赋一级并返还一点；若破坏已学天赋的前置或树内投入要求，返回 `TalentRefundBlocked:` 及具体原因。
-- `POST /api/professions/{professionCode}/talents/{nodeCode}/refund`：回退指定采集或炼金天赋一级并返还该专业一点；保留前置等级要求与工作期间的修改限制。
+- `GET /api/planting`、`POST /api/planting/plant`、`POST /api/planting/harvest`：查看四块药田、播种和收获；播种请求含唯一 `requestId`，地块操作携带当前版本。
+- `POST /api/production/start`：战斗期间也可炼金；请求含 `characterId`、`recipeCode`、唯一 `requestId` 及可选 `targetCycles`（1–4320批），省略批数时最多连续12小时。
+- `POST /api/shop/purchase`：购买次级药、普通种子或武器；请求含唯一 `requestId`，重复请求不重复扣款。
+- 旧 `api/gathering` 与 `api/professions` 生活专业接口返回410；种植与炼金不再使用生活经验和天赋。
 - `POST /api/user/characters/{characterId}/talents/reset`：重置整张职业天赋树并返还点数；旧 `skills/talents/reset` 路径执行相同的统一重置。
 - `POST /api/battle/skill`：手动排队或取消一个技能栏位；请求体为 `roomId`、`characterId`、`skillSlotIndex`、`isQueued`。
 

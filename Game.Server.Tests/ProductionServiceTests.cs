@@ -15,105 +15,108 @@ public sealed class ProductionServiceTests
     private const string HerbCode = "peacebloom";
 
     [Fact]
-    public async Task ProductionTaskLocksAlchemyTalentChangesUntilItStops()
+    public async Task FixedBatchIgnoresProfessionAndDuplicateRequestCannotProduceTwice()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(20);
+        var request = new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode, TargetCycles = 3 };
+        var started = await test.Service.StartAsync(test.Token, request);
+        Assert.Null(started.Error);
+        Assert.Null((await test.Service.StartAsync(test.Token, request)).Error);
+        Assert.Single(await test.Db.ProductionTasks.ToListAsync());
+        var task = started.Response!.ActiveTask!;
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.StartedAtUtc.AddHours(2)));
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.StartedAtUtc.AddHours(3)));
+        var saved = await test.Db.ProductionTasks.SingleAsync();
+        Assert.Equal(("Completed", 3, 3), (saved.Status, saved.CompletedCycles, saved.TotalQuantity));
+        Assert.Equal(1, test.First.AlchemyLevel);
+        Assert.Equal(0, test.First.AlchemyExperience);
+        request.TargetCycles = 4;
+        Assert.Equal("RequestIdConflict", (await test.Service.StartAsync(test.Token, request)).Error);
+    }
+
+    [Fact]
+    public async Task SettlementBeforeNewMaterialsStopsPastCyclesAtShortage()
     {
         await using var test = await ProductionTestContext.CreateAsync(2);
-        test.First.AlchemyLevel = 2;
-        test.First.AlchemyTalentPoints = 1;
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        var task = started.Response!.ActiveTask!;
+        await test.Service.SettleCharacterTrackedAsync(test.First.Id, task.StartedAtUtc.AddSeconds(30));
+        var herb = await test.Db.CharacterItemStacks.SingleAsync(item => item.CharacterId == test.First.Id && item.ItemCode == HerbCode);
+        herb.Quantity += 20;
         await test.Db.SaveChangesAsync();
-        var catalog = ProfessionTestFactory.Create();
-        var production = test.NewService(test.Db, catalog);
-        var talents = new ProfessionService(test.Db,
-            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), catalog);
-        var started = await production.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
-        Assert.Null(started.Error);
-        Assert.True((await talents.GetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Progress!.IsTalentLocked);
-        Assert.Equal("ProfessionTalentLocked", (await talents.SpendAsync(test.Token,
-            ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
-        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token,
-            ProfessionCatalog.AlchemyCode)).Error);
-        Assert.Null((await production.StopAsync(test.Token, started.Response!.ActiveTask!.Id)).Error);
-        Assert.Null((await talents.SpendAsync(test.Token,
-            ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.StartedAtUtc.AddSeconds(60)));
+        Assert.Equal("MaterialShortage", (await test.Db.ProductionTasks.FindAsync(task.Id))!.Status);
+        Assert.Equal(20, herb.Quantity);
     }
 
+    [Fact]
+    public async Task BattleActivityDoesNotBlockAlchemyOrGetReplaced()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(2);
+        test.Db.CharacterActivities.Add(new CharacterActivity { CharacterId = test.First.Id, Kind = "Battle", SourceId = 99, StartedAtUtc = DateTime.UtcNow });
+        await test.Db.SaveChangesAsync();
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        Assert.Null(started.Error);
+        Assert.Null((await test.Service.StopAsync(test.Token, started.Response!.ActiveTask!.Id)).Error);
+        Assert.Equal("Battle", (await test.Db.CharacterActivities.SingleAsync()).Kind);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(4321)]
+    public async Task InvalidFixedBatchCountsAreRejected(int count)
+    {
+        await using var test = await ProductionTestContext.CreateAsync(2);
+        Assert.Equal("InvalidTargetCycles", (await test.Service.StartAsync(test.Token,
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode, TargetCycles = count })).Error);
+        Assert.Empty(await test.Db.ProductionTasks.ToListAsync());
+    }
 
     [Fact]
-    public async Task AlchemyLevelsIndependentlyAndTalentsAffectProduction()
+    public async Task StaleScannerCannotRepeatACommittedCycle()
     {
         await using var test = await ProductionTestContext.CreateAsync(4);
-        var catalog = ProfessionTestFactory.Create();
-        var service = test.NewService(test.Db, catalog);
-        var first = await service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
-        Assert.Null(first.Error);
-        var initial = first.Response!.ActiveTask!;
-        Assert.Null(await service.AdvanceDueAsync(initial.Id, initial.StartedAtUtc.AddSeconds(20)));
-        Assert.Equal(2, test.First.AlchemyLevel);
-        Assert.Equal(1, test.First.AlchemyTalentPoints);
-        Assert.Equal(1, test.Second.AlchemyLevel);
-        Assert.Null((await service.StopAsync(test.Token, initial.Id)).Error);
-
-        catalog.GrantExperience(test.First, ProfessionCatalog.AlchemyCode, 10);
-
-        var talents = new ProfessionService(test.Db,
-            new UserService(test.Db, ProgressionTestFactory.Create(), SkillTestFactory.Create()), catalog);
-        Assert.Null((await talents.SpendAsync(test.Token, ProfessionCatalog.AlchemyCode, "alchemy-save")).Error);
-        Assert.Null((await talents.SpendAsync(test.Token, ProfessionCatalog.AlchemyCode, "alchemy-yield")).Error);
-        var herb = await test.Db.CharacterItemStacks.SingleAsync(item =>
-            item.CharacterId == test.First.Id && item.ItemCode == HerbCode);
-        herb.Quantity = 3;
-        herb.Version++;
-        await test.Db.SaveChangesAsync();
-        var second = await service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
-        Assert.Null(second.Error);
-        var enhanced = second.Response!.ActiveTask!;
-        Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.IngredientSaveChancePercent);
-        Assert.Equal(100, (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!.ExtraYieldChancePercent);
-        Assert.Equal("ProfessionTalentLocked", (await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
-        Assert.Null(await service.AdvanceDueAsync(enhanced.Id, enhanced.StartedAtUtc.AddSeconds(20)));
-        var completed = (await test.Db.ProductionTasks.FindAsync(enhanced.Id))!;
-        Assert.Equal(4, completed.TotalQuantity);
-        Assert.Equal(2, completed.ExtraYieldQuantity);
-        Assert.Equal(2, completed.SavedIngredientQuantity);
-        Assert.Equal(1, herb.Quantity);
-        Assert.Null((await service.StopAsync(test.Token, enhanced.Id)).Error);
-        Assert.Null((await talents.ResetAsync(test.Token, ProfessionCatalog.AlchemyCode)).Error);
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        var task = started.Response!.ActiveTask!;
+        await using var staleDb = test.NewDbContext();
+        await staleDb.ProductionTasks.FindAsync(task.Id);
+        await staleDb.CharacterItemStacks.Where(item => item.CharacterId == test.First.Id).LoadAsync();
+        Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.NextCycleAtUtc));
+        Assert.Equal("ConcurrencyConflict", await test.NewService(staleDb).AdvanceDueAsync(task.Id, task.NextCycleAtUtc));
+        await using var verification = test.NewDbContext();
+        Assert.Equal(1, (await verification.ProductionTasks.SingleAsync()).CompletedCycles);
+        Assert.Equal(1, (await verification.CharacterItemStacks.SingleAsync(item => item.CharacterId == test.First.Id && item.ItemCode == RecipeCode)).Quantity);
     }
 
     [Fact]
-    public async Task GatheredHerbsCanBeUsedForAlchemyWithoutAnyTransfer()
+    public async Task GetSettlesElapsedTaskBeforeReturningInventory()
     {
-        await using var test = await ProductionTestContext.CreateAsync(0);
-        var gathering = test.NewGatheringService();
-        var (harvest, harvestError) = await gathering.StartAsync(test.Token,
-            new Game.Shared.Dtos.Gathering.StartGatheringRequest
-            {
-                CharacterId = test.First.Id, PointCode = "elwynn-peacebloom"
-            });
-        Assert.Null(harvestError);
-        var gatheringTask = harvest!.ActiveTask!;
-        Assert.Null(await gathering.AdvanceDueAsync(gatheringTask.Id,
-            gatheringTask.StartedAtUtc.AddSeconds(40)));
-        Assert.Equal(2, (await test.Db.CharacterItemStacks.SingleAsync(item =>
-            item.CharacterId == test.First.Id && item.ItemCode == HerbCode)).Quantity);
-        Assert.Equal("CharacterBusy", (await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode })).Error);
-        Assert.Null((await gathering.StopAsync(test.Token, gatheringTask.Id)).Error);
+        await using var test = await ProductionTestContext.CreateAsync(4);
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode, TargetCycles = 1 });
+        var task = await test.Db.ProductionTasks.FindAsync(started.Response!.ActiveTask!.Id);
+        task!.StartedAtUtc = DateTime.UtcNow.AddSeconds(-20);
+        task.NextCycleAtUtc = task.StartedAtUtc.AddSeconds(10);
+        task.EndsAtUtc = task.NextCycleAtUtc;
+        await test.Db.SaveChangesAsync();
+        var view = await test.Service.GetAsync(test.Token);
+        Assert.Null(view.Error);
+        Assert.Null(view.Response!.ActiveTask);
+        Assert.Equal(1, view.Response.Recipes.Single().CharacterQuantity);
+        Assert.Equal(2, view.Response.Recipes.Single().Ingredients.Single().CharacterQuantity);
+    }
 
-        var (started, startError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
-        Assert.Null(startError);
-        Assert.Null(await test.Service.AdvanceDueAsync(started!.ActiveTask!.Id,
-            started.ActiveTask.NextCycleAtUtc));
-        Assert.Equal(0, (await test.Db.CharacterItemStacks.SingleAsync(item =>
-            item.CharacterId == test.First.Id && item.ItemCode == HerbCode)).Quantity);
-        Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync(item =>
-            item.CharacterId == test.First.Id && item.ItemCode == RecipeCode)).Quantity);
-        Assert.False(await test.Db.CharacterItemStacks.AnyAsync(item =>
-            item.CharacterId == test.Second.Id && item.Quantity > 0));
+    [Fact]
+    public async Task TrackedOutputStackIsReusedDuringCombinedTransaction()
+    {
+        await using var test = await ProductionTestContext.CreateAsync(4);
+        var started = await test.Service.StartAsync(test.Token, new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
+        var task = started.Response!.ActiveTask!;
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = test.First.Id, ItemCode = RecipeCode, Quantity = 2 });
+        await test.Service.SettleCharacterTrackedAsync(test.First.Id, task.NextCycleAtUtc);
+        Assert.Single(test.Db.CharacterItemStacks.Local.Where(item => item.CharacterId == test.First.Id && item.ItemCode == RecipeCode));
+        await test.Db.SaveChangesAsync();
+        Assert.Equal(3, (await test.Db.CharacterItemStacks.SingleAsync(item => item.CharacterId == test.First.Id && item.ItemCode == RecipeCode)).Quantity);
     }
 
     [Fact]
@@ -128,23 +131,22 @@ public sealed class ProductionServiceTests
         Assert.Contains("恢复 20 HP", recipe.OutputDescription);
 
         var (started, startError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         Assert.Null(startError);
         var firstTask = started!.ActiveTask!;
         Assert.Equal(TimeSpan.FromHours(12), firstTask.EndsAtUtc - firstTask.StartedAtUtc);
         Assert.Equal(5, (await test.Db.CharacterItemStacks.SingleAsync(item =>
             item.CharacterId == test.First.Id && item.ItemCode == HerbCode)).Quantity);
-        Assert.Equal(CharacterActivityManager.ProductionKind,
-            (await test.Db.CharacterActivities.SingleAsync()).Kind);
+        Assert.Empty(await test.Db.CharacterActivities.ToListAsync());
         var (_, busyError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         Assert.Equal("CharacterBusy", busyError);
 
         test.Owner.ActiveCharacterId = test.Second.Id;
         test.Owner.Version++;
         await test.Db.SaveChangesAsync();
         var (_, lockedError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.Second.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.Second.Id, RecipeCode = RecipeCode });
         Assert.Equal("RecipeLocked", lockedError);
         test.Db.CharacterBattleMilestones.Add(new CharacterBattleMilestone
         {
@@ -154,7 +156,7 @@ public sealed class ProductionServiceTests
         });
         await test.Db.SaveChangesAsync();
         var (secondStarted, secondError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.Second.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.Second.Id, RecipeCode = RecipeCode });
         Assert.Null(secondError);
         Assert.NotNull(secondStarted!.ActiveTask);
 
@@ -183,7 +185,7 @@ public sealed class ProductionServiceTests
     {
         await using var test = await ProductionTestContext.CreateAsync(2);
         var (view, _) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         var (stopped, error) = await test.Service.StopAsync(test.Token, view!.ActiveTask!.Id);
         Assert.Null(error);
         Assert.Null(stopped!.ActiveTask);
@@ -199,7 +201,7 @@ public sealed class ProductionServiceTests
     {
         await using var test = await ProductionTestContext.CreateAsync(9000);
         var (view, error) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         Assert.Null(error);
         var task = view!.ActiveTask!;
         Assert.Null(await test.Service.AdvanceDueAsync(task.Id, task.EndsAtUtc.AddHours(1)));
@@ -226,12 +228,12 @@ public sealed class ProductionServiceTests
         });
         await test.Db.SaveChangesAsync();
         var (first, _) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         test.Owner.ActiveCharacterId = test.Second.Id;
         test.Owner.Version++;
         await test.Db.SaveChangesAsync();
         var (second, secondError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.Second.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.Second.Id, RecipeCode = RecipeCode });
         Assert.Null(secondError);
 
         await using var firstDb = test.NewDbContext();
@@ -256,7 +258,7 @@ public sealed class ProductionServiceTests
     {
         await using var test = await ProductionTestContext.CreateAsync(0, 4);
         var (_, shortage) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.First.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.First.Id, RecipeCode = RecipeCode });
         Assert.Equal("InsufficientMaterials", shortage);
         test.Owner.ActiveCharacterId = test.Second.Id;
         test.Owner.Version++;
@@ -268,7 +270,7 @@ public sealed class ProductionServiceTests
         });
         await test.Db.SaveChangesAsync();
         var (started, startError) = await test.Service.StartAsync(test.Token,
-            new StartProductionRequest { CharacterId = test.Second.Id, RecipeCode = RecipeCode });
+            new StartProductionRequest { RequestId = Guid.NewGuid().ToString("N"), CharacterId = test.Second.Id, RecipeCode = RecipeCode });
         Assert.Null(startError);
         Assert.NotNull(started!.ActiveTask);
         Assert.Equal(4, started.Recipes.Single().Ingredients.Single().CharacterQuantity);

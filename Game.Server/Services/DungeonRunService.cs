@@ -8,7 +8,7 @@ namespace Game.Server.Services;
 
 public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService,
     MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null,
-    GatheringOpportunityService? gatheringOpportunities = null)
+    GatheringOpportunityService? gatheringOpportunities = null, RareSeedService? rareSeeds = null)
 {
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
@@ -63,6 +63,8 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualCharacterIds,
                 BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
+            if (dungeon.DungeonKind == "Elite" && rareSeeds is not null)
+                await rareSeeds.RecordDropsAsync(room, dungeon.Code, participants, actualCharacterIds);
             if (dungeon.DungeonKind == "Elite" && gatheringOpportunities is not null)
             {
                 var names = participants.DistinctBy(participant => participant.Character.Id)

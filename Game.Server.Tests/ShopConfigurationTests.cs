@@ -26,12 +26,16 @@ public class ShopConfigurationTests
             configuration.GetSection(SoulImprintOptions.SectionName).Get<SoulImprintOptions>()!));
 
         var catalog = new ShopCatalog(Options.Create(
-            configuration.GetSection(ShopOptions.SectionName).Get<ShopOptions>()!), consumables, weapons);
+            configuration.GetSection(ShopOptions.SectionName).Get<ShopOptions>()!), consumables, weapons, new PlantingCatalog(Options.Create(
+                configuration.GetSection(PlantingOptions.SectionName).Get<PlantingOptions>()!)), materials);
         var exchanges = new DungeonExchangeCatalog(Options.Create(
             configuration.GetSection(DungeonExchangeOptions.SectionName).Get<DungeonExchangeOptions>()!),
             materials, weapons, soulImprints);
 
-        Assert.Equal(8, catalog.Items.Count);
+        Assert.Equal(23, catalog.Items.Count);
+        Assert.Equal(7, catalog.Items.Count(item => item.Kind == "Seed"));
+        Assert.Equal(10, catalog.Items.Count(item => item.Kind == "Consumable"));
+        Assert.All(catalog.Items.Where(item => item.Kind == "Consumable"), item => Assert.StartsWith("lesser-", item.Code));
         Assert.Equal(15, consumables.FindItem("northshire-battle-draught")?.AttackPercent);
         Assert.Equal(2, characterSlots.InitialSlots);
         Assert.Equal(5, characterSlots.MaximumSlots);

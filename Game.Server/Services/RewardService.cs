@@ -5,10 +5,18 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression)
+public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression,
+    ProductionService? production = null, PlantingCatalog? planting = null)
 {
-    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear) =>
-        catalog.GetDropPreview(rewardCode, isClear);
+    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear)
+    {
+        var drops = catalog.GetDropPreview(rewardCode, isClear).ToList();
+        if (isClear && planting is not null)
+            drops.AddRange(planting.Plants.Where(p => p.IsRare &&
+                (p.UnlockTargetCode == rewardCode || p.AlternativeUnlockTargetCodes.Contains(rewardCode)))
+                .Select(p => new RewardDropPreview("Material", p.SeedCode, p.Name + "种子", 1, p.DropChancePercent, null)));
+        return drops;
+    }
 
     public bool HasRewardProfile(string rewardCode, bool isClear) =>
         catalog.HasRewardProfile(rewardCode, isClear);
@@ -43,11 +51,16 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 entry.Entity.Sequence == room.RunSequence).Select(entry => entry.Entity);
         var entries = saved.Concat(pending).ToList();
         var characterIds = entries.Select(entry => entry.CharacterId).Distinct().ToList();
+        if (production is not null)
+            foreach (var characterId in characterIds)
+                await production.SettleCharacterTrackedAsync(characterId, now);
         var userIds = entries.Select(entry => entry.UserId).Distinct().ToList();
         var characters = await dbContext.Characters.Where(character => characterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id);
         var users = await dbContext.Users.Where(user => userIds.Contains(user.Id)).ToDictionaryAsync(user => user.Id);
-        var stacks = await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync();
+        var stacks = (await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync())
+            .Concat(dbContext.CharacterItemStacks.Local.Where(stack => characterIds.Contains(stack.CharacterId)))
+            .DistinctBy(stack => (stack.CharacterId, stack.ItemCode)).ToList();
 
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId)
             ?? throw new InvalidOperationException($"Dungeon {room.DungeonId} was not found while settling rewards.");

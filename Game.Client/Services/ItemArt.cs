@@ -43,6 +43,12 @@ public static class ItemArt
         ["dawn-core-prism"] = "/art/items/soul-imprints/dawn-core-prism.png",
     };
 
-    public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)
-        ? path : null;
+    public static string? ForCode(string? code)
+    {
+        if (code is null) return null;
+        foreach (var prefix in new[] { "lesser-", "greater-", "seed-" })
+            if (code.StartsWith(prefix, StringComparison.Ordinal))
+                return ForCode(code[prefix.Length..]);
+        return PathsByCode.TryGetValue(code, out var path) ? path : null;
+    }
 }

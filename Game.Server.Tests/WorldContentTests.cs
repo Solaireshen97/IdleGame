@@ -95,7 +95,8 @@ public sealed class WorldContentTests
             var batches = production.Recipes.Where(recipe => recipe.Ingredients.Any(ingredient =>
                 ingredient.Code == rare.MaterialCode)).ToList();
             var batch = Assert.Single(batches);
-            Assert.Contains(batch.OutputQuantity, new[] { 3, 4 });
+            Assert.Equal(1, batch.OutputQuantity);
+            Assert.StartsWith("greater-", batch.OutputCode);
             Assert.Equal(10, batch.CycleSeconds);
         }
     }
@@ -250,7 +251,8 @@ public sealed class WorldContentTests
         db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = character.Id, ItemCode = otherToken, Quantity = 99 });
         await db.SaveChangesAsync();
         var shop = new ShopService(db, users,
-            new ShopCatalog(content.Bind<ShopOptions>(ShopOptions.SectionName), content.Consumables, content.Weapons),
+            new ShopCatalog(content.Bind<ShopOptions>(ShopOptions.SectionName), content.Consumables, content.Weapons,
+                new PlantingCatalog(content.Bind<PlantingOptions>(PlantingOptions.SectionName)), content.Materials),
             content.Consumables, content.Weapons, content.Materials, content.Exchanges, content.SoulImprints);
         var request = new ExchangeDungeonWeaponRequest { CharacterId = character.Id, OfferCode = offer.Code };
         var insufficient = await shop.ExchangeAsync("owner-token", request);

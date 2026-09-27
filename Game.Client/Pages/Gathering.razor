@@ -1,279 +1,298 @@
 @page "/gathering"
+@page "/planting"
 @using Game.Client.Services
-@using Game.Shared.Dtos.Gathering
-@using Microsoft.AspNetCore.Components.Web
+@using Game.Shared.Dtos.Planting
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
 @implements IDisposable
 
-<PageTitle>采集</PageTitle>
+<PageTitle>药田</PageTitle>
 
-<div class="activity-page activity-page--gathering">
-    <header class="activity-intro">
-        <div><span>FIELD WORK · SIX REGIONS</span><h1>草药采集</h1></div>
-        <p>选择地点查看收益与解锁条件；产物进入当前角色背包。</p>
+<div class="garden-page">
+    <header class="garden-intro">
+        <div><span class="garden-eyebrow">HERB GARDEN</span><h1>营地药田</h1><p>播下一粒种子，为下一场冒险积蓄力量。</p></div>
+        <a class="garden-shop-link" href="/shop">购买种子 <span aria-hidden="true">↗</span></a>
     </header>
-
-    @if (_isLoading)
+    @if (_notice is not null)
     {
-        <GameStateCard Compact="true" Title="正在查看采集点" Detail="读取角色的战斗解锁和采集任务…" />
+        <div class="garden-notice @(_noticeIsError ? "garden-notice--error" : null)" role="status"><span>@_notice</span><button type="button" @onclick="() => _notice = null" aria-label="关闭提示">×</button></div>
     }
-    else if (_overview is null)
+    @if (_overview is null)
     {
-        <GameStateCard Compact="true" Tone="error" Icon="!" Title="采集信息读取失败" Detail="请检查登录状态后重试。" />
-        <button class="activity-refresh" @onclick="LoadAsync">重新读取</button>
+        <GameStateCard Compact="true" Tone="@(_loading ? "default" : "error")" Title="@(_loading ? "正在走进药田" : "暂时无法读取药田")" Detail="@(_loading ? "查看草药的生长情况…" : "请检查连接后重试。")" />
+        @if (!_loading) { <button type="button" class="garden-button garden-button--secondary garden-retry" @onclick="LoadAsync">重新读取</button> }
     }
     else
     {
-        <div class="activity-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName · 采集 Lv.@_overview.GatheringLevel</strong></div>
-            <span>已解锁 @_overview.Points.Count(point => point.IsUnlocked) / @_overview.Points.Count 处</span>
-            <a href="/talents?tree=Gathering">采集天赋 ↗</a>
-        </div>
-
-        @if (_notice is not null)
-        {
-            <p class="activity-notice" role="status">@_notice</p>
-        }
-
-        @if (_overview.ActiveTask is { } task)
-        {
-            <section class="activity-active" aria-label="当前采集任务">
-                <div class="activity-active__heading"><span>@(task.IsRare ? "稀有采集中" : "采集中")</span><strong>剩余 @FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
-                <div class="activity-active__main">
-                    <div><h2>@task.PointName</h2><p>已完成 @task.CompletedCycles 轮 · 收获 @task.TotalQuantity 株@(task.ExtraYieldQuantity > 0 ? $" · 额外 {task.ExtraYieldQuantity}" : "")</p></div>
-                    <button type="button" class="activity-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">@(task.IsRare ? "停止采集" : "停止并结算")</button>
-                </div>
-                <div class="activity-active__timer"><span>@(task.IsRare ? "本次采集" : "下一轮")</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
-                <div class="activity-progress" role="progressbar" aria-label="下一轮采集进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
-                    <span @key="task.NextCycleAtUtc" style="width: @(CycleProgress(task))%"></span>
-                </div>
-                <details class="activity-active__more"><summary>查看任务规则与附加产物</summary><p>@(task.IsRare ? "完成本轮后消耗 1 次机会；中途停止不消耗机会。" : "任务到期后结算当前轮；关闭网页后服务器仍会继续采集。") @(task.BonusQuantity > 0 ? $"稀有附加产物：{task.BonusMaterialName} × {task.BonusQuantity}。" : "")</p></details>
-            </section>
-        }
-
-        <section class="activity-options" aria-label="采集地点">
-            <div class="activity-section-title"><div><span>GATHERING SITES</span><h2>采集地点</h2></div><small>点击地点查看详情</small></div>
-            <div class="activity-option-grid">
-                @foreach (var point in OrderedPoints())
+        <section class="garden-field" aria-labelledby="garden-field-title">
+            <div class="garden-field-heading"><div><span class="garden-eyebrow">YOUR PLOTS</span><h2 id="garden-field-title">@_overview.CharacterName 的药田</h2></div><button type="button" class="garden-refresh" disabled="@IsWorking" @onclick="LoadAsync" aria-label="刷新药田" title="刷新药田">↻</button></div>
+            <div class="garden-summary" aria-label="药田状态">
+                <span><i class="garden-dot garden-dot--empty"></i>空置 <b>@EmptyPlots.Count()</b></span>
+                <span><i class="garden-dot garden-dot--growing"></i>生长中 <b>@GrowingCount</b></span>
+                <span><i class="garden-dot garden-dot--ready"></i>可收获 <b>@MaturePlots.Count()</b></span>
+            </div>
+            <div class="garden-plots">
+                @foreach (var plot in _overview.Plots)
                 {
-                    <button type="button" class="activity-option @(point.IsRare ? "activity-option--rare" : null) @(!point.IsUnlocked ? "activity-option--locked" : null)"
-                            @key="point.Code" @onclick="() => OpenPoint(point.Code)" aria-haspopup="dialog" aria-label="查看 @point.Name 的采集详情">
-                        <span class="activity-option__top"><span>@(point.IsRare ? $"稀有 · {point.RegionName}" : $"{point.RegionName} · 采集 Lv.{point.MinimumGatheringLevel}")</span><b>@(point.IsUnlocked ? point.IsRare ? $"机会 {point.AvailableOpportunities}" : "已解锁" : "未解锁")</b></span>
-                        <span class="activity-option__item"><img src="@ItemArt.ForCode(point.MaterialCode)" alt="" loading="lazy" /><span><strong>@point.Name</strong><span class="activity-option__output">@point.MaterialName × @point.OutputQuantity <small>/ @point.CycleSeconds 秒</small></span></span></span>
-                        <span class="activity-option__foot">背包 @point.CharacterQuantity <span aria-hidden="true">详情 ›</span></span>
+                    var empty = plot.PlantCode is null;
+                    var mature = !empty && IsMature(plot);
+                    var selected = _selected.Contains(plot.PlotIndex);
+                    var rare = _overview.Plants.FirstOrDefault(plant => plant.Code == plot.PlantCode)?.IsRare == true;
+                    <article @key="plot.PlotIndex" class="garden-plot @(empty ? "garden-plot--empty" : mature ? "garden-plot--ready" : "garden-plot--growing") @(selected ? "garden-plot--selected" : null)">
+                        <div class="garden-plot-top"><span class="garden-plot-number">@((plot.PlotIndex + 1).ToString("D2")) <small>号药田</small></span><span class="garden-status">@(empty ? selected ? "已选择" : "待播种" : mature ? "已成熟" : "生长中")</span></div>
+                        <div class="garden-plot-scene" aria-hidden="true">
+                            <div class="garden-soil"></div>
+                            @if (empty)
+                            {
+                                <svg class="garden-sprout" viewBox="0 0 64 64" fill="none"><path d="M32 49V29m0 7C18 36 13 29 14 19c12-1 19 5 18 17Zm0-6C32 18 40 13 51 14c0 11-7 17-19 16Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 51h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            }
+                            else
+                            {
+                                <img class="garden-crop garden-crop--left" src="@ItemArt.ForCode(plot.MaterialCode)" alt="" />
+                                <img class="garden-crop garden-crop--main" src="@ItemArt.ForCode(plot.MaterialCode)" alt="" />
+                                <img class="garden-crop garden-crop--right" src="@ItemArt.ForCode(plot.MaterialCode)" alt="" />
+                                @if (mature) { <span class="garden-spark garden-spark--one">✦</span><span class="garden-spark garden-spark--two">✧</span> }
+                            }
+                        </div>
+                        <div class="garden-plot-label"><h3>@(empty ? "留一方新绿" : plot.PlantName)</h3><span>@(empty ? "选择地块，再挑选种子" : $"{(rare ? "稀有草药 · " : "")}预计收获 {plot.HarvestQuantity} 株")</span></div>
+                        @if (empty)
+                        {
+                            <button type="button" class="garden-plot-action" disabled="@IsWorking" aria-pressed="@(selected ? "true" : "false")" aria-label="@($"{(selected ? "取消选择" : "选择")} {plot.PlotIndex + 1} 号药田")" @onclick="() => TogglePlot(plot.PlotIndex)"><span aria-hidden="true">@(selected ? "✓" : "+")</span> @(selected ? "已选中这块药田" : "选择这块药田")</button>
+                        }
+                        else if (mature)
+                        {
+                            <button type="button" class="garden-plot-action garden-plot-action--harvest" disabled="@IsWorking" @onclick="() => HarvestAsync([plot])">收获 <strong>@plot.HarvestQuantity 株</strong> <span aria-hidden="true">↗</span></button>
+                        }
+                        else
+                        {
+                            <div class="garden-growth"><div><span>距离成熟</span><strong>@Remaining(plot)</strong></div><div class="garden-progress" role="progressbar" aria-label="@($"{plot.PlantName} 生长进度")" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Progress(plot)"><span style="width: @(Progress(plot))%"></span></div></div>
+                        }
+                    </article>
+                }
+            </div>
+            <div class="garden-field-footer">
+                <button type="button" class="garden-select-all" disabled="@(IsWorking || !EmptyPlots.Any())" @onclick="ToggleAllPlots">@(_selected.Count > 0 && _selected.Count == EmptyPlots.Count() ? "取消全选" : "选择全部空地")</button>
+                <button type="button" class="garden-button garden-button--secondary" disabled="@(IsWorking || !MaturePlots.Any())" @onclick="HarvestAllAsync">一键收获 <span>@MaturePlots.Count()</span></button>
+            </div>
+            <p class="garden-field-note">离线也会生长 · 成熟后保留，收获后手动补种</p>
+        </section>
+
+        <section class="garden-seed-section" aria-labelledby="garden-seed-title">
+            <div class="garden-section-heading"><div><span class="garden-eyebrow">SOW &amp; GROW</span><h2 id="garden-seed-title">挑选种子</h2></div><span class="garden-selection-count">已选 <b>@_selected.Count</b> / 4 块地</span></div>
+            @if (SelectedSeed is { } seed)
+            {
+                <div class="garden-sowing @(seed.IsRare ? "garden-sowing--rare" : null)">
+                    <div class="garden-sowing-main">
+                        <img src="@ItemArt.ForCode(seed.MaterialCode)" alt="" />
+                        <div><small>本次种植</small><h3>@seed.Name</h3><p>@(seed.IsRare ? "稀有草药" : "普通草药") · @Hours(seed.GrowthSeconds) 小时成熟</p></div>
+                        <button type="button" class="garden-button garden-button--primary" disabled="@(!CanPlant(seed))" @onclick="() => PlantAsync(seed)">@PlantButtonLabel(seed)</button>
+                    </div>
+                    <div class="garden-sowing-stats"><span>种子 <b>@seed.SeedQuantity</b><small> / 需 @_selected.Count 颗</small></span><span>预计收获 <b>@((long)_selected.Count * seed.HarvestQuantity)</b> 株</span></div>
+                    <p class="garden-seed-source">@SeedSource(seed)</p>
+                    @if (seed.SeedQuantity < Math.Max(1, _selected.Count) && !seed.IsRare && seed.IsUnlocked)
+                    {
+                        <a class="garden-replenish" href="/shop">种子不足，前往商店补充 <span aria-hidden="true">↗</span></a>
+                    }
+                </div>
+            }
+            <div class="garden-seed-filters" role="group" aria-label="筛选种子">
+                @foreach (var filter in SeedFilters)
+                {
+                    <button type="button" class="@(_filter == filter.Code ? "garden-filter--active" : null)" aria-pressed="@(_filter == filter.Code ? "true" : "false")" @onclick="() => _filter = filter.Code">@filter.Name <small>@FilterCount(filter.Code)</small></button>
+                }
+            </div>
+            <div class="garden-seeds">
+                @foreach (var plant in VisibleSeeds)
+                {
+                    <button @key="plant.Code" type="button" class="garden-seed @(plant.Code == _selectedSeedCode ? "garden-seed--selected" : null) @(plant.IsRare ? "garden-seed--rare" : null) @(!plant.IsUnlocked ? "garden-seed--locked" : null)" aria-pressed="@(plant.Code == _selectedSeedCode ? "true" : "false")" @onclick="() => SelectSeed(plant.Code)">
+                        <span class="garden-seed-image"><img src="@ItemArt.ForCode(plant.MaterialCode)" alt="" loading="lazy" /></span>
+                        <span class="garden-seed-title"><strong>@plant.Name</strong><small>@Hours(plant.GrowthSeconds) 小时 <span>·</span> @plant.HarvestQuantity 株</small></span>
+                        <span class="garden-seed-stock @(plant.SeedQuantity > 0 ? "garden-seed-stock--owned" : null)">×@plant.SeedQuantity</span>
+                        <span class="garden-seed-footer"><span>@(plant.IsRare ? "精英掉落" : $"{plant.SeedPrice} 金 / 颗")</span><span>@(!plant.IsUnlocked ? "未解锁" : plant.IsRare ? "稀有" : plant.Code == _selectedSeedCode ? "已选" : "普通")</span></span>
                     </button>
                 }
             </div>
+            @if (!VisibleSeeds.Any())
+            {
+                <div class="garden-empty-seeds"><strong>背包里还没有种子</strong><p>普通种子可以在商店购买，稀有种子来自精英掉落。</p><a href="/shop">去商店看看 ↗</a></div>
+            }
+            <a class="garden-alchemy-link" href="/production"><span>收获的草药，可以继续炼制药剂</span><strong>前往炼金 <span aria-hidden="true">→</span></strong></a>
         </section>
-
-        @if (_overview.RecentTasks.Count > 0)
-        {
-            <details class="activity-history">
-                <summary>最近采集 <small>@_overview.RecentTasks.Count 条记录</small></summary>
-                @foreach (var completed in _overview.RecentTasks)
-                {
-                    <div class="activity-history__row"><span>@completed.PointName <small>@StatusName(completed)</small></span><strong>@completed.MaterialName × @completed.TotalQuantity@(completed.ExtraYieldQuantity > 0 ? $"（额外 {completed.ExtraYieldQuantity}）" : "")@(completed.BonusQuantity > 0 ? $" · {completed.BonusMaterialName} × {completed.BonusQuantity}" : "")</strong></div>
-                }
-            </details>
-        }
-
-        @if (SelectedPoint is { } selected)
-        {
-            <div class="activity-dialog-overlay" @onclick="ClosePoint" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
-                <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="gathering-dialog-title" @onclick:stopPropagation>
-                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true"><img src="@ItemArt.ForCode(selected.MaterialCode)" alt="" /></span><div><small>@selected.RegionName · @(selected.IsRare ? "稀有" : "普通")</small><h2 id="gathering-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="ClosePoint" @ref="_dialogCloseButton" aria-label="关闭采集详情">×</button></header>
-                    <div class="activity-dialog__body">
-                        <p>@(selected.IsRare ? $"单次 {selected.CycleSeconds} 秒，保底获得 {selected.MaterialName} × {selected.OutputQuantity}。" : $"每 {selected.CycleSeconds} 秒获得 {selected.MaterialName} × {selected.OutputQuantity}。")</p>
-                        <div class="activity-dialog__stats"><div><span>当前角色背包</span><strong>@selected.CharacterQuantity</strong></div><div><span>解锁进度</span><strong>@selected.UnlockProgress / @selected.UnlockRequired</strong></div>@if (selected.IsRare) { <div><span>剩余机会</span><strong>@selected.AvailableOpportunities 次</strong></div> }</div>
-                        <div class="activity-dialog__requirements"><strong>@(selected.IsUnlocked ? "已满足战斗条件" : "尚未解锁")</strong><span>@selected.UnlockDescription</span>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <span>需要角色 Lv.@selected.MinimumCharacterLevel</span> }@if (_overview.GatheringLevel < selected.MinimumGatheringLevel) { <span>需要采集 Lv.@selected.MinimumGatheringLevel</span> }</div>
-                        @if (_notice is not null) { <p class="activity-notice" role="status">@_notice</p> }
-                    </div>
-                    <footer class="activity-dialog__footer"><button type="button" class="activity-dialog__primary" @onclick="() => StartAsync(selected)" disabled="@(_isBusy || !CanStart(selected))">@StartLabel(selected)</button><button type="button" class="activity-dialog__back" @onclick="ClosePoint">返回采集地点</button></footer>
-                </section>
-            </div>
-        }
     }
 </div>
 
 @code {
-    private GatheringOverviewResponse? _overview;
-    private readonly CancellationTokenSource _refreshCancellation = new();
-    private bool _isLoading = true;
-    private bool _isRefreshing;
-    private bool _isBusy;
+    private PlantingOverviewResponse? _overview;
+    private readonly HashSet<int> _selected = [];
+    private readonly CancellationTokenSource _clockCancellation = new();
+    private static readonly (string Code, string Name)[] SeedFilters = [("all", "全部"), ("owned", "持有"), ("ordinary", "普通"), ("rare", "稀有")];
+    private string _filter = "all";
+    private string? _selectedSeedCode;
     private string? _notice;
-    private string? _selectedPointCode;
-    private bool _focusDialog;
-    private ElementReference _dialogCloseButton;
+    private bool _noticeIsError;
+    private bool _busy;
+    private bool _loading = true;
+    private bool _disposed;
+    private int? _viewCharacterId;
+    private int _generation;
     private TimeSpan _serverOffset;
+    private PlantGardenRequest? _pendingPlant;
+    private bool IsWorking => _busy || _loading;
     private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
-    private GatheringPointResponse? SelectedPoint => _overview?.Points.FirstOrDefault(point => point.Code == _selectedPointCode);
-    private IEnumerable<GatheringPointResponse> OrderedPoints() => (_overview?.Points ?? [])
-        .OrderByDescending(point => point.IsUnlocked)
-        .ThenBy(point => point.MinimumGatheringLevel)
-        .ThenBy(point => point.MinimumCharacterLevel)
-        .ThenBy(point => point.RegionName == "各地通用" ? 0 : 1)
-        .ThenBy(point => point.RegionName, StringComparer.Ordinal)
-        .ThenBy(point => point.IsRare)
-        .ThenBy(point => point.Name, StringComparer.Ordinal);
+    private IEnumerable<GardenPlotDto> EmptyPlots => _overview?.Plots.Where(plot => plot.PlantCode is null) ?? [];
+    private IEnumerable<GardenPlotDto> MaturePlots => _overview?.Plots.Where(plot => plot.PlantCode is not null && IsMature(plot)) ?? [];
+    private int GrowingCount => (_overview?.Plots.Count ?? 0) - EmptyPlots.Count() - MaturePlots.Count();
+    private PlantDto? SelectedSeed => _overview?.Plants.FirstOrDefault(plant => plant.Code == _selectedSeedCode);
+    private IEnumerable<PlantDto> VisibleSeeds => (_overview?.Plants ?? []).Where(plant => MatchesFilter(plant, _filter))
+        .OrderByDescending(plant => plant.SeedQuantity > 0).ThenByDescending(plant => plant.IsUnlocked).ThenBy(plant => plant.IsRare);
 
     protected override async Task OnInitializedAsync()
     {
         await ActiveCharacters.RefreshAsync();
-        ActiveCharacters.Changed += OnActiveCharacterChanged;
-        if (ActiveCharacters.Current is null)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
+        if (_disposed) return;
+        _viewCharacterId = ActiveCharacters.Current?.CharacterId;
+        if (_viewCharacterId is null) { Navigation.NavigateTo("/login", replace: true); return; }
+        ActiveCharacters.Changed += CharacterChanged;
         await LoadAsync();
-        _ = RefreshLoopAsync(_refreshCancellation.Token);
+        if (!_disposed) _ = TickAsync();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private void CharacterChanged()
     {
-        if (!_focusDialog) return;
-        _focusDialog = false;
-        await _dialogCloseButton.FocusAsync();
-    }
-
-    private void OpenPoint(string code) { _selectedPointCode = code; _focusDialog = true; _notice = null; }
-    private void ClosePoint() => _selectedPointCode = null;
-    private void HandleDialogKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") ClosePoint(); }
-
-    private bool CanStart(GatheringPointResponse point) => _overview is not null && point.IsUnlocked &&
-        ActiveCharacters.Current?.Level >= point.MinimumCharacterLevel &&
-        _overview.GatheringLevel >= point.MinimumGatheringLevel && _overview.ActiveTask is null &&
-        (!point.IsRare || point.AvailableOpportunities > 0);
-
-    private string StartLabel(GatheringPointResponse point) => !point.IsUnlocked ? "完成战斗后解锁"
-        : ActiveCharacters.Current?.Level < point.MinimumCharacterLevel || _overview?.GatheringLevel < point.MinimumGatheringLevel ? "等级不足"
-        : _overview?.ActiveTask is not null ? "已有进行中的任务"
-        : point.IsRare && point.AvailableOpportunities == 0 ? "暂无采集机会"
-        : point.IsRare ? "开始稀有采集" : "开始采集";
-
-    private async Task RefreshLoopAsync(CancellationToken token)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        var ticks = 0;
-        try
+        if (_disposed || _viewCharacterId == ActiveCharacters.Current?.CharacterId) return;
+        _viewCharacterId = ActiveCharacters.Current?.CharacterId;
+        _generation++;
+        _ = InvokeAsync(async () =>
         {
-            while (await timer.WaitForNextTickAsync(token))
-            {
-                await InvokeAsync(async () =>
-                {
-                    if (++ticks % 2 == 0)
-                        await LoadAsync();
-                    if (!token.IsCancellationRequested)
-                        StateHasChanged();
-                });
-            }
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            _pendingPlant = null;
+            _overview = null;
+            _selectedSeedCode = null;
+            _notice = null;
+            _selected.Clear();
+            if (_viewCharacterId is null) { Navigation.NavigateTo("/login", replace: true); return; }
+            await LoadAsync();
+            if (!_disposed) StateHasChanged();
+        });
     }
 
     private async Task LoadAsync()
     {
-        if (_isRefreshing || _isBusy) return;
-        _isRefreshing = true;
-        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        var generation = ++_generation;
+        var characterId = _viewCharacterId;
+        _loading = true;
         try
         {
-            var response = await ApiService.GetGatheringAsync();
-            if (expectedCharacterId == ActiveCharacters.Current?.CharacterId)
-            {
-                _overview = response is not null && response.CharacterId == expectedCharacterId ? response : null;
-                if (response is not null) _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-            }
+            var value = await ApiService.GetPlantingAsync();
+            if (!IsCurrent(generation, characterId)) return;
+            if (value is null || value.CharacterId != characterId) SetNotice("药田读取失败，请检查登录状态后重试。", true);
+            else ApplyOverview(value);
         }
-        catch { _overview = null; }
-        finally
-        {
-            _isLoading = false;
-            _isRefreshing = false;
-        }
+        catch { if (IsCurrent(generation, characterId)) SetNotice("网络中断，请刷新重试。", true); }
+        finally { if (IsCurrent(generation, characterId)) _loading = false; }
     }
 
-    private async Task StartAsync(GatheringPointResponse point)
+    private void ApplyOverview(PlantingOverviewResponse value)
     {
-        if (_isBusy || _overview is null) return;
-        _isBusy = true;
-        _notice = null;
+        _overview = value;
+        _serverOffset = value.ServerTimeUtc - DateTime.UtcNow;
+        _selected.IntersectWith(EmptyPlots.Select(plot => plot.PlotIndex));
+        if (SelectedSeed is null)
+            _selectedSeedCode = value.Plants.OrderByDescending(plant => plant.SeedQuantity > 0 && plant.IsUnlocked)
+                .ThenByDescending(plant => plant.IsUnlocked).ThenBy(plant => plant.IsRare).FirstOrDefault()?.Code;
+    }
+
+    private async Task TickAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try { while (await timer.WaitForNextTickAsync(_clockCancellation.Token)) await InvokeAsync(() => { if (!_disposed) StateHasChanged(); }); }
+        catch (OperationCanceledException) { }
+    }
+
+    private bool IsCurrent(int generation, int? characterId) => !_disposed && generation == _generation && characterId == ActiveCharacters.Current?.CharacterId;
+    private void SetNotice(string message, bool error = false) { _notice = message; _noticeIsError = error; }
+    private void TogglePlot(int index) { if (!_selected.Add(index)) _selected.Remove(index); _pendingPlant = null; }
+    private void ToggleAllPlots()
+    {
+        var empty = EmptyPlots.Select(plot => plot.PlotIndex).ToList();
+        if (_selected.SetEquals(empty)) _selected.Clear(); else _selected.UnionWith(empty);
+        _pendingPlant = null;
+    }
+    private void SelectSeed(string code) { if (_selectedSeedCode != code) _pendingPlant = null; _selectedSeedCode = code; }
+    private static bool MatchesFilter(PlantDto plant, string filter) => filter switch { "owned" => plant.SeedQuantity > 0, "ordinary" => !plant.IsRare, "rare" => plant.IsRare, _ => true };
+    private int FilterCount(string filter) => _overview?.Plants.Count(plant => MatchesFilter(plant, filter)) ?? 0;
+    private static string Hours(int seconds) => (seconds / 3600d).ToString("0.#");
+    private bool IsMature(GardenPlotDto plot) => plot.MaturesAtUtc is { } maturity && maturity <= ServerNow;
+    private int Progress(GardenPlotDto plot) => plot.PlantedAtUtc is { } planted && plot.MaturesAtUtc is { } maturity && maturity > planted
+        ? (int)Math.Clamp((ServerNow - planted).TotalSeconds / (maturity - planted).TotalSeconds * 100, 0, 100) : 0;
+    private string Remaining(GardenPlotDto plot)
+    {
+        var minutes = Math.Max(1, (int)Math.Ceiling((plot.MaturesAtUtc!.Value - ServerNow).TotalMinutes));
+        return minutes >= 60 ? $"{minutes / 60} 小时 {minutes % 60:00} 分" : $"{minutes} 分钟";
+    }
+    private string SeedSource(PlantDto seed) => seed.IsRare ? $"种子来源：{seed.UnlockTargetName} · 精英掉落"
+        : seed.IsUnlocked ? $"商店售价 {seed.SeedPrice} 金 / 颗 · 每块地消耗 1 颗种子"
+        : $"尚未解锁：{seed.UnlockTargetName} · 战斗进度 {seed.Progress}/{seed.RequiredCount}";
+    private bool CanPlant(PlantDto seed) => !IsWorking && _selected.Count > 0 && seed.IsUnlocked && seed.SeedQuantity >= _selected.Count;
+    private string PlantButtonLabel(PlantDto seed) => _busy ? "处理中…" : !seed.IsUnlocked ? "尚未解锁" : _selected.Count == 0 ? "先选择空地" : seed.SeedQuantity < _selected.Count ? "种子不足" : $"播种 {_selected.Count} 块";
+
+    private async Task PlantAsync(PlantDto plant)
+    {
+        if (_overview is null || !CanPlant(plant) || _overview.CharacterId != ActiveCharacters.Current?.CharacterId) return;
+        _busy = true;
+        var generation = _generation;
+        var characterId = _overview.CharacterId;
+        var count = _selected.Count;
         try
         {
-            var (response, error) = await ApiService.StartGatheringAsync(_overview.CharacterId, point.Code);
-            if (error is not null) _notice = error;
-            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            _pendingPlant ??= new(characterId, Guid.NewGuid().ToString("N"), plant.Code,
+                _overview.Plots.Where(plot => _selected.Contains(plot.PlotIndex)).Select(plot => new PlotVersionRequest(plot.PlotIndex, plot.Version)).ToList());
+            var (value, error) = await ApiService.PlantAsync(_pendingPlant);
+            if (!IsCurrent(generation, characterId)) return;
+            if (value is not null && value.CharacterId == characterId)
             {
-                _overview = response;
-                _selectedPointCode = null;
-                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = point.IsRare ? $"{point.Name} 的稀有采集已开始，完成后消耗 1 次机会。" : $"{point.Name} 的采集已开始。";
+                ApplyOverview(value);
+                _pendingPlant = null;
+                _selected.Clear();
+                SetNotice($"已在 {count} 块药田种下{plant.Name}，{Hours(plant.GrowthSeconds)} 小时后可收获。");
+            }
+            else
+            {
+                SetNotice(error ?? "播种未完成，请刷新后重试。", true);
+                if (error is "播种请求无效，请重新选择药田。" or "播种操作标识冲突，请重新选择药田。" or "药田已变化，请刷新后重试。") _pendingPlant = null;
             }
         }
-        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
-        finally { _isBusy = false; }
+        catch { if (IsCurrent(generation, characterId)) SetNotice("网络中断，可再次点击播种安全重试。", true); }
+        finally { _busy = false; }
     }
 
-    private async Task StopAsync(int taskId)
+    private Task HarvestAllAsync() => HarvestAsync(MaturePlots.ToList());
+    private async Task HarvestAsync(List<GardenPlotDto> plots)
     {
-        if (_isBusy) return;
-        _isBusy = true;
-        _notice = null;
+        if (_overview is null || IsWorking || plots.Count == 0 || _overview.CharacterId != ActiveCharacters.Current?.CharacterId) return;
+        _busy = true;
+        var generation = _generation;
+        var characterId = _overview.CharacterId;
         try
         {
-            var (response, error) = await ApiService.StopGatheringAsync(taskId);
-            if (error is not null) _notice = error;
-            else if (response is not null && response.CharacterId == ActiveCharacters.Current?.CharacterId)
+            var (value, error) = await ApiService.HarvestAsync(new(characterId, plots.Select(plot => new PlotVersionRequest(plot.PlotIndex, plot.Version)).ToList()));
+            if (!IsCurrent(generation, characterId)) return;
+            if (value is not null && value.CharacterId == characterId)
             {
-                _overview = response;
-                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = response.RecentTasks.FirstOrDefault(task => task.Id == taskId) is { IsRare: true } rare
-                    ? rare.Status == "Completed" ? "稀有采集已完成，产物已存入当前角色背包，消耗 1 次机会。" : "稀有采集已停止，未消耗机会。"
-                    : "采集已停止，已完成的小轮产物保留在当前角色背包。";
+                ApplyOverview(value);
+                SetNotice($"收获 {plots.Sum(plot => (long)plot.HarvestQuantity)} 株草药，已存入当前角色背包。");
             }
+            else SetNotice(error ?? "收获未完成，请刷新后重试。", true);
         }
-        catch { _notice = "连接中断，请刷新后确认任务状态。"; }
-        finally { _isBusy = false; }
+        catch { if (IsCurrent(generation, characterId)) SetNotice("网络中断，请刷新药田查看收获结果。", true); }
+        finally { _busy = false; }
     }
-
-    private int CycleProgress(GatheringTaskResponse task)
-    {
-        if (task.CycleSeconds <= 0) return 0;
-        var remaining = Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds);
-        return (int)Math.Clamp(Math.Round(100 * (1 - remaining / task.CycleSeconds)), 0, 100);
-    }
-
-    private static string FormatDuration(TimeSpan span)
-    {
-        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
-        return span.TotalHours >= 1 ? $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2}"
-            : $"{span.Minutes:D2}:{span.Seconds:D2}";
-    }
-
-    private static string StatusName(GatheringTaskResponse task) => task.Status switch
-    {
-        "Completed" => task.IsRare ? "采集完成" : "到期完成",
-        "Stopped" => "手动停止",
-        "InventoryFull" => "背包已满",
-        "NoOpportunity" => "采集机会不足",
-        _ => task.Status
-    };
-
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
-    {
-        _notice = null;
-        _selectedPointCode = null;
-        await LoadAsync();
-        StateHasChanged();
-    });
 
     public void Dispose()
     {
-        _refreshCancellation.Cancel();
-        _refreshCancellation.Dispose();
-        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+        _disposed = true;
+        ActiveCharacters.Changed -= CharacterChanged;
+        _clockCancellation.Cancel();
+        _clockCancellation.Dispose();
     }
 }

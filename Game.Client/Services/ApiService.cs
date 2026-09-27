@@ -12,7 +12,7 @@ using Game.Shared.Dtos.Professions;
 
 namespace Game.Client.Services;
 
-public class ApiService(HttpClient httpClient, UserSessionService userSessionService)
+public partial class ApiService(HttpClient httpClient, UserSessionService userSessionService)
 {
     public async Task<ProfessionProgressResponse?> GetProfessionProgressAsync(string professionCode)
     {
@@ -78,10 +78,14 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     }
 
     public async Task<(ProductionOverviewResponse? Response, string? ErrorMessage)> StartProductionAsync(
-        int characterId, string recipeCode)
+        int characterId, string recipeCode, int? targetCycles = null, string? requestId = null)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/production/start", requiresAuth: true);
-        request.Content = JsonContent.Create(new StartProductionRequest { CharacterId = characterId, RecipeCode = recipeCode });
+        request.Content = JsonContent.Create(new StartProductionRequest
+        {
+            CharacterId = characterId, RecipeCode = recipeCode, TargetCycles = targetCycles,
+            RequestId = requestId ?? Guid.NewGuid().ToString("N")
+        });
         return await ReadProductionResultAsync(await httpClient.SendAsync(request));
     }
 
@@ -103,11 +107,12 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             return (null, error switch
             {
                 "ActiveCharacterChanged" => "当前角色已切换，请刷新炼金页面。",
-                "CharacterBusy" => "这个角色已有进行中的战斗、采集或生产任务。",
+                "CharacterBusy" or "ProductionBusy" => "已有进行中的炼金任务，请先停止当前配方。",
                 "RecipeLocked" => "该角色尚未完成配方的战斗解锁条件。",
                 "LevelTooLow" => "角色等级不足。",
-                "AlchemyLevelTooLow" => "炼金专业等级不足。",
-                "InsufficientMaterials" => "当前角色背包中的材料不足，请先用该角色采集。",
+                "InvalidTargetCycles" => "制作批数须为 1 至 4320。",
+                "InvalidRequestId" or "RequestIdConflict" or "RequestIdReused" => "请求信息已变化，请刷新后重试。",
+                "InsufficientMaterials" => "当前角色背包中的材料不足，请先在药田种植并收获。",
                 "ConcurrencyConflict" => "任务刚刚发生变化，请刷新后重试。",
                 "RecipeNotFound" or "TaskNotFound" => "配方或任务不存在，请刷新页面。",
                 _ => "生产操作失败，请稍后重试。"
@@ -170,12 +175,13 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
     }
 
     public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseShopItemAsync(
-        int characterId, string code, int quantity)
+        int characterId, string code, int quantity, string? requestId = null)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/purchase", requiresAuth: true);
         request.Content = JsonContent.Create(new PurchaseShopItemRequest
         {
-            CharacterId = characterId, Code = code, Quantity = quantity
+            CharacterId = characterId, Code = code, Quantity = quantity,
+            RequestId = requestId ?? Guid.NewGuid().ToString("N")
         });
         using var response = await httpClient.SendAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
@@ -189,6 +195,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
                 "InvalidQuantity" => "购买数量无效。",
                 "InventoryLimitReached" => "该角色的道具数量已达到上限。",
                 "ProductNotFound" => "商品已下架，请刷新商店。",
+                "ProductLocked" => "当前角色尚未完成此商品的战斗解锁条件。",
+                "InvalidRequestId" or "RequestIdConflict" or "RequestIdReused" => "请求信息已变化，请刷新后重试。",
                 "ConcurrencyConflict" => "余额或背包刚刚发生变化，请重试。",
                 _ => "购买失败，请稍后重试。"
             });
@@ -432,7 +440,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
             var error = await response.Content.ReadAsStringAsync();
             if (error.Trim('"') == "CharacterAlreadyInRoom")
-                error = "当前角色正在战斗、采集或生产，请先结束原任务。";
+                error = "当前角色已在另一个战斗中，请先离开原房间。";
             return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
         }
 
@@ -928,7 +936,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
 
             var errorMessage = await response.Content.ReadAsStringAsync();
             if (errorMessage.Trim('"') == "CharacterBusy")
-                errorMessage = "角色正在执行战斗、采集或生产任务，请先结束任务。";
+                errorMessage = "角色正在战斗，请先结束战斗。";
             if (string.IsNullOrWhiteSpace(errorMessage))
             {
                 errorMessage = "删除角色失败。";

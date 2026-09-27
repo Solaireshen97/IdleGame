@@ -16,7 +16,7 @@
         <a href="/rooms">← 返回大厅</a>
         <span class="section-kicker">ADVENTURER'S SHOP</span>
         <h1>商店</h1>
-        <p>使用金币购买补给，或将副本徽记兑换成当前角色的专属装备。</p>
+        <p>使用金币购买补给与普通种子。购买后手动装备或播种；库存耗尽不会自动补购。</p>
     </header>
 
     @if (_loading)
@@ -39,6 +39,7 @@
         <div class="shop-tabs" role="tablist" aria-label="商品分类">
             <button id="shop-consumables-tab" type="button" role="tab" aria-controls="shop-consumables-panel"
                     class="@(_kind == "Consumable" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Consumable" ? "true" : "false")" @onclick="ShowConsumables"><span aria-hidden="true">✚</span><strong>战斗补给</strong><small>@_shop.Items.Count(item => item.Kind == "Consumable")</small></button>
+            <button id="shop-seeds-tab" type="button" role="tab" aria-controls="shop-seeds-panel" class="@(_kind == "Seed" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Seed" ? "true" : "false")" @onclick="ShowSeeds"><span aria-hidden="true">❀</span><strong>普通种子</strong><small>@_shop.Items.Count(item => item.Kind == "Seed")</small></button>
             <button id="shop-weapons-tab" type="button" role="tab" aria-controls="shop-weapons-panel"
                     class="@(_kind == "Weapon" ? "shop-tabs__active" : "")" aria-selected="@(_kind == "Weapon" ? "true" : "false")" @onclick="ShowWeapons"><span aria-hidden="true">⚔</span><strong>武器</strong><small>@_shop.Items.Count(item => item.Kind == "Weapon")</small></button>
             <button id="shop-exchange-tab" type="button" role="tab" aria-controls="shop-exchange-panel"
@@ -54,7 +55,7 @@
                     <div>
                         <span class="section-kicker">CAMP ROSTER</span>
                         <h2>扩充角色栏位</h2>
-                        <p>更多角色可以分别参加战斗、采集和生产。一个账号最多拥有 @_shop.MaximumCharacterSlots 个角色。</p>
+                        <p>更多角色可以分别参加战斗、种植和炼金。一个账号最多拥有 @_shop.MaximumCharacterSlots 个角色。</p>
                     </div>
                     <strong>@_shop.CharacterCount / @_shop.CharacterSlotLimit</strong>
                 </div>
@@ -137,7 +138,8 @@
                             {
                                 <p>每次兑换获得 @offer.RewardQuantity 个，直接存入当前角色背包。</p>
                             }
-                            <div class="shop-item__foot"><span class="shop-item__owned">持有 <b>@offer.OwnedQuantity</b></span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost → ×@offer.RewardQuantity</button></div></div>
+
+                        <div class="shop-item__foot"><span class="shop-item__owned">持有 <b>@offer.OwnedQuantity</b></span><div class="shop-item__buy"><button type="button" @onclick="() => ExchangeAsync(offer)" disabled="@(_busy || balance < offer.Cost)">◆ @offer.Cost → ×@offer.RewardQuantity</button></div></div>
                         </article>
                     }
                     </div>
@@ -147,8 +149,8 @@
         }
         else
         {
-            var panelId = _kind == "Weapon" ? "shop-weapons-panel" : "shop-consumables-panel";
-            var tabId = _kind == "Weapon" ? "shop-weapons-tab" : "shop-consumables-tab";
+            var panelId = _kind == "Weapon" ? "shop-weapons-panel" : _kind == "Seed" ? "shop-seeds-panel" : "shop-consumables-panel";
+            var tabId = _kind == "Weapon" ? "shop-weapons-tab" : _kind == "Seed" ? "shop-seeds-tab" : "shop-consumables-tab";
             <div id="@panelId" class="shop-panel shop-grid" role="tabpanel" aria-labelledby="@tabId">
                 @foreach (var item in _shop.Items.Where(item => item.Kind == _kind))
                 {
@@ -157,11 +159,11 @@
                     <article class="shop-item @(item.Kind == "Weapon" ? $"shop-item--weapon {WeaponElementClass(item.Element)}" : null)" @key="item.Code">
                         <div class="shop-item__top">
                             <span class="shop-item__symbol" aria-hidden="true">@if (item.Kind == "Weapon") { <img src="@WeaponArt.ForCode(item.Code)" alt="" loading="lazy" /> } else { <img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /> }</span>
-                            <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : item.AttackPercent.HasValue ? "OPERATION POTION" : "CONSUMABLE")</span>
+                            <span class="shop-item__kind">@(item.Kind == "Weapon" ? "WEAPON" : item.Kind == "Seed" ? "SEED" : "CONSUMABLE")</span>
                         </div>
                         <h2>@item.Name</h2>
-                        @if (item.Kind == "Consumable")
-                        { <p>@(item.AttackPercent.HasValue ? $"作战药剂 · 整场攻击 +{item.AttackPercent}% · 每场消耗 1 瓶" : $"恢复 {item.HealAmount} HP · 冷却 {item.CooldownRounds} 回合")</p> }
+                        @if (item.Kind != "Weapon")
+                        { <p>@item.Description</p> }
                         else
                         {
                             <p>攻击 +@item.Attack · HP +@item.MaxHp</p>
@@ -174,14 +176,15 @@
                                 { <span title="@skill.Description">@skill.Name Lv @skill.Level · @skill.Description</span> }
                             </div>
                         }
+                        @if (!item.IsUnlocked) { <p class="shop-item__locked">未开放：@item.UnlockDescription</p> }
                         <div class="shop-item__foot">
                             <span class="shop-item__owned">持有 <b>@item.OwnedQuantity</b></span>
                             <div class="shop-item__buy">
-                                @if (item.Kind == "Consumable")
+                                @if (item.Kind != "Weapon")
                                 {
                                     <label>数量<select value="@quantity" @onchange="e => SetQuantity(item.Code, e.Value?.ToString())" disabled="@_busy"><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label>
                                 }
-                                <button type="button" @onclick="() => PurchaseAsync(item)" disabled="@(_busy || _shop.Gold < total)">◆ @total · 购买</button>
+                                <button type="button" @onclick="() => PurchaseAsync(item)" disabled="@(_busy || !item.IsUnlocked || _shop.Gold < total)">◆ @total · 购买</button>
                             </div>
                         </div>
                     </article>
@@ -193,7 +196,7 @@
         {
             <div class="shop-page__message" role="status"><span>@_message</span><button type="button" aria-label="关闭提示" @onclick="() => _message = null">×</button></div>
         }
-        <div class="shop-page__links"><a href="/supplies">管理战斗补给 →</a><a href="/weapons">前往武器编成 →</a></div>
+        <div class="shop-page__links"><a href="/supplies">管理战斗补给 →</a><a href="/planting">前往药田播种 →</a><a href="/weapons">前往武器编成 →</a></div>
     }
 </div>
 
@@ -205,8 +208,12 @@
     private string? _message;
     private bool _loading = true;
     private bool _busy;
+    private long _loadGeneration;
+    private int? _viewCharacterId;
+    private readonly Dictionary<string, string> _purchaseRequests = new();
 
     private void ShowConsumables() => _kind = "Consumable";
+    private void ShowSeeds() => _kind = "Seed";
     private void ShowWeapons() => _kind = "Weapon";
     private void ShowExchange() => _kind = "Exchange";
     private void ShowCharacterSlots() => _kind = "CharacterSlot";
@@ -228,13 +235,16 @@
 
     private async Task LoadAsync()
     {
+        var generation = ++_loadGeneration;
+        var characterId = ActiveCharacters.Current?.CharacterId;
+        _viewCharacterId = characterId;
+        _shop = null;
         _loading = true;
         _message = null;
-        var characterId = ActiveCharacters.Current?.CharacterId;
         try
         {
             var response = await ApiService.GetShopAsync();
-            if (characterId == ActiveCharacters.Current?.CharacterId)
+            if (IsCurrentView(characterId, generation))
             {
                 _shop = response?.CharacterId == characterId ? response : null;
                 if (_shop is not null && !_shop.DungeonExchangeOffers.Any(offer => offer.DungeonCode == _exchangeDungeonCode))
@@ -244,17 +254,23 @@
         }
         catch
         {
-            _shop = null;
-            _message = "暂时无法连接商店，请重试。";
+            if (IsCurrentView(characterId, generation))
+            {
+                _shop = null;
+                _message = "暂时无法连接商店，请重试。";
+            }
         }
-        finally { _loading = false; }
+        finally { if (IsCurrentView(characterId, generation)) _loading = false; }
     }
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
     {
-        if (_shop?.CharacterId != ActiveCharacters.Current?.CharacterId) await LoadAsync();
+        if (_viewCharacterId != ActiveCharacters.Current?.CharacterId) await LoadAsync();
         StateHasChanged();
     });
+
+    private bool IsCurrentView(int? characterId, long generation) =>
+        generation == _loadGeneration && characterId == ActiveCharacters.Current?.CharacterId;
 
     private int GetQuantity(ShopItemResponse item) => item.Kind == "Weapon" ? 1 :
         _quantities.GetValueOrDefault(item.Code, 1);
@@ -270,59 +286,78 @@
 
     private async Task PurchaseAsync(ShopItemResponse item)
     {
-        if (_busy || _shop is null) return;
+        if (_busy || _shop is null || _shop.CharacterId != ActiveCharacters.Current?.CharacterId) return;
+        var characterId = _shop.CharacterId;
+        var generation = _loadGeneration;
         _busy = true;
         _message = null;
         try
         {
             var quantity = GetQuantity(item);
-            var (response, error) = await ApiService.PurchaseShopItemAsync(_shop.CharacterId, item.Code, quantity);
+            var key = $"{characterId}:{item.Code}:{quantity}";
+            if (!_purchaseRequests.TryGetValue(key, out var requestId))
+                _purchaseRequests[key] = requestId = Guid.NewGuid().ToString("N");
+            var (response, error) = await ApiService.PurchaseShopItemAsync(characterId, item.Code, quantity, requestId);
             if (response is null)
             {
+                if (!IsCurrentView(characterId, generation)) return;
+                if (error == "请求信息已变化，请刷新后重试。") _purchaseRequests.Remove(key);
                 _message = error ?? "购买失败。";
                 if (error is "当前角色已切换，请刷新商店。" or "余额或背包刚刚发生变化，请重试。")
                 {
+                    var reloadGeneration = _loadGeneration + 1;
                     await LoadAsync();
-                    _message = error;
+                    generation = reloadGeneration;
+                    if (IsCurrentView(characterId, generation)) _message = error;
                 }
                 return;
             }
+            _purchaseRequests.Remove(key);
+            AccountBalance.NotifyChanged();
+            if (!IsCurrentView(characterId, generation) || response.CharacterId != characterId) return;
             _shop = response;
             _message = $"已为 {response.CharacterName} 购入 {item.Name} × {quantity}。";
-            AccountBalance.NotifyChanged();
         }
-        catch { _message = "购买请求未能完成，请刷新商店核对余额和背包。"; }
-        finally { _busy = false; }
+        catch { if (IsCurrentView(characterId, generation)) _message = "购买请求未能完成，请刷新商店核对余额和背包。"; }
+        finally { _busy = false; if (!IsCurrentView(characterId, generation)) await LoadAsync(); }
     }
 
     private async Task ExchangeAsync(DungeonExchangeOfferResponse offer)
     {
-        if (_busy || _shop is null) return;
+        if (_busy || _shop is null || _shop.CharacterId != ActiveCharacters.Current?.CharacterId) return;
+        var characterId = _shop.CharacterId;
+        var generation = _loadGeneration;
         _busy = true;
         _message = null;
         try
         {
-            var (response, error) = await ApiService.ExchangeDungeonRewardAsync(_shop.CharacterId, offer.Code);
+            var (response, error) = await ApiService.ExchangeDungeonRewardAsync(characterId, offer.Code);
             if (response is null)
             {
+                if (!IsCurrentView(characterId, generation)) return;
                 _message = error ?? "兑换失败。";
                 if (error is "当前角色已切换，请刷新兑换所。" or "材料或背包刚刚发生变化，请重试。")
                 {
+                    var reloadGeneration = _loadGeneration + 1;
                     await LoadAsync();
-                    _message = error;
+                    generation = reloadGeneration;
+                    if (IsCurrentView(characterId, generation)) _message = error;
                 }
                 return;
             }
+            if (!IsCurrentView(characterId, generation) || response.Shop.CharacterId != characterId) return;
             _shop = response.Shop;
             _message = $"已为 {_shop.CharacterName} 兑换 {response.RewardDisplayName} × {response.RewardQuantity}。";
         }
-        catch { _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
-        finally { _busy = false; }
+        catch { if (IsCurrentView(characterId, generation)) _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
+        finally { _busy = false; if (!IsCurrentView(characterId, generation)) await LoadAsync(); }
     }
 
     private async Task PurchaseCharacterSlotAsync()
     {
-        if (_busy || _shop?.NextCharacterSlotCost is not int cost) return;
+        if (_busy || _shop?.NextCharacterSlotCost is not int cost || _shop.CharacterId != ActiveCharacters.Current?.CharacterId) return;
+        var characterId = _shop.CharacterId;
+        var generation = _loadGeneration;
         _busy = true;
         _message = null;
         try
@@ -330,21 +365,25 @@
             var (response, error) = await ApiService.PurchaseCharacterSlotAsync();
             if (response is null)
             {
+                if (!IsCurrentView(characterId, generation)) return;
                 _message = error ?? "角色栏位解锁失败。";
                 if (error is "金币或角色栏位刚刚发生变化，请重试。" or "角色栏位已达到上限。")
                 {
+                    var reloadGeneration = _loadGeneration + 1;
                     await LoadAsync();
-                    _message = error;
+                    generation = reloadGeneration;
+                    if (IsCurrentView(characterId, generation)) _message = error;
                 }
                 return;
             }
 
+            AccountBalance.NotifyChanged();
+            if (!IsCurrentView(characterId, generation) || response.CharacterId != characterId) return;
             _shop = response;
             _message = $"已花费 {cost} 金币，解锁第 {response.CharacterSlotLimit} 个角色栏位。";
-            AccountBalance.NotifyChanged();
         }
-        catch { _message = "解锁请求未能完成，请刷新商店核对金币和角色栏位。"; }
-        finally { _busy = false; }
+        catch { if (IsCurrentView(characterId, generation)) _message = "解锁请求未能完成，请刷新商店核对金币和角色栏位。"; }
+        finally { _busy = false; if (!IsCurrentView(characterId, generation)) await LoadAsync(); }
     }
 
     public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;

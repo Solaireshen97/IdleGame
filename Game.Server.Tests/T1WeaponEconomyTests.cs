@@ -155,7 +155,7 @@ public sealed class T1WeaponEconomyTests
         for (var index = 0; index < (batch ? 2 : 1); index++)
         {
             var bought = await test.Shop.PurchaseAsync(test.Token,
-                new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1 });
+                new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1, RequestId = Guid.NewGuid().ToString("N") });
             Assert.Null(bought.Error);
         }
         var replacements = await test.Db.CharacterWeapons.Where(weapon =>
@@ -194,7 +194,7 @@ public sealed class T1WeaponEconomyTests
     {
         await using var test = await EconomyContext.CreateAsync();
         var bought = await test.Shop.PurchaseAsync(test.Token,
-            new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1 });
+            new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1, RequestId = Guid.NewGuid().ToString("N") });
         Assert.Null(bought.Error);
         Assert.Equal(80, test.Character.Gold);
         var weapon = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Shop);
@@ -305,7 +305,8 @@ public sealed class T1WeaponEconomyTests
                 : SkillTestFactory.Create();
             Users = new UserService(Db, ProgressionTestFactory.Create(), skills, Weapons);
             Armory = new WeaponService(Db, Users, skills, Weapons);
-            Shop = new ShopService(Db, Users, new ShopCatalog(Bind<ShopOptions>(ShopOptions.SectionName), Consumables, Weapons),
+            var plants = new PlantingCatalog(Bind<PlantingOptions>(PlantingOptions.SectionName));
+            Shop = new ShopService(Db, Users, new ShopCatalog(Bind<ShopOptions>(ShopOptions.SectionName), Consumables, Weapons, plants, Materials),
                 Consumables, Weapons, Materials, new DungeonExchangeCatalog(
                     Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName), Materials, Weapons, soulImprints), soulImprints);
         }

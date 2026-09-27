@@ -320,7 +320,7 @@ else
         {
             _message = errorMessage switch
             {
-                "CharacterAlreadyBusy" => "当前角色正在战斗、采集或生产，请先结束原任务。",
+                "CharacterAlreadyBusy" => "当前角色已在另一个战斗中，请先离开原房间。",
                 "CharacterLevelTooLow" => _selectedDungeon.LockReason ?? "当前角色等级不足。",
                 _ => errorMessage ?? "创建房间失败。"
             };

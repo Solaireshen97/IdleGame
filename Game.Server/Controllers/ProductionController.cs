@@ -34,8 +34,8 @@ public sealed class ProductionController(ProductionService production) : Control
     {
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" or "RecipeNotFound" or "TaskNotFound" => NotFound(error),
-        "ActiveCharacterChanged" or "CharacterBusy" or "ConcurrencyConflict" => Conflict(error),
-        "RecipeLocked" or "LevelTooLow" or "AlchemyLevelTooLow" or "InsufficientMaterials" =>
+        "ActiveCharacterChanged" or "CharacterBusy" or "ConcurrencyConflict" or "RequestIdConflict" => Conflict(error),
+        "RecipeLocked" or "LevelTooLow" or "InsufficientMaterials" =>
             StatusCode(StatusCodes.Status403Forbidden, error),
         _ => BadRequest(error)
     };

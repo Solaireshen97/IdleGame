@@ -5,6 +5,8 @@ public sealed class ProductionTask
     public int Id { get; set; }
     public int UserId { get; set; }
     public int CharacterId { get; set; }
+    public int? TargetCycles { get; set; }
+    public string? RequestId { get; set; }
     public string RecipeCode { get; set; } = string.Empty;
     public string OutputCode { get; set; } = string.Empty;
     public int OutputQuantity { get; set; }

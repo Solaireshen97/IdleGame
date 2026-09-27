@@ -22,7 +22,7 @@ public sealed class ProductionCatalog
                 !_recipes.TryAdd(recipe.Code, recipe) ||
                 consumables.FindItem(recipe.OutputCode) is null ||
                 recipe.OutputQuantity is < 1 or > 1000 || recipe.CycleSeconds is < 1 or > 3600 ||
-                recipe.MinimumCharacterLevel < 1 || recipe.MinimumAlchemyLevel < 1 ||
+                recipe.MinimumCharacterLevel < 1 ||
                 recipe.RequiredCount < 1 || source is null || !validAlternatives ||
                 recipe.UnlockKind is not ("MonsterKill" or "DungeonClear") ||
                 recipe.UnlockKind == "DungeonClear" && source.DungeonKind != "Dungeon" ||

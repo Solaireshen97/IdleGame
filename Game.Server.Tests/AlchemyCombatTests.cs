@@ -35,8 +35,14 @@ public sealed class AlchemyCombatTests
 
     [Theory]
     [InlineData("elwynn-assault-draught", 24, 20)]
+    [InlineData("lesser-elwynn-assault-draught", 22, 20)]
+    [InlineData("greater-elwynn-assault-draught", 26, 20)]
     [InlineData("durotar-bloodfire-draught", 23, 21)]
+    [InlineData("lesser-durotar-bloodfire-draught", 22, 21)]
+    [InlineData("greater-durotar-bloodfire-draught", 24, 21)]
     [InlineData("mulgore-hunter-draught", 22, 20)]
+    [InlineData("lesser-mulgore-hunter-draught", 21, 20)]
+    [InlineData("greater-mulgore-hunter-draught", 23, 20)]
     public async Task RegionalOperationPotionsApplyDistinctDamageAndRisk(string potionCode,
         int expectedDamage, int expectedDamageTaken)
     {
@@ -81,7 +87,10 @@ public sealed class AlchemyCombatTests
 
     [Theory]
     [InlineData("whetstone-oil", false)]
+    [InlineData("lesser-whetstone-oil", false)]
     [InlineData("dun-morogh-fortitude-draught", true)]
+    [InlineData("lesser-dun-morogh-fortitude-draught", true)]
+    [InlineData("greater-dun-morogh-fortitude-draught", true)]
     public async Task CombatBuffUsesWeaponSkillCurveAndCanBeReusedAfterCooldown(string potionCode, bool increasesMaxHp)
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

@@ -15,9 +15,10 @@ def main() -> None:
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     subjects = json.loads(SUBJECTS.read_text(encoding="utf-8"))
     catalogs = {
-        "potions": {item["Code"]: item for item in config["Consumables"]["Items"]},
+        "potions": {item["Code"]: item for item in config["Consumables"]["Items"]
+                    if not item["Code"].startswith(("lesser-", "greater-"))},
         "herbs": {item["Code"]: item for item in config["Materials"]["Items"]
-                  if not item["Code"].endswith("-token") and not item["Code"].startswith("weapon-fragment-t")},
+                  if not item["Code"].endswith("-token") and not item["Code"].startswith(("weapon-fragment-t", "seed-"))},
         "fragments": {item["Code"]: item for item in config["Materials"]["Items"]
                       if item["Code"].startswith("weapon-fragment-t")},
         "soul-imprints": {item["Code"]: item for item in config["SoulImprints"]["Items"]},
@@ -54,8 +55,14 @@ def main() -> None:
     lines.extend([
         "    };",
         "",
-        "    public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)",
-        "        ? path : null;",
+        "    public static string? ForCode(string? code)",
+        "    {",
+        "        if (code is null) return null;",
+        '        foreach (var prefix in new[] { "lesser-", "greater-", "seed-" })',
+        "            if (code.StartsWith(prefix, StringComparison.Ordinal))",
+        "                return ForCode(code[prefix.Length..]);",
+        "        return PathsByCode.TryGetValue(code, out var path) ? path : null;",
+        "    }",
         "}",
     ])
     SERVICE.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -326,6 +326,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.CharacterProfessionTalents.RemoveRange(await dbContext.CharacterProfessionTalents.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.GatheringTasks.RemoveRange(await dbContext.GatheringTasks.Where(task => task.CharacterId == characterId).ToListAsync());
         dbContext.ProductionTasks.RemoveRange(await dbContext.ProductionTasks.Where(task => task.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterGardenPlots.RemoveRange(await dbContext.CharacterGardenPlots.Where(plot => plot.CharacterId == characterId).ToListAsync());
+        dbContext.LogisticsRequests.RemoveRange(await dbContext.LogisticsRequests.Where(request => request.CharacterId == characterId).ToListAsync());
         dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
         dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
         dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());

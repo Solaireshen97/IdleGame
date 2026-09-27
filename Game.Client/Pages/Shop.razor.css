@@ -175,3 +175,5 @@
     .character-slot-shop__purchase { align-items: stretch; flex-direction: column; gap: .65rem; padding-top: .75rem; }
     .character-slot-shop__purchase button { width: 100%; }
 }
+
+.shop-item__locked { color: #f0bf82; font-size: .85rem; }

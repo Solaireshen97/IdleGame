@@ -13,6 +13,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterProfessionTalent> CharacterProfessionTalents => Set<CharacterProfessionTalent>();
     public DbSet<GatheringTask> GatheringTasks => Set<GatheringTask>();
     public DbSet<ProductionTask> ProductionTasks => Set<ProductionTask>();
+    public DbSet<CharacterGardenPlot> CharacterGardenPlots => Set<CharacterGardenPlot>();
+    public DbSet<LogisticsRequest> LogisticsRequests => Set<LogisticsRequest>();
     public DbSet<Monster> Monsters => Set<Monster>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<RoomSlot> RoomSlots => Set<RoomSlot>();
@@ -40,6 +42,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<LogisticsRequest>().HasKey(request => new { request.CharacterId, request.RequestId });
+        modelBuilder.Entity<CharacterGardenPlot>().HasIndex(plot => new { plot.CharacterId, plot.PlotIndex }).IsUnique();
+        modelBuilder.Entity<CharacterGardenPlot>().Property(plot => plot.Version).IsConcurrencyToken();
+        modelBuilder.Entity<CharacterGardenPlot>().ToTable(table => table.HasCheckConstraint(
+            "CK_CharacterGardenPlots_Values", "PlotIndex >= 0 AND PlotIndex < 4 AND HarvestQuantity >= 0 AND GrowthSeconds >= 0"));
         modelBuilder.Entity<CharacterActivity>().HasKey(activity => activity.CharacterId);
         modelBuilder.Entity<CharacterActivity>().Property(activity => activity.CharacterId).ValueGeneratedNever();
         modelBuilder.Entity<CharacterActivity>().HasIndex(activity => new { activity.Kind, activity.SourceId });
@@ -58,6 +65,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<GatheringTask>().ToTable(table => table.HasCheckConstraint("CK_GatheringTasks_Quantities", "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
         modelBuilder.Entity<ProductionTask>().Property(task => task.Version).IsConcurrencyToken();
         modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.CharacterId, task.Status });
+        modelBuilder.Entity<ProductionTask>().HasIndex(task => task.CharacterId).IsUnique().HasFilter("Status = 'Running'");
+        modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.CharacterId, task.RequestId }).IsUnique().HasFilter("RequestId IS NOT NULL");
         modelBuilder.Entity<ProductionTask>().ToTable(table => table.HasCheckConstraint("CK_ProductionTasks_Quantities",
             "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
         modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
