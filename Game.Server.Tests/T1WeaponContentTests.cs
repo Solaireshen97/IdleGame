@@ -25,7 +25,8 @@ public sealed class T1WeaponContentTests
         var world = WorldCatalog.LoadDefault();
         var ordinary = world.Dungeons.Where(dungeon => dungeon.IsVisible && dungeon.DungeonKind == "Hunt").ToList();
         Assert.Equal(42, ordinary.Count);
-        var drops = ordinary.Select(dungeon => Assert.Single(rewards.MonsterKills[dungeon.Code].Drops, drop => drop.Kind == "Weapon")).ToList();
+        var drops = ordinary.SelectMany(dungeon => rewards.MonsterKills[dungeon.Code].Drops
+            .Where(drop => drop.Kind == "Weapon")).ToList();
         var templates = drops.Select(drop => catalog.FindItem(drop.Code)!).DistinctBy(item => item.Code).ToList();
         Assert.Equal(24, templates.Count);
         Assert.All(templates.GroupBy(item => item.Element), group =>
@@ -40,7 +41,8 @@ public sealed class T1WeaponContentTests
             Assert.Equal(new[] { 2, 1 }, item.Skills.Select(skill => skill.Level));
             Assert.Equal(40m, item.Attack + item.MaxHp / 2.5m);
         });
-        Assert.All(drops.GroupBy(drop => drop.Code), group => Assert.InRange(group.Count(), 1, 3));
+        Assert.All(ordinary, dungeon => Assert.InRange(
+            rewards.MonsterKills[dungeon.Code].Drops.Count(drop => drop.Kind == "Weapon"), 2, 3));
     }
 
     [Fact]
@@ -50,7 +52,8 @@ public sealed class T1WeaponContentTests
         var catalog = T1WeaponEffectTests.ProductionCatalog();
         var elites = WorldCatalog.LoadDefault().Dungeons.Where(dungeon => dungeon.DungeonKind == "Elite").ToList();
         var weapons = elites.Select(dungeon => catalog.FindItem(Assert.Single(
-            rewards.MonsterKills[dungeon.Code].Drops, drop => drop.Kind == "Weapon").Code)!).ToList();
+            rewards.MonsterKills[dungeon.Code].Drops,
+            drop => drop.Kind == "Weapon" && drop.ChancePercent == 20).Code)!).ToList();
         Assert.Equal(12, weapons.Select(item => item.Code).Distinct().Count());
         Assert.All(weapons.GroupBy(item => item.Element), group => Assert.Equal(2, group.Count()));
         Assert.All(weapons, item =>
@@ -58,6 +61,7 @@ public sealed class T1WeaponContentTests
             Assert.Equal(1, item.ItemLevel);
             Assert.Equal(new[] { 3, 3 }, item.Skills.Select(skill => skill.Level));
             Assert.Equal(46m, item.Attack + item.MaxHp / 2.5m);
+            Assert.Single(rewards.MonsterKills.Values, bundle => bundle.Drops.Any(drop => drop.Code == item.Code));
         });
     }
 
@@ -100,7 +104,7 @@ public sealed class T1WeaponContentTests
     }
 
     [Fact]
-    public void FinalTierHasSixLevelTenDungeonsAndEachHasSixElementWeaponsWithoutExtraBossWeapon()
+    public void FinalTierHasSixLevelTenDungeonsWithMatchingElementLootAndSixElementExchanges()
     {
         var configuration = Configuration();
         var catalog = T1WeaponEffectTests.ProductionCatalog();
@@ -228,10 +232,20 @@ public sealed class T1WeaponContentTests
             var weaponDrops = rewards.DungeonClears[dungeon.Code].Drops
                 .Where(drop => drop.Kind == "Weapon").ToList();
             Assert.Equal(6, weaponDrops.Count);
-            Assert.Equal(offers.Select(offer => offer.EffectiveRewardCode).Order(),
-                weaponDrops.Select(drop => drop.Code).Order());
-            Assert.All(weaponDrops, drop => Assert.Equal((1, 3m), (drop.Quantity, drop.ChancePercent)));
-            Assert.DoesNotContain(rewards.MonsterKills[$"{dungeon.Code}-boss"].Drops, drop => drop.Kind == "Weapon");
+            Assert.All(weaponDrops, drop =>
+            {
+                Assert.Equal(1, drop.Quantity);
+                Assert.Equal(dungeon.MonsterElement, catalog.FindItem(drop.Code)!.Element);
+                Assert.Contains(allOffers, offer => offer.RewardKind == "Weapon" && offer.Cost == 18 &&
+                    offer.EffectiveRewardCode == drop.Code);
+            });
+            Assert.Equal(new[] { 6m, 4m, 3m, 2m, 2m, 1m }, weaponDrops.Select(drop => drop.ChancePercent));
+            Assert.Equal(offers.Single(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Element ==
+                dungeon.MonsterElement).EffectiveRewardCode, weaponDrops[0].Code);
+            // Advanced weapons remain gated by clearing the dungeon; boss kills can give lower-tier weapons.
+            Assert.DoesNotContain(rewards.MonsterKills[$"{dungeon.Code}-boss"].Drops,
+                drop => drop.Kind == "Weapon" && catalog.FindItem(drop.Code)!.Skills.Select(skill => skill.Level)
+                    .SequenceEqual(new[] { 4, 3 }));
             Assert.All(offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!), item =>
             {
                 Assert.Equal(1, item.ItemLevel);
@@ -245,6 +259,8 @@ public sealed class T1WeaponContentTests
         Assert.Equal(36, dungeons.SelectMany(dungeon => allOffers.Where(offer =>
             offer.DungeonCode == dungeon.Code && offer.RewardKind == "Weapon"))
             .Select(offer => offer.EffectiveRewardCode).Distinct().Count());
+        Assert.Equal(36, dungeons.SelectMany(dungeon => rewards.DungeonClears[dungeon.Code].Drops
+            .Where(drop => drop.Kind == "Weapon")).Select(drop => drop.Code).Distinct().Count());
     }
 
     [Fact]

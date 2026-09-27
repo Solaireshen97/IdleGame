@@ -168,7 +168,8 @@ public sealed class T1WeaponEconomyTests
             await test.Db.SaveChangesAsync();
         }
         var tutorial = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Tutorial);
-        Assert.Equal("t1-fang-hunting-spear", tutorial.WeaponCode);
+        Assert.Equal("t1-stone-edge-hatchet", tutorial.WeaponCode);
+        Assert.Equal(ElementType.Earth, tutorial.Element);
         Assert.Equal(test.Character.Id, tutorial.CharacterId);
         Assert.Equal(0, tutorial.Skills.Sum(skill => skill.QualityBonusLevel));
         Assert.True(test.User.StarterWeaponRewardClaimed);

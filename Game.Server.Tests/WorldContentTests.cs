@@ -364,8 +364,9 @@ public sealed class WorldContentTests
         Assert.Equal("/art/monsters/monster-009.png", Game.Client.Services.MonsterArt.ForName(monsters[0].Name));
         Assert.Equal("/art/monsters/monster-015.png", Game.Client.Services.MonsterArt.ForName(monsters[3].Name));
         var active = monsters[1];
-        Assert.Equal((140, 252, 15, 5, "saved-profile", "saved-rewards"),
+        Assert.Equal((140, 252, 15, 5, "saved-profile", "kobold-mine-worker-loot-2"),
             (active.BaseMaxHp, active.MaxHp, active.Attack, active.Defense, active.CombatProfileCode, active.RewardProfileCode));
+        Assert.Equal("kobold-mine-goldtooth", monsters[3].RewardProfileCode);
         var saved = await db.Rooms.FindAsync(room.Id);
         Assert.Equal((202, RoomStatus.Preparing, 2, 4, 7, 3, 2, 10, true),
             (saved!.MonsterId, saved.Status, saved.CurrentWaveNumber, saved.TotalWaveCount,
@@ -378,6 +379,41 @@ public sealed class WorldContentTests
         Assert.Equal("Pending", (await db.RewardRuns.SingleAsync()).Status);
         Assert.Equal("monster:1:1", (await db.RewardEvents.SingleAsync()).EventKey);
         Assert.Equal(12, (await db.RewardEntries.SingleAsync()).Quantity);
+    }
+
+    [Fact]
+    public async Task StartupRefreshesSharedLootProfilesAndPreservesPendingWeaponRewards()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
+        var content = new Content();
+        await DbInitializer.InitializeAsync(db, world: content.World, encounters: content.Encounters);
+        var dungeon = await db.Dungeons.SingleAsync(item => item.Code == "kobold-mine");
+        var room = new Room { Id = 101, DungeonId = dungeon.Id, MonsterId = 202,
+            CurrentWaveNumber = 2, RoundNumber = 4, RunSequence = 2, Version = 7 };
+        db.Rooms.Add(room);
+        db.Monsters.Add(new Monster { Id = 202, RoomId = room.Id, Name = "烛矿掘道者", Element = ElementType.Earth,
+            WaveNumber = 2, Position = 1, Hp = 41, MaxHp = 140, BaseMaxHp = 140, Attack = 15, Defense = 5,
+            RewardProfileCode = "kobold-mine-worker" });
+        var snapshot = System.Text.Json.JsonSerializer.Serialize(new WeaponRewardSnapshot("t1-fang-hunting-spear",
+            "兽牙猎矛", ElementType.Wind, 24, 40, 1, 10, 1,
+            [new WeaponRewardSkillSnapshot("weapon-attack", 2)], QualityRank: 3));
+        db.RewardEntries.Add(new RewardEntry { RoomId = room.Id, Sequence = 2, EventKey = "monster:1:1",
+            UserId = 1, CharacterId = 1, Kind = "Weapon", Code = "t1-fang-hunting-spear", Quantity = 1,
+            WeaponSnapshotJson = snapshot });
+        await db.SaveChangesAsync();
+
+        await DbInitializer.InitializeAsync(db, world: content.World, encounters: content.Encounters);
+        await DbInitializer.InitializeAsync(db, world: content.World, encounters: content.Encounters);
+        db.ChangeTracker.Clear();
+        var monster = await db.Monsters.SingleAsync();
+        Assert.Equal("kobold-mine-worker-loot-2", monster.RewardProfileCode);
+        Assert.Equal((41, 140, 140, 15, 5), (monster.Hp, monster.MaxHp, monster.BaseMaxHp, monster.Attack, monster.Defense));
+        var savedRoom = await db.Rooms.SingleAsync();
+        Assert.Equal((2, 4, 2, 8), (savedRoom.CurrentWaveNumber, savedRoom.RoundNumber, savedRoom.RunSequence, savedRoom.Version));
+        var reward = await db.RewardEntries.SingleAsync();
+        Assert.Equal(("t1-fang-hunting-spear", 1, snapshot), (reward.Code, reward.Quantity, reward.WeaponSnapshotJson));
     }
 
     private sealed class Content

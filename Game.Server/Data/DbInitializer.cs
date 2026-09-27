@@ -33,9 +33,9 @@ public static class DbInitializer
         DungeonEncounterCatalog? encounters)
     {
         var elements = world.Regions.ToDictionary(region => region.Code, region => region.FeaturedElement);
-        var names = world.Dungeons.Where(dungeon => dungeon.IsVisible && encounters?.HasDefinition(dungeon.Code) == true)
+        var definitions = world.Dungeons.Where(dungeon => dungeon.IsVisible && encounters?.HasDefinition(dungeon.Code) == true)
             .ToDictionary(dungeon => dungeon.Code, dungeon => encounters!.CreateMonsters(dungeon)
-                .ToDictionary(monster => (monster.WaveNumber, monster.Position), monster => monster.Name));
+                .ToDictionary(monster => (monster.WaveNumber, monster.Position)));
         // Run at startup before room cycles begin. Include every saved wave and old single-monster rooms.
         var entries = await (from room in dbContext.Rooms
             join dungeon in dbContext.Dungeons on room.DungeonId equals dungeon.Id
@@ -49,15 +49,29 @@ public static class DbInitializer
             if (!elements.TryGetValue(entry.Dungeon.RegionCode, out var element)) continue;
             var changed = entry.Monster.Element != element;
             entry.Monster.Element = element;
-            if (names.TryGetValue(entry.Dungeon.Code, out var encounterNames))
+            if (definitions.TryGetValue(entry.Dungeon.Code, out var encounterDefinitions))
             {
                 // Old single-monster rooms use the dungeon summary monster, not the first new wave.
+                var definition = entry.Monster.RoomId is null
+                    ? encounterDefinitions.Values.FirstOrDefault(monster => monster.Name == entry.Dungeon.MonsterName)
+                    : encounterDefinitions.GetValueOrDefault((entry.Monster.WaveNumber, entry.Monster.Position));
                 var name = entry.Monster.RoomId is null ? entry.Dungeon.MonsterName :
-                    encounterNames.GetValueOrDefault((entry.Monster.WaveNumber, entry.Monster.Position));
+                    definition?.Name;
                 if (name is not null && entry.Monster.Name != name)
                 {
                     entry.Monster.Name = name;
                     changed = true;
+                }
+                if (definition is not null)
+                {
+                    var rewardProfile = string.IsNullOrWhiteSpace(definition.RewardProfileCode)
+                        ? entry.Dungeon.Code : definition.RewardProfileCode;
+                    if (entry.Monster.RewardProfileCode != rewardProfile)
+                    {
+                        // Update future kills only. Recorded rewards retain their original rolled snapshots.
+                        entry.Monster.RewardProfileCode = rewardProfile;
+                        changed = true;
+                    }
                 }
             }
             if (changed) changedRooms.TryAdd(entry.Room.Id, entry.Room);
