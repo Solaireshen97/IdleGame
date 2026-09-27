@@ -1,0 +1,57 @@
+@using Game.Shared
+
+<div class="skill-auto-picker">
+    <label class="skill-auto-picker__condition">
+        <span>Auto 释放条件</span>
+        <select value="@_condition" disabled="@Disabled" @onchange="ChangeConditionAsync">
+            <option value="">技能默认</option>
+            @foreach (var condition in SkillAutoRules.Conditions)
+            {
+                <option value="@condition">@SkillAutoRules.Label(condition)</option>
+            }
+        </select>
+    </label>
+    @if (SkillAutoRules.UsesHpThreshold(ConditionOverride ?? DefaultCondition))
+    {
+        <label class="skill-auto-picker__threshold">
+            <span>生命值 ≤</span>
+            <input type="number" min="1" max="100" value="@_threshold" disabled="@Disabled" @onchange="ChangeThresholdAsync" />
+            <span>%</span>
+        </label>
+    }
+    <p class="skill-auto-picker__hint">仅选择一个释放条件，不改变技能目标；仍需冷却结束且有有效目标。手动释放不受此条件限制。</p>
+</div>
+
+@code {
+    [Parameter] public string? ConditionOverride { get; set; }
+    [Parameter] public string DefaultCondition { get; set; } = "Always";
+    [Parameter] public int Threshold { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<string?> OnConditionChanged { get; set; }
+    [Parameter] public EventCallback<int> OnThresholdChanged { get; set; }
+    private string _condition = string.Empty;
+    private int _threshold;
+
+    protected override void OnParametersSet()
+    {
+        _condition = ConditionOverride ?? string.Empty;
+        _threshold = Threshold;
+    }
+
+    private async Task ChangeConditionAsync(ChangeEventArgs args)
+    {
+        _condition = args.Value?.ToString() ?? string.Empty;
+        await OnConditionChanged.InvokeAsync(SkillAutoRules.Normalize(_condition));
+        _condition = ConditionOverride ?? string.Empty;
+    }
+
+    private async Task ChangeThresholdAsync(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var threshold))
+        {
+            _threshold = threshold;
+            await OnThresholdChanged.InvokeAsync(threshold);
+        }
+        _threshold = Threshold;
+    }
+}

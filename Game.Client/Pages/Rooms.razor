@@ -19,6 +19,10 @@
 }
 else
 {
+    @if (NavigationNotice is "room-unavailable" or "page-unavailable")
+    {
+        <p class="notice-message" role="status">@(NavigationNotice == "room-unavailable" ? "原战斗房间已失效或无法访问，已返回大厅。" : "原页面无法打开，已返回大厅。")</p>
+    }
     <nav class="lobby-tabs" role="tablist" aria-label="副本大厅模式">
         <button type="button" id="current-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Current ? "true" : "false")" aria-controls="current-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Current ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Current)">
@@ -157,6 +161,9 @@ else
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "notice")]
+    public string? NavigationNotice { get; set; }
+
     private List<RoomSummaryResponse>? _rooms;
     private bool _isCheckingLoginState = true;
     private bool _isLoading;

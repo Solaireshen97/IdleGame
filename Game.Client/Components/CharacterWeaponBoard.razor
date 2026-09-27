@@ -248,7 +248,7 @@
             <WeaponDetailDialog @key="inspected.Id" Name="@inspected.Name" Element="@inspected.Element" ItemLevel="@inspected.ItemLevel"
                                 Attack="@inspected.Attack" MaxHp="@inspected.MaxHp" Skills="@GetDetailSkills(inspected)"
                                 Category="OWNED WEAPON" Subtitle="@detailSubtitle" QualityRank="@inspected.QualityRank" ManagementLabel="强化 / 点晶"
-                                Note="@(inspected.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop ? "初始或商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
+                                Note="@(inspected.Origin == WeaponOrigin.Starter ? "初始武器换下并解锁后可出售；不产基础碎片，强化后分解仅返还投入的 50%。" : inspected.Origin == WeaponOrigin.Shop ? "商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
                                 CloseLabel="@(_detailFromSlot ? "← 返回武器盘" : "← 返回武器仓库")" OnClose="CloseWeaponDetails">
                 <AdditionalContent>
                     <section class="weapon-detail-management" aria-label="点亮品质水晶">
@@ -982,7 +982,6 @@
         "QualityMaterialMustMatch" => "只能消耗同名武器点亮水晶。",
         "InvalidQualityMaterial" => "请选择另一把武器作为素材。",
         "StarterWeaponCannotBeConsumed" => "初始赠送武器不能作为点晶素材。",
-        "StarterWeaponCannotBeSold" => "初始赠送武器不能出售。",
         "WeaponCannotBeDismantled" => "这把武器没有可回收的材料；商店武器需强化后才能分解。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",
         "InvalidWeaponSelection" => "请选择有效的武器。",

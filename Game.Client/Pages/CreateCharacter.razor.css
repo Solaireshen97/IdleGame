@@ -1,0 +1,15 @@
+.character-creation-page {
+    align-self: start;
+    width: 100%;
+    min-width: 0;
+    padding: calc(1.5rem + env(safe-area-inset-top)) 1rem calc(1.5rem + env(safe-area-inset-bottom));
+    color: #e8f0f5;
+}
+
+.character-creation-page__header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: 1.25rem; }
+.character-creation-page__header > div { min-width: 0; }
+.character-creation-page__header span { color: #e0b36f; font-size: .75rem; font-weight: 800; }
+.character-creation-page__header h1 { margin: .4rem 0; font-size: clamp(1.25rem, 4vw, 1.65rem); }
+.character-creation-page__header p { margin: 0; color: #aebfce; font-size: .85rem; }
+.character-creation-page__logout { flex: 0 0 auto; min-height: 44px; padding: .5rem .7rem; border: 1px solid #50667a; border-radius: .65rem; background: #15273a; color: #dbe7ee; font-size: .75rem; cursor: pointer; }
+.character-creation-page__logout:disabled { opacity: .6; cursor: not-allowed; }

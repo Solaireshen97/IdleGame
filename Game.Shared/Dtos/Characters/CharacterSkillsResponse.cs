@@ -69,6 +69,8 @@ public class EquippedSkillResponse
     public int SlotIndex { get; set; }
     public string? SkillCode { get; set; }
     public bool AutoUseEnabled { get; set; }
+    public string AutoCondition { get; set; } = "Always";
+    public string? AutoConditionOverride { get; set; }
     public int AutoHpThresholdPercent { get; set; }
 }
 
@@ -76,12 +78,14 @@ public class SetSkillSlotRequest
 {
     public string? SkillCode { get; set; }
     public bool AutoUseEnabled { get; set; }
+    public string? AutoConditionOverride { get; set; }
     public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
 }
 
 public class SetSkillAutoRequest
 {
     public bool AutoUseEnabled { get; set; }
+    public string? AutoConditionOverride { get; set; }
     public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
 }
 

@@ -64,8 +64,76 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(5, await test.Db.Characters.CountAsync());
     }
 
+    [Theory]
+    [InlineData("swordsman", "t1-shop-fire")]
+    [InlineData("acolyte", "t1-shop-light")]
+    [InlineData("mage", "t1-shop-water")]
+    [InlineData("hunter", "t1-shop-wind")]
+    [InlineData("rogue", "t1-shop-dark")]
+    public async Task FirstCharacterUsesChosenProfessionAndReceivesStartingGoldAndShopWeapon(string professionCode, string weaponCode)
+    {
+        await using var test = await EconomyContext.CreateAsync(useProductionSkills: true, createFirstCharacter: false);
+        Assert.Empty(await test.Db.Characters.ToListAsync());
+        Assert.Empty(await test.Db.CharacterWeapons.ToListAsync());
+        Assert.Empty(await test.Db.CharacterSkillSlots.ToListAsync());
+        Assert.Null(test.User.ActiveCharacterId);
+        var account = await test.Users.GetCurrentUserAsync(test.Token);
+        Assert.Null(account.Error);
+        Assert.Equal((0, 0), (account.Response!.CharacterCount, account.Response.Gold));
+
+        var (created, error) = await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "新角色", ProfessionCode = professionCode });
+
+        Assert.Null(error);
+        var character = await test.Db.Characters.SingleAsync(item => item.Id == created!.CharacterId);
+        var weapon = await test.Db.CharacterWeapons.SingleAsync(item => item.CharacterId == character.Id);
+        Assert.Equal(weaponCode, weapon.WeaponCode);
+        Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
+        Assert.Equal((18, 45, 45), (character.Attack, character.MaxHp, character.Hp));
+        Assert.Equal(120, character.Gold);
+        Assert.Equal(professionCode, character.ProfessionCode);
+        Assert.Equal("新角色", character.Name);
+        Assert.True(created!.IsCurrent);
+        Assert.Equal(character.Id, test.User.ActiveCharacterId);
+        Assert.Equal(character.Id, (await test.Users.GetCurrentCharacterAsync(test.Token)).Response!.CharacterId);
+        var skills = new SkillCatalog(test.Bind<SkillOptions>(SkillOptions.SectionName));
+        Assert.Equal(skills.FindProfession(professionCode)!.StartingSkills,
+            await test.Db.CharacterSkillSlots.Where(slot => slot.CharacterId == character.Id).OrderBy(slot => slot.SlotIndex)
+                .Select(slot => slot.SkillCode!).ToListAsync());
+
+        var (second, secondError) = await test.Users.CreateCurrentCharacterAsync(test.Token,
+            new CreateCharacterRequest { Name = "第二角色", ProfessionCode = professionCode });
+        Assert.Null(secondError);
+        Assert.False(second!.IsCurrent);
+        Assert.Equal(0, (await test.Db.Characters.FindAsync(second.CharacterId))!.Gold);
+        Assert.Equal(character.Id, test.User.ActiveCharacterId);
+    }
+
     [Fact]
-    public async Task StartingGoldBelongsOnlyToFirstCharacterAndStarterCannotBeSoldAfterUnlocking()
+    public async Task RegistrationAndLoginDoNotCreateCharactersAndInvalidCreationDoesNotConsumeStartingGold()
+    {
+        await using var test = await EconomyContext.CreateAsync(useProductionSkills: true, createFirstCharacter: false);
+        var (login, loginError) = await test.Users.LoginAsync(new LoginRequest { UserName = "economy", Password = "test-password" });
+        Assert.Null(loginError);
+        Assert.NotNull(login);
+        Assert.Empty((await test.Users.GetCurrentCharactersAsync(login.Token)).Response!);
+        Assert.Equal("CharacterNotFound", (await test.Users.GetCurrentCharacterAsync(login.Token)).Error);
+        Assert.Equal("InvalidName", (await test.Users.CreateCurrentCharacterAsync(login.Token,
+            new CreateCharacterRequest { Name = " ", ProfessionCode = "mage" })).Error);
+        Assert.Empty(await test.Db.Characters.ToListAsync());
+        Assert.Null(test.User.ActiveCharacterId);
+
+        var (first, error) = await test.Users.CreateCurrentCharacterAsync(login.Token,
+            new CreateCharacterRequest { Name = "我的法师", ProfessionCode = "mage" });
+        Assert.Null(error);
+        Assert.Equal(120, (await test.Db.Characters.FindAsync(first!.CharacterId))!.Gold);
+        Assert.Equal(test.User.ActiveCharacterId, first.CharacterId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartingGoldBelongsOnlyToFirstCharacterAndStarterCanBeSoldAfterReplacementAndUnlocking(bool batch)
     {
         await using var test = await EconomyContext.CreateAsync();
         Assert.Equal(120, test.Character.Gold);
@@ -76,20 +144,49 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(120, test.Character.Gold);
         Assert.Equal(0, (await test.Db.Characters.SingleAsync(item => item.Id == created.Response!.CharacterId)).Gold);
 
-        // The backend still rejects the starter gift after it is unequipped and unlocked.
         var starter = await test.Db.CharacterWeapons.SingleAsync(weapon => weapon.CharacterId == test.Character.Id);
-        starter.IsLocked = false;
-        starter.EquippedSlotIndex = null;
-        await test.Db.SaveChangesAsync();
-        var sold = await test.Armory.SellAsync(test.Token, test.Character.Id,
-            new WeaponBatchRequest { WeaponIds = [starter.Id] });
-        Assert.Equal("StarterWeaponCannotBeSold", sold.Error);
-        Assert.Equal(120, test.Character.Gold);
+        var inventory = (await test.Armory.GetAsync(test.Token, test.Character.Id)).Response!;
+        var initialWeapon = Assert.Single(inventory.Weapons);
+        Assert.True(initialWeapon.CanSell);
+        Assert.Equal(starter.SellGold, initialWeapon.SellGold);
+        Assert.Equal("WeaponEquipped", (await test.Armory.SellAsync(test.Token, test.Character.Id,
+            new WeaponBatchRequest { WeaponIds = [starter.Id] })).Error);
+
+        for (var index = 0; index < (batch ? 2 : 1); index++)
+        {
+            var bought = await test.Shop.PurchaseAsync(test.Token,
+                new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = "t1-shop-fire", Quantity = 1 });
+            Assert.Null(bought.Error);
+        }
+        var replacements = await test.Db.CharacterWeapons.Where(weapon =>
+            weapon.CharacterId == test.Character.Id && weapon.Origin == WeaponOrigin.Shop).OrderBy(weapon => weapon.Id).ToListAsync();
+        var replacement = replacements[0];
+        Assert.Null((await test.Armory.SetSlotAsync(test.Token, test.Character.Id, WeaponRules.MainSlotIndex,
+            new SetWeaponSlotRequest { WeaponId = replacement.Id })).Error);
+        Assert.Equal("WeaponLocked", (await test.Armory.SellAsync(test.Token, test.Character.Id,
+            new WeaponBatchRequest { WeaponIds = [starter.Id] })).Error);
+        Assert.Null((await test.Armory.SetLockAsync(test.Token, test.Character.Id, starter.Id,
+            new SetWeaponLockRequest { IsLocked = false })).Error);
+
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
             new WeaponBatchRequest { WeaponIds = [starter.Id] });
         Assert.Equal("WeaponCannotBeDismantled", recycled.Error);
         Assert.Empty(await test.Db.CharacterItemStacks.ToListAsync());
         Assert.NotNull(await test.Db.CharacterWeapons.SingleOrDefaultAsync(item => item.Id == starter.Id));
+
+        var selected = new List<CharacterWeapon> { starter };
+        if (batch) selected.Add(replacements[1]);
+        var expectedGold = test.Character.Gold + selected.Sum(weapon => weapon.SellGold);
+        var sold = await test.Armory.SellAsync(test.Token, test.Character.Id,
+            new WeaponBatchRequest { WeaponIds = selected.Select(weapon => weapon.Id).ToList() });
+
+        Assert.Null(sold.Error);
+        Assert.Equal(expectedGold, sold.Response!.Gold);
+        Assert.Equal(expectedGold, (await test.Db.Characters.AsNoTracking().SingleAsync(item => item.Id == test.Character.Id)).Gold);
+        Assert.DoesNotContain(sold.Response.Weapons, weapon => selected.Any(item => item.Id == weapon.Id));
+        Assert.False(await test.Db.CharacterWeapons.AnyAsync(weapon => selected.Select(item => item.Id).Contains(weapon.Id)));
+        Assert.Equal(WeaponRules.MainSlotIndex, Assert.Single(sold.Response.Weapons).EquippedSlotIndex);
+        Assert.Equal(replacement.Id, Assert.Single(sold.Response.Weapons).Id);
     }
 
     [Fact]
@@ -193,7 +290,7 @@ public sealed class T1WeaponEconomyTests
         public string Token { get; private set; } = "";
         public IOptions<T> Bind<T>(string section) where T : class, new() => Options.Create(_configuration.GetSection(section).Get<T>()!);
 
-        private EconomyContext(SqliteConnection connection)
+        private EconomyContext(SqliteConnection connection, bool useProductionSkills)
         {
             _connection = connection;
             Db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
@@ -203,7 +300,9 @@ public sealed class T1WeaponEconomyTests
             Consumables = new ConsumableCatalog(Bind<ConsumableOptions>(ConsumableOptions.SectionName));
             Materials = new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName));
             var soulImprints = new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName));
-            var skills = SkillTestFactory.Create();
+            var skills = useProductionSkills
+                ? new SkillCatalog(Bind<SkillOptions>(SkillOptions.SectionName))
+                : SkillTestFactory.Create();
             Users = new UserService(Db, ProgressionTestFactory.Create(), skills, Weapons);
             Armory = new WeaponService(Db, Users, skills, Weapons);
             Shop = new ShopService(Db, Users, new ShopCatalog(Bind<ShopOptions>(ShopOptions.SectionName), Consumables, Weapons),
@@ -211,17 +310,23 @@ public sealed class T1WeaponEconomyTests
                     Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName), Materials, Weapons, soulImprints), soulImprints);
         }
 
-        public static async Task<EconomyContext> CreateAsync()
+        public static async Task<EconomyContext> CreateAsync(bool useProductionSkills = false, bool createFirstCharacter = true)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
-            var test = new EconomyContext(connection);
+            var test = new EconomyContext(connection, useProductionSkills);
             await test.Db.Database.EnsureCreatedAsync();
             var registered = await test.Users.RegisterAsync(new RegisterRequest { UserName = "economy", Password = "test-password" });
             Assert.Null(registered.Error);
             test.Token = registered.Response!.Token;
             test.User = await test.Db.Users.SingleAsync();
-            test.Character = await test.Db.Characters.SingleAsync();
+            if (createFirstCharacter)
+            {
+                var created = await test.Users.CreateCurrentCharacterAsync(test.Token,
+                    new CreateCharacterRequest { Name = "剑士", ProfessionCode = SkillRules.DefaultProfessionCode });
+                Assert.Null(created.Error);
+                test.Character = await test.Db.Characters.SingleAsync();
+            }
             return test;
         }
 

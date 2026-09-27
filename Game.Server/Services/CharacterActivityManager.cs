@@ -1,4 +1,5 @@
 using Game.Server.Data;
+using Game.Shared;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -69,7 +70,7 @@ public static class CharacterActivityManager
             slot.IsAutoEnabled = false;
             slot.IsTemporaryAuto = false;
             slot.PendingConsumableSlotIndex = null;
-            slot.PendingSkillSlotMask = 0;
+            SkillQueueRules.Clear(slot);
             slot.IsSoulImprintQueued = false;
             slot.HasParticipatedInRun = false;
             slot.LastParticipatedMonsterId = null;

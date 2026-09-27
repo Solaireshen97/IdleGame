@@ -17,6 +17,9 @@
 	<Compile Include="..\Game.Client\Services\BattleFeedbackPlanner.cs" Link="Client\BattleFeedbackPlanner.cs" />
 	<Compile Include="..\Game.Client\Services\MonsterArt.cs" Link="Client\MonsterArt.cs" />
 	<Compile Include="..\Game.Client\Services\WeaponArt.cs" Link="Client\WeaponArt.cs" />
+	<Compile Include="..\Game.Client\Services\ApiService.cs" Link="Client\ApiService.cs" />
+	<Compile Include="..\Game.Client\Services\UserSessionService.cs" Link="Client\UserSessionService.cs" />
+	<Compile Include="..\Game.Client\Services\RoomLoadResult.cs" Link="Client\RoomLoadResult.cs" />
 	<ProjectReference Include="..\Game.Server\Game.Server.csproj" />
 	<ProjectReference Include="..\Game.Shared\Game.Shared.csproj" />
   </ItemGroup>

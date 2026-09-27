@@ -60,11 +60,13 @@ public class RoomSkillSlotResponse
 {
     public int SlotIndex { get; set; }
     public string? SkillCode { get; set; }
+    public int? QueuedTargetCharacterId { get; set; }
     public string? SkillName { get; set; }
     public string? Description { get; set; }
     public string? EffectType { get; set; }
     public int Power { get; set; }
     public string AutoCondition { get; set; } = "Always";
+    public string? AutoConditionOverride { get; set; }
     public List<Game.Shared.Dtos.Characters.SkillEffectResponse> Effects { get; set; } = [];
     public int CooldownRoundsRemaining { get; set; }
     public bool AutoUseEnabled { get; set; }

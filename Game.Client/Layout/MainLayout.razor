@@ -3,21 +3,23 @@
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
-@inject AccountBalanceState AccountBalance
 @inject NavigationManager Navigation
 @inherits LayoutComponentBase
 @implements IDisposable
 
-<div class="page @(IsBattlePage ? "page--battle" : null) @(IsLobbyPage ? "page--lobby" : null) @(IsWeaponsPage ? "page--weapons" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsAuthPage ? "page--auth" : null)">
-    @if (!IsAuthPage)
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsLobbyPage ? "page--lobby" : null) @(IsWeaponsPage ? "page--weapons" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsEntryPage ? "page--auth" : null)">
+    @if (!IsEntryPage)
     {
         <NavMenu />
     }
     <main>
-        @if (!IsAuthPage)
+        @if (!IsEntryPage)
         {
         <div class="top-row">
-            <a class="top-row__brand" href="/rooms" aria-label="返回副本大厅">⚔</a>
+            <button type="button" class="top-row__brand" @onclick="OpenBattleAsync" disabled="@_isOpeningBattle"
+                    title="返回当前角色的战斗，空闲时打开副本大厅"
+                    aria-label="返回当前角色的战斗，空闲时打开副本大厅"
+                    aria-busy="@(_isOpeningBattle ? "true" : "false")">⚔</button>
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <button type="button"
@@ -53,7 +55,6 @@
             @if (!_isLoadingUser && _currentUser is not null)
             {
                 <div class="top-row__account">
-                    <span class="top-row__gold" title="当前角色金币"><span aria-hidden="true">◆</span> @_currentUser.Gold</span>
                     <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
                     <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录" aria-label="@(_isLoggingOut ? "正在退出登录" : "退出登录")">@(_isLoggingOut ? "…" : "↪")</button>
                 </div>
@@ -65,8 +66,15 @@
         </div>
         }
 
-        <article class="content @(IsAuthPage ? "content--auth" : null)">
-            @Body
+        <article class="content @(IsEntryPage ? "content--auth" : null)">
+            @if (!_canRenderBody)
+            {
+                <GameStateCard Compact="true" Title="正在准备冒险" Detail="确认账号与角色信息…" />
+            }
+            else
+            {
+                @Body
+            }
         </article>
     </main>
 
@@ -91,7 +99,9 @@
 @code {
     private CurrentUserResponse? _currentUser;
     private bool _isLoadingUser = true;
+    private bool _canRenderBody;
     private bool _isLoggingOut;
+    private bool _isOpeningBattle;
     private string? _logoutError;
     private bool _isSwitcherOpen;
     private bool _focusSwitcherClose;
@@ -104,6 +114,9 @@
     private bool IsWeaponsPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("weapons", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
     private bool IsSuppliesPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("supplies", StringComparison.OrdinalIgnoreCase);
+    private bool IsCharacterCreationPage => string.Equals(
+        Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/'), "characters/create", StringComparison.OrdinalIgnoreCase);
+    private bool IsEntryPage => IsAuthPage || IsCharacterCreationPage;
     private bool IsAuthPage
     {
         get
@@ -137,24 +150,36 @@
     protected override void OnInitialized()
     {
         ActiveCharacters.Changed += OnActiveCharacterChanged;
-        AccountBalance.Changed += OnAccountBalanceChanged;
         _ = RefreshCharacterLoopAsync(_refreshCancellation.Token);
     }
 
     protected override async Task OnParametersSetAsync()
     {
         _isLoadingUser = true;
+        _canRenderBody = IsAuthPage;
         _currentUser = await ApiService.GetCurrentUserAsync();
+        if (_refreshCancellation.IsCancellationRequested) return;
         if (_currentUser is null)
         {
             _isSwitcherOpen = false;
             _focusSwitcherClose = false;
             _focusSwitcherTrigger = false;
             ActiveCharacters.Clear();
+            _canRenderBody = true;
+        }
+        else if (_currentUser.CharacterCount == 0)
+        {
+            ActiveCharacters.Clear();
+            _isSwitcherOpen = false;
+            _canRenderBody = IsEntryPage;
+            if (!IsEntryPage)
+                Navigation.NavigateTo("/characters/create", replace: true);
         }
         else
         {
             await ActiveCharacters.RefreshAsync();
+            if (_refreshCancellation.IsCancellationRequested) return;
+            _canRenderBody = true;
         }
         _isLoadingUser = false;
     }
@@ -190,30 +215,28 @@
         if (args.Key == "Escape") CloseSwitcher();
     }
 
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
-    {
-        try
-        {
-            if (_currentUser is not null)
-            {
-                var refreshed = await ApiService.GetCurrentUserAsync();
-                if (refreshed is not null) _currentUser = refreshed;
-            }
-        }
-        catch { /* The regular header refresh will retry after a transient connection failure. */ }
-        StateHasChanged();
-    });
+    private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private void OnAccountBalanceChanged() => _ = InvokeAsync(async () =>
+    private async Task OpenBattleAsync()
     {
+        if (_isOpeningBattle || _isLoggingOut) return;
+        _isOpeningBattle = true;
+        var sourceUri = Navigation.Uri;
+        int? roomId = null;
         try
         {
-            var refreshed = await ApiService.GetCurrentUserAsync();
-            if (refreshed is not null) _currentUser = refreshed;
+            await ActiveCharacters.RefreshAsync();
+            roomId = ActiveCharacters.Current?.ActiveBattleRoomId;
         }
-        catch { /* The regular header refresh will retry after a transient connection failure. */ }
-        StateHasChanged();
-    });
+        catch { /* The lobby remains available if the current battle cannot be read. */ }
+        finally
+        {
+            _isOpeningBattle = false;
+        }
+
+        if (_refreshCancellation.IsCancellationRequested || _isLoggingOut || Navigation.Uri != sourceUri) return;
+        Navigation.NavigateTo(roomId is int activeRoomId ? $"/battle/{activeRoomId}" : "/rooms");
+    }
 
     private async Task LogoutAsync()
     {
@@ -268,7 +291,6 @@
     public void Dispose()
     {
         ActiveCharacters.Changed -= OnActiveCharacterChanged;
-        AccountBalance.Changed -= OnAccountBalanceChanged;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
     }

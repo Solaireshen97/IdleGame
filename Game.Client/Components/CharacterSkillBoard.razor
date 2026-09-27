@@ -2,6 +2,7 @@
 @using Game.Shared
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
+@inject IJSRuntime Js
 
 <section class="skill-board" aria-labelledby="skill-board-title">
     <header class="skill-board__header">
@@ -36,10 +37,10 @@
                 var activeSkill = _skills.LearnedSkills.FirstOrDefault(skill => skill.Code == slot.SkillCode);
                 <button type="button"
                         class="skill-board__slot-card @(activeSkill is null ? "skill-board__slot-card--empty" : null) @(slot.SlotIndex == _selectedSlotIndex ? "active" : null)"
-                        aria-haspopup="dialog"
-                        aria-expanded="@(_isEditorOpen && slot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
-                        aria-label="@($"{slot.SlotIndex} 号槽位：{activeSkill?.Name ?? "空槽位"}")"
-                        @onclick="() => OpenEditor(slot.SlotIndex)" @key="slot.SlotIndex">
+                        aria-pressed="@(slot.SlotIndex == _selectedSlotIndex ? "true" : "false")"
+                        aria-label="@($"选择 {slot.SlotIndex} 号槽位：{activeSkill?.Name ?? "空槽位"}")"
+                        disabled="@_isSaving"
+                        @onclick="() => SelectSlot(slot.SlotIndex)" @key="slot.SlotIndex">
                     <span class="skill-board__slot-index">@slot.SlotIndex.ToString("00")</span>
                     <span class="skill-board__icon skill-board__icon--@GetEffectTone(activeSkill)" aria-hidden="true">@if (activeSkill is null) { <text>+</text> } else { <img src="@SkillArt.ForCode(activeSkill.Code)" alt="" /> }</span>
                     <strong>@(activeSkill?.Name ?? "空槽")</strong>
@@ -51,72 +52,86 @@
             }
         </div>
 
+        <details class="skill-board__settings">
+            <summary>槽位 @_selectedSlotIndex 设置 · @(selectedSkill?.Name ?? "空槽位")</summary>
+            <div class="skill-board__settings-content">
+                <div class="skill-board__settings-tools">
+                    <div class="skill-board__reorder" aria-label="调整技能优先级">
+                        <button type="button" title="优先级上移" aria-label="@_selectedSlotIndex 号位上移" disabled="@(_isSaving || _selectedSlotIndex == 1)" @onclick="() => MoveAsync(_selectedSlotIndex, _selectedSlotIndex - 1)">←</button>
+                        <button type="button" title="优先级下移" aria-label="@_selectedSlotIndex 号位下移" disabled="@(_isSaving || _selectedSlotIndex == SkillRules.SlotCount)" @onclick="() => MoveAsync(_selectedSlotIndex, _selectedSlotIndex + 1)">→</button>
+                    </div>
+                    <button type="button" class="button button--quiet" disabled="@(_isSaving || selectedSkill is null)" @onclick="() => SaveSlotAsync(selectedSlot, null, false, selectedSlot.AutoHpThresholdPercent)">卸下技能</button>
+                </div>
+                @if (selectedSkill is null)
+                {
+                    <p class="skill-board__empty-hint">点击下方已学技能图标，装备到当前槽位。</p>
+                }
+                else
+                {
+                    <p class="skill-board__selected-description">@selectedSkill.Description <span>冷却 @selectedSkill.CooldownRounds 回合</span></p>
+                    <div class="skill-board__automation">
+                        <label class="skill-board__auto">
+                            <input type="checkbox" checked="@selectedSlot.AutoUseEnabled" disabled="@_isSaving" @onchange="e => SaveAutoAsync(selectedSlot, (bool)e.Value!, selectedSlot.AutoHpThresholdPercent, selectedSlot.AutoConditionOverride)" />
+                            <span><strong>自动使用</strong><small>@SkillAutoRules.Describe(selectedSlot.AutoCondition, selectedSlot.AutoHpThresholdPercent)</small></span>
+                        </label>
+                    </div>
+                    <SkillAutoConditionPicker @key="selectedSlot.SlotIndex" ConditionOverride="@selectedSlot.AutoConditionOverride"
+                        DefaultCondition="@selectedSlot.AutoCondition" Threshold="@selectedSlot.AutoHpThresholdPercent" Disabled="@_isSaving"
+                        OnConditionChanged="condition => SaveAutoAsync(selectedSlot, selectedSlot.AutoUseEnabled, selectedSlot.AutoHpThresholdPercent, condition)"
+                        OnThresholdChanged="threshold => SaveAutoAsync(selectedSlot, selectedSlot.AutoUseEnabled, threshold, selectedSlot.AutoConditionOverride)" />
+                }
+                <small class="skill-board__save-status" role="status">@(_isSaving ? "正在保存…" : "修改后自动保存")</small>
+            </div>
+        </details>
+
         <section class="skill-board__library" aria-labelledby="learned-skills-title">
-            <header><div><span class="skill-board__eyebrow">LEARNED SKILLS</span><h3 id="learned-skills-title">已学技能</h3></div><small>点按后装备至槽位 @_selectedSlotIndex</small></header>
+            <header><div><span class="skill-board__eyebrow">LEARNED SKILLS</span><h3 id="learned-skills-title">已学技能</h3></div><small>点击图标装备至槽位 @_selectedSlotIndex</small></header>
             <div class="skill-board__learned">
                 @foreach (var skill in _skills.LearnedSkills)
                 {
                     var equippedSlot = _skills.Slots.FirstOrDefault(slot => string.Equals(slot.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase));
-                    <button type="button" class="skill-board__learned-item @(equippedSlot is not null ? "equipped" : null)"
-                            disabled="@_isSaving" @onclick="() => ChooseSkillAsync(skill.Code)">
-                        <span class="skill-board__icon skill-board__icon--@GetEffectTone(skill)" aria-hidden="true"><img src="@SkillArt.ForCode(skill.Code)" alt="" loading="lazy" /></span>
-                        <span class="skill-board__learned-copy"><strong>@skill.Name</strong><small>@skill.Description</small></span>
-                        <span class="skill-board__learned-meta">CD @skill.CooldownRounds · @(equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</span>
-                    </button>
+                    <article class="skill-board__learned-item @(equippedSlot is not null ? "equipped" : null)" @key="skill.Code">
+                        <button type="button" class="skill-board__learned-equip" aria-label="@($"将{skill.Name}装备至槽位 {_selectedSlotIndex}")"
+                                disabled="@_isSaving" @onclick="() => ChooseSkillAsync(skill.Code)">
+                            <span class="skill-board__icon skill-board__icon--@GetEffectTone(skill)" aria-hidden="true"><img src="@SkillArt.ForCode(skill.Code)" alt="" loading="lazy" /></span>
+                            <span class="skill-board__learned-copy"><strong>@skill.Name</strong><small>@skill.Description</small></span>
+                        </button>
+                        <div class="skill-board__learned-footer">
+                            <span class="skill-board__learned-meta">CD @skill.CooldownRounds · @(equippedSlot is null ? "点击装备" : equippedSlot.SlotIndex == _selectedSlotIndex ? "当前槽位" : $"槽位 {equippedSlot.SlotIndex} · 点击交换")</span>
+                            <button type="button" id="@GetDetailButtonId(skill.Code)" class="skill-board__detail-button"
+                                    aria-label="@($"查看{skill.Name}的完整详情")" aria-haspopup="dialog" aria-controls="skill-detail-dialog"
+                                    @onclick="() => OpenSkillDetails(skill.Code)">详情 ›</button>
+                        </div>
+                    </article>
                 }
             </div>
         </section>
 
-        @if (_isEditorOpen)
+        @if (_skills.LearnedSkills.FirstOrDefault(skill => skill.Code == _detailSkillCode) is { } detailSkill)
         {
-            <div class="skill-board__editor-backdrop" @onclick="CloseEditor">
-                <section class="skill-board__editor" role="dialog" aria-modal="true" aria-labelledby="skill-editor-title"
-                         tabindex="-1" @ref="_editorDialog" @onclick:stopPropagation="true" @onkeydown="HandleEditorKeyDown">
-                    <header class="skill-board__editor-header">
-                        <div><span>编辑槽位 @_selectedSlotIndex.ToString("00")</span><strong id="skill-editor-title">@(selectedSkill?.Name ?? "未装备技能")</strong></div>
-                        <div class="skill-board__editor-tools">
-                            <div class="skill-board__reorder" aria-label="调整技能优先级">
-                                <button type="button" title="优先级上移" aria-label="@_selectedSlotIndex 号位上移" disabled="@(_isSaving || _selectedSlotIndex == 1)" @onclick="() => MoveAsync(_selectedSlotIndex, _selectedSlotIndex - 1)">←</button>
-                                <button type="button" title="优先级下移" aria-label="@_selectedSlotIndex 号位下移" disabled="@(_isSaving || _selectedSlotIndex == SkillRules.SlotCount)" @onclick="() => MoveAsync(_selectedSlotIndex, _selectedSlotIndex + 1)">→</button>
-                            </div>
-                            <button type="button" class="skill-board__editor-close" @onclick="CloseEditor" aria-label="关闭技能设置">×</button>
-                        </div>
+            var detailSlot = _skills.Slots.FirstOrDefault(slot => string.Equals(slot.SkillCode, detailSkill.Code, StringComparison.OrdinalIgnoreCase));
+            <div class="skill-board__detail-backdrop" @onclick="CloseSkillDetailsAsync" @onkeydown="HandleDetailKeyDownAsync" @onkeydown:stopPropagation>
+                <section id="skill-detail-dialog" class="skill-board__detail-dialog" role="dialog" aria-modal="true"
+                         aria-labelledby="skill-detail-title" aria-describedby="skill-detail-description"
+                         tabindex="-1" @ref="_detailDialog" @onclick:stopPropagation>
+                    <header class="skill-board__detail-header">
+                        <span class="skill-board__icon skill-board__icon--@GetEffectTone(detailSkill)" aria-hidden="true"><img src="@SkillArt.ForCode(detailSkill.Code)" alt="" /></span>
+                        <div><span class="skill-board__eyebrow">技能详情</span><h3 id="skill-detail-title">@detailSkill.Name</h3></div>
+                        <button type="button" class="skill-board__detail-close" @onclick="CloseSkillDetailsAsync" aria-label="关闭技能详情">×</button>
                     </header>
-                    <label class="skill-board__selector">
-                        <span>装备技能</span>
-                        <select value="@selectedSlot.SkillCode" disabled="@_isSaving" @onchange="e => ChangeSkillAsync(selectedSlot, e.Value?.ToString())">
-                            <option value="">空槽位</option>
-                            @foreach (var skill in _skills.LearnedSkills)
-                            {
-                                <option value="@skill.Code">@skill.Name</option>
-                            }
-                        </select>
-                    </label>
-                    @if (selectedSkill is null)
-                    {
-                        <p class="skill-board__empty-hint">选择已学技能，装备到当前槽位。</p>
-                    }
-                    else
-                    {
-                        <p class="skill-board__selected-description">@selectedSkill.Description <span>冷却 @selectedSkill.CooldownRounds 回合</span></p>
-                        <div class="skill-board__automation">
-                            <label class="skill-board__auto">
-                                <input type="checkbox" checked="@selectedSlot.AutoUseEnabled" disabled="@_isSaving" @onchange="e => SaveSlotAsync(selectedSlot, selectedSlot.SkillCode, (bool)e.Value!, selectedSlot.AutoHpThresholdPercent)" />
-                                <span><strong>自动使用</strong><small>@GetAutoConditionText(selectedSkill.AutoCondition)</small></span>
-                            </label>
-                            @if (selectedSkill.AutoCondition == "LowestHpBelowThreshold")
-                            {
-                                <label class="skill-board__threshold"><span>HP ≤</span><input type="number" min="1" max="100" value="@selectedSlot.AutoHpThresholdPercent" disabled="@_isSaving" @onchange="e => ChangeThresholdAsync(selectedSlot, e.Value?.ToString())" /><span>%</span></label>
-                            }
-                        </div>
-                    }
-                    <footer class="skill-board__editor-footer">
-                        <small>@(_isSaving ? "正在保存…" : "修改后自动保存 · 战斗中无法调整")</small>
-                        <button type="button" class="button button--quiet" @onclick="CloseEditor">完成</button>
-                    </footer>
+                    <div class="skill-board__detail-body">
+                        <p id="skill-detail-description" class="skill-board__detail-description">@detailSkill.Description</p>
+                        <dl class="skill-board__detail-facts">
+                            <div><dt>冷却时间</dt><dd>@detailSkill.CooldownRounds 回合</dd></div>
+                            <div><dt>自动使用条件</dt><dd>@SkillAutoRules.Describe(detailSlot?.AutoCondition ?? detailSkill.AutoCondition, detailSlot?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent)</dd></div>
+                            <div><dt>装备状态</dt><dd>@(detailSlot is null ? "尚未装备" : $"已装备至槽位 {detailSlot.SlotIndex} · {(detailSlot.AutoUseEnabled ? "自动使用" : "手动使用")}")</dd></div>
+                        </dl>
+                    </div>
+                    <footer class="skill-board__detail-footer"><button type="button" class="button button--quiet" @onclick="CloseSkillDetailsAsync">返回</button></footer>
                 </section>
             </div>
         }
+
         @if (_error is not null) { <p class="skill-board__error" role="alert">@GetError(_error)</p> }
     }
 </section>
@@ -126,20 +141,39 @@
     private CharacterSkillsResponse? _skills;
     private bool _isLoading = true;
     private bool _isSaving;
-    private bool _isEditorOpen;
-    private bool _focusEditor;
     private string? _error;
     private int _selectedSlotIndex = 1;
-    private ElementReference _editorDialog;
+    private string? _detailSkillCode;
+    private bool _focusDetail;
+    private ElementReference _detailDialog;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_focusEditor) return;
-        _focusEditor = false;
-        await _editorDialog.FocusAsync();
+        if (!_focusDetail) return;
+        _focusDetail = false;
+        await Js.InvokeVoidAsync("talentUi.openDialog", _detailDialog);
     }
+
+    private string GetDetailButtonId(string code) => $"skill-details-{CharacterId}-{code}";
+
+    private void OpenSkillDetails(string code)
+    {
+        _detailSkillCode = code;
+        _focusDetail = true;
+    }
+
+    private async Task CloseSkillDetailsAsync()
+    {
+        var code = _detailSkillCode;
+        _detailSkillCode = null;
+        _focusDetail = false;
+        if (code is not null) await Js.InvokeVoidAsync("talentUi.focus", GetDetailButtonId(code));
+    }
+
+    private Task HandleDetailKeyDownAsync(KeyboardEventArgs args) =>
+        args.Key == "Escape" ? CloseSkillDetailsAsync() : Task.CompletedTask;
 
     private async Task LoadAsync()
     {
@@ -149,25 +183,16 @@
             var (response, error) = await ApiService.GetCharacterSkillsAsync(CharacterId);
             _skills = response;
             _error = error;
-            _isEditorOpen = false;
         }
         catch { _error = "连接失败，请稍后重试。"; }
         finally { _isLoading = false; }
     }
 
-    private void OpenEditor(int slotIndex)
+    private void SelectSlot(int slotIndex)
     {
+        if (_isSaving) return;
         _selectedSlotIndex = slotIndex;
-        _isEditorOpen = true;
-        _focusEditor = true;
         _error = null;
-    }
-
-    private void CloseEditor() => _isEditorOpen = false;
-
-    private void HandleEditorKeyDown(KeyboardEventArgs args)
-    {
-        if (args.Key == "Escape") CloseEditor();
     }
 
     private async Task SaveSlotAsync(EquippedSkillResponse slot, string? code, bool auto, int threshold)
@@ -178,7 +203,12 @@
         try
         {
             var (response, error) = await ApiService.SetSkillSlotAsync(CharacterId, slot.SlotIndex,
-                new SetSkillSlotRequest { SkillCode = string.IsNullOrWhiteSpace(code) ? null : code, AutoUseEnabled = auto, AutoHpThresholdPercent = threshold });
+                new SetSkillSlotRequest
+                {
+                    SkillCode = string.IsNullOrWhiteSpace(code) ? null : code,
+                    AutoUseEnabled = auto, AutoHpThresholdPercent = threshold,
+                    AutoConditionOverride = string.Equals(slot.SkillCode, code, StringComparison.OrdinalIgnoreCase) ? slot.AutoConditionOverride : null
+                });
             if (response is not null) _skills = response;
             else _error = error;
         }
@@ -186,28 +216,35 @@
         finally { _isSaving = false; }
     }
 
-    private Task ChangeThresholdAsync(EquippedSkillResponse slot, string? raw)
+    private async Task SaveAutoAsync(EquippedSkillResponse slot, bool auto, int threshold, string? condition)
     {
-        if (!int.TryParse(raw, out var threshold)) threshold = slot.AutoHpThresholdPercent;
-        return SaveSlotAsync(slot, slot.SkillCode, slot.AutoUseEnabled, threshold);
+        if (_isSaving) return;
+        _isSaving = true;
+        _error = null;
+        try
+        {
+            var (response, error) = await ApiService.SetSkillAutoAsync(CharacterId, slot.SlotIndex,
+                new SetSkillAutoRequest { AutoUseEnabled = auto, AutoHpThresholdPercent = threshold, AutoConditionOverride = condition });
+            if (response is not null) _skills = response;
+            else _error = error;
+        }
+        catch { _error = "连接失败，请稍后重试。"; }
+        finally { _isSaving = false; }
     }
-
-    private Task ChangeSkillAsync(EquippedSkillResponse slot, string? code) =>
-        SaveSlotAsync(slot, code, !string.IsNullOrWhiteSpace(code) && slot.AutoUseEnabled, slot.AutoHpThresholdPercent);
 
     private async Task ChooseSkillAsync(string code)
     {
-        if (_skills is null) return;
+        if (_skills is null || _isSaving) return;
+        var target = _skills.Slots.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex);
+        if (target is null) return;
         var equippedSlot = _skills.Slots.FirstOrDefault(slot => string.Equals(slot.SkillCode, code, StringComparison.OrdinalIgnoreCase));
         if (equippedSlot is not null)
         {
-            OpenEditor(equippedSlot.SlotIndex);
+            if (equippedSlot.SlotIndex != target.SlotIndex)
+                await MoveAsync(equippedSlot.SlotIndex, target.SlotIndex);
             return;
         }
-        var target = _skills.Slots.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex);
-        if (target is null) return;
         await SaveSlotAsync(target, code, target.AutoUseEnabled, target.AutoHpThresholdPercent);
-        if (_skills is not null) OpenEditor(target.SlotIndex);
     }
 
     private async Task MoveAsync(int from, int to)
@@ -235,17 +272,9 @@
         "SkillAlreadyEquipped" => "该技能已装备在其他槽位，可用箭头调整顺序。",
         "SkillNotLearned" => "该角色尚未学会这个技能。",
         "InvalidHpThreshold" => "自动使用阈值应为 1～100%。",
+        "InvalidAutoCondition" => "请选择一个有效的 Auto 释放条件。",
         "ConcurrencyConflict" => "技能栏状态已变化，请重试。",
         _ => error
-    };
-
-    private static string GetAutoConditionText(string condition) => condition switch
-    {
-        "LowestHpBelowThreshold" => "目标生命低于阈值时",
-        "AllyHasDebuff" => "队友存在可净化状态时",
-        "MonsterHasBuff" => "怪物存在可驱散增益时",
-        "InterruptibleIntent" => "怪物预告可打断技能时",
-        _ => "冷却结束后"
     };
 
     private static string GetEffectTone(LearnedSkillResponse? skill) => skill?.EffectType switch

@@ -33,6 +33,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (error is not null) return (null, error);
         if (slotIndex < 1 || slotIndex > SkillRules.SlotCount) return (null, "InvalidSlotIndex");
         if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
+        var autoCondition = SkillAutoRules.Normalize(request.AutoConditionOverride);
+        if (!SkillAutoRules.IsValidOverride(autoCondition)) return (null, "InvalidAutoCondition");
 
         var skill = request.SkillCode is null ? null : catalog.FindSkill(request.SkillCode.Trim());
         var purchasedNodes = await GetPurchasedNodeRanksAsync(characterId);
@@ -63,10 +65,11 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         else target.Version++;
         target.SkillCode = skill?.Code;
         target.AutoUseEnabled = skill is not null && request.AutoUseEnabled;
+        target.AutoConditionOverride = skill is null ? null : autoCondition;
         target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
         if (room is not null) room.Version++;
-        if (roomSlot is not null) roomSlot.PendingSkillSlotMask &= ~SkillRules.SlotMask(slotIndex);
+        if (roomSlot is not null) SkillQueueRules.Clear(roomSlot, SkillRules.SlotMask(slotIndex));
 
         try
         {
@@ -86,6 +89,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (error is not null) return (null, error);
         if (slotIndex < 1 || slotIndex > SkillRules.SlotCount) return (null, "InvalidSlotIndex");
         if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
+        var autoCondition = SkillAutoRules.Normalize(request.AutoConditionOverride);
+        if (!SkillAutoRules.IsValidOverride(autoCondition)) return (null, "InvalidAutoCondition");
 
         var target = await dbContext.CharacterSkillSlots.SingleOrDefaultAsync(slot =>
             slot.CharacterId == characterId && slot.SlotIndex == slotIndex);
@@ -95,6 +100,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (!catalog.IsLearned(character!, target.SkillCode, purchasedNodes)) return (null, "SkillNotLearned");
 
         target.AutoUseEnabled = request.AutoUseEnabled;
+        target.AutoConditionOverride = autoCondition;
         target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         target.Version++;
         character!.Version++;
@@ -141,13 +147,14 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         var to = GetOrCreate(request.ToSlotIndex);
         (from.SkillCode, to.SkillCode) = (to.SkillCode, from.SkillCode);
         (from.AutoUseEnabled, to.AutoUseEnabled) = (to.AutoUseEnabled, from.AutoUseEnabled);
+        (from.AutoConditionOverride, to.AutoConditionOverride) = (to.AutoConditionOverride, from.AutoConditionOverride);
         (from.AutoHpThresholdPercent, to.AutoHpThresholdPercent) = (to.AutoHpThresholdPercent, from.AutoHpThresholdPercent);
         from.Version++;
         to.Version++;
         character!.Version++;
         if (room is not null) room.Version++;
         if (roomSlot is not null)
-            roomSlot.PendingSkillSlotMask &= ~(SkillRules.SlotMask(request.FromSlotIndex) | SkillRules.SlotMask(request.ToSlotIndex));
+            SkillQueueRules.Clear(roomSlot, SkillRules.SlotMask(request.FromSlotIndex) | SkillRules.SlotMask(request.ToSlotIndex));
         try
         {
             await dbContext.SaveChangesAsync();
@@ -239,6 +246,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                 removedMask |= SkillRules.SlotMask(slot.SlotIndex);
                 slot.SkillCode = null;
                 slot.AutoUseEnabled = false;
+                slot.AutoConditionOverride = null;
                 slot.Version++;
             }
             var removedCodes = learnedBefore.ToArray();
@@ -247,7 +255,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             dbContext.BattleSkillCooldowns.RemoveRange(cooldowns);
             if (removedMask != 0 && await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId) is { } roomSlot)
             {
-                roomSlot.PendingSkillSlotMask &= ~removedMask;
+                SkillQueueRules.Clear(roomSlot, removedMask);
                 if (await dbContext.Rooms.FindAsync(roomSlot.RoomId) is { } room) room.Version++;
             }
         }
@@ -278,7 +286,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         foreach (var slot in slots.Where(slot => slot.SkillCode is not null && !alwaysLearned.Contains(slot.SkillCode)))
         {
             removedSkillCodes.Add(slot.SkillCode!);
-            slot.SkillCode = null; slot.AutoUseEnabled = false; slot.Version++;
+            slot.SkillCode = null; slot.AutoUseEnabled = false; slot.AutoConditionOverride = null; slot.Version++;
         }
         if (removedSkillCodes.Count > 0)
         {
@@ -288,7 +296,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
             if (roomSlot is not null)
             {
-                roomSlot.PendingSkillSlotMask = 0;
+                SkillQueueRules.Clear(roomSlot);
                 roomSlot.IsSoulImprintQueued = false;
                 if (await dbContext.Rooms.FindAsync(roomSlot.RoomId) is { } room) room.Version++;
             }
@@ -326,6 +334,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                 dbContext.CharacterSkillSlots.Add(target);
             }
             target.SkillCode = skillCode;
+            target.AutoConditionOverride = null;
             target.Version++;
         }
         character.Version++;
@@ -446,6 +455,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
                     SlotIndex = index,
                     SkillCode = learned ? slot!.SkillCode : null,
                     AutoUseEnabled = learned && slot!.AutoUseEnabled,
+                    AutoCondition = learned ? slot!.AutoConditionOverride ?? SkillCatalog.AutoConditionFor(catalog.FindSkill(slot.SkillCode)!) : "Always",
+                    AutoConditionOverride = learned ? slot!.AutoConditionOverride : null,
                     AutoHpThresholdPercent = slot?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent
                 };
             }).ToList()

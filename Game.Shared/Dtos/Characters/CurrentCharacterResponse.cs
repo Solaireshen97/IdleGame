@@ -3,6 +3,7 @@ namespace Game.Shared.Dtos.Characters;
 public class CurrentCharacterResponse
 {
     public int CharacterId { get; set; }
+    public int? ActiveBattleRoomId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string ProfessionCode { get; set; } = string.Empty;
     public string ProfessionName { get; set; } = string.Empty;

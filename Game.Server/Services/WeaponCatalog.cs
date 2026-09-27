@@ -206,8 +206,6 @@ public sealed class WeaponCatalog
         _ => throw new InvalidOperationException("Invalid historical enhancement rank.")
     };
 
-    public static bool CanSell(CharacterWeapon weapon) => weapon.Origin != WeaponOrigin.Starter;
-
     public static int BaseDismantleReturn(CharacterWeapon weapon) => weapon.Origin is WeaponOrigin.Starter or WeaponOrigin.Shop
         ? 0 : weapon.DismantleFragments;
 

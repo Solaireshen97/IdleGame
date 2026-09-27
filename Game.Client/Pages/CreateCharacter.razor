@@ -1,0 +1,61 @@
+@page "/characters/create"
+@using Game.Client.Services
+@inject ApiService ApiService
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
+
+<PageTitle>创建第一个角色</PageTitle>
+
+<div class="character-creation-page">
+    <header class="character-creation-page__header">
+        <div>
+            <span>开始冒险</span>
+            <h1>创建你的第一个角色</h1>
+            <p>为角色取个名字，并选择你想体验的职业。</p>
+        </div>
+        <button type="button" class="character-creation-page__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut">退出登录</button>
+    </header>
+    @if (_error is not null)
+    {
+        <p class="notice-message" role="alert">@_error</p>
+    }
+    @if (_isCheckingAccount)
+    {
+        <GameStateCard Compact="true" Title="正在准备创建角色" Detail="马上为你载入可选职业。" />
+    }
+    else
+    {
+        <CurrentCharacterPanel FirstCharacterCreation="true" OnCreated="EnterLobby" />
+    }
+</div>
+
+@code {
+    private bool _isCheckingAccount = true;
+    private bool _isLoggingOut;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await ApiService.GetCurrentUserAsync();
+        if (user is null) { Navigation.NavigateTo("/login", replace: true); return; }
+        if (user.CharacterCount > 0) { EnterLobby(); return; }
+        _isCheckingAccount = false;
+    }
+
+    private void EnterLobby() => Navigation.NavigateTo("/rooms", replace: true);
+
+    private async Task LogoutAsync()
+    {
+        if (_isLoggingOut) return;
+        _isLoggingOut = true;
+        _error = null;
+        try
+        {
+            if (!await ApiService.LogoutAsync()) { _error = "退出失败，请重试。"; return; }
+            ActiveCharacters.Clear();
+            Navigation.NavigateTo("/login", replace: true);
+        }
+        catch { _error = "退出失败，请重试。"; }
+        finally { _isLoggingOut = false; }
+    }
+}

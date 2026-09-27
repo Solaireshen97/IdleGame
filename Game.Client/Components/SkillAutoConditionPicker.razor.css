@@ -1,0 +1,9 @@
+.skill-auto-picker { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; min-width: 0; }
+.skill-auto-picker__condition { display: grid; flex: 1 1 180px; gap: .3rem; min-width: 0; color: #adbfcb; font-size: .75rem; }
+.skill-auto-picker select, .skill-auto-picker input { min-height: 44px; padding: .4rem .55rem; border: 1px solid #526779; border-radius: .45rem; background: #0c1b2b; color: #e2ebf2; font: inherit; }
+.skill-auto-picker select { width: 100%; min-width: 0; cursor: pointer; }
+.skill-auto-picker__threshold { display: flex; align-items: center; gap: .35rem; min-height: 44px; color: #adbfcb; font-size: .75rem; }
+.skill-auto-picker__threshold input { width: 4.2rem; text-align: center; }
+.skill-auto-picker__hint { flex-basis: 100%; margin: 0; color: #adbfcb; font-size: .72rem; line-height: 1.5; }
+.skill-auto-picker select:focus-visible, .skill-auto-picker input:focus-visible { outline: 2px solid #e0b15f; outline-offset: 2px; }
+.skill-auto-picker select:disabled, .skill-auto-picker input:disabled { opacity: .6; cursor: wait; }

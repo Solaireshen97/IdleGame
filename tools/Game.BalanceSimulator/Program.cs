@@ -338,7 +338,6 @@ List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType e
         var weapon = catalog.CreateRewardSnapshot(code).ToCharacterWeapon(characterId);
         weapon.EquippedSlotIndex = index + 1;
         weapon.QualityRank = stage is "week" or "raid" or "graduate" ? 1 : 0;
-        if (stage == "starter" && index == 0) { weapon.Attack = 16; weapon.MaxHp = 40; }
         foreach (var skill in weapon.Skills)
         {
             skill.QualityBonusLevel = 0;

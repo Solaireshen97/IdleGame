@@ -46,7 +46,8 @@ public sealed class WeaponServiceTests
         Assert.Equal(2, bonuses.AttackPercent);
         Assert.Equal(0, bonuses.HealthPercent);
         Assert.Equal(1, Assert.Single(starters.Single(weapon => weapon.EquippedSlotIndex == 1).Skills).Level);
-        Assert.Equal((16, 40), (starters[0].Attack, starters[0].MaxHp));
+        Assert.Equal("t1-shop-fire", starters[0].WeaponCode);
+        Assert.Equal((18, 45), (starters[0].Attack, starters[0].MaxHp));
     }
 
     [Fact]
@@ -252,6 +253,11 @@ public sealed class WeaponServiceTests
 
             Assert.Null(error);
             Assert.NotNull(registration);
+            Assert.Empty(await db.Characters.ToListAsync());
+            var (created, createError) = await users.CreateCurrentCharacterAsync(registration.Token,
+                new CreateCharacterRequest { Name = "冒险者", ProfessionCode = SkillRules.DefaultProfessionCode });
+            Assert.Null(createError);
+            Assert.True(created!.IsCurrent);
             var character = await db.Characters.SingleAsync();
             var owned = await db.CharacterWeapons.Include(weapon => weapon.Skills)
                 .Where(weapon => weapon.CharacterId == character.Id).ToListAsync();

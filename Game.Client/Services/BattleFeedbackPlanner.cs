@@ -68,7 +68,7 @@ public static partial class BattleFeedbackPlanner
         var style = actor?.ProfessionName switch
         {
             "法师" or "元素使" or "奥术师" => "magic",
-            "祭司" or "牧师" or "审判官" => "magic",
+            "祭司" or "牧师" or "审判官" => "holy",
             "猎人" or "神射手" or "兽王" => "arrow",
             "盗贼" or "刺客" or "诡术师" => "dagger",
             _ => "slash"

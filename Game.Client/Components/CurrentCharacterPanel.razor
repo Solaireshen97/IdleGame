@@ -10,10 +10,13 @@
 }
 else
 {
-    <div class="current-character-panel__slots">
-        <span>角色栏位 <strong>@_characters.Count / @_characterSlotLimit</strong></span>
-        <small>最高 @_maximumCharacterSlots 个</small>
-    </div>
+    @if (!FirstCharacterCreation)
+    {
+        <div class="current-character-panel__slots">
+            <span>角色栏位 <strong>@_characters.Count / @_characterSlotLimit</strong></span>
+            <small>最高 @_maximumCharacterSlots 个</small>
+        </div>
+    }
     <div class="current-character-panel__grid">
     @foreach (var character in _characters.OrderByDescending(character => character.IsCurrent))
     {
@@ -52,6 +55,7 @@ else
                 @if (_professions.Count == 0)
                 {
                     <p class="profession-picker__empty">职业列表暂不可用，请稍后重试。</p>
+                    <button type="button" class="button button--secondary" @onclick="LoadProfessionsAsync" disabled="@_isLoadingProfessions">重新读取职业</button>
                 }
                 else
                 {
@@ -81,7 +85,10 @@ else
             </fieldset>
             <div class="character-create-card__actions">
                 <button type="submit" disabled="@(_isSubmitting || _professions.Count == 0)">@CreateSubmitText</button>
-                <button type="button" @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
+                @if (!FirstCharacterCreation)
+                {
+                    <button type="button" @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
+                }
             </div>
         </form>
     }
@@ -119,6 +126,12 @@ else
     [Parameter]
     public EventCallback OnSelected { get; set; }
 
+    [Parameter]
+    public bool FirstCharacterCreation { get; set; }
+
+    [Parameter]
+    public EventCallback OnCreated { get; set; }
+
     private enum CharacterOperation
     {
         Create,
@@ -131,6 +144,7 @@ else
     private bool _isLoading = true;
     private bool _isCreating;
     private bool _isSubmitting;
+    private bool _isLoadingProfessions;
     private int? _deletingCharacterId;
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
@@ -154,17 +168,32 @@ else
         try
         {
             await LoadCharactersAsync();
-            try { _professions = await ApiService.GetProfessionsAsync() ?? []; }
-            catch { _professions = []; }
+            if (FirstCharacterCreation && _characters.Count > 0)
+            {
+                await ActiveCharacters.RefreshAsync();
+                await OnCreated.InvokeAsync();
+                return;
+            }
+            await LoadProfessionsAsync();
+            if (FirstCharacterCreation) ShowCreateForm();
         }
         catch
         {
-            _characters = [];
+            SetFailureMessage("读取", "暂时无法载入角色信息，请刷新页面重试。");
         }
         finally
         {
             _isLoading = false;
         }
+    }
+
+    private async Task LoadProfessionsAsync()
+    {
+        if (_isLoadingProfessions) return;
+        _isLoadingProfessions = true;
+        try { _professions = await ApiService.GetProfessionsAsync() ?? []; }
+        catch { _professions = []; }
+        finally { _isLoadingProfessions = false; }
     }
 
     private async Task LoadCharactersAsync()
@@ -241,6 +270,7 @@ else
             _isCreating = false;
             _newCharacterName = string.Empty;
             SetSuccessMessage($"已创建角色“{character.Name}”。");
+            await OnCreated.InvokeAsync();
         }
         finally
         {

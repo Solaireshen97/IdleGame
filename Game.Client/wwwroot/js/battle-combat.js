@@ -4,6 +4,8 @@
         light: "#fff0ad", dark: "#c6a0ff", neutral: "#ffe0a1", heal: "#8af1b7", hostile: "#ff8d82" };
     const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
     const number = value => value.toLocaleString("zh-CN");
+    const basicLabels = new Set(["普通攻击", "二连击", "追击", "普攻追击", "追加伤害", "持续伤害", "敌方反击", "回合伤害"]);
+    const isSkill = event => event.kind === "damage" && !basicLabels.has(event.label);
     const spriteLoads = new WeakMap();
     const sprites = root => [...root.querySelectorAll(".fighter__portrait img, .battle-field__enemy-art img, .battle-field__backdrop img")];
 
@@ -95,6 +97,19 @@
             return node;
         };
         const portrait = unit => unit?.element.querySelector(".fighter__portrait, .battle-field__enemy-art");
+        const vector = (className, point, color, paths) => {
+            const node = make(className, point, color);
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 160 100");
+            svg.setAttribute("aria-hidden", "true");
+            for (const d of paths) {
+                const path = document.createElementNS(svg.namespaceURI, "path");
+                path.setAttribute("d", d);
+                svg.append(path);
+            }
+            node.append(svg);
+            return node;
+        };
         const pointOf = unit => {
             const art = portrait(unit);
             const img = art?.querySelector("img");
@@ -123,10 +138,10 @@
                 trail.style.width = `${unit.hp / max * 100}%`;
             }
         };
-        const particles = (point, color, count, distance) => {
+        const particles = (point, color, count, distance, shape = "spark") => {
             for (let i = 0; i < count; i++) {
                 const angle = (i / count * Math.PI * 2) + .3;
-                const particle = make("combat-spark", point, color);
+                const particle = make(`combat-spark combat-spark--${shape}`, point, color);
                 animate(particle, [
                     { transform: `rotate(${angle}rad) translateX(5px) scaleX(1)`, opacity: 1 },
                     { transform: `rotate(${angle}rad) translateX(${distance * (.65 + i % 3 * .17)}px) scaleX(.15)`, opacity: 0 }
@@ -134,27 +149,89 @@
             }
         };
         const impact = (event, point, color) => {
+            const targetArt = portrait(units.get(event.target));
+            const size = (event.target === "enemy" ? 1 : Math.min(1, Math.max(.6, (targetArt?.clientWidth ?? 80) / 80)))
+                * (isSkill(event) ? 1.12 : 1);
             if (event.kind === "damage") {
                 const burst = make(`combat-hit-burst${event.critical ? " combat-hit-burst--critical" : ""}`, point, color);
                 animate(burst, [
                     { transform: "translate(-50%, -50%) scale(.65)", opacity: .95 },
                     { transform: "translate(-50%, -50%) scale(1.2)", opacity: .75, offset: .16 },
                     { transform: "translate(-50%, -50%) scale(1.55)", opacity: 0 }
-                ], { duration: event.critical ? 300 : 230 }, true);
+                ], { duration: event.critical ? 320 : 260 }, true);
             }
             const ring = make(`combat-impact combat-impact--${event.kind}`, point, color);
             animate(ring, [{ transform: "translate(-50%, -50%) scale(.2)", opacity: .95 },
                 { transform: `translate(-50%, -50%) scale(${event.critical ? 1.65 : 1})`, opacity: 0 }], { duration: 360 }, true);
-            if (event.kind === "damage" && ["slash", "dagger"].includes(event.style)) {
-                const slash = make(`combat-cut${event.style === "dagger" || event.critical ? " combat-cut--double" : ""}`, point, color);
-                const angle = index % 2 ? -35 : -145;
-                animate(slash, [
-                    { transform: `translate(-50%,-50%) rotate(${angle}deg) scale(.2, .6)`, opacity: 0 },
-                    { transform: `translate(-50%,-50%) rotate(${angle + 8}deg) scale(1.1, 1)`, opacity: 1, offset: .22 },
-                    { transform: `translate(-50%,-50%) rotate(${angle + 15}deg) scale(1.3, .2)`, opacity: 0 }
-                ], { duration: 310 }, true);
+            if (event.kind === "damage") {
+                if (["slash", "dagger"].includes(event.style)) {
+                    const dagger = event.style === "dagger";
+                    for (let i = 0; i < (dagger || event.critical ? 2 : 1); i++) {
+                        const slash = vector(`combat-cut${dagger ? " combat-cut--dagger" : ""}`, point, color, [
+                            "M10 83 C36 18 104 -3 152 29 C99 12 44 39 10 83Z",
+                            "M12 81 C45 20 105 7 151 29", "M32 87 C59 52 98 33 136 31"
+                        ]);
+                        const angle = (index % 2 ? -24 : -155) + i * (dagger ? 105 : 80);
+                        animate(slash, [
+                            { transform: `translate(-58%,-44%) rotate(${angle - 18}deg) scale(${size * .35},${size * .65})`, opacity: .35 },
+                            { transform: `translate(-50%,-50%) rotate(${angle}deg) scale(${size})`, opacity: 1, offset: .18 },
+                            { transform: `translate(-46%,-54%) rotate(${angle + 12}deg) scale(${size * 1.08})`, opacity: .8, offset: .5 },
+                            { transform: `translate(-42%,-58%) rotate(${angle + 18}deg) scale(${size * 1.16},${size * .7})`, opacity: 0 }
+                        ], { duration: dagger ? 340 : 430, delay: i * 55 }, true);
+                    }
+                } else if (event.style === "arrow") {
+                    const from = pointOf(units.get(event.source));
+                    const angle = Math.atan2(point.y - from.y, point.x - from.x);
+                    const pierce = vector("combat-pierce", point, color, [
+                        "M10 50 H150 M135 40 L150 50 L135 60", "M35 31 H111 M42 69 H126"
+                    ]);
+                    animate(pierce, [
+                        { transform: `translate(-65%,-50%) rotate(${angle}rad) scale(${size * .35},${size})`, opacity: 1 },
+                        { transform: `translate(-45%,-50%) rotate(${angle}rad) scale(${size})`, opacity: .95, offset: .25 },
+                        { transform: `translate(-30%,-50%) rotate(${angle}rad) scale(${size * 1.2},${size * .6})`, opacity: 0 }
+                    ], { duration: 390 }, true);
+                } else if (event.style === "magic") {
+                    const spell = make("combat-spell", point, color);
+                    animate(spell, [
+                        { transform: `translate(-50%,-50%) rotate(-35deg) scale(${size * .25})`, opacity: 1 },
+                        { transform: `translate(-50%,-50%) rotate(15deg) scale(${size})`, opacity: .95, offset: .3 },
+                        { transform: `translate(-50%,-50%) rotate(65deg) scale(${size * 1.3})`, opacity: 0 }
+                    ], { duration: 500 }, true);
+                } else if (event.style === "holy") {
+                    const light = make("combat-holy", point, color);
+                    animate(light, [
+                        { transform: `translate(-50%,-50%) scale(${size * .5},${size * .25})`, opacity: .8 },
+                        { transform: `translate(-50%,-50%) scale(${size})`, opacity: 1, offset: .2 },
+                        { transform: `translate(-50%,-65%) scale(${size * .8},${size * 1.25})`, opacity: 0 }
+                    ], { duration: 500 }, true);
+                }
+            } else if (["heal", "cleanse"].includes(event.kind)) {
+                const column = make("combat-heal-column", point, color);
+                animate(column, [
+                    { transform: "translate(-50%,-35%) scale(.7,.3)", opacity: 0 },
+                    { transform: "translate(-50%,-50%) scale(1)", opacity: .85, offset: .25 },
+                    { transform: "translate(-50%,-65%) scale(1.1)", opacity: 0 }
+                ], { duration: 650 }, true);
+                for (let i = 0; i < 4; i++) {
+                    const mote = make("combat-heal-mote", { x: point.x + (i - 1.5) * 14, y: point.y + 20 }, color);
+                    animate(mote, [
+                        { transform: "translate(-50%,0) scale(.5)", opacity: 0 },
+                        { transform: "translate(-50%,-10px) scale(1)", opacity: 1, offset: .2 },
+                        { transform: `translate(-50%,${-45 - i % 2 * 15}px) scale(.5)`, opacity: 0 }
+                    ], { duration: 600, delay: i * 45 }, true);
+                }
+            } else if (event.kind === "guard") {
+                const shield = vector("combat-shield", point, color, [
+                    "M80 8 L118 23 L114 56 Q110 78 80 93 Q50 78 46 56 L42 23Z", "M80 23 V74 M62 45 H98"
+                ]);
+                animate(shield, [
+                    { transform: `translate(-50%,-50%) scale(${size * .4})`, opacity: 0 },
+                    { transform: `translate(-50%,-50%) scale(${size})`, opacity: .95, offset: .25 },
+                    { transform: `translate(-50%,-55%) scale(${size * 1.1})`, opacity: 0 }
+                ], { duration: 650 }, true);
             }
-            particles(point, color, event.critical ? 10 : 6, event.critical ? 64 : 40);
+            particles(point, color, event.critical ? 10 : 6, event.critical ? 64 : 40,
+                event.style === "magic" ? "crystal" : event.style === "holy" ? "star" : "spark");
         };
         const reserveNumber = async (event, point, count = 1) => {
             let pool = numberLanes.get(event.target);
@@ -248,33 +325,42 @@
                 { transform: `translate(-50%, calc(-50% - 8px)) scale(${scale * .96})`, opacity: 0 }
             ], { duration: numberDuration, easing: "linear" }, true);
         };
-        const showEffect = (label, kind, color) => {
+        const showEffect = (label, kind, color, anchor) => {
             const bounds = field.getBoundingClientRect();
-            const healthBottom = Math.max(...[...units.values()].map(unit =>
-                unit.element.querySelector(".combat-health")?.getBoundingClientRect().bottom ?? bounds.top));
+            const point = pointOf(anchor);
+            const healthBottom = anchor?.element.querySelector(".combat-health")?.getBoundingClientRect().bottom ?? bounds.top;
             const card = make(`combat-effect combat-effect--${kind}`,
-                { x: field.clientWidth * .55, y: Math.min(field.clientHeight - 24, healthBottom - bounds.top + 22) }, color);
+                point, color);
             const icon = document.createElement("i");
             icon.textContent = ({ buff: "↑", debuff: "↓", guard: "◇", interrupt: "!", cleanse: "✚", dispel: "✧", cooldown: "↻" })[kind] ?? "✦";
             const text = document.createElement("strong");
             text.textContent = label;
             card.append(icon, text);
-            const measuredWidth = card.getBoundingClientRect().width;
-            const pairedWidth = (field.clientWidth - 36) / 2;
-            if (measuredWidth > pairedWidth || effectCards.some(old => old.getBoundingClientRect().width > pairedWidth)) {
-                for (const old of effectCards.splice(0)) { old.remove(); nodes.delete(old); }
-            }
-            while (effectCards.length >= 2) {
-                const old = effectCards.shift();
+            const size = card.getBoundingClientRect();
+            const scale = Math.min(1, (field.clientWidth - 24) / Math.max(1, size.width));
+            const halfWidth = size.width * scale * .53;
+            const halfHeight = size.height * scale * .53;
+            // Skill names belong to the caster's formation position, even when
+            // a melee sprite lunges. State changes belong to their recipient.
+            const x = Math.max(halfWidth + 8, Math.min(field.clientWidth - halfWidth - 8, point.x));
+            const top = healthBottom - bounds.top + halfHeight + 8;
+            const y = Math.min(field.clientHeight - halfHeight - 14, Math.max(top, point.y - 38));
+            card.style.left = `${x}px`;
+            card.style.top = `${y}px`;
+            card.style.setProperty("--effect-anchor-offset", `${(point.x - x) / scale}px`);
+            // Keep previous callouts at their own units. Only replace a card
+            // that would cover this one instead of relocating it to another unit.
+            for (const old of [...effectCards]) {
+                const oldBox = old.getBoundingClientRect();
+                const oldX = oldBox.left + oldBox.width / 2 - bounds.left;
+                const oldY = oldBox.top + oldBox.height / 2 - bounds.top;
+                if (Math.abs(oldX - x) >= (oldBox.width / 2 + halfWidth + 6)
+                    || Math.abs(oldY - y) >= (oldBox.height / 2 + halfHeight + 6)) continue;
                 old.remove();
                 nodes.delete(old);
-            }
-            if (effectCards.length) {
-                for (const older of effectCards) older.style.left = `${field.clientWidth * .28}px`;
-                card.style.left = `${field.clientWidth * .73}px`;
+                effectCards.splice(effectCards.indexOf(old), 1);
             }
             effectCards.push(card);
-            const scale = Math.min(1, (field.clientWidth - 28) / Math.max(1, card.getBoundingClientRect().width));
             const duration = 1400;
             lastNumberEnd = Math.max(lastNumberEnd, performance.now() + duration);
             animate(card, [
@@ -315,7 +401,7 @@
                     { transform: "translate(0,0)", offset: 1 }
                 ], { duration: duration * .96 })?.finished.then(() => source.element.classList.remove("combat-unit--acting"), () => {});
             }
-            if (source && ["arrow", "magic"].includes(event.style) && event.kind === "damage") {
+            if (source && ["arrow", "magic", "holy"].includes(event.style) && event.kind === "damage") {
                 const projectile = make(`combat-projectile combat-projectile--${event.style}`, from, color);
                 const angle = Math.atan2(to.y - from.y, to.x - from.x);
                 animate(projectile, [
@@ -323,9 +409,12 @@
                     { transform: `translate(-50%,-50%) rotate(${angle}rad) scale(1)`, opacity: 1, offset: .12 },
                     { transform: `translate(calc(-50% + ${to.x - from.x}px),calc(-50% + ${to.y - from.y}px)) rotate(${angle}rad) scale(1)`, opacity: 1 }
                 ], { duration: duration * .42, easing: "cubic-bezier(.4,0,.85,.5)" }, true);
-                const cast = make("combat-cast", from, color);
-                animate(cast, [{ transform: "translate(-50%,-50%) scale(.3)", opacity: .8 },
-                    { transform: "translate(-50%,-50%) scale(1.2)", opacity: 0 }], { duration: duration * .65 }, true);
+                const cast = make(`combat-cast combat-cast--${event.style}`, from, color);
+                animate(cast, [
+                    { transform: `translate(-50%,-50%) rotate(${angle}rad) scale(.3)`, opacity: .9 },
+                    { transform: `translate(-50%,-50%) rotate(${angle}rad) scale(1)`, opacity: .85, offset: .3 },
+                    { transform: `translate(-50%,-50%) rotate(${angle + .7}rad) scale(1.3)`, opacity: 0 }
+                ], { duration: Math.max(260, duration * .8) }, true);
             }
         };
         const onVisibility = () => { if (document.hidden) controller.abort(); };
@@ -366,7 +455,7 @@
                 const point = pointOf(target);
                 if (event.amount <= 0) {
                     if (actionText) actionText.textContent = event.label;
-                    showEffect(event.label, event.kind, color);
+                    showEffect(event.label, event.kind, color, target);
                     impact(event, point, color);
                     await wait(300);
                     continue;
@@ -379,8 +468,8 @@
                 if (!lane || signal.aborted) break;
                 if (actionText) actionText.textContent = `${source?.element.dataset.combatName ?? ""} · ${event.label}`.replace(/^ · /, "");
                 root.dataset.combatTone = event.target === "enemy" ? "friendly" : event.kind === "damage" ? "hostile" : "heal";
-                if (event.kind === "damage" && !["普通攻击", "二连击", "追击", "普攻追击", "追加伤害", "持续伤害", "敌方反击", "回合伤害"].includes(event.label))
-                    showEffect(event.label, "skill", color);
+                if (isSkill(event))
+                    showEffect(event.label, "skill", color, source ?? target);
                 launch(event, source, target, step, color);
                 await wait(step * .42);
                 if (signal.aborted) break;

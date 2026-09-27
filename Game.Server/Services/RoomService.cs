@@ -272,7 +272,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         slot.IsAutoEnabled = false;
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
-        slot.PendingSkillSlotMask = 0;
+        SkillQueueRules.Clear(slot);
         slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
@@ -325,7 +325,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         }
         if (existingSlot is null) CharacterActivityManager.StartBattle(dbContext, character.Id, room, DateTime.UtcNow);
         target.PendingConsumableSlotIndex = null;
-        target.PendingSkillSlotMask = 0;
+        SkillQueueRules.Clear(target);
         target.IsSoulImprintQueued = false;
         await _partyScaling.SynchronizeAsync(room!);
         room!.Version++;
@@ -406,7 +406,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         slot.IsAutoEnabled = false;
         slot.IsTemporaryAuto = false;
         slot.PendingConsumableSlotIndex = null;
-        slot.PendingSkillSlotMask = 0;
+        SkillQueueRules.Clear(slot);
         slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
@@ -690,11 +690,13 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                         {
                             SlotIndex = index,
                             SkillCode = skill?.Code,
+                            QueuedTargetCharacterId = skill is null ? null : SkillQueueRules.TargetCharacterId(slot, index),
                             SkillName = skill?.Name,
                             Description = skill?.Description,
                             EffectType = skill is null ? null : SkillCatalog.PrimaryEffectType(skill),
                             Power = skill is null ? 0 : SkillCatalog.PrimaryPower(skill),
-                            AutoCondition = skill is null ? "Always" : SkillCatalog.AutoConditionFor(skill),
+                            AutoCondition = skill is null ? "Always" : equipped?.AutoConditionOverride ?? SkillCatalog.AutoConditionFor(skill),
+                            AutoConditionOverride = skill is null ? null : equipped?.AutoConditionOverride,
                             Effects = skill is null ? [] : SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
                             {
                                 Type = effect.Type, Target = effect.Target, Power = effect.Power,

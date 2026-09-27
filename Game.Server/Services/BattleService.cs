@@ -419,11 +419,15 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
                 entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber) return (false, "SkillCooldown");
-            if (!await CanSkillApplyAsync(room, monster, skill, participant, slots))
+            if (request.TargetCharacterId.HasValue &&
+                (!SkillTargetRules.CanChooseAllyTarget(SkillCatalog.EffectsFor(skill).Select(effect => (effect.Type, effect.Target))) ||
+                 !slots!.Any(entry => entry.Character.Id == request.TargetCharacterId && entry.Character.Hp > 0)))
+                return (false, "InvalidSkillTarget");
+            if (!await CanSkillApplyAsync(room, monster, skill, participant, slots!, request.TargetCharacterId))
                 return (false, "NoValidSkillTarget");
-            participant.Slot.PendingSkillSlotMask |= mask;
+            SkillQueueRules.Queue(participant.Slot, request.SkillSlotIndex, request.TargetCharacterId);
         }
-        else participant.Slot.PendingSkillSlotMask &= ~mask;
+        else SkillQueueRules.Clear(participant.Slot, mask);
 
         room.Version++;
         return await SaveAsync();
@@ -883,8 +887,9 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
             if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
             if (automatic && !await MeetsAutoConditionAsync(room, monster, skill, participant, aliveSlots,
-                    slot.AutoHpThresholdPercent, ranks)) return false;
-            if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots)) return false;
+                    slot, ranks)) return false;
+            var chosenTargetId = automatic ? null : SkillQueueRules.TargetCharacterId(participant.Slot, slot.SlotIndex);
+            if (!await CanSkillApplyAsync(room, monster, skill, participant, aliveSlots, chosenTargetId)) return false;
 
             var applied = false;
             var totalDamage = 0;
@@ -966,8 +971,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     }
                     case "Heal":
                     {
-                        var targets = effect.Target == "AllAlive" ? aliveSlots.Where(entry => entry.Character.Hp > 0).ToList() :
-                            new[] { effect.Target == "Self" ? participant : FindLowestHpTarget(aliveSlots) }.Where(entry => entry is not null).Select(entry => entry!).ToList();
+                        var targets = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId);
                         foreach (var target in targets)
                         {
                             var maxHp = TalentRules.EffectiveMaxHp(target.Character);
@@ -1003,9 +1007,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     }
                     case "Guard":
                     {
-                        var target = effect.Target == "Self" || skill.Code == "sword-parry"
-                            ? participant
-                            : aliveSlots.FirstOrDefault(entry => entry.Character.Hp > 0);
+                        var target = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId).FirstOrDefault();
                         if (target is null) break;
                         var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
                         power = Math.Min(BattleRules.MaxGuardDamageReductionPercent, power);
@@ -1019,10 +1021,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     }
                     case "Cleanse" when monsterCombatService is not null:
                     {
-                        var targetIds = effect.Target == "Self"
-                            ? new[] { participant.Character.Id }
-                            : aliveSlots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex)
-                                .Select(entry => entry.Character.Id).ToArray();
+                        var targetIds = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId)
+                            .Select(entry => entry.Character.Id).ToArray();
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", targetIds, false);
                         if (removed is null) break;
                         var target = aliveSlots.Single(entry => entry.Character.Id == removed.TargetId);
@@ -1054,12 +1054,10 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
                     {
                         var targetType = effect.Target == "Monster" ? "Monster" : "Character";
-                        var targetId = effect.Target switch
-                        {
-                            "Monster" => monster.Id,
-                            "Self" => participant.Character.Id,
-                            _ => aliveSlots.First(entry => entry.Character.Hp > 0).Character.Id
-                        };
+                        var allyTarget = effect.Target == "Monster" ? null :
+                            ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId).FirstOrDefault();
+                        if (effect.Target != "Monster" && allyTarget is null) break;
+                        var targetId = effect.Target == "Monster" ? monster.Id : allyTarget!.Character.Id;
                         var targetLabel = effect.Target == "Monster" ? monster.Name :
                             $"{aliveSlots.Single(entry => entry.Character.Id == targetId).Slot.SlotIndex}号位 {aliveSlots.Single(entry => entry.Character.Id == targetId).Character.Name}";
                         applied |= await monsterCombatService.ApplyStatusAsync(room, targetType, targetId, effect.StatusCode,
@@ -1177,29 +1175,34 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     }
 
     private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CombatSkillOptions skill,
-        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots)
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int? chosenTargetId = null)
     {
-        if (SkillCatalog.AutoConditionFor(skill) == "InterruptibleIntent" &&
-            SkillCatalog.EffectsFor(skill).Any(effect => effect.Type == "Interrupt"))
+        var effects = SkillCatalog.EffectsFor(skill);
+        if (chosenTargetId.HasValue &&
+            (!SkillTargetRules.CanChooseAllyTarget(effects.Select(effect => (effect.Type, effect.Target))) ||
+             !slots.Any(entry => entry.Character.Id == chosenTargetId && entry.Character.Hp > 0))) return false;
+        // Damage remains usable independently of the interrupt; Auto timing is checked separately.
+        if (SkillRules.RequiresInterruptibleTarget(effects.Select(effect => effect.Type)))
             return monsterCombatService is not null &&
                 await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster);
         var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
-        foreach (var effect in SkillCatalog.EffectsFor(skill))
+        foreach (var effect in effects)
         {
             switch (effect.Type)
             {
                 case "Damage" when monster.Hp > 0:
-                case "Guard" when alive.Count > 0:
                     return true;
+                case "Guard":
+                    if (ResolveSkillAllyTargets(effect, participant, alive, chosenTargetId).Count > 0) return true;
+                    break;
                 case "Heal":
-                    var healTarget = effect.Target == "Self" ? participant : FindLowestHpTarget(alive);
-                    if (healTarget is not null && healTarget.Character.Hp < TalentRules.EffectiveMaxHp(healTarget.Character))
+                    if (ResolveSkillAllyTargets(effect, participant, alive, chosenTargetId)
+                        .Any(target => target.Character.Hp < TalentRules.EffectiveMaxHp(target.Character)))
                         return true;
                     break;
                 case "Cleanse" when monsterCombatService is not null:
-                    var cleanseTargets = effect.Target == "Self"
-                        ? new[] { participant.Character.Id }
-                        : alive.Select(entry => entry.Character.Id).ToArray();
+                    var cleanseTargets = ResolveSkillAllyTargets(effect, participant, alive, chosenTargetId)
+                        .Select(entry => entry.Character.Id).ToArray();
                     if (await monsterCombatService.HasRemovableStatusAsync(room, "Character", cleanseTargets, false))
                         return true;
                     break;
@@ -1211,7 +1214,8 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
                     if (await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster)) return true;
                     break;
                 case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
-                    if (effect.Target != "Monster" || monster.Hp > 0) return true;
+                    if (effect.Target == "Monster" ? monster.Hp > 0 :
+                        ResolveSkillAllyTargets(effect, participant, alive, chosenTargetId).Count > 0) return true;
                     break;
                 case "CooldownReduction":
                     if (await dbContext.BattleSkillCooldowns.AnyAsync(entry => entry.RoomId == room.Id &&
@@ -1224,20 +1228,42 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         return false;
     }
 
+    private static List<SlotCharacter> ResolveSkillAllyTargets(CombatSkillEffectOptions effect,
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int? chosenTargetId)
+    {
+        var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
+        if (chosenTargetId.HasValue && SkillTargetRules.UsesChosenTarget(effect.Type, effect.Target))
+            return alive.Where(entry => entry.Character.Id == chosenTargetId).ToList();
+        if (effect.Target is "AllAlive" or "FirstDebuffedAlly") return alive;
+        var target = effect.Target switch
+        {
+            "Self" => participant.Character.Hp > 0 ? participant : null,
+            "LowestHpAlly" => FindLowestHpTarget(alive),
+            "FrontAlly" => alive.FirstOrDefault(),
+            _ => null
+        };
+        return target is null ? [] : [target];
+    }
+
     private async Task<bool> MeetsAutoConditionAsync(Room room, Monster monster, CombatSkillOptions skill,
-        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, int hpThresholdPercent,
+        SlotCharacter participant, IReadOnlyList<SlotCharacter> slots, CharacterSkillSlot skillSlot,
         IReadOnlyDictionary<string, int> ranks)
     {
-        if (monsterCombatService is not null && HasSelfCleanseTalent(skill, ranks) &&
+        if (skillSlot.AutoConditionOverride is null && monsterCombatService is not null && HasSelfCleanseTalent(skill, ranks) &&
             await monsterCombatService.HasRemovableStatusAsync(room, "Character", [participant.Character.Id], false))
             return true;
         var alive = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
-        return SkillCatalog.AutoConditionFor(skill) switch
+        var hpThresholdPercent = skillSlot.AutoHpThresholdPercent;
+        bool HpMatches(SlotCharacter target) => (long)target.Character.Hp * 100 <=
+            (long)TalentRules.EffectiveMaxHp(target.Character) * hpThresholdPercent;
+        return (skillSlot.AutoConditionOverride ?? SkillCatalog.AutoConditionFor(skill)) switch
         {
             "Always" => true,
-            "LowestHpBelowThreshold" => GetHpConditionTarget(skill, participant, alive) is { } target &&
-                (long)target.Character.Hp * 100 <=
-                (long)TalentRules.EffectiveMaxHp(target.Character) * hpThresholdPercent,
+            "LowestHpBelowThreshold" => GetHpConditionTarget(skill, participant, alive) is { } target && HpMatches(target),
+            "SelfHpBelowThreshold" => HpMatches(participant),
+            "AllyHpBelowThreshold" => alive.Any(HpMatches),
+            "FrontAllyHpBelowThreshold" => alive.FirstOrDefault() is { } front && HpMatches(front),
+            "MonsterHpBelowThreshold" => (long)monster.Hp * 100 <= (long)monster.MaxHp * hpThresholdPercent,
             "AllyHasDebuff" => monsterCombatService is not null &&
                 await monsterCombatService.HasRemovableStatusAsync(room, "Character",
                     alive.Select(entry => entry.Character.Id).ToArray(), false),
@@ -1265,7 +1291,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
 
     private static SlotCharacter? FindLowestHpTarget(IEnumerable<SlotCharacter> slots) => slots
         .Where(entry => entry.Character.Hp > 0)
-        .OrderBy(entry => (long)entry.Character.Hp * 100 / TalentRules.EffectiveMaxHp(entry.Character))
+        .OrderBy(entry => (decimal)entry.Character.Hp / TalentRules.EffectiveMaxHp(entry.Character))
         .ThenBy(entry => entry.Slot.SlotIndex).FirstOrDefault();
 
     private bool RollCritical(Character character, bool isSkill = false)
@@ -1621,7 +1647,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             .Select(milestone => milestone.CharacterId).ToListAsync();
     }
 
-    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; entry.Slot.PendingSkillSlotMask = 0; entry.Slot.IsSoulImprintQueued = false; } }
+    private static void ClearRoundState(Room room, IEnumerable<SlotCharacter> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotIndex = null; SkillQueueRules.Clear(entry.Slot); entry.Slot.IsSoulImprintQueued = false; } }
     private static void ResetRunParticipation(IEnumerable<SlotCharacter> slots) { foreach (var entry in slots) { entry.Slot.HasParticipatedInRun = false; entry.Slot.LastParticipatedMonsterId = null; } }
     private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
     private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService, battleMilestones);

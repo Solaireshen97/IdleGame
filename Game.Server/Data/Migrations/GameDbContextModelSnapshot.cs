@@ -270,6 +270,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("SlotIndex").HasColumnType("INTEGER");
                     b.Property<string>("SkillCode").HasColumnType("TEXT");
                     b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<string>("AutoConditionOverride").HasColumnType("TEXT");
                     b.Property<int>("AutoHpThresholdPercent").HasColumnType("INTEGER");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("Id");
@@ -644,6 +645,7 @@ namespace Game.Server.Data.Migrations
 
             modelBuilder.Entity("Game.Shared.Models.RoomSlot", b =>
                 {
+                    b.Property<string>("PendingSkillTargetsJson").HasColumnType("TEXT");
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");

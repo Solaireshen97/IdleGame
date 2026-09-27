@@ -37,9 +37,10 @@
 .combat-number__tag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); color: #fff0b9; font: 800 10px/1.1 system-ui, sans-serif; letter-spacing: .12em; text-shadow: 0 1px 2px #000, 1px 0 #000, -1px 0 #000; }
 .combat-number--heal { color: #9affc8; }
 .combat-number--guard b, .combat-number--interrupt b { color: var(--fx-color); font-size: clamp(18px, 3cqw, 24px); letter-spacing: .05em; }
-.combat-effect { z-index: 16; display: flex; align-items: center; gap: 6px; max-width: none; padding: 3px 14px 4px 5px; border-radius: 4px; background: linear-gradient(90deg, #0a1427d9, #0a142780 75%, transparent); color: var(--fx-color, #ffe4a3); white-space: nowrap; transition: left 100ms ease-out; }
+.combat-effect { z-index: 16; display: flex; align-items: center; gap: 6px; width: max-content; max-width: min(190px, calc(100% - 24px)); box-sizing: border-box; padding: 3px 14px 4px 5px; border-radius: 4px; background: linear-gradient(90deg, #0a1427d9, #0a142780 75%, transparent); color: var(--fx-color, #ffe4a3); }
+.combat-effect::after { position: absolute; left: calc(50% + var(--effect-anchor-offset, 0px)); bottom: -4px; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; transform: translateX(-50%); opacity: .7; content: ""; }
 .combat-effect i { display: grid; place-items: center; flex: 0 0 23px; width: 23px; height: 23px; border: 1px solid currentColor; border-radius: 50%; background: #1c2839; font: 900 18px/1 system-ui, sans-serif; box-shadow: 0 0 8px #0006; }
-.combat-effect strong { font: 900 clamp(17px, 3.5cqw, 23px)/1.15 system-ui, sans-serif; letter-spacing: .025em; text-shadow: 1px 1px 0 #36230d, -1px -1px 0 #36230d, 0 2px 2px #030a18; }
+.combat-effect strong { min-width: 0; overflow-wrap: anywhere; font: 900 clamp(17px, 3.5cqw, 23px)/1.15 system-ui, sans-serif; letter-spacing: .025em; text-shadow: 1px 1px 0 #36230d, -1px -1px 0 #36230d, 0 2px 2px #030a18; }
 .combat-effect--buff, .combat-effect--cooldown { color: #ffe57a; }
 .combat-effect--debuff { color: #dfb3ff; }
 .combat-effect--interrupt, .combat-effect--dispel { color: #ffe99a; }
@@ -47,15 +48,44 @@
 .combat-hit-burst--critical { width: 130px; height: 130px; filter: drop-shadow(0 0 8px var(--fx-color)); }
 .combat-impact { width: 64px; height: 64px; border: 2px solid var(--fx-color); border-radius: 50%; background: radial-gradient(circle, #fff9 0, transparent 45%); box-shadow: inset 0 0 12px var(--fx-color), 0 0 12px var(--fx-color); }
 .combat-impact--heal, .combat-impact--guard { width: 58px; height: 75px; border-radius: 45% 45% 55% 55%; background: linear-gradient(0deg, #8af1b744, transparent); }
-.combat-cut { width: clamp(64px, 15cqw, 112px); height: 30px; border-top: 5px solid #fff9de; border-radius: 50%; box-shadow: 0 -4px 7px var(--fx-color), inset 0 5px 6px var(--fx-color); }
-.combat-cut::before { position: absolute; content: ""; inset: 2px 10% auto; height: 2px; background: white; box-shadow: 0 0 8px var(--fx-color); }
-.combat-cut--double::after { position: absolute; content: ""; width: 85%; height: 28px; top: -13px; left: 8%; border-bottom: 4px solid #fff0d3; border-radius: 50%; transform: rotate(80deg); filter: drop-shadow(0 0 6px var(--fx-color)); }
+.combat-cut, .combat-pierce, .combat-shield { z-index: 5; width: clamp(104px, 25cqw, 176px); height: clamp(65px, 15.6cqw, 110px); filter: drop-shadow(0 0 5px var(--fx-color)) drop-shadow(0 0 2px #fff9); }
+.combat-cut svg, .combat-pierce svg, .combat-shield svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.combat-cut path:first-child { fill: var(--fx-color); fill-opacity: .8; }
+.combat-cut path:not(:first-child) { fill: none; stroke: #fffbea; stroke-width: 3; stroke-linecap: round; }
+.combat-cut path:last-child { stroke-width: 1.5; stroke-opacity: .65; }
+.combat-cut--dagger { width: clamp(88px, 21cqw, 144px); height: clamp(55px, 13cqw, 90px); }
+.combat-pierce path { fill: none; stroke: var(--fx-color); stroke-width: 2.5; stroke-linecap: round; }
+.combat-pierce path:first-child { stroke: #fff9de; stroke-width: 4; }
+.combat-shield { width: 112px; height: 92px; }
+.combat-shield path:first-child { fill: color-mix(in srgb, var(--fx-color) 20%, transparent); stroke: var(--fx-color); stroke-width: 3; }
+.combat-shield path:last-child { fill: none; stroke: #ecfffb; stroke-width: 3; stroke-linecap: round; }
+.combat-spell { z-index: 4; width: clamp(68px, 17cqw, 108px); aspect-ratio: 1; border: 2px solid var(--fx-color); border-radius: 50%; background: radial-gradient(circle, #fff9 0 9%, color-mix(in srgb, var(--fx-color) 45%, transparent) 18%, transparent 65%); box-shadow: 0 0 14px var(--fx-color), inset 0 0 12px var(--fx-color); }
+.combat-spell::before, .combat-spell::after { position: absolute; inset: 13%; border: 2px solid var(--fx-color); content: ""; }
+.combat-spell::before { transform: rotate(45deg); }
+.combat-spell::after { inset: 25%; border-color: #fff8e1; border-radius: 50%; }
+.combat-holy { z-index: 4; width: 86px; height: 106px; background: radial-gradient(ellipse, #fff7 0, color-mix(in srgb, var(--fx-color) 35%, transparent) 25%, transparent 65%); }
+.combat-holy::before, .combat-holy::after { position: absolute; content: ""; background: linear-gradient(0deg, transparent, var(--fx-color) 25%, #fffce9 50%, var(--fx-color) 75%, transparent); filter: drop-shadow(0 0 6px var(--fx-color)); }
+.combat-holy::before { inset: 0 46%; }
+.combat-holy::after { inset: 43% 8% 50%; background: linear-gradient(90deg, transparent, var(--fx-color), #fffce9, var(--fx-color), transparent); }
+.combat-heal-column { z-index: 3; width: 76px; height: 100px; border-radius: 45% 45% 15% 15%; background: linear-gradient(0deg, transparent, color-mix(in srgb, var(--fx-color) 35%, transparent) 15%, transparent 90%); }
+.combat-heal-column::after { position: absolute; right: 0; bottom: 12%; left: 0; height: 18%; border: 2px solid var(--fx-color); border-radius: 50%; box-shadow: 0 0 10px var(--fx-color); content: ""; }
+.combat-heal-mote { z-index: 5; width: 14px; height: 14px; filter: drop-shadow(0 0 4px var(--fx-color)); }
+.combat-heal-mote::before, .combat-heal-mote::after { position: absolute; background: #edfff4; border-radius: 2px; content: ""; }
+.combat-heal-mote::before { inset: 5px 0; }
+.combat-heal-mote::after { inset: 0 5px; }
 .combat-spark { width: 13px; height: 3px; border-radius: 100%; background: #fff4da; box-shadow: 0 0 6px var(--fx-color); transform-origin: left center; }
+.combat-spark--crystal { width: 12px; height: 6px; border-radius: 0; background: var(--fx-color); clip-path: polygon(0 50%, 50% 0, 100% 50%, 50% 100%); }
+.combat-spark--star { width: 9px; height: 9px; border-radius: 0; background: #fff7d8; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
 .combat-projectile { z-index: 3; height: 5px; width: 54px; border-radius: 90%; background: linear-gradient(90deg, transparent, var(--fx-color) 65%, #fff); box-shadow: 6px 0 9px var(--fx-color); }
 .combat-projectile--arrow::after { position: absolute; content: ""; right: -2px; top: -3px; width: 10px; height: 10px; border-top: 2px solid #fff4d6; border-right: 2px solid #fff4d6; transform: rotate(45deg); }
 .combat-projectile--magic { width: 48px; height: 13px; }
 .combat-projectile--magic::after { position: absolute; content: ""; right: -2px; top: -3px; width: 19px; height: 19px; background: #fff7ec; border: 3px solid var(--fx-color); border-radius: 50%; box-shadow: 0 0 18px var(--fx-color), 0 0 7px #fff; }
+.combat-projectile--holy { width: 62px; height: 8px; box-shadow: 0 0 10px var(--fx-color); }
+.combat-projectile--holy::after { position: absolute; content: ""; right: -4px; top: -7px; width: 22px; height: 22px; background: #fff8db; clip-path: polygon(50% 0, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0 50%, 35% 35%); content: ""; }
 .combat-cast { width: 42px; height: 42px; border: 2px solid var(--fx-color); border-radius: 50%; box-shadow: 0 0 14px var(--fx-color), inset 0 0 10px var(--fx-color); }
+.combat-cast--magic::before { position: absolute; inset: 15%; border: 2px solid #fff6e0; transform: rotate(45deg); content: ""; }
+.combat-cast--holy::before { position: absolute; inset: 12%; background: #fff5c8; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); content: ""; }
+.combat-cast--arrow { width: 30px; height: 50px; border-right-color: transparent; border-top-color: transparent; border-bottom-color: transparent; border-left-width: 3px; border-radius: 50%; box-shadow: -4px 0 8px color-mix(in srgb, var(--fx-color) 50%, transparent); }
 .combat-flash { inset: 0; background: radial-gradient(ellipse at 75% 60%, var(--fx-color), transparent 70%); }
 .combat-finish { z-index: 20; display: flex; flex-direction: column; align-items: center; gap: .2rem; min-width: min(260px, 85%); padding: .75rem 1.5rem .9rem; border-block: 1px solid #f2d38a88; background: linear-gradient(90deg, transparent, #0d1a28f2 22%, #0d1a28f2 78%, transparent); text-align: center; white-space: nowrap; }
 .combat-finish small { color: #e0bc7c; font: 700 .65rem/1.3 system-ui, sans-serif; letter-spacing: .4em; }

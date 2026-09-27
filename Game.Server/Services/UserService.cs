@@ -47,17 +47,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var character = CreateCharacterEntity(user.Id, "剑士", SkillRules.DefaultProfessionCode);
-        character.Gold = weaponCatalog?.StartingCharacterGold ?? 0;
-        dbContext.Characters.Add(character);
-
         var session = CreateSession(user.Id);
         dbContext.UserLoginSessions.Add(session);
 
-        await dbContext.SaveChangesAsync();
-        AddStartingSkills(character);
-        AddStartingWeapons(character);
-        user.ActiveCharacterId = character.Id;
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -132,7 +124,13 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, "CharacterNotFound");
         }
 
-        return (BuildCurrentCharacterResponse(character), null);
+        var response = BuildCurrentCharacterResponse(character);
+        response.ActiveBattleRoomId = await (
+            from slot in dbContext.RoomSlots
+            join room in dbContext.Rooms on slot.RoomId equals room.Id
+            where slot.CharacterId == character.Id && room.ClosedAtUtc == null
+            select (int?)room.Id).SingleOrDefaultAsync();
+        return (response, null);
     }
 
     public async Task<(List<CharacterSummaryResponse>? Response, string? Error)> GetCurrentCharactersAsync(string? token)
@@ -262,6 +260,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         if (characterCount >= user!.CharacterSlotLimit) return (null, "CharacterSlotLimitReached");
 
         var character = CreateCharacterEntity(user!.Id, name, professionCode);
+        if (characterCount == 0) character.Gold = weaponCatalog?.StartingCharacterGold ?? 0;
         dbContext.Characters.Add(character);
         user.Version++;
         try
@@ -269,6 +268,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             await dbContext.SaveChangesAsync();
             AddStartingSkills(character);
             AddStartingWeapons(character);
+            if (characterCount == 0) user.ActiveCharacterId = character.Id;
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         }
@@ -277,7 +277,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, "ConcurrencyConflict");
         }
 
-        return (BuildCharacterSummary(character), null);
+        return (BuildCharacterSummary(character, isCurrent: user.ActiveCharacterId == character.Id), null);
     }
 
     public async Task<(bool Success, string? Error)> DeleteCurrentCharacterAsync(string? token, int characterId)

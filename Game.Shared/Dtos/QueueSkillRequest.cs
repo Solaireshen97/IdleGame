@@ -6,4 +6,5 @@ public class QueueSkillRequest
     public int CharacterId { get; set; }
     public int SkillSlotIndex { get; set; }
     public bool IsQueued { get; set; }
+    public int? TargetCharacterId { get; set; }
 }

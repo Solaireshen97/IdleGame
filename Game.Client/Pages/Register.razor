@@ -65,7 +65,7 @@
         var currentUser = await ApiService.GetCurrentUserAsync();
         if (currentUser is not null)
         {
-            Navigation.NavigateTo("/rooms", replace: true);
+            Navigation.NavigateTo(currentUser.CharacterCount == 0 ? "/characters/create" : "/rooms", replace: true);
             return;
         }
 
@@ -86,7 +86,7 @@
                 return;
             }
 
-            Navigation.NavigateTo("/rooms", replace: true);
+            Navigation.NavigateTo("/characters/create", replace: true);
         }
         catch (HttpRequestException)
         {

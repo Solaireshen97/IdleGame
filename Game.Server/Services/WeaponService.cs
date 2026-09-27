@@ -103,7 +103,6 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
-        if (weapons.Any(weapon => !WeaponCatalog.CanSell(weapon))) return (null, "StarterWeaponCannotBeSold");
         var gold = weapons.Sum(weapon => weapon.SellGold);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -342,8 +341,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 MaxHp = item.MaxHp,
                 ItemLevel = item.ItemLevel,
                 FragmentTier = WeaponRules.FragmentTier(item.ItemLevel),
-                SellGold = WeaponCatalog.CanSell(item) ? item.SellGold : 0,
-                CanSell = WeaponCatalog.CanSell(item),
+                SellGold = item.SellGold,
+                CanSell = true,
                 Origin = item.Origin,
                 DismantleFragments = WeaponCatalog.BaseDismantleReturn(item),
                 DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),

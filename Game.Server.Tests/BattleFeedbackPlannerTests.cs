@@ -68,6 +68,9 @@ public class BattleFeedbackPlannerTests
     [InlineData("神射手", "arrow")]
     [InlineData("刺客", "dagger")]
     [InlineData("奥术师", "magic")]
+    [InlineData("祭司", "holy")]
+    [InlineData("牧师", "holy")]
+    [InlineData("审判官", "holy")]
     [InlineData("骑士", "slash")]
     public void ProfessionDeterminesAttackPresentation(string profession, string style)
     {

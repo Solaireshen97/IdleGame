@@ -1,0 +1,18 @@
+@inject NavigationManager Navigation
+
+<GameStateCard Tone="error" Title="页面暂时无法打开" Detail="请重新进入大厅后继续冒险。">
+    <Actions>
+        <button type="button" class="button button--primary" @onclick="ReloadLobby">重新进入大厅</button>
+    </Actions>
+</GameStateCard>
+
+@code {
+    protected override void OnInitialized()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
+        if (path is not ("" or "rooms" or "login" or "register" or "characters/create"))
+            Navigation.NavigateTo("/rooms?notice=page-unavailable", replace: true);
+    }
+
+    private void ReloadLobby() => Navigation.NavigateTo("/rooms", forceLoad: true, replace: true);
+}

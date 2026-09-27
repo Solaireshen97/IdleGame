@@ -1,0 +1,162 @@
+using Game.Server.Configuration;
+using Game.Server.Services;
+using Game.Shared;
+using Game.Shared.Dtos;
+using Game.Shared.Enums;
+using Game.Shared.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Xunit;
+
+namespace Game.Server.Tests;
+
+public partial class BattleServiceTests
+{
+    [Theory]
+    [InlineData("hunter-rapid-volley", "basic")]
+    [InlineData("hunter-rapid-volley", "uninterruptible")]
+    [InlineData("hunter-rapid-volley", "interrupted")]
+    [InlineData("rogue-gouge", "basic")]
+    [InlineData("rogue-gouge", "uninterruptible")]
+    [InlineData("rogue-gouge", "interrupted")]
+    public async Task ManualDamageInterruptSkillsDamageWithoutInterruptibleIntent(string skillCode, string intentState)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
+        var (service, _, skill, intent) = await PrepareInterruptSkillAsync(test, skillCode, intentState);
+        Assert.False(SkillRules.RequiresInterruptibleTarget(SkillCatalog.EffectsFor(skill).Select(effect => effect.Type)));
+
+        var (queued, queueError) = await service.QueueSkillAsync(new QueueSkillRequest
+            { RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true }, test.Token);
+        Assert.Null(queueError);
+        Assert.True(queued);
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(SkillCatalog.EffectsFor(skill).Count(effect => effect.Type == "Damage"),
+            result!.Logs.Count(log => log.Contains($"使用 {skill.Name} 攻击")));
+        Assert.DoesNotContain(result.Logs, log => log.Contains($"使用 {skill.Name}，打断"));
+        var cooldown = Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync());
+        Assert.Equal(skillCode, cooldown.SkillCode);
+        Assert.Equal(intent.RoundNumber + skill.CooldownRounds + 1, cooldown.ReadyAtRound);
+        Assert.Equal(intentState == "interrupted", intent.IsInterrupted);
+    }
+
+    [Theory]
+    [InlineData("hunter-rapid-volley")]
+    [InlineData("rogue-gouge")]
+    public async Task ManualDamageInterruptSkillsStillDamageWhenIntentIsInterruptedAfterQueue(string skillCode)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
+        var (service, monsterCombat, skill, _) = await PrepareInterruptSkillAsync(test, skillCode, "interruptible");
+        var (queued, queueError) = await service.QueueSkillAsync(new QueueSkillRequest
+            { RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true }, test.Token);
+        Assert.Null(queueError);
+        Assert.True(queued);
+        Assert.True(await monsterCombat.InterruptCurrentIntentAsync(test.Room, test.Monster));
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(SkillCatalog.EffectsFor(skill).Count(effect => effect.Type == "Damage"),
+            result!.Logs.Count(log => log.Contains($"使用 {skill.Name} 攻击")));
+        Assert.DoesNotContain(result.Logs, log => log.Contains($"使用 {skill.Name}，打断"));
+        Assert.Equal(skillCode, Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync()).SkillCode);
+    }
+
+    [Theory]
+    [InlineData("hunter-rapid-volley", "basic", false)]
+    [InlineData("hunter-rapid-volley", "uninterruptible", false)]
+    [InlineData("hunter-rapid-volley", "interrupted", false)]
+    [InlineData("hunter-rapid-volley", "interruptible", true)]
+    [InlineData("rogue-gouge", "basic", false)]
+    [InlineData("rogue-gouge", "uninterruptible", false)]
+    [InlineData("rogue-gouge", "interrupted", false)]
+    [InlineData("rogue-gouge", "interruptible", true)]
+    public async Task AutomaticDamageInterruptSkillsStillWaitForInterruptibleIntent(string skillCode, string intentState, bool shouldCast)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
+        var (service, _, skill, intent) = await PrepareInterruptSkillAsync(test, skillCode, intentState, autoUse: true);
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(shouldCast ? SkillCatalog.EffectsFor(skill).Count(effect => effect.Type == "Damage") : 0,
+            result!.Logs.Count(log => log.Contains($"使用 {skill.Name} 攻击")));
+        Assert.Equal(shouldCast ? 1 : 0, result.Logs.Count(log => log.Contains($"使用 {skill.Name}，打断")));
+        Assert.Equal(shouldCast || intentState == "interrupted", intent.IsInterrupted);
+        var cooldowns = await test.Db.BattleSkillCooldowns.ToListAsync();
+        if (shouldCast) Assert.Equal(skillCode, Assert.Single(cooldowns).SkillCode);
+        else Assert.Empty(cooldowns);
+    }
+
+    [Theory]
+    [InlineData("sword-intercept", "basic")]
+    [InlineData("sword-intercept", "uninterruptible")]
+    [InlineData("sword-intercept", "interrupted")]
+    [InlineData("acolyte-silence", "basic")]
+    [InlineData("acolyte-silence", "uninterruptible")]
+    [InlineData("acolyte-silence", "interrupted")]
+    public async Task NonDamageInterruptSkillsStillRequireInterruptibleIntent(string skillCode, string intentState)
+    {
+        await using var test = await BattleTestContext.CreateAsync();
+        var (service, _, skill, _) = await PrepareInterruptSkillAsync(test, skillCode, intentState);
+        Assert.True(SkillRules.RequiresInterruptibleTarget(SkillCatalog.EffectsFor(skill).Select(effect => effect.Type)));
+
+        var (queued, error) = await service.QueueSkillAsync(new QueueSkillRequest
+            { RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true }, test.Token);
+
+        Assert.False(queued);
+        Assert.Equal("NoValidSkillTarget", error);
+        Assert.Equal(0, (await test.Db.RoomSlots.SingleAsync()).PendingSkillSlotMask);
+        Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
+    }
+
+    private static async Task<(BattleService Service, MonsterCombatService MonsterCombat, CombatSkillOptions Skill, MonsterIntent Intent)>
+        PrepareInterruptSkillAsync(BattleTestContext test, string skillCode, string intentState, bool autoUse = false)
+    {
+        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var monsterOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
+        monsterOptions.Skills.Add(new MonsterSkillOptions
+        {
+            Code = "manual-interrupt-probe", Name = "测试攻击", Description = "验证手动打断技能。",
+            DamagePowerPercent = 100, IsInterruptible = intentState != "uninterruptible"
+        });
+        monsterOptions.Profiles["manual-interrupt-probe"] = new MonsterCombatProfileOptions
+        {
+            SkillUseChancePercent = intentState == "basic" ? 0 : 100,
+            Skills = [new MonsterProfileSkillOptions { Code = "manual-interrupt-probe" }]
+        };
+        var monsters = new MonsterCombatCatalog(Options.Create(monsterOptions));
+        var monsterCombat = new MonsterCombatService(test.Db, monsters);
+        var skills = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);
+        var skill = skills.FindSkill(skillCode)!;
+        test.Character.ProfessionCode = skill.ProfessionCode;
+        test.Character.Level = 10;
+        test.Character.TalentPoints = 9;
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Monster.CombatProfileCode = "manual-interrupt-probe";
+        await test.Db.SaveChangesAsync();
+
+        var progression = ProgressionTestFactory.Create();
+        var userService = new UserService(test.Db, progression, skills);
+        var skillService = new SkillService(test.Db, userService, skills);
+        foreach (var root in skills.TalentNodesForProfession(skill.ProfessionCode).Where(node => node.Tier == 1))
+            Assert.Null((await skillService.UnlockTalentNodeAsync(test.Token, test.Character.Id, root.Code)).Error);
+        var unlock = skills.TalentNodesForProfession(skill.ProfessionCode).Single(node => node.SkillCode == skillCode);
+        Assert.Null((await skillService.UnlockTalentNodeAsync(test.Token, test.Character.Id, unlock.Code)).Error);
+        await test.AddSkillAsync(test.Character, 1, skillCode, autoUse);
+
+        var intent = await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
+        Assert.Equal(intentState == "basic" ? "BasicAttack" : "Skill", intent.ActionType);
+        if (intentState == "interrupted") intent.IsInterrupted = true;
+        await test.Db.SaveChangesAsync();
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var service = new BattleService(test.Db, userService, ConsumableTestFactory.Create(), skills, rewards,
+            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
+        return (service, monsterCombat, skill, intent);
+    }
+}

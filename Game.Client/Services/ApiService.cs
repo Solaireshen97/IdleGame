@@ -307,22 +307,39 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
         return (await response.Content.ReadFromJsonAsync<SetSlotAutoResponse>(), null);
     }
 
-    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId)
+    public async Task<RoomLoadResult> LoadRoomDetailAsync(int roomId, CancellationToken cancellationToken = default)
     {
-        var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        try
         {
+            using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
+            using var response = await httpClient.SendAsync(request, timeout.Token);
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 await userSessionService.ClearToken();
+                return new(null, RoomLoadStatus.Unauthorized);
             }
+            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.Gone)
+                return new(null, RoomLoadStatus.Unavailable);
+            if (!response.IsSuccessStatusCode)
+                return new(null, RoomLoadStatus.RetryableError);
 
-            return null;
+            var room = await response.Content.ReadFromJsonAsync<RoomDetailResponse>(timeout.Token);
+            return room is null
+                ? new(null, RoomLoadStatus.RetryableError)
+                : room.RoomId != roomId
+                    ? new(null, RoomLoadStatus.Unavailable)
+                    : new(room, RoomLoadStatus.Success);
         }
-
-        return await response.Content.ReadFromJsonAsync<RoomDetailResponse>();
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
+        {
+            return new(null, RoomLoadStatus.RetryableError);
+        }
     }
+
+    public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId) =>
+        (await LoadRoomDetailAsync(roomId)).Room;
 
     public async Task<(BattleResult? Result, string? ErrorMessage)> SyncBattleAsync(int roomId)
     {
@@ -657,7 +674,7 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             new PromoteCharacterRequest { ProfessionCode = professionCode });
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSkillAsync(
-        int roomId, int characterId, int skillSlotIndex, bool isQueued)
+        int roomId, int characterId, int skillSlotIndex, bool isQueued, int? targetCharacterId = null)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/skill", requiresAuth: true);
         request.Content = JsonContent.Create(new QueueSkillRequest
@@ -665,7 +682,8 @@ public class ApiService(HttpClient httpClient, UserSessionService userSessionSer
             RoomId = roomId,
             CharacterId = characterId,
             SkillSlotIndex = skillSlotIndex,
-            IsQueued = isQueued
+            IsQueued = isQueued,
+            TargetCharacterId = targetCharacterId
         });
         using var response = await httpClient.SendAsync(request);
         return await HandleRoomDetailResponseAsync(response, "安排技能失败。");

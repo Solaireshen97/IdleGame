@@ -98,7 +98,7 @@ function search(items,{enhancement=0,hpRatio=.9,minHealth=0,skillFrequency=.5}={
 function main(){
   const report={ assumptions:{defense:0,elementMultiplier:1,critMultiplier:1.5,skillFrequency:.5,description:'All weapons match the main element. Expected direct damage with fixed HP; excludes healing, cooldown sequence, kill timing, buffs and multiplayer. Quality sample bonuses are placed into the first listed skill; not an expected random roll.'},effects,curve:[1,.5,.25,.1],ordinary:[],progression:[],exchangeSearch:[],quality:[],economy:{hoursPerDay:12,firstWeekHours:84,starterGoldOncePerAccount:120,shopWeaponGold:40,enhancementFragmentCosts:[2,8,24],normalDropRates:[.04,.08,.16],normalTargetCycleMinutes:[.5,1,2],exchangeTokens:12,clearTokens:1,firstClearBonusTokens:2,bossWeaponDropRate:.18,qualityProbabilities:[.60,.25,.12,.03]}};
   const shop=weapon('商店制式武器',18,45,[['attack',1]]);
-  const starter=weapon('初始武器',16,40,[['attack',1]]);
+  const starter=weapon('初始商店武器',18,45,[['attack',1]]);
   report.progression.push({stage:'初始主手 + 两把商店武器',...evaluate([{item:starter,count:1},{item:shop,count:2}])});
   report.progression.push({stage:'十把商店武器',...evaluate([{item:shop,count:10}])});
   for(const [element,items] of Object.entries(fieldWeapons)){

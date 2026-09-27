@@ -89,10 +89,12 @@ public sealed class T1WeaponContentTests
     }
 
     [Theory]
-    [InlineData("mage", "apprentice-wand", ElementType.Water)]
-    [InlineData("hunter", "scout-longbow", ElementType.Wind)]
-    [InlineData("rogue", "novice-dagger", ElementType.Dark)]
-    public void NewBaseProfessionsReceiveDedicatedStarterWeapons(string professionCode, string weaponCode,
+    [InlineData("swordsman", "t1-shop-fire", ElementType.Fire)]
+    [InlineData("acolyte", "t1-shop-light", ElementType.Light)]
+    [InlineData("mage", "t1-shop-water", ElementType.Water)]
+    [InlineData("hunter", "t1-shop-wind", ElementType.Wind)]
+    [InlineData("rogue", "t1-shop-dark", ElementType.Dark)]
+    public void BaseProfessionsReceiveMatchingShopWeaponsAsStarters(string professionCode, string weaponCode,
         ElementType element)
     {
         var weapon = Assert.Single(T1WeaponEffectTests.ProductionCatalog()
@@ -101,6 +103,12 @@ public sealed class T1WeaponContentTests
         Assert.Equal(element, weapon.Element);
         Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
         Assert.Equal(WeaponOrigin.Starter, weapon.Origin);
+        Assert.Equal((18, 45, 8), (weapon.Attack, weapon.MaxHp, weapon.SellGold));
+        Assert.Equal(0, weapon.QualityRank);
+        Assert.Equal(("weapon-attack", 1), (Assert.Single(weapon.Skills).SkillCode, weapon.Skills[0].Level));
+        var product = Assert.Single(Configuration().GetSection(ShopOptions.SectionName).Get<ShopOptions>()!.Items,
+            item => item.Code == weaponCode && item.Kind == "Weapon");
+        Assert.Equal(40, product.Price);
     }
 
     [Fact]
