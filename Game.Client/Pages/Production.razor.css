@@ -1,0 +1,149 @@
+.alchemy-page { --alchemy-gold: #efc478; --alchemy-lilac: #c5aedc; color: #e7eef2; padding: .6rem .15rem 1.5rem; }
+.alchemy-page h1, .alchemy-page h2, .alchemy-page h3, .alchemy-page p { margin: 0; }
+.alchemy-page button { font: inherit; -webkit-tap-highlight-color: transparent; }
+.alchemy-page button:focus-visible, .alchemy-page a:focus-visible, .alchemy-page input:focus-visible { outline: 2px solid #ffe0a1; outline-offset: 3px; }
+.alchemy-page img { object-fit: contain; image-rendering: pixelated; }
+.alchemy-eyebrow { display: block; color: var(--alchemy-gold); font-size: .6rem; font-weight: 800; letter-spacing: .19em; line-height: 1.5; }
+.alchemy-intro { display: flex; align-items: center; justify-content: space-between; gap: .65rem; margin: .3rem .25rem 1rem; }
+.alchemy-intro h1 { margin: .15rem 0 .3rem; font-family: Georgia, 'Songti SC', 'SimSun', serif; font-size: 1.85rem; letter-spacing: .05em; font-weight: 700; }
+.alchemy-intro p { color: #94abba; font-size: .72rem; line-height: 1.6; }
+.alchemy-garden-link { display: flex; align-items: center; gap: .55rem; flex: 0 0 auto; min-height: 42px; padding: 0 .7rem; border: 1px solid #776444; border-radius: .5rem; color: var(--alchemy-gold); background: #e5b55c0a; font-size: .75rem; text-decoration: none; }
+.alchemy-garden-link:hover { background: #e5b55c1a; border-color: #c69e5b; }
+.alchemy-garden-link span { font-size: 1rem; }
+.alchemy-bench { position: relative; padding: 1rem; border: 1px solid #4e586c; border-radius: 1rem; background: radial-gradient(ellipse at 0 0, #8873ad1a, transparent 65%), linear-gradient(140deg, #1c2d3c, #11212e 80%); box-shadow: 0 10px 30px #0000001a; }
+.alchemy-bench--working { border-color: #9f8662; background: radial-gradient(ellipse at 0 10%, #b591cd20, transparent 65%), linear-gradient(140deg, #202e3c, #142330 80%); }
+.alchemy-bench-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.alchemy-bench-heading .alchemy-eyebrow { color: #b6a9c9; font-size: .55rem; }
+.alchemy-bench-heading h2 { margin-top: .22rem; font-size: 1.03rem; font-weight: 650; overflow-wrap: anywhere; }
+.alchemy-bench-status { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .5rem; border: 1px solid #4f5c6b; border-radius: 99px; color: #a7bac8; background: #12212c80; font-size: .65rem; white-space: nowrap; }
+.alchemy-bench-status i { width: 5px; height: 5px; border-radius: 50%; background: #7d90a1; }
+.alchemy-bench--working .alchemy-bench-status { border-color: #b39b6855; color: #e6cd99; }
+.alchemy-bench--working .alchemy-bench-status i { background: #e4c487; box-shadow: 0 0 7px #edc97a66; animation: alchemy-glow 3s ease-in-out infinite; }
+.alchemy-idle { display: flex; align-items: center; gap: 1rem; min-height: 130px; padding: .8rem .2rem .2rem; }
+.alchemy-idle > div:last-child { min-width: 0; }
+.alchemy-idle h3 { margin-bottom: .45rem; font-size: 1rem; color: #eadfcb; }
+.alchemy-idle p { color: #a5bac7; font-size: .73rem; line-height: 1.6; }
+.alchemy-idle small { display: block; margin-top: .55rem; color: #839cac; font-size: .64rem; }
+.alchemy-vessel { position: relative; display: grid; place-items: center; flex: 0 0 84px; width: 84px; height: 84px; border: 1px solid #a994ba45; border-radius: 50%; background: radial-gradient(circle, #9380b321, #0c192540 70%); isolation: isolate; }
+.alchemy-vessel::before { content: ''; position: absolute; inset: 7px; border: 1px dashed #b8a4ce40; border-radius: 50%; }
+.alchemy-vessel::after { content: '✦'; position: absolute; bottom: -7px; padding: 0 4px; color: #d1b982; background: #1d2935; font-size: .8rem; }
+.alchemy-vessel > span { position: absolute; inset: 15px; transform: rotate(45deg); border: 1px solid #b8a4ce28; }
+.alchemy-vessel img { width: 61px; height: 67px; z-index: 1; filter: drop-shadow(0 4px 5px #090f24aa); }
+.alchemy-vessel--idle { opacity: .75; }
+.alchemy-bench-main { display: flex; align-items: center; gap: .85rem; padding: 1.1rem 0; }
+.alchemy-bench-product { flex: 1; min-width: 0; }
+.alchemy-bench-product > small { color: #bca7cf; font-size: .63rem; }
+.alchemy-bench-product h3 { margin: .25rem 0 .35rem; color: #f2e5d0; font-size: 1.08rem; line-height: 1.4; overflow-wrap: anywhere; }
+.alchemy-bench-product p { color: #91a9b9; font-size: .67rem; }
+.alchemy-next { display: grid; gap: .2rem; text-align: right; flex-shrink: 0; }
+.alchemy-next small { color: #a4b9c9; font-size: .63rem; }
+.alchemy-next strong { color: #f0d69f; font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.alchemy-progress { height: 5px; overflow: hidden; border-radius: 3px; background: #081623; box-shadow: 0 1px #ffffff0a; }
+.alchemy-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #917caf, #d3b794, #edce91); transition: width 1s linear; }
+.alchemy-bench-stats { display: grid; grid-template-columns: 1fr 1fr 1.15fr; margin: 1rem 0; }
+.alchemy-bench-stats > div { display: grid; gap: .35rem; min-width: 0; padding: 0 .85rem; border-right: 1px solid #64717f40; }
+.alchemy-bench-stats > div:first-child { padding-left: 0; }.alchemy-bench-stats > div:last-child { padding-right: 0; border: 0; }
+.alchemy-bench-stats span { font-size: .64rem; color: #8fa8b9; }
+.alchemy-bench-stats strong { color: #e9dbbf; font-size: 1.15rem; font-weight: 550; font-variant-numeric: tabular-nums; }
+.alchemy-bench-stats small { color: #8fa8b9; font-size: .69rem; font-weight: 400; }
+.alchemy-bench-footer { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding-top: .7rem; border-top: 1px solid #5c687a45; }
+.alchemy-bench-footer p { color: #8fa7b7; font-size: .65rem; }
+.alchemy-stop { min-height: 40px; padding: .4rem .7rem; border: 1px solid #776f6a; border-radius: .4rem; color: #dccbb5; background: #c6ae7109; font-size: .72rem !important; white-space: nowrap; }
+.alchemy-stop:hover:not(:disabled) { border-color: #d0ab71; background: #c6ae7116; }
+.alchemy-section-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: .5rem; margin: 1.5rem .2rem .75rem; }
+.alchemy-section-heading h2 { margin-top: .18rem; font-size: 1.13rem; }
+.alchemy-section-heading > span { padding-bottom: .15rem; color: #91a9b7; font-size: .7rem; }.alchemy-section-heading b { color: #e8c788; font-weight: 600; }
+.alchemy-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .2rem; padding: .22rem; margin-bottom: .65rem; border: 1px solid #304858; border-radius: .5rem; background: #0d1c28; }
+.alchemy-filters button { min-width: 0; min-height: 38px; padding: .35rem .2rem; border: 1px solid transparent; border-radius: .35rem; background: transparent; color: #91a8b7; font-size: .72rem; }
+.alchemy-filters small { margin-left: .25rem; color: #7f99a9; font-size: .61rem; }
+.alchemy-filters .alchemy-filter--active { background: #2a3b44; border-color: #8f785047; color: #f2d495; }.alchemy-filter--active small { color: #d0b985; }
+.alchemy-recipe-list { display: grid; gap: .5rem; }
+.alchemy-recipe { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: .75rem; min-width: 0; width: 100%; padding: .85rem; border: 1px solid #344c5d; border-radius: .7rem; background: linear-gradient(110deg, #1b2d3b, #142431); color: #dbe7ed; text-align: left; transition: border-color .15s, background .15s; }
+.alchemy-recipe:hover { border-color: #b09360; background: #203441; }
+.alchemy-recipe--greater { border-left: 2px solid #8b73a6; background: linear-gradient(110deg, #302a404d, #142431); }
+.alchemy-recipe--locked { background: #11212f; }.alchemy-recipe--locked .alchemy-recipe-icon { filter: saturate(.45); opacity: .6; }
+.alchemy-recipe-icon { display: grid; place-items: center; width: 52px; height: 58px; border: 1px solid #81705060; border-radius: .6rem; background: radial-gradient(circle, #c1a66f16, #0c1c29 75%); }
+.alchemy-recipe-icon img { width: 43px; height: 48px; }
+.alchemy-recipe--greater .alchemy-recipe-icon { border-color: #8b73a666; background: radial-gradient(circle, #a289c426, #0c1c29 75%); }
+.alchemy-recipe-copy { display: grid; gap: .3rem; min-width: 0; }
+.alchemy-recipe-title { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.alchemy-recipe-title strong { color: #e6e7df; font-size: .88rem; line-height: 1.5; overflow-wrap: anywhere; font-weight: 600; }
+.alchemy-recipe-title small { flex-shrink: 0; padding: .1rem .28rem; color: #bda77f; background: #b3965310; border: 1px solid #aa8c4c3a; border-radius: .2rem; font-size: .54rem; }
+.alchemy-recipe--greater .alchemy-recipe-title small { color: #c1aad9; border-color: #9f79bb44; background: #9579b411; }
+.alchemy-recipe--locked .alchemy-recipe-title strong { color: #9cafbb; }
+.alchemy-recipe-effect { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #9eb2c0; font-size: .67rem; }
+.alchemy-recipe-meta { color: #829bac; font-size: .61rem; line-height: 1.5; }.alchemy-recipe-meta i { padding: 0 .25rem; color: #536e80; font-style: normal; }
+.alchemy-recipe-state { display: grid; gap: .45rem; align-self: center; text-align: right; white-space: nowrap; }
+.alchemy-recipe-state b { padding: .23rem .38rem; border: 1px solid #486173; border-radius: .3rem; color: #96aebd; background: #142431; font-size: .61rem; font-weight: 500; }
+.alchemy-recipe-state--ready b { color: #afd5bd; border-color: #61837466; background: #28463a30; }
+.alchemy-recipe-state small { color: #8da6b6; font-size: .59rem; }.alchemy-recipe-state small span { padding-left: .3rem; color: #e4c28a; font-size: .9rem; }
+.alchemy-empty { padding: 1.6rem .8rem; border: 1px dashed #41596c; border-radius: .6rem; text-align: center; }.alchemy-empty strong { font-size: .9rem; color: #bdcfd9; }.alchemy-empty p { margin: .6rem 0 .7rem; color: #91a8b7; font-size: .72rem; }.alchemy-empty a { color: #efc478; font-size: .75rem; }
+.alchemy-history { margin-top: 1.2rem; border: 1px solid #334c5e; border-radius: .7rem; background: #122330; overflow: hidden; }
+.alchemy-history summary { display: flex; align-items: center; gap: .5rem; min-height: 48px; padding: .65rem .85rem; cursor: pointer; list-style: none; color: #c8b488; font-size: .75rem; }
+.alchemy-history summary::-webkit-details-marker { display: none; }.alchemy-history summary small { margin-left: auto; color: #839dae; font-size: .65rem; }.alchemy-history summary b { color: #a4b6c2; font-weight: 400; }.alchemy-history[open] summary b { transform: rotate(180deg); }
+.alchemy-history-row { display: flex; align-items: center; gap: .6rem; padding: .65rem .85rem; border-top: 1px solid #3b53614a; }
+.alchemy-history-row img { flex: 0 0 27px; width: 27px; height: 32px; }.alchemy-history-row > div { display: grid; gap: .2rem; flex: 1; min-width: 0; }.alchemy-history-row strong { color: #b8ccd5; font-size: .71rem; font-weight: 500; overflow-wrap: anywhere; }.alchemy-history-row small { color: #8fa6b6; font-size: .6rem; }.alchemy-history-row > span { color: #d7bc83; font-size: .85rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.alchemy-page-note { margin-top: 1rem !important; color: #809ba9; font-size: .63rem; line-height: 1.6; text-align: center; }
+.alchemy-notice { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .8rem; padding: .45rem .5rem .45rem .8rem; border: 1px solid #536d65; border-radius: .6rem; background: #19332e; color: #bad9c6; font-size: .72rem; line-height: 1.7; }
+.alchemy-notice--error { color: #edc1a3; border-color: #826c59; background: #332c29; }.alchemy-notice button { flex: 0 0 32px; height: 32px; border: 0; border-radius: .3rem; background: transparent; color: inherit; font-size: 1.15rem; }
+.alchemy-connection { margin-bottom: .75rem !important; color: #e4c294; font-size: .7rem; line-height: 1.6; }.alchemy-retry { margin-top: .75rem; }
+.alchemy-button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: 44px; padding: .6rem .85rem; border: 1px solid #a58b5d; border-radius: .45rem; font-size: .76rem !important; font-weight: 650 !important; }
+.alchemy-button--secondary { color: #bbcbd4; background: #1a3040; border-color: #4d6575; }
+.alchemy-button--primary { color: #19262e; border-color: #efc985; background: linear-gradient(110deg, #dcb976, #efcc8a); box-shadow: 0 3px 10px #030c1526; }
+.alchemy-button--primary:hover:not(:disabled) { background: #f6d79b; }.alchemy-button--secondary:hover:not(:disabled) { border-color: #b6a076; color: #e5d2b0; }
+.alchemy-button:disabled { background: #293c48; color: #8d9eaa; border-color: #435666; opacity: .7; box-shadow: none; }
+.alchemy-dialog-overlay { position: fixed; z-index: 1500; inset: 0; display: grid; place-items: center; padding: 1rem; background: #030b13d9; backdrop-filter: blur(8px); }
+.alchemy-dialog { display: flex; flex-direction: column; width: min(100%, 550px); max-height: min(90dvh, 820px); overflow: hidden; border: 1px solid #86704f; border-radius: 1rem; background: linear-gradient(145deg, #1d3040, #11212e 65%); color: #e7eef2; box-shadow: 0 25px 80px #0009; }
+.alchemy-dialog--greater { border-color: #8b739e; }
+.alchemy-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: 1.05rem 1.1rem .9rem; border-bottom: 1px solid #5e64764a; }
+.alchemy-dialog-header > div { min-width: 0; }.alchemy-dialog-header h2 { margin-top: .25rem; font-size: 1.25rem; font-family: Georgia, 'Songti SC', 'SimSun', serif; line-height: 1.5; overflow-wrap: anywhere; }.alchemy-dialog-header .alchemy-eyebrow { font-size: .55rem; }
+.alchemy-dialog-close { display: grid; place-items: center; flex: 0 0 38px; height: 38px; padding: 0; border: 1px solid #486173; border-radius: .5rem; background: #102331; color: #c1d0da; font-size: 1.4rem !important; }
+.alchemy-dialog-close:hover { border-color: #c8aa71; color: #efd29b; }
+.alchemy-dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #5b7080 transparent; padding: 1rem 1.1rem; }
+.alchemy-product { display: flex; align-items: center; gap: .9rem; padding-bottom: 1rem; border-bottom: 1px solid #5368794a; }
+.alchemy-product-icon { display: grid; place-items: center; flex: 0 0 68px; width: 68px; height: 78px; border: 1px solid #9c87595e; border-radius: .65rem; background: radial-gradient(ellipse, #bda1651e, #10212f 75%); }
+.alchemy-product-icon img { width: 55px; height: 65px; }.alchemy-product > div:last-child { min-width: 0; }.alchemy-grade { color: #d0b783; font-size: .64rem; }.alchemy-dialog--greater .alchemy-grade { color: #c6aedf; }.alchemy-dialog--greater .alchemy-product-icon { border-color: #9b7eb669; background: radial-gradient(ellipse, #9b7eb626, #10212f 75%); }
+.alchemy-product p { margin: .35rem 0 .4rem; color: #c1d0d8; font-size: .73rem; line-height: 1.7; overflow-wrap: anywhere; }.alchemy-product small { color: #90a7b7; font-size: .63rem; }
+.alchemy-recipe-name { margin-top: .6rem !important; color: #9dafbb; font-size: .65rem; }
+.alchemy-mode-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .4rem; margin: 1rem 0 .6rem; }.alchemy-mode-heading h3, .alchemy-ingredients h3 { font-size: .8rem; font-weight: 600; color: #dce2e0; }.alchemy-mode-heading > span { font-size: .63rem; color: #9bb3c2; }
+.alchemy-modes { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.alchemy-modes button { position: relative; display: grid; gap: .3rem; padding: .7rem; border: 1px solid #3f5769; border-radius: .5rem; background: #102230; color: #c0d1da; text-align: left; }
+.alchemy-modes strong { font-size: .75rem; font-weight: 600; }.alchemy-modes small { font-size: .6rem; color: #89a2b2; }
+.alchemy-modes .alchemy-mode--active { color: #f0d29a; border-color: #ad905a; background: #b18d4512; box-shadow: inset 0 0 0 1px #c2a46716; }.alchemy-mode--active::after { content: '✓'; position: absolute; top: .6rem; right: .7rem; font-size: .7rem; color: #e1c184; }.alchemy-mode--active small { color: #b6b4a9; }
+.alchemy-quantity { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .65rem; padding-top: .85rem; }.alchemy-quantity > label { font-size: .73rem; color: #b2c5d1; }
+.alchemy-stepper { display: grid; grid-template-columns: 36px 70px 36px; border: 1px solid #5a6e7b; border-radius: .4rem; background: #0b1b28; overflow: hidden; }
+.alchemy-stepper button { min-height: 38px; border: 0; background: #1c3241; color: #d9c294; font-size: 1.05rem; }
+.alchemy-stepper input { width: 100%; min-width: 0; padding: .3rem; border: 0; background: transparent; color: #efd49d; font-size: .85rem; text-align: center; appearance: textfield; font-variant-numeric: tabular-nums; }
+.alchemy-stepper input::-webkit-inner-spin-button, .alchemy-stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.alchemy-stepper input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px #df9e85; }
+.alchemy-quick { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: .4rem; }.alchemy-quick button { min-height: 32px; padding: .3rem .65rem; border: 1px solid #3c5668; border-radius: .3rem; background: #192d3b; color: #a5bccb; font-size: .64rem; }.alchemy-quick button:hover:not(:disabled) { color: #ebce93; border-color: #9c855e; }
+.alchemy-quantity-hint { margin-top: .55rem !important; text-align: right; color: #a6bdcb; font-size: .66rem; line-height: 1.6; }
+.alchemy-estimate { display: grid; grid-template-columns: 1.3fr 1.1fr .8fr; gap: .4rem; margin: .85rem 0; }
+.alchemy-estimate > div { display: grid; gap: .35rem; min-width: 0; padding: .65rem .6rem; border: 1px solid #41596b66; border-radius: .45rem; background: #0d2030; }
+.alchemy-estimate span { color: #94adbe; font-size: .59rem; }.alchemy-estimate strong { color: #e9ce99; font-size: 1.02rem; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }.alchemy-estimate small { color: #8fa7b7; font-size: .6rem; font-weight: 400; }
+.alchemy-ingredients { margin-top: .85rem; padding: .8rem; border: 1px solid #3b5466; border-radius: .6rem; background: #102332; }
+.alchemy-ingredients-heading { display: flex; justify-content: space-between; align-items: center; gap: .4rem; padding-bottom: .5rem; }.alchemy-ingredients-heading > span { color: #8ea7b8; font-size: .61rem; }
+.alchemy-ingredient { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; border-bottom: 1px solid #3d546448; }.alchemy-ingredient img { flex: 0 0 28px; width: 28px; height: 31px; }.alchemy-ingredient > div { display: grid; gap: .2rem; flex: 1; min-width: 0; }.alchemy-ingredient strong { font-size: .7rem; color: #c7d7df; font-weight: 500; }.alchemy-ingredient small { color: #829eaf; font-size: .59rem; }
+.alchemy-ingredient > span { color: #97b7b7; font-size: .68rem; font-variant-numeric: tabular-nums; text-align: right; }.alchemy-ingredient b { color: #b9d6bd; font-weight: 550; }
+.alchemy-ingredients > p { margin-top: .65rem; color: #8aa4b6; font-size: .6rem; line-height: 1.7; }
+.alchemy-short { color: #eab096 !important; }.alchemy-short b { color: inherit; }
+.alchemy-short-note { margin: .65rem 0 !important; padding: .6rem .7rem; border-left: 2px solid #ad805f; background: #8e643019; color: #d8b896; font-size: .68rem; line-height: 1.7; }
+.alchemy-unlock { margin-top: .85rem; padding: .75rem; border: 1px dashed #627283; border-radius: .5rem; background: #1d2e3a; }.alchemy-unlock strong { color: #d5bd91; font-size: .72rem; }.alchemy-unlock p { margin-top: .4rem; color: #a8becc; font-size: .67rem; line-height: 1.7; }
+.alchemy-dialog-notice { margin-top: .85rem !important; color: #bad5c3; font-size: .71rem; line-height: 1.7; }
+.alchemy-dialog-footer { display: grid; grid-template-columns: .8fr 1.5fr; flex: 0 0 auto; gap: .6rem; padding: .85rem 1.1rem max(.85rem, env(safe-area-inset-bottom)); border-top: 1px solid #52627266; background: #142633; }
+.alchemy-dialog-footer button { min-height: 46px; }
+@container game-shell (max-width: 420px) {
+    .alchemy-intro { align-items: flex-start; }.alchemy-intro h1 { font-size: 1.55rem; }.alchemy-intro p { max-width: 190px; font-size: .66rem; }.alchemy-garden-link { padding: 0 .55rem; margin-top: .6rem; font-size: .67rem; gap: .3rem; }
+    .alchemy-bench { padding: .8rem; border-radius: .8rem; }.alchemy-bench-heading h2 { font-size: .93rem; }.alchemy-idle { gap: .65rem; }.alchemy-idle h3 { font-size: .92rem; }.alchemy-idle p { font-size: .66rem; }.alchemy-idle small { font-size: .59rem; }
+    .alchemy-bench-main { gap: .6rem; padding: .9rem 0; }.alchemy-vessel { flex-basis: 64px; width: 64px; height: 64px; }.alchemy-vessel img { width: 46px; height: 53px; }.alchemy-bench-product h3 { font-size: .89rem; }.alchemy-bench-product > small, .alchemy-bench-product p { font-size: .59rem; }.alchemy-next strong { font-size: 1.22rem; }
+    .alchemy-bench-stats > div { padding-inline: .55rem; }.alchemy-bench-stats strong { font-size: 1rem; }.alchemy-bench-stats span { font-size: .58rem; }.alchemy-bench-stats small { font-size: .6rem; }.alchemy-bench-footer p { font-size: .6rem; }
+    .alchemy-recipe { grid-template-columns: 40px minmax(0, 1fr) auto; gap: .5rem; padding: .7rem .6rem; }.alchemy-recipe-icon { width: 40px; height: 48px; }.alchemy-recipe-icon img { width: 33px; height: 39px; }.alchemy-recipe-title strong { font-size: .76rem; }.alchemy-recipe-title small { font-size: .51rem; }.alchemy-recipe-effect { font-size: .61rem; }.alchemy-recipe-meta { font-size: .54rem; }.alchemy-recipe-meta i { padding: 0 .1rem; }.alchemy-recipe-state b { font-size: .56rem; padding-inline: .28rem; }.alchemy-recipe-state small { font-size: .53rem; }
+}
+@media (max-width: 600px) {
+    .alchemy-dialog-overlay { align-items: end; padding: .4rem .35rem 0; }.alchemy-dialog { max-height: 92dvh; border-radius: 1rem 1rem 0 0; }
+    .alchemy-dialog-header { padding: .8rem; }.alchemy-dialog-header h2 { font-size: 1.15rem; }.alchemy-dialog-body { padding: .8rem; }.alchemy-dialog-footer { padding-inline: .8rem; }
+    .alchemy-product { gap: .65rem; }.alchemy-product-icon { flex-basis: 54px; width: 54px; height: 66px; }.alchemy-product-icon img { width: 44px; height: 55px; }.alchemy-product p { font-size: .7rem; }
+    .alchemy-estimate > div { padding: .6rem .45rem; }.alchemy-estimate span { font-size: .55rem; }.alchemy-estimate strong { font-size: .93rem; }
+}
+@keyframes alchemy-glow { 50% { opacity: .55; box-shadow: 0 0 3px #edc97a33; } }
+@media (prefers-reduced-motion: reduce) { .alchemy-page *, .alchemy-page *::before, .alchemy-page *::after { transition: none !important; animation: none !important; } }

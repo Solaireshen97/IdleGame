@@ -1,97 +1,148 @@
 @page "/production"
 @using Game.Client.Services
 @using Game.Shared.Dtos.Production
-@using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 @implements IDisposable
 
-<PageTitle>炼金生产</PageTitle>
+<PageTitle>炼金工坊</PageTitle>
 
-<div class="activity-page activity-page--production">
-    <header class="activity-intro">
-        <div><span>CAMP ALCHEMY</span><h1>炼金生产</h1></div>
-        <p>选择配方查看材料与产出；原料和成品属于当前角色。</p>
+<div class="alchemy-page">
+    <header class="alchemy-intro">
+        <div><span class="alchemy-eyebrow">CAMP ALCHEMY</span><h1>炼金工坊</h1><p>将草药的力量，留在每一瓶药剂中。</p></div>
+        <a class="alchemy-garden-link" href="/planting">前往药田 <span aria-hidden="true">↗</span></a>
     </header>
-
-    @if (_isLoading)
+    @if (_notice is not null)
     {
-        <GameStateCard Compact="true" Title="正在查看炼金配方" Detail="读取角色配方和生产任务…" />
+        <div class="alchemy-notice @(_noticeIsError ? "alchemy-notice--error" : null)" role="status"><span>@_notice</span><button type="button" aria-label="关闭提示" @onclick="() => _notice = null">×</button></div>
+    }
+    @if (_isLoading && _overview is null)
+    {
+        <GameStateCard Compact="true" Title="正在准备炼金台" Detail="查看角色材料与生产进度…" />
     }
     else if (_overview is null)
     {
-        <GameStateCard Compact="true" Tone="error" Icon="!" Title="炼金信息读取失败" Detail="请检查登录状态后重试。" />
-        <button class="activity-refresh" @onclick="LoadAsync">重新读取</button>
+        <GameStateCard Compact="true" Tone="error" Title="暂时无法读取炼金工坊" Detail="请检查连接后重试。" />
+        <button type="button" class="alchemy-button alchemy-button--secondary alchemy-retry" @onclick="LoadAsync">重新读取</button>
     }
     else
     {
-        <div class="activity-summary">
-            <div><small>当前角色</small><strong>@_overview.CharacterName</strong></div>
-            <span>已解锁 @_overview.Recipes.Count(recipe => recipe.IsUnlocked) / @_overview.Recipes.Count 种</span>
-            <span>战斗时可同时炼金</span>
-        </div>
-
-        @if (_notice is not null)
-        {
-            <p class="activity-notice" role="status">@_notice</p>
-        }
-
-        @if (_overview.ActiveTask is { } task)
-        {
-            <section class="activity-active" aria-label="当前生产任务">
-                <div class="activity-active__heading"><span>炼金中</span><strong>剩余 @FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
-                <div class="activity-active__main"><div><h2>@task.RecipeName</h2><p>已完成 @task.CompletedCycles / @(task.TargetCycles?.ToString() ?? "连续") 批 · 产出 @task.TotalQuantity 瓶</p></div><button type="button" class="activity-stop" @onclick="() => StopAsync(task.Id)" disabled="@_isBusy">停止并结算</button></div>
-                <div class="activity-active__timer"><span>下一轮</span><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
-                <div class="activity-progress" role="progressbar" aria-label="下一轮生产进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)">
-                    <span @key="task.NextCycleAtUtc" style="width: @(CycleProgress(task))%"></span>
+        @if (_connectionIssue) { <p class="alchemy-connection" role="status">连接暂时中断，当前显示上次进度，正在重新连接。</p> }
+        <section id="alchemy-workbench" tabindex="-1" class="alchemy-bench @(_overview.ActiveTask is not null ? "alchemy-bench--working" : null)" aria-labelledby="alchemy-bench-title">
+            <div class="alchemy-bench-heading"><div><span class="alchemy-eyebrow">WORKBENCH</span><h2 id="alchemy-bench-title">@_overview.CharacterName 的炼金台</h2></div><span class="alchemy-bench-status"><i></i>@(_overview.ActiveTask is null ? "空闲" : "炼制中")</span></div>
+            @if (_overview.ActiveTask is { } task)
+            {
+                <div class="alchemy-bench-main">
+                    <div class="alchemy-vessel" aria-hidden="true"><span></span><img src="@TaskArt(task)" alt="" /></div>
+                    <div class="alchemy-bench-product"><small>@(task.TargetCycles is null ? "连续生产" : $"定量生产 · {task.TargetCycles} 批")</small><h3>@task.OutputName</h3><p>每 @task.CycleSeconds 秒完成一批</p></div>
+                    <div class="alchemy-next"><small>下一批</small><strong>@FormatDuration(task.NextCycleAtUtc - ServerNow)</strong></div>
                 </div>
-                <details class="activity-active__more"><summary>查看生产规则</summary><p>每 @task.CycleSeconds 秒制作一轮，结算时才扣当前角色背包材料。关闭网页后服务器仍会继续生产，可与战斗、药田种植同时进行。</p></details>
-            </section>
-        }
+                <div class="alchemy-progress" role="progressbar" aria-label="当前批次进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@CycleProgress(task)"><span @key="task.NextCycleAtUtc" style="width: @(CycleProgress(task))%"></span></div>
+                <div class="alchemy-bench-stats">
+                    <div><span>完成批数</span><strong>@task.CompletedCycles<small>@(task.TargetCycles is { } target ? $" / {target}" : " 批")</small></strong></div>
+                    <div><span>已产出</span><strong>@task.TotalQuantity<small> 瓶</small></strong></div>
+                    <div><span>剩余任务时间</span><strong>@FormatDuration(task.EndsAtUtc - ServerNow)</strong></div>
+                </div>
+                <div class="alchemy-bench-footer"><p>可同时战斗 · 材料耗尽时停止</p><button type="button" class="alchemy-stop" disabled="@_isBusy" @onclick="() => StopAsync(task.Id)">@(_isBusy ? "处理中…" : "停止生产")</button></div>
+            }
+            else
+            {
+                <div class="alchemy-idle">
+                    <div class="alchemy-vessel alchemy-vessel--idle" aria-hidden="true"><span></span><img src="@ItemArt.ForCode("minor-healing-potion")" alt="" /></div>
+                    <div><h3>炼金台已就绪</h3><p>选择下方配方，开始炼制药剂。</p><small>战斗与离线期间，也能继续生产</small></div>
+                </div>
+            }
+        </section>
 
-        <section class="activity-options" aria-label="炼金配方">
-            <div class="activity-section-title"><div><span>RECIPES</span><h2>炼金配方</h2></div><small>点击配方查看材料</small></div>
-            <div class="activity-option-grid">
-                @foreach (var recipe in OrderedRecipes())
+        <section class="alchemy-recipes" aria-labelledby="alchemy-recipes-title">
+            <div class="alchemy-section-heading"><div><span class="alchemy-eyebrow">RECIPE BOOK</span><h2 id="alchemy-recipes-title" tabindex="-1">炼金配方</h2></div><span>已解锁 <b>@_overview.Recipes.Count(MeetsRequirements)</b> / @_overview.Recipes.Count</span></div>
+            <div class="alchemy-filters" role="group" aria-label="筛选炼金配方">
+                @foreach (var filter in Filters)
                 {
-                    <button type="button" class="activity-option @(!recipe.IsUnlocked ? "activity-option--locked" : null)" @key="recipe.Code"
-                            @onclick="() => OpenRecipe(recipe.Code)" aria-haspopup="dialog" aria-label="查看 @recipe.Name 的炼金配方">
-                        <span class="activity-option__top"><span>@recipe.CycleSeconds 秒</span><b>@(recipe.IsUnlocked ? IngredientsReady(recipe) ? "可生产" : "缺材料" : "未解锁")</b></span>
-                        <span class="activity-option__item"><img src="@ItemArt.ForCode(recipe.OutputCode)" alt="" loading="lazy" /><span><strong>@recipe.Name</strong><span class="activity-option__output">@recipe.OutputName × @recipe.OutputQuantity <small>/ 轮</small></span></span></span>
-                        <span class="activity-option__foot">可做 @AvailableCycles(recipe) 轮 <span aria-hidden="true">详情 ›</span></span>
+                    <button type="button" class="@(_filter == filter.Code ? "alchemy-filter--active" : null)" aria-pressed="@(_filter == filter.Code ? "true" : "false")" @onclick="() => _filter = filter.Code">@filter.Name <small>@_overview.Recipes.Count(recipe => MatchesFilter(recipe, filter.Code))</small></button>
+                }
+            </div>
+            <div class="alchemy-recipe-list">
+                @foreach (var recipe in VisibleRecipes)
+                {
+                    <button @key="recipe.Code" id="@RecipeElementId(recipe.Code)" type="button" class="alchemy-recipe @(IsGreater(recipe) ? "alchemy-recipe--greater" : null) @(!MeetsRequirements(recipe) ? "alchemy-recipe--locked" : null)" @onclick="() => OpenRecipe(recipe.Code)" aria-haspopup="dialog" aria-label="@($"查看{recipe.Name}配方，{RecipeState(recipe)}")">
+                        <span class="alchemy-recipe-icon"><img src="@ItemArt.ForCode(recipe.OutputCode)" alt="" loading="lazy" /></span>
+                        <span class="alchemy-recipe-copy">
+                            <span class="alchemy-recipe-title"><strong>@recipe.OutputName</strong><small>@(IsGreater(recipe) ? "强效" : recipe.OutputQuantity > 1 ? "批量" : "普通")</small></span>
+                            <span class="alchemy-recipe-effect">@recipe.OutputDescription</span>
+                            <span class="alchemy-recipe-meta">@recipe.CycleSeconds 秒 / 批 <i>·</i> 每批 @recipe.OutputQuantity 瓶 <i>·</i> 背包 @recipe.CharacterQuantity</span>
+                        </span>
+                        <span class="alchemy-recipe-state @(MeetsRequirements(recipe) && IngredientsReady(recipe) ? "alchemy-recipe-state--ready" : null)"><b>@RecipeState(recipe)</b><small>@(MeetsRequirements(recipe) ? $"可做 {AvailableCycles(recipe)} 批" : $"需要 Lv.{recipe.MinimumCharacterLevel}") <span aria-hidden="true">›</span></small></span>
                     </button>
                 }
             </div>
+            @if (!VisibleRecipes.Any())
+            {
+                <div class="alchemy-empty"><strong>暂时没有可制作的配方</strong><p>收获草药或完成对应战斗后，再来查看。</p><a href="/planting">去药田看看 ↗</a></div>
+            }
         </section>
-
         @if (_overview.RecentTasks.Count > 0)
         {
-            <details class="activity-history"><summary>最近生产 <small>@_overview.RecentTasks.Count 条记录</small></summary>
+            <details class="alchemy-history">
+                <summary><span>最近生产</span><small>@_overview.RecentTasks.Count 条记录</small><b aria-hidden="true">⌄</b></summary>
                 @foreach (var completed in _overview.RecentTasks)
                 {
-                    <div class="activity-history__row"><span>@completed.RecipeName <small>@StatusName(completed.Status)</small></span><strong>@completed.OutputName × @completed.TotalQuantity</strong></div>
+                    <div @key="completed.Id" class="alchemy-history-row"><img src="@TaskArt(completed)" alt="" loading="lazy" /><div><strong>@completed.OutputName</strong><small>@StatusName(completed) · @completed.CompletedCycles 批</small></div><span>+@completed.TotalQuantity <small>瓶</small></span></div>
                 }
             </details>
         }
+        <p class="alchemy-page-note">草药与成品属于当前角色 · 药剂需自行装备后使用</p>
 
         @if (SelectedRecipe is { } selected)
         {
-            <div class="activity-dialog-overlay" @onclick="CloseRecipe" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
-                <section class="activity-dialog" role="dialog" aria-modal="true" aria-labelledby="production-dialog-title" @onclick:stopPropagation>
-                    <header class="activity-dialog__header"><span class="activity-dialog__icon" aria-hidden="true"><img src="@ItemArt.ForCode(selected.OutputCode)" alt="" /></span><div><small>炼金配方 · 每 @selected.CycleSeconds 秒</small><h2 id="production-dialog-title">@selected.Name</h2></div><button type="button" class="activity-dialog__close" @onclick="CloseRecipe" @ref="_dialogCloseButton" aria-label="关闭配方详情">×</button></header>
-                    <div class="activity-dialog__body">
-                        <section class="activity-dialog__product" aria-label="炼金产出">
-                            <span class="activity-dialog__product-icon" aria-hidden="true"><img src="@ItemArt.ForCode(selected.OutputCode)" alt="" /></span>
-                            <div><small>每轮产出 × @selected.OutputQuantity</small><strong>@selected.OutputName</strong><p>@selected.OutputDescription</p></div>
-                        </section>
-                        <div class="activity-dialog__stats"><div><span>当前材料可做</span><strong>@AvailableCycles(selected) 轮</strong></div><div><span>预计产出</span><strong>@((long)Math.Min(AvailableCycles(selected), _fixedBatch ? Math.Max(0, _targetCycles) : 4320) * selected.OutputQuantity) 件</strong></div><div><span>背包成品</span><strong>@selected.CharacterQuantity</strong></div></div>
-                        <div class="activity-dialog__requirements"><label><input type="checkbox" @bind="_fixedBatch" /> 指定批数</label>@if (_fixedBatch) { <label>制作 <input type="number" min="1" max="4320" @bind="_targetCycles" /> 批</label> } else { <span>连续生产，最多 12 小时；缺料即停。</span> }<span>每批完成时扣料，开始时不预留材料。</span></div>
-                        <div class="activity-dialog__ingredients"><strong>每轮消耗</strong>@foreach (var ingredient in selected.Ingredients) { <div><span class="activity-dialog__ingredient-name">@if (ItemArt.ForCode(ingredient.Code) is { } ingredientArt) { <img src="@ingredientArt" alt="" loading="lazy" /> }@ingredient.Name × @ingredient.Quantity</span><b class="@(ingredient.CharacterQuantity < ingredient.Quantity ? "activity-dialog__short" : null)">背包 @ingredient.CharacterQuantity</b></div> }</div>
-                        <div class="activity-dialog__requirements"><strong>@(selected.IsUnlocked ? "已满足战斗条件" : "尚未解锁")</strong><span>@selected.UnlockDescription · @selected.UnlockProgress / @selected.UnlockRequired</span>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <span>需要角色 Lv.@selected.MinimumCharacterLevel</span> }</div>
-                        @if (_notice is not null) { <p class="activity-notice" role="status">@_notice</p> }
+            <div class="alchemy-dialog-overlay" @onclick="CloseRecipe" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
+                <section @key="selected.Code" class="alchemy-dialog @(IsGreater(selected) ? "alchemy-dialog--greater" : null)" @ref="_dialog" role="dialog" aria-modal="true" aria-labelledby="alchemy-dialog-title" @onclick:stopPropagation>
+                    <header class="alchemy-dialog-header"><div><span class="alchemy-eyebrow">PREPARE A BREW</span><h2 id="alchemy-dialog-title">@selected.OutputName</h2></div><button type="button" class="alchemy-dialog-close" @ref="_dialogCloseButton" @onclick="CloseRecipe" aria-label="关闭配方详情">×</button></header>
+                    <div class="alchemy-dialog-body">
+                        <div class="alchemy-product">
+                            <div class="alchemy-product-icon"><img src="@ItemArt.ForCode(selected.OutputCode)" alt="" /></div>
+                            <div><span class="alchemy-grade">@(IsGreater(selected) ? "强效药剂 · 稀有草药炼制" : "普通药剂")</span><p>@selected.OutputDescription</p><small>每批 @selected.OutputQuantity 瓶 · 耗时 @selected.CycleSeconds 秒</small></div>
+                        </div>
+                        @if (selected.Name != selected.OutputName) { <p class="alchemy-recipe-name">配方：@selected.Name</p> }
+                        <div class="alchemy-mode-heading"><h3>生产方式</h3><span>现有材料可做 @AvailableCycles(selected) 批</span></div>
+                        <div class="alchemy-modes" role="group" aria-label="生产方式">
+                            <button type="button" disabled="@_isBusy" class="@(!_fixedBatch ? "alchemy-mode--active" : null)" aria-pressed="@(!_fixedBatch ? "true" : "false")" @onclick="() => _fixedBatch = false"><strong>连续生产</strong><small>最多 12 小时，缺料即停</small></button>
+                            <button type="button" disabled="@_isBusy" class="@(_fixedBatch ? "alchemy-mode--active" : null)" aria-pressed="@(_fixedBatch ? "true" : "false")" @onclick="() => _fixedBatch = true"><strong>指定批数</strong><small>完成目标后自动停止</small></button>
+                        </div>
+                        @if (_fixedBatch)
+                        {
+                            <div class="alchemy-quantity">
+                                <label for="alchemy-batches">制作批数</label>
+                                <div class="alchemy-stepper"><button type="button" disabled="@(_isBusy || RequestedCycles <= 1)" @onclick="() => StepBatch(-1)" aria-label="减少一批">−</button><input id="alchemy-batches" type="number" inputmode="numeric" min="1" max="4320" step="1" @bind="_batchInput" @bind:event="oninput" disabled="@_isBusy" aria-invalid="@(!ValidQuantity ? "true" : "false")" aria-describedby="alchemy-quantity-hint" /><button type="button" disabled="@(_isBusy || RequestedCycles >= 4320)" @onclick="() => StepBatch(1)" aria-label="增加一批">+</button></div>
+                                <div class="alchemy-quick"><button type="button" disabled="@_isBusy" @onclick='() => _batchInput = "10"'>10 批</button><button type="button" disabled="@_isBusy" @onclick='() => _batchInput = "50"'>50 批</button><button type="button" disabled="@(_isBusy || AvailableCycles(selected) == 0)" @onclick="() => SetAvailableBatch(selected)">按现有材料</button></div>
+                            </div>
+                            <p id="alchemy-quantity-hint" class="alchemy-quantity-hint @(!ValidQuantity ? "alchemy-short" : null)">@(ValidQuantity ? $"计划 {RequestedCycles} 批 × 每批 {selected.OutputQuantity} 瓶 = {(long)RequestedCycles!.Value * selected.OutputQuantity} 瓶" : "请输入 1–4320 之间的整数批数。")</p>
+                        }
+                        <div class="alchemy-estimate"><div><span>现有材料预计产出</span><strong>@((long)EstimatedCycles(selected) * selected.OutputQuantity)<small> 瓶</small></strong></div><div><span>预计生产时间</span><strong>@FormatDuration(TimeSpan.FromSeconds((long)EstimatedCycles(selected) * selected.CycleSeconds))</strong></div><div><span>背包成品</span><strong>@selected.CharacterQuantity<small> 瓶</small></strong></div></div>
+                        @if (_fixedBatch && ValidQuantity && RequestedCycles > AvailableCycles(selected))
+                        {
+                            <p class="alchemy-short-note">现有材料仅够 @AvailableCycles(selected) 批；材料不足时会提前停止。</p>
+                        }
+                        <div class="alchemy-ingredients">
+                            <div class="alchemy-ingredients-heading"><h3>所需材料</h3><span>@(_fixedBatch ? "计划用量" : "预计用量") / 持有</span></div>
+                            @foreach (var ingredient in selected.Ingredients)
+                            {
+                                var required = RequiredQuantity(selected, ingredient);
+                                <div class="alchemy-ingredient"><img src="@ItemArt.ForCode(ingredient.Code)" alt="" /><div><strong>@ingredient.Name</strong><small>每批 @ingredient.Quantity 株</small></div><span class="@(required > ingredient.CharacterQuantity ? "alchemy-short" : null)"><b>@required</b> / @ingredient.CharacterQuantity</span></div>
+                            }
+                            <p>每批完成时扣除材料，成品直接进入背包。</p>
+                        </div>
+                        @if (!MeetsRequirements(selected))
+                        {
+                            <div class="alchemy-unlock"><strong>配方尚未解锁</strong><p>@selected.UnlockDescription · @selected.UnlockProgress / @selected.UnlockRequired</p>@if (ActiveCharacters.Current?.Level < selected.MinimumCharacterLevel) { <p>需要角色 Lv.@selected.MinimumCharacterLevel</p> }</div>
+                        }
+                        @if (_overview.ActiveTask is not null) { <p class="alchemy-short-note">当前炼金台正在生产，请先完成或停止现有任务。</p> }
+                        @if (_connectionIssue) { <p class="alchemy-short-note">连接尚未恢复，材料数据可能有变化。</p> }
+                        @if (_notice is not null) { <p class="alchemy-dialog-notice @(_noticeIsError ? "alchemy-short" : null)" role="status">@_notice</p> }
                     </div>
-                    <footer class="activity-dialog__footer"><button type="button" class="activity-dialog__primary" @onclick="() => StartAsync(selected)" disabled="@(_isBusy || !CanStart(selected))">@StartLabel(selected)</button><button type="button" class="activity-dialog__back" @onclick="CloseRecipe">返回炼金配方</button></footer>
+                    <footer class="alchemy-dialog-footer"><button type="button" class="alchemy-button alchemy-button--secondary" @onclick="CloseRecipe">返回配方</button><button type="button" class="alchemy-button alchemy-button--primary" @onclick="() => StartAsync(selected)" disabled="@(!CanStart(selected))">@StartLabel(selected)</button></footer>
                 </section>
             </div>
         }
@@ -99,67 +150,88 @@
 </div>
 
 @code {
+    private static readonly (string Code, string Name)[] Filters = [("all", "全部"), ("ready", "可制作"), ("normal", "普通"), ("greater", "强效")];
     private ProductionOverviewResponse? _overview;
     private bool _fixedBatch;
-    private int _targetCycles = 1;
+    private string _batchInput = "1";
+    private string _filter = "all";
     private readonly Dictionary<string, string> _startRequests = new();
-    private int _characterGeneration;
-    private bool _reloadPending;
     private readonly CancellationTokenSource _refreshCancellation = new();
+    private int _characterGeneration;
+    private int? _viewCharacterId;
+    private bool _reloadPending;
     private bool _isLoading = true;
     private bool _isRefreshing;
     private bool _isBusy;
+    private bool _disposed;
+    private bool _connectionIssue;
     private string? _notice;
+    private bool _noticeIsError;
     private string? _selectedRecipeCode;
     private bool _focusDialog;
-    private ElementReference _dialogCloseButton;
+    private string? _returnFocusId;
+    private ElementReference _dialog, _dialogCloseButton;
     private TimeSpan _serverOffset;
     private DateTime ServerNow => DateTime.UtcNow + _serverOffset;
+    private int? RequestedCycles => int.TryParse(_batchInput, out var count) && count is >= 1 and <= 4320 ? count : null;
+    private bool ValidQuantity => !_fixedBatch || RequestedCycles is not null;
     private ProductionRecipeResponse? SelectedRecipe => _overview?.Recipes.FirstOrDefault(recipe => recipe.Code == _selectedRecipeCode);
-    private IEnumerable<ProductionRecipeResponse> OrderedRecipes() => (_overview?.Recipes ?? [])
-        .OrderByDescending(recipe => recipe.IsUnlocked)
-        .ThenBy(recipe => recipe.MinimumCharacterLevel)
-        .ThenBy(recipe => recipe.Name, StringComparer.Ordinal);
+    private IEnumerable<ProductionRecipeResponse> VisibleRecipes => (_overview?.Recipes ?? []).Where(recipe => MatchesFilter(recipe, _filter))
+        .OrderByDescending(MeetsRequirements).ThenByDescending(IngredientsReady).ThenBy(IsGreater).ThenBy(recipe => recipe.MinimumCharacterLevel).ThenBy(recipe => recipe.Name, StringComparer.Ordinal);
 
     protected override async Task OnInitializedAsync()
     {
         await ActiveCharacters.RefreshAsync();
+        if (_disposed) return;
+        _viewCharacterId = ActiveCharacters.Current?.CharacterId;
+        if (_viewCharacterId is null) { Navigation.NavigateTo("/login", replace: true); return; }
         ActiveCharacters.Changed += OnActiveCharacterChanged;
-        if (ActiveCharacters.Current is null)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
         await LoadAsync();
-        _ = RefreshLoopAsync(_refreshCancellation.Token);
+        if (!_disposed) _ = RefreshLoopAsync(_refreshCancellation.Token);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_focusDialog) return;
-        _focusDialog = false;
-        await _dialogCloseButton.FocusAsync();
+        if (_disposed) return;
+        if (_focusDialog && SelectedRecipe is not null)
+        {
+            _focusDialog = false;
+            await _dialogCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("lobbyUi.trapFocus", _dialog);
+        }
+        else if (_returnFocusId is { } id)
+        {
+            _returnFocusId = null;
+            await Js.InvokeVoidAsync("lobbyUi.focus", id);
+        }
     }
 
-    private void OpenRecipe(string code) { _selectedRecipeCode = code; _focusDialog = true; _notice = null; }
-    private void CloseRecipe() => _selectedRecipeCode = null;
+    private static string RecipeElementId(string code) => $"alchemy-recipe-{code}";
+    private void OpenRecipe(string code) { _selectedRecipeCode = code; _focusDialog = true; _notice = null; _returnFocusId = null; }
+    private void CloseRecipe()
+    {
+        _returnFocusId = VisibleRecipes.Any(recipe => recipe.Code == _selectedRecipeCode) ? RecipeElementId(_selectedRecipeCode!) : "alchemy-recipes-title";
+        _selectedRecipeCode = null;
+        _focusDialog = false;
+    }
     private void HandleDialogKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseRecipe(); }
-
-    private static bool IngredientsReady(ProductionRecipeResponse recipe) => recipe.Ingredients.Count > 0 &&
-        recipe.Ingredients.All(item => item.Quantity > 0 && item.CharacterQuantity >= item.Quantity);
-
-    private static int AvailableCycles(ProductionRecipeResponse recipe) => recipe.Ingredients.Count == 0 ||
-        recipe.Ingredients.Any(item => item.Quantity <= 0) ? 0 :
-        recipe.Ingredients.Min(item => item.CharacterQuantity / item.Quantity);
-
-    private bool CanStart(ProductionRecipeResponse recipe) => _overview is not null && recipe.IsUnlocked &&
-        ActiveCharacters.Current?.Level >= recipe.MinimumCharacterLevel &&
-        _overview.ActiveTask is null && IngredientsReady(recipe) && (!_fixedBatch || _targetCycles is >= 1 and <= 4320);
-
-    private string StartLabel(ProductionRecipeResponse recipe) => !recipe.IsUnlocked ? "完成战斗后解锁"
-        : ActiveCharacters.Current?.Level < recipe.MinimumCharacterLevel ? "等级不足"
-        : _overview?.ActiveTask is not null ? "已有进行中的任务"
-        : !IngredientsReady(recipe) ? "背包材料不足" : "开始生产";
+    private static bool IsGreater(ProductionRecipeResponse recipe) => recipe.OutputCode.StartsWith("greater-", StringComparison.Ordinal);
+    private bool MeetsRequirements(ProductionRecipeResponse recipe) => recipe.IsUnlocked && ActiveCharacters.Current?.Level >= recipe.MinimumCharacterLevel;
+    private static bool IngredientsReady(ProductionRecipeResponse recipe) => AvailableCycles(recipe) > 0;
+    private static int AvailableCycles(ProductionRecipeResponse recipe) => recipe.Ingredients.Count == 0 || recipe.Ingredients.Any(item => item.Quantity <= 0) ? 0 : Math.Max(0, recipe.Ingredients.Min(item => item.CharacterQuantity / item.Quantity));
+    private bool MatchesFilter(ProductionRecipeResponse recipe, string filter) => filter switch { "ready" => MeetsRequirements(recipe) && IngredientsReady(recipe), "normal" => !IsGreater(recipe), "greater" => IsGreater(recipe), _ => true };
+    private string RecipeState(ProductionRecipeResponse recipe) => !recipe.IsUnlocked ? "未解锁" : !MeetsRequirements(recipe) ? "等级不足" : IngredientsReady(recipe) ? "材料充足" : "缺少材料";
+    private static int ContinuousCycleLimit(ProductionRecipeResponse recipe) => recipe.CycleSeconds > 0 ? (43200 + recipe.CycleSeconds - 1) / recipe.CycleSeconds : 0;
+    private int EstimatedCycles(ProductionRecipeResponse recipe) => Math.Min(AvailableCycles(recipe), _fixedBatch ? RequestedCycles ?? 0 : ContinuousCycleLimit(recipe));
+    private long RequiredQuantity(ProductionRecipeResponse recipe, ProductionIngredientResponse ingredient) => (long)(_fixedBatch ? RequestedCycles ?? 0 : EstimatedCycles(recipe)) * ingredient.Quantity;
+    private void StepBatch(int delta) => _batchInput = Math.Clamp((RequestedCycles ?? 1) + delta, 1, 4320).ToString();
+    private void SetAvailableBatch(ProductionRecipeResponse recipe) => _batchInput = Math.Clamp(AvailableCycles(recipe), 1, 4320).ToString();
+    private string? TaskArt(ProductionTaskResponse task) => ItemArt.ForCode(_overview?.Recipes.FirstOrDefault(recipe => recipe.Code == task.RecipeCode)?.OutputCode ?? "minor-healing-potion");
+    private bool CanStart(ProductionRecipeResponse recipe) => !_isBusy && !_connectionIssue && _overview is not null && _overview.CharacterId == ActiveCharacters.Current?.CharacterId && MeetsRequirements(recipe) && _overview.ActiveTask is null && IngredientsReady(recipe) && ValidQuantity;
+    private string StartLabel(ProductionRecipeResponse recipe) => _isBusy ? "处理中…" : _connectionIssue ? "等待连接恢复" : !recipe.IsUnlocked ? "完成战斗后解锁" : !MeetsRequirements(recipe) ? "角色等级不足" : _overview?.ActiveTask is not null ? "炼金台正在生产" : !ValidQuantity ? "请输入有效批数" : !IngredientsReady(recipe) ? "背包材料不足" : _fixedBatch ? $"开始制作 {RequestedCycles} 批" : "开始连续生产";
+    private void SetNotice(string text, bool error = false) { _notice = text; _noticeIsError = error; }
+    private bool IsCurrent(int generation, int? characterId) => !_disposed && generation == _characterGeneration && characterId == ActiveCharacters.Current?.CharacterId;
+    private void ApplyOverview(ProductionOverviewResponse response) { _overview = response; _serverOffset = response.ServerTimeUtc - DateTime.UtcNow; _connectionIssue = false; }
 
     private async Task RefreshLoopAsync(CancellationToken token)
     {
@@ -168,77 +240,67 @@
         try
         {
             while (await timer.WaitForNextTickAsync(token))
-            {
                 await InvokeAsync(async () =>
                 {
-                    if (++ticks % 2 == 0)
-                        await LoadAsync();
-                    if (!token.IsCancellationRequested)
-                        StateHasChanged();
+                    if (_disposed) return;
+                    if (++ticks % 2 == 0) await LoadAsync();
+                    if (!_disposed) StateHasChanged();
                 });
-            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
     private async Task LoadAsync()
     {
-        if (_isRefreshing || _isBusy) return;
+        if (_disposed || _isRefreshing || _isBusy) return;
         _isRefreshing = true;
-        var expectedCharacterId = ActiveCharacters.Current?.CharacterId;
+        var expectedCharacterId = _viewCharacterId;
         var generation = _characterGeneration;
         _reloadPending = false;
         try
         {
             var response = await ApiService.GetProductionAsync();
-            if (generation == _characterGeneration && expectedCharacterId == ActiveCharacters.Current?.CharacterId)
-            {
-                _overview = response is not null && response.CharacterId == expectedCharacterId ? response : null;
-                if (response is not null) _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-            }
+            if (!IsCurrent(generation, expectedCharacterId)) return;
+            if (response is not null && response.CharacterId == expectedCharacterId) ApplyOverview(response);
+            else _connectionIssue = true;
         }
-        catch { if (generation == _characterGeneration) _overview = null; }
+        catch { if (IsCurrent(generation, expectedCharacterId)) _connectionIssue = true; }
         finally
         {
-            if (generation == _characterGeneration) _isLoading = false;
+            if (IsCurrent(generation, expectedCharacterId)) _isLoading = false;
             _isRefreshing = false;
-            if (_reloadPending && !_isBusy) await LoadAsync();
+            if (_reloadPending && !_isBusy && !_disposed) await LoadAsync();
         }
     }
 
     private async Task StartAsync(ProductionRecipeResponse recipe)
     {
-        if (_isBusy || _overview is null || _overview.CharacterId != ActiveCharacters.Current?.CharacterId) return;
-        var characterId = _overview.CharacterId;
+        if (!CanStart(recipe)) return;
+        var characterId = _overview!.CharacterId;
         var generation = ++_characterGeneration;
-        var target = _fixedBatch ? _targetCycles : (int?)null;
+        var target = _fixedBatch ? RequestedCycles : null;
         var key = $"{characterId}:{recipe.Code}:{target?.ToString() ?? "continuous"}";
-        if (!_startRequests.TryGetValue(key, out var requestId))
-            _startRequests[key] = requestId = Guid.NewGuid().ToString("N");
+        if (!_startRequests.TryGetValue(key, out var requestId)) _startRequests[key] = requestId = Guid.NewGuid().ToString("N");
         _isBusy = true;
         _notice = null;
         try
         {
             var (response, error) = await ApiService.StartProductionAsync(characterId, recipe.Code, target, requestId);
-            // Keep the request ID until success, including ambiguous server failures after commit.
-            if (response is not null && error is null) _startRequests.Remove(key);
-            else if (error == "请求信息已变化，请刷新后重试。") _startRequests.Remove(key);
-            if (generation != _characterGeneration || characterId != ActiveCharacters.Current?.CharacterId) return;
-            if (error is not null) _notice = error;
+            // Ambiguous failures retain the ID so retrying cannot start a second job.
+            if (response is not null && error is null || error == "请求信息已变化，请刷新后重试。") _startRequests.Remove(key);
+            if (!IsCurrent(generation, characterId)) return;
+            if (error is not null) SetNotice(error, true);
             else if (response is not null && response.CharacterId == characterId)
             {
-                _overview = response;
+                ApplyOverview(response);
                 _selectedRecipeCode = null;
-                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = $"{recipe.Name} 已开始生产，每轮结算时消耗材料。";
+                _focusDialog = false;
+                _returnFocusId = "alchemy-workbench";
+                SetNotice($"{recipe.OutputName} 已开始生产，完成的药剂会直接进入背包。");
             }
         }
-        catch { if (generation == _characterGeneration) _notice = "连接中断，请刷新后确认任务状态；相同配方与批数可安全重试。"; }
-        finally
-        {
-            _isBusy = false;
-            if (_reloadPending) await LoadAsync();
-        }
+        catch { if (IsCurrent(generation, characterId)) SetNotice("连接中断，请核对任务状态；相同配方与批数可安全重试。", true); }
+        finally { _isBusy = false; if (_reloadPending && !_disposed) await LoadAsync(); }
     }
 
     private async Task StopAsync(int taskId)
@@ -251,60 +313,51 @@
         try
         {
             var (response, error) = await ApiService.StopProductionAsync(taskId);
-            if (generation != _characterGeneration || characterId != ActiveCharacters.Current?.CharacterId) return;
-            if (error is not null) _notice = error;
+            if (!IsCurrent(generation, characterId)) return;
+            if (error is not null) SetNotice(error, true);
             else if (response is not null && response.CharacterId == characterId)
             {
-                _overview = response;
-                _serverOffset = response.ServerTimeUtc - DateTime.UtcNow;
-                _notice = "生产已停止，已完成的小轮成品保留在当前角色背包。";
+                ApplyOverview(response);
+                SetNotice("生产已停止，已完成批次的药剂已存入背包。");
             }
         }
-        catch { if (generation == _characterGeneration) _notice = "连接中断，请刷新后确认任务状态。"; }
-        finally
-        {
-            _isBusy = false;
-            if (_reloadPending) await LoadAsync();
-        }
+        catch { if (IsCurrent(generation, characterId)) SetNotice("连接中断，请刷新后确认任务状态。", true); }
+        finally { _isBusy = false; if (_reloadPending && !_disposed) await LoadAsync(); }
     }
 
-    private int CycleProgress(ProductionTaskResponse task)
-    {
-        if (task.CycleSeconds <= 0) return 0;
-        var remaining = Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds);
-        return (int)Math.Clamp(Math.Round(100 * (1 - remaining / task.CycleSeconds)), 0, 100);
-    }
-
+    private int CycleProgress(ProductionTaskResponse task) => task.CycleSeconds <= 0 ? 0 : (int)Math.Clamp(Math.Round(100 * (1 - Math.Clamp((task.NextCycleAtUtc - ServerNow).TotalSeconds, 0, task.CycleSeconds) / task.CycleSeconds)), 0, 100);
     private static string FormatDuration(TimeSpan span)
     {
         if (span < TimeSpan.Zero) span = TimeSpan.Zero;
-        return span.TotalHours >= 1 ? $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2}"
-            : $"{span.Minutes:D2}:{span.Seconds:D2}";
+        return span.TotalHours >= 1 ? $"{(int)span.TotalHours:D2}:{span.Minutes:D2}:{span.Seconds:D2}" : $"{(int)span.TotalMinutes:D2}:{span.Seconds:D2}";
     }
+    private static string StatusName(ProductionTaskResponse task) => task.Status switch { "Completed" => task.TargetCycles is null ? "生产结束" : "目标完成", "Stopped" => "手动停止", "MaterialShortage" => "材料耗尽", "InventoryFull" => "背包已满", _ => task.Status };
 
-    private static string StatusName(string status) => status switch
+    private void OnActiveCharacterChanged()
     {
-        "Completed" => "到期完成",
-        "Stopped" => "手动停止",
-        "MaterialShortage" => "材料耗尽",
-        "InventoryFull" => "背包已满",
-        _ => status
-    };
-
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
-    {
+        if (_disposed) return;
+        if (_viewCharacterId == ActiveCharacters.Current?.CharacterId) { _ = InvokeAsync(StateHasChanged); return; }
+        _viewCharacterId = ActiveCharacters.Current?.CharacterId;
         _characterGeneration++;
         _overview = null;
         _isLoading = true;
         _notice = null;
         _selectedRecipeCode = null;
+        _focusDialog = false;
+        _returnFocusId = null;
+        _connectionIssue = false;
         _reloadPending = true;
-        await LoadAsync();
-        StateHasChanged();
-    });
+        _ = InvokeAsync(async () =>
+        {
+            if (_viewCharacterId is null) { Navigation.NavigateTo("/login", replace: true); return; }
+            await LoadAsync();
+            if (!_disposed) StateHasChanged();
+        });
+    }
 
     public void Dispose()
     {
+        _disposed = true;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
         ActiveCharacters.Changed -= OnActiveCharacterChanged;
