@@ -7,55 +7,40 @@
 @inject ApiService ApiService
 
 <div class="monster-detail-overlay" @onclick="CloseAsync" @onkeydown="HandleKeyDown" @onkeydown:stopPropagation>
-    <section class="monster-detail-dialog @(!_showDrops && SelectedMonster is { } activeMonster ? $"monster-detail-dialog--{activeMonster.Element.ToString().ToLowerInvariant()}" : "")"
+    <section class="monster-detail-dialog @(CurrentDungeon.SupportsDepths ? "monster-detail-dialog--depth" : "") @(FeaturedMonster is { } activeMonster ? $"monster-detail-dialog--{activeMonster.Element.ToString().ToLowerInvariant()}" : "")"
              role="dialog" aria-modal="true" aria-labelledby="monster-detail-title" @onclick:stopPropagation @ref="_dialog">
         <header class="monster-detail-header">
             <div>
-                <span class="monster-detail-kicker">@CurrentDungeon.RegionName · @CurrentDungeon.Name</span>
-                <h2 id="monster-detail-title">创建战斗</h2>
-                <p>@CurrentDungeon.WaveCount 波 · @CurrentDungeon.MonsterCount 名敌人 · 进入等级 Lv.@CurrentDungeon.MinimumLevel @(CurrentDungeon.SupportsDepths ? $"· T{CurrentDungeon.Stage} · 深层 LV{CurrentDungeon.DepthLevel}" : "")</p>
+                <span class="monster-detail-kicker">@CurrentDungeon.RegionName <span> / @(CurrentDungeon.SupportsDepths ? $"T{CurrentDungeon.Stage} 深层副本" : "冒险准备")</span></span>
+                <h2 id="monster-detail-title">@DungeonTitle</h2>
+                <p><span>@CurrentDungeon.WaveCount 波 · @CurrentDungeon.MonsterCount 名敌人</span><span>角色 Lv.@CurrentDungeon.MinimumLevel 起</span></p>
             </div>
+            @if (FeaturedMonster is { } featured)
+            {
+                <div class="monster-detail-banner-art" aria-hidden="true"><img src="@MonsterArt.ForName(featured.Name)" alt="" /></div>
+            }
             <button type="button" class="monster-detail-close" @onclick="CloseAsync" @ref="_monsterCloseButton" aria-label="关闭详情">×</button>
         </header>
 
-        <div class="monster-detail-tabs" role="tablist" aria-label="副本资料">
-            <button type="button" role="tab" aria-selected="@(!_showDrops ? "true" : "false")" class="@(!_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = false">怪物信息</button>
-            <button type="button" role="tab" aria-selected="@(_showDrops ? "true" : "false")" class="@(_showDrops ? "monster-detail-tabs__active" : null)" @onclick="() => _showDrops = true">掉落预览</button>
-        </div>
-
-        <div class="monster-detail-body" @key="_showDrops">
+        <div class="monster-detail-tabs @(CurrentDungeon.SupportsDepths ? "monster-detail-tabs--three" : "")" role="group" aria-label="副本资料">
             @if (CurrentDungeon.SupportsDepths)
             {
-                <section class="depth-selection" aria-label="选择深层层级" aria-busy="@_isLoadingDepth">
-                    <DungeonMastery UnlockedDepth="CurrentDungeon.UnlockedDepth" MasteryLevel="CurrentDungeon.MasteryLevel" HighestDepth="CurrentDungeon.CharacterHighestDepth" />
-                    @foreach (var challenge in new[] { false, true })
-                    {
-                        var levels = CurrentDungeon.Depths.Where(depth => depth.IsChallenge == challenge).ToList();
-                        @if (levels.Count > 0)
-                        {
-                            <h3>@(challenge ? "挑战 · LV5+" : "精通 · LV1—LV4")</h3>
-                            <div class="depth-selection__levels">
-                                @foreach (var depth in levels)
-                                {
-                                    <button type="button" class="@(CurrentDungeon.DepthLevel == depth.DepthLevel ? "selected" : null)" aria-pressed="@(CurrentDungeon.DepthLevel == depth.DepthLevel)" disabled="@(IsCreating || _isLoadingDepth)" @onclick="() => SelectDepthAsync(depth.DepthLevel)">LV@(depth.DepthLevel) @(depth.IsUnlocked ? "" : "🔒")</button>
-                                }
-                            </div>
-                        }
-                    }
-                    @if (SelectedDepth is { } selectedDepth)
-                    {
-                        <p class="monster-weapon-note">生命与攻击 ×@selectedDepth.StatMultiplier.ToString("0.##")@(selectedDepth.IsChallenge ? " · 沿用 LV4 完整机制" : "")</p>
-                        @if (!selectedDepth.IsUnlocked) { <p class="monster-create-message">账号通关 LV@(selectedDepth.DepthLevel - 1) 后开放此层。</p> }
-                        @foreach (var mechanic in selectedDepth.AddedMechanics) { <p class="depth-selection__mechanic">@mechanic</p> }
-                    }
-                    <p class="monster-weapon-note">本角色收益：金币 +@CurrentDungeon.GoldBonusPercent.ToString("0.##")% · 击杀追加 @CurrentDungeon.KillExtraRollChancePercent.ToString("0.##")% · 通关追加 @CurrentDungeon.ClearExtraRollChancePercent.ToString("0.##")%。追加独立抽取常规物品，不复制掉落，也不追加挑战碎片。</p>
-                    @if (!CurrentDungeon.AutoUnlocked) { <p class="monster-weapon-note">本角色首次通关此副本后解锁 Auto。</p> }
-                    <p class="monster-weapon-note">自动循环保持所选层级；通关不自动升层，战败后停止。精通提升从下一轮生效。</p>
-                    @if (CurrentDungeon.UsesPlaceholderBalance) { <p class="depth-selection__test">测试配置 · 战斗数值与机制仍待调整。</p> }
-                    @if (_depthError is not null) { <p class="monster-create-message" role="alert">@_depthError</p> }
-                </section>
+                <button type="button" aria-pressed="@(_view == DetailView.Difficulty ? "true" : "false")" class="@(_view == DetailView.Difficulty ? "monster-detail-tabs__active" : null)" @onclick="() => _view = DetailView.Difficulty">选择难度</button>
             }
-            @if (_showDrops)
+            <button type="button" aria-pressed="@(_view == DetailView.Monsters ? "true" : "false")" class="@(_view == DetailView.Monsters ? "monster-detail-tabs__active" : null)" @onclick="() => _view = DetailView.Monsters">敌情</button>
+            <button type="button" aria-pressed="@(_view == DetailView.Drops ? "true" : "false")" class="@(_view == DetailView.Drops ? "monster-detail-tabs__active" : null)" @onclick="() => _view = DetailView.Drops">战利品</button>
+        </div>
+
+        <div class="monster-detail-body @(_view == DetailView.Difficulty ? "monster-detail-body--difficulty" : "")" @key="_view">
+            @if (CurrentDungeon.SupportsDepths && _view != DetailView.Difficulty)
+            {
+                <button type="button" class="monster-depth-return" @onclick="() => _view = DetailView.Difficulty"><span><b>LV@(CurrentDungeon.DepthLevel)</b> @(SelectedDepth?.IsChallenge == true ? "极限挑战" : "精通之路")</span><span>更换难度 <span aria-hidden="true">↗</span></span></button>
+            }
+            @if (_view == DetailView.Difficulty)
+            {
+                <DungeonDepthPicker Dungeon="CurrentDungeon" IsLoading="_isLoadingDepth" IsCreating="IsCreating" OnSelect="SelectDepthAsync" />
+            }
+            else if (_view == DetailView.Drops)
             {
                 @foreach (var monster in CurrentDungeon.Monsters.OrderBy(item => item.WaveNumber).ThenBy(item => item.Position))
                 {
@@ -163,7 +148,7 @@
                 {
                     <p class="monster-weapon-note">固定难度，怪物生命不随队伍人数变化。</p>
                 }
-                <p class="monster-weapon-note">切换到“掉落预览”可查看每只怪物的掉落及武器属性。</p>
+                <p class="monster-weapon-note">切换到“战利品”可查看掉落及武器属性。</p>
             }
             else
             {
@@ -173,18 +158,32 @@
         <footer class="monster-create-panel" aria-label="创建房间设置">
             @if (Character is { } character)
             {
-                <div class="monster-create-character"><span>当前角色</span><strong>@character.Name · @character.ProfessionName · Lv.@character.Level</strong><small>生命 @character.Hp / @character.MaxHp · 攻击 @character.Attack · 本副本经验 @CurrentDungeon.ExperiencePercent%</small></div>
+                <div class="monster-create-character"><strong>@character.Name</strong><span>@character.ProfessionName · Lv.@character.Level</span><small>@(CurrentDungeon.AutoUnlocked ? "Auto 已解锁" : "Auto 待解锁")</small></div>
             }
             else
             {
                 <div class="monster-create-character"><strong>请先选择角色</strong></div>
             }
-            <div class="monster-create-settings">
-                <label><input type="checkbox" @bind="_isRepeatBattle" /><span><strong>自动循环</strong><small>@(CurrentDungeon.SupportsDepths ? $"固定 LV{CurrentDungeon.DepthLevel} 重复" : "胜利后自动重开")</small></span></label>
-                <label><input type="checkbox" @bind="_isPreparationTimeoutEnabled" /><span><strong>准备超时</strong><small>到时自动开战</small></span></label>
-                <label><input type="checkbox" @bind="_isPublic" /><span><strong>开放房间</strong><small>允许其他玩家加入</small></span></label>
+            <div class="monster-create-controls">
+                <label class="monster-repeat-control"><input type="checkbox" @bind="_isRepeatBattle" disabled="@IsCreating" /><span>自动循环</span><small>@(CurrentDungeon.SupportsDepths ? $"固定 LV{CurrentDungeon.DepthLevel}" : "胜利后重开")</small></label>
+                <button type="button" class="monster-settings-toggle" aria-expanded="@(_showSettings ? "true" : "false")" aria-controls="monster-room-settings" @onclick="() => _showSettings = !_showSettings">更多设置 <span aria-hidden="true">@(_showSettings ? "−" : "+")</span></button>
             </div>
-            @if (!CurrentDungeon.CanEnter)
+            @if (_showSettings)
+            {
+                <div id="monster-room-settings" class="monster-room-settings">
+                    <div class="monster-create-settings">
+                        <label><input type="checkbox" @bind="_isPreparationTimeoutEnabled" disabled="@IsCreating" /><span><strong>准备超时</strong><small>到时自动开战</small></span></label>
+                        <label><input type="checkbox" @bind="_isPublic" disabled="@IsCreating" /><span><strong>开放房间</strong><small>允许其他玩家加入</small></span></label>
+                    </div>
+                    <p>循环固定所选难度，战败后停止。</p>
+                    @if (Character is { } settingsCharacter) { <p>生命 @settingsCharacter.Hp / @settingsCharacter.MaxHp · 攻击 @settingsCharacter.Attack · 本副本经验 @CurrentDungeon.ExperiencePercent%</p> }
+                </div>
+            }
+            @if (_depthError is not null)
+            {
+                <div class="monster-create-message monster-create-message--retry" role="alert"><span>@_depthError</span><button type="button" @onclick="() => SelectDepthAsync(_requestedDepth)" disabled="@_isLoadingDepth">重试</button></div>
+            }
+            else if (!CurrentDungeon.CanEnter && SelectedDepth?.IsUnlocked != false)
             {
                 <p class="monster-create-message">@CurrentDungeon.LockReason</p>
             }
@@ -192,7 +191,7 @@
             {
                 <p class="monster-create-message" role="alert">@CreateError</p>
             }
-            <button type="button" class="button button--primary monster-create-button" disabled="@(IsCreating || _isLoadingDepth || !CurrentDungeon.CanEnter || SelectedDepth?.IsUnlocked == false || Character is null)" @onclick="CreateAsync">@(IsCreating ? "创建中…" : "创建战斗")</button>
+            <button type="button" class="button button--primary monster-create-button" disabled="@(IsCreating || _isLoadingDepth || _depthError is not null || !CurrentDungeon.CanEnter || SelectedDepth?.IsUnlocked == false || Character is null)" @onclick="CreateAsync"><span>@CreateButtonLabel</span><span aria-hidden="true">@(SelectedDepth?.IsUnlocked == false ? "" : "→")</span></button>
         </footer>
     </section>
 
@@ -221,6 +220,16 @@
     private bool _isLoadingDepth;
     private string? _depthError;
     private int _depthRequest;
+    private int _requestedDepth = 1;
+    private enum DetailView { Difficulty, Monsters, Drops }
+    private DetailView _view;
+    private bool _showSettings;
+    private MonsterPreviewResponse? FeaturedMonster => CurrentDungeon.Monsters.FirstOrDefault(item => item.IsBoss) ?? CurrentDungeon.Monsters.FirstOrDefault();
+    private string DungeonTitle => CurrentDungeon.SupportsDepths
+        ? System.Text.RegularExpressions.Regex.Replace(CurrentDungeon.Name, @"·深层(?:\s*LV\d+)?$", "") : CurrentDungeon.Name;
+    private string CreateButtonLabel => IsCreating ? "正在创建…" : _isLoadingDepth ? "正在读取难度…"
+        : SelectedDepth?.IsUnlocked == false ? $"通关 LV{CurrentDungeon.DepthLevel - 1} 后开放"
+        : CurrentDungeon.SupportsDepths ? $"开始挑战 · LV{CurrentDungeon.DepthLevel}" : "开始战斗";
 
     protected override void OnParametersSet()
     {
@@ -230,11 +239,16 @@
         _depthRequest++;
         _isLoadingDepth = false;
         _depthError = null;
+        _view = Dungeon.SupportsDepths ? DetailView.Difficulty : DetailView.Monsters;
+        _selectedMonsterIndex = Math.Max(0, Dungeon.Monsters.FindIndex(item => item.IsBoss));
+        _requestedDepth = Dungeon.DepthLevel;
+        _showSettings = false;
     }
 
     private async Task SelectDepthAsync(int depthLevel)
     {
         var request = ++_depthRequest;
+        _requestedDepth = depthLevel;
         _isLoadingDepth = true;
         _depthError = null;
         try
@@ -242,7 +256,7 @@
             var preview = await ApiService.GetDungeonAsync(Dungeon.DungeonId, depthLevel);
             if (request != _depthRequest) return;
             if (preview is null) _depthError = "层级资料读取失败，请重试。";
-            else { _preview = preview; _selectedMonsterIndex = 0; _selectedWeapon = null; }
+            else { _preview = preview; _selectedMonsterIndex = Math.Max(0, preview.Monsters.FindIndex(item => item.IsBoss)); _selectedWeapon = null; }
         }
         catch { if (request == _depthRequest) _depthError = "层级资料读取失败，请重试。"; }
         finally { if (request == _depthRequest) _isLoadingDepth = false; }
@@ -253,7 +267,6 @@
     private ElementReference _dialog;
     private bool _focusMonster = true;
     private int _selectedMonsterIndex;
-    private bool _showDrops;
     private bool _isRepeatBattle = true;
     private bool _isPreparationTimeoutEnabled = true;
     private bool _isPublic;

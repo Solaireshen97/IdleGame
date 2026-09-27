@@ -1,0 +1,94 @@
+@using Game.Shared.Dtos
+
+<div class="depth-picker" aria-label="选择深层难度" aria-busy="@(IsLoading ? "true" : "false")">
+    <div class="depth-picker__heading">
+        <span>精通之路 <small>LV1—4</small></span>
+        <span class="depth-picker__progress">@(Dungeon.MasteryLevel >= 4 ? "◆ 完全精通" : $"角色精通 {Dungeon.MasteryLevel}/4")</span>
+    </div>
+    <div class="depth-picker__mastery" role="group" aria-label="精通难度">
+        @foreach (var depth in Dungeon.Depths.Where(item => !item.IsChallenge))
+        {
+            <button type="button" class="depth-step @(depth.DepthLevel == Dungeon.DepthLevel ? "is-selected" : "") @(depth.IsUnlocked ? "" : "is-locked")"
+                    aria-pressed="@(depth.DepthLevel == Dungeon.DepthLevel ? "true" : "false")" aria-label="@DepthLabel(depth)"
+                    disabled="@(IsLoading || IsCreating)" @onclick="() => OnSelect.InvokeAsync(depth.DepthLevel)">
+                <span class="depth-step__top"><span>LV</span><strong>@depth.DepthLevel</strong><span class="depth-step__mark" aria-hidden="true">@(depth.DepthLevel <= Dungeon.MasteryLevel ? "✓" : "")</span></span>
+                <span class="depth-step__reward">@MasteryName(depth.DepthLevel)</span>
+                @if (!depth.IsUnlocked) { <span class="depth-lock" aria-hidden="true"></span> }
+            </button>
+        }
+    </div>
+    @if (Dungeon.Depths.Any(item => item.IsChallenge))
+    {
+        <div class="depth-picker__heading depth-picker__heading--challenge"><span>极限挑战 <small>LV5+</small></span><span>突破材料 · 无新增精通</span></div>
+        <div class="depth-picker__challenge" role="group" aria-label="挑战难度">
+            @foreach (var depth in Dungeon.Depths.Where(item => item.IsChallenge))
+            {
+                <button type="button" class="depth-challenge @(depth.DepthLevel == Dungeon.DepthLevel ? "is-selected" : "") @(depth.IsUnlocked ? "" : "is-locked")"
+                        aria-label="@DepthLabel(depth)" aria-pressed="@(depth.DepthLevel == Dungeon.DepthLevel ? "true" : "false")"
+                        disabled="@(IsLoading || IsCreating)" @onclick="() => OnSelect.InvokeAsync(depth.DepthLevel)">
+                    <span>LV<strong>@depth.DepthLevel</strong></span>
+                    @if (!depth.IsUnlocked) { <span class="depth-lock" aria-hidden="true"></span> }
+                </button>
+            }
+        </div>
+    }
+    @if (SelectedDepth is { } selected)
+    {
+        <section class="depth-brief @(selected.IsChallenge ? "depth-brief--challenge" : "")" aria-live="polite" aria-label="当前难度摘要">
+            <div class="depth-brief__emblem" aria-hidden="true"><span>LV</span><strong>@selected.DepthLevel</strong></div>
+            <div class="depth-brief__copy">
+                <div class="depth-brief__title"><strong>@DepthName(selected.DepthLevel)</strong><span>@(selected.IsUnlocked ? "已开放" : "未开放")</span></div>
+                <p>@SelectionReward</p>
+                <div class="depth-brief__stats"><span>生命 / 攻击 <b>×@selected.StatMultiplier.ToString("0.##")</b></span><span>@(selected.IsChallenge ? "沿用 LV4 技能" : $"新增技能 {selected.AddedMechanics.Count} 项")</span></div>
+            </div>
+        </section>
+    }
+    <div class="depth-benefits" aria-label="当前角色的精通收益">
+        <span>已享收益</span>
+        <span>金币 <b>+@Dungeon.GoldBonusPercent.ToString("0.##")%</b></span>
+        <span>击杀追加 <b>@Dungeon.KillExtraRollChancePercent.ToString("0.##")%</b></span>
+        <span>通关追加 <b>@Dungeon.ClearExtraRollChancePercent.ToString("0.##")%</b></span>
+    </div>
+    <button type="button" class="depth-rules-toggle" aria-expanded="@(_showRules ? "true" : "false")" aria-controls="depth-rules" @onclick="() => _showRules = !_showRules">
+        <span>机制与收益说明 <small>@(Dungeon.UsesPlaceholderBalance ? "技能暂为占位" : "查看详情")</small></span><span aria-hidden="true">@(_showRules ? "−" : "+")</span>
+    </button>
+    @if (_showRules)
+    {
+        <div id="depth-rules" class="depth-rules">
+            <p>账号已开放 LV@(Dungeon.UnlockedDepth) · @(Dungeon.CharacterHighestDepth > 0 ? $"本角色最高通关 LV{Dungeon.CharacterHighestDepth}" : "本角色尚未通关")。</p>
+            @if (SelectedDepth?.AddedMechanics.Count > 0)
+            {
+                <div class="depth-rules__mechanics">@foreach (var mechanic in SelectedDepth.AddedMechanics) { <span>@mechanic</span> }</div>
+            }
+            else { <p>本层使用原有基础技能。</p> }
+            <p>首次通关解锁本角色的 Auto。精通收益累积保留，升级从下一轮生效；回刷低层也享受加成。</p>
+            <p>击杀、通关追加均独立抽取常规物品，不复制掉落，不追加经验、首通或挑战碎片。</p>
+            @if (Dungeon.UsesPlaceholderBalance) { <p>当前生命、攻击与新增技能为测试占位，正式机制和平衡仍待调整。</p> }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public DungeonSummaryResponse Dungeon { get; set; } = null!;
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public bool IsCreating { get; set; }
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+    private bool _showRules;
+    private DungeonDepthPreviewResponse? SelectedDepth => Dungeon.Depths.FirstOrDefault(item => item.DepthLevel == Dungeon.DepthLevel);
+    private string SelectionReward => SelectedDepth?.IsUnlocked == false
+        ? $"账号通关 LV{Dungeon.DepthLevel - 1} 后开放；可提前查看敌情。"
+        : Dungeon.DepthLevel >= 5
+            ? Dungeon.RewardPreview.FirstOrDefault(item => item.Source is "挑战额外奖励" or "挑战奖励") is { } reward
+                ? $"通关 {reward.ChancePercent:0.##}% 获得 {reward.Name.Replace("通用突破碎片", "突破碎片")} ×{reward.Quantity}"
+                : "通关可获得本阶段通用突破材料。"
+            : Dungeon.MasteryLevel >= Dungeon.DepthLevel ? "已获得本层精通，享受常规战利品。" : Dungeon.DepthLevel switch
+            {
+                1 => "首次通关，解锁本角色的自动战斗。",
+                2 => "通关获得金币精通，提高本副本金币收益。",
+                3 => "通关获得战利品精通，击杀有机会追加掉落。",
+                _ => "通关完成全部精通，胜利有机会追加奖励。"
+            };
+    private static string MasteryName(int level) => level switch { 1 => "解锁 Auto", 2 => "金币精通", 3 => "击杀追加", _ => "通关追加" };
+    private static string DepthName(int level) => level switch { 1 => "初次征服", 2 => "从容应对", 3 => "进阶试炼", 4 => "完全掌握", _ => "突破极限" };
+    private static string DepthLabel(DungeonDepthPreviewResponse depth) => $"LV{depth.DepthLevel}，{DepthName(depth.DepthLevel)}，{(depth.IsUnlocked ? "已开放" : "未开放，可预览")}";
+}
