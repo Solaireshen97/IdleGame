@@ -22,6 +22,7 @@ public class Room
     public DateTime? ClosedAtUtc { get; set; }
     public int RoundNumber { get; set; }
     public int RunSequence { get; set; } = 1;
+    public int ScalingPartySize { get; set; } = 1;
     public int CurrentWaveNumber { get; set; } = 1;
     public int TotalWaveCount { get; set; } = 1;
     public int Version { get; set; }

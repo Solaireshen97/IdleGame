@@ -7,11 +7,11 @@
 @inject ApiService ApiService
 @inject NavigationManager Navigation
 @inject IJSRuntime Js
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageTitle>战斗房间</PageTitle>
 
-<div class="battle-page @(_roomDetail is { ClosedAtUtc: null } ? "battle-page--focused" : null)" @onkeydown="HandleBattleLogKeyDown">
+<div class="battle-page @(_roomDetail is { ClosedAtUtc: null } || _combatScene is not null ? "battle-page--focused" : null)" @onkeydown="HandleBattleLogKeyDown">
     <header class="battle-page__header">
         <button class="back-link" @onclick="GoToRooms">← 返回大厅</button>
         <span class="battle-page__room">ROOM · @RoomId</span>
@@ -21,7 +21,7 @@
 {
     <GameStateCard Compact="true" Title="正在进入战场" Detail="同步房间成员与敌方状态…" />
 }
-else if (_roomDetail.ClosedAtUtc.HasValue)
+else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
 {
     <section class="battle-rewards" aria-label="已结束的战斗任务">
         <div class="battle-rewards__heading">
@@ -32,16 +32,7 @@ else if (_roomDetail.ClosedAtUtc.HasValue)
         @if (_roomDetail.CumulativeRewards is { } cumulative)
         {
             <p>已结算 @cumulative.CompletedRuns 轮</p>
-            <div class="battle-rewards__totals"><strong>累计金币 +@cumulative.Gold</strong><strong>累计经验 +@cumulative.Experience</strong></div>
-            @if (cumulative.Items.Count > 0)
-            {
-                <ul>
-                    @foreach (var item in cumulative.Items)
-                    {
-                        <li><span>@item.CharacterName</span><strong>@item.Name × @item.Quantity</strong></li>
-                    }
-                </ul>
-            }
+            <div class="battle-rewards__loot"><RoomRewards Rewards="cumulative" /></div>
         }
         @if (IsOwner)
         {
@@ -58,20 +49,21 @@ else
     var ownSlots = _roomDetail.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied).ToList();
     var isCurrentUserPrepared = ownSlots.Any(slot => slot.IsAlive) && ownSlots.Where(slot => slot.IsAlive).All(slot => slot.IsConfirmed);
     var countdown = GetActiveCountdown();
+    var scene = _combatScene ?? _roomDetail;
 
-    <section class="battle-stage" aria-label="战斗场景">
+    <section class="battle-stage" aria-label="战斗场景" @ref="_battleStage">
         <div class="battle-stage__header">
             <div>
-                <span class="section-kicker">@_roomDetail.RegionName · DUNGEON ENCOUNTER</span>
-                <h1>@_roomDetail.DungeonName</h1>
+                <span class="section-kicker">@scene.RegionName · DUNGEON ENCOUNTER</span>
+                <h1>@scene.DungeonName</h1>
             </div>
             <div class="battle-stage__meta">
-                <span class="battle-mode">第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波</span>
-                <span class="battle-status">@GetStatusText()</span>
+                <span class="battle-mode">第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波</span>
+                <span class="battle-status">@(_activeCombatPlan is not null ? "交战中" : GetStatusText())</span>
             </div>
         </div>
 
-        @if (_roomDetail.MonsterIntent is { } intent && _roomDetail.MonsterHp > 0 && _roomDetail.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && _roomDetail.NextBattleStartAtUtc is null)
+        @if (scene.MonsterIntent is { } intent && scene.MonsterHp > 0 && scene.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && scene.NextBattleStartAtUtc is null)
         {
             <section class="monster-intent monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
                 <div class="monster-intent__icon" aria-hidden="true">!</div>
@@ -93,23 +85,28 @@ else
         }
         else
         {
-            var intentTitle = _roomDetail.NextBattleStartAtUtc is not null
+            var encounterVictory = scene.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && scene.MonsterHp <= 0;
+            var intentTitle = encounterVictory
+                ? "讨伐完成"
+                : scene.NextBattleStartAtUtc is not null
                 ? "讨伐已完成"
-                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                : scene.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || scene.MonsterHp <= 0
                     ? "目标已击破"
                     : "等待敌方行动";
-            var intentDetail = _roomDetail.NextBattleStartAtUtc is not null
+            var intentDetail = scene.NextBattleStartAtUtc is not null
                 ? "等待副本重新开始"
-                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                : encounterVictory ? "战利品已结算，下一场冒险随时开始"
+                : scene.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || scene.MonsterHp <= 0
                     ? "等待下一名敌人进入战场"
                     : "行动预告将在准备后显示";
-            var intentState = _roomDetail.NextBattleStartAtUtc is not null
+            var intentState = scene.NextBattleStartAtUtc is not null
                 ? "即将重开"
-                : _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.MonsterHp <= 0
+                : encounterVictory ? "已通关"
+                : scene.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || scene.MonsterHp <= 0
                     ? "切换中"
                     : "未锁定";
-            <section class="monster-intent monster-intent--waiting" aria-label="敌方行动预告状态" aria-live="polite">
-                <div class="monster-intent__icon" aria-hidden="true">◇</div>
+            <section class="monster-intent monster-intent--waiting @(encounterVictory ? "monster-intent--victory" : null)" aria-label="敌方行动预告状态" aria-live="polite">
+                <div class="monster-intent__icon" aria-hidden="true">@(encounterVictory ? "✦" : "◇")</div>
                 <div class="monster-intent__body">
                     <span>ENEMY INTENT · 敌方行动预告</span>
                     <strong>@intentTitle</strong>
@@ -119,13 +116,20 @@ else
             </section>
         }
 
-        <div class="battle-field @(_isCombatFeedbackVisible ? "battle-field--player-attack" : "") @(_roomDetail.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
+        <div class="combat-readout" aria-label="回合战斗反馈">
+            <span class="combat-readout__round">ROUND <b>@((_activeCombatPlan?.Round ?? scene.RoundNumber).ToString("D2"))</b></span>
+            <strong class="combat-readout__action"><span class="combat-readout__rest">@GetCombatHeadline()</span><span class="combat-readout__live" data-combat-action></span></strong>
+            <span class="combat-readout__result combat-readout__rest"><b>@(_lastCombatPlan is { HitCount: > 0 } ? $"{_lastCombatPlan.HitCount} HIT" : "")</b><span>@(_lastCombatPlan is { TotalDamage: > 0 } ? $"{_lastCombatPlan.TotalDamage:N0} 伤害" : "")</span></span>
+            <span class="combat-readout__result combat-readout__live"><b data-combat-hits></b><span data-combat-total></span></span>
+        </div>
+        <span class="combat-announcement" role="status">@_combatAnnouncement</span>
+        <div class="battle-field @(scene.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
             <div class="battle-field__party">
-                <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人</strong></div>
+                <div class="battle-field__label"><span><small>YOUR PARTY</small>我方队伍</span><strong>@scene.Slots.Count(slot => slot.IsOccupied) / @scene.SlotCount 人</strong></div>
                 <div class="fighter-line">
-                    @foreach (var slot in _roomDetail.Slots.Where(slot => slot.IsOccupied).OrderByDescending(slot => slot.SlotIndex))
+                    @foreach (var slot in scene.Slots.Where(slot => slot.IsOccupied).OrderByDescending(slot => slot.SlotIndex))
                     {
-                        <button type="button"
+                        <button type="button" @key="slot.CharacterId" data-combat-unit="@slot.SlotIndex" data-combat-name="@slot.CharacterName" data-hp="@slot.CharacterHp" data-max-hp="@slot.CharacterMaxHp"
                                 class="fighter fighter--occupied fighter--interactive @(!slot.IsAlive ? "fighter--down" : "") @(IsMonsterIntentTarget(slot) ? "fighter--targeted" : "")"
                                 title="@($"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp} · 点击查看状态")"
                                 aria-label="@($"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}{(IsMonsterIntentTarget(slot) ? "，敌人当前攻击目标" : "")}，点击查看详细状态")"
@@ -133,11 +137,14 @@ else
                                 @onclick="() => OpenStatusDialog(slot)">
                             <span class="fighter__vitals">
                                 <strong>@slot.CharacterName</strong>
-                                <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
+                                <span class="combat-health">
+                                    <span class="combat-health__trail" style="width:@HealthPercent(slot.CharacterHp, slot.CharacterMaxHp)%" aria-hidden="true"></span>
+                                    <progress class="fighter__health" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@slot.CharacterName 生命值"></progress>
+                                </span>
                                 <small class="fighter__hp-text">@slot.CharacterHp / @slot.CharacterMaxHp</small>
                             </span>
                             <div class="fighter__portrait">
-                                <img src="@ProfessionArt.ForName(slot.ProfessionName)" alt="" style="animation-delay:@((slot.SlotIndex - 1) * 40)ms" />
+                                <img src="@ProfessionArt.ForName(slot.ProfessionName)" alt="" loading="eager" decoding="async" fetchpriority="high" />
                                 <span class="fighter__number">@slot.SlotIndex</span>
                                 @if (slot.StatusEffects.Count > 0)
                                 {
@@ -169,8 +176,9 @@ else
                 </div>
             </div>
 
-            <div class="battle-field__enemy @(_roomDetail.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "") @(_isCombatFeedbackVisible ? "battle-field__enemy--hit" : "") @(_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.NextBattleStartAtUtc is not null ? "battle-field__enemy--pending" : "")">
-                @if (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || _roomDetail.NextBattleStartAtUtc is not null)
+            <div class="battle-field__enemy @(scene.MonsterHp <= 0 ? "battle-field__enemy--defeated" : "") @(scene.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || scene.NextBattleStartAtUtc is not null ? "battle-field__enemy--pending" : "")"
+                 data-combat-unit="enemy" data-combat-name="@scene.MonsterName" data-hp="@scene.MonsterHp" data-max-hp="@scene.MonsterMaxHp">
+                @if (scene.RoomStatus == Game.Shared.Enums.RoomStatus.WaveTransition || scene.NextBattleStartAtUtc is not null)
                 {
                     <div class="battle-field__enemy-pending" aria-live="polite">
                         <span aria-hidden="true">✦</span>
@@ -181,45 +189,44 @@ else
                 else
                 {
                 <button type="button" class="enemy-vitals" @onclick="OpenMonsterStatusDialog"
-                        title="点击查看 @_roomDetail.MonsterName 的状态"
-                        aria-label="查看 @_roomDetail.MonsterName 的生命值与状态效果" aria-haspopup="dialog">
-                    <span class="enemy-vitals__name"><strong>@_roomDetail.MonsterName</strong><span>@_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp HP</span></span>
-                    <progress class="enemy-vitals__health" value="@_roomDetail.MonsterHp" max="@_roomDetail.MonsterMaxHp" aria-label="怪物生命值"></progress>
+                        title="点击查看 @scene.MonsterName 的状态"
+                        aria-label="查看 @scene.MonsterName 的生命值与状态效果" aria-haspopup="dialog">
+                    <span class="enemy-vitals__name"><strong>@scene.MonsterName</strong><span>@scene.MonsterHp / @scene.MonsterMaxHp HP</span></span>
+                    <span class="combat-health combat-health--enemy">
+                        <span class="combat-health__trail" style="width:@HealthPercent(scene.MonsterHp, scene.MonsterMaxHp)%" aria-hidden="true"></span>
+                        <progress class="enemy-vitals__health" value="@scene.MonsterHp" max="@scene.MonsterMaxHp" aria-label="怪物生命值"></progress>
+                    </span>
                 </button>
                 <button type="button" class="battle-field__enemy-art" @onclick="OpenMonsterStatusDialog" @ref="_monsterTrigger"
-                        title="点击查看 @_roomDetail.MonsterName 的状态"
-                        aria-label="@_roomDetail.MonsterName，生命值 @_roomDetail.MonsterHp / @_roomDetail.MonsterMaxHp，@_roomDetail.MonsterEffects.Count 个状态效果，点击查看详细状态"
+                        title="点击查看 @scene.MonsterName 的状态"
+                        aria-label="@scene.MonsterName，生命值 @scene.MonsterHp / @scene.MonsterMaxHp，@scene.MonsterEffects.Count 个状态效果，点击查看详细状态"
                         aria-haspopup="dialog">
-                    <img src="@MonsterArt.ForName(_roomDetail.MonsterName)" alt="" />
-                    @if (_roomDetail.MonsterEffects.Count > 0)
+                    <img src="@MonsterArt.ForName(scene.MonsterName)" alt="" loading="eager" decoding="async" fetchpriority="high" />
+                    @if (scene.MonsterEffects.Count > 0)
                     {
                         <span class="enemy-effect-icons" aria-hidden="true">
-                            @foreach (var effect in _roomDetail.MonsterEffects.Take(3))
+                            @foreach (var effect in scene.MonsterEffects.Take(3))
                             {
                                 <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
                                       title="@($"{effect.Name} · {effect.RemainingRounds} 回合")">@GetStatusEffectGlyph(effect)</span>
                             }
-                            @if (_roomDetail.MonsterEffects.Count > 3)
+                            @if (scene.MonsterEffects.Count > 3)
                             {
-                                <span class="fighter__effect-icon fighter__effect-icon--more">+@(_roomDetail.MonsterEffects.Count - 3)</span>
+                                <span class="fighter__effect-icon fighter__effect-icon--more">+@(scene.MonsterEffects.Count - 3)</span>
                             }
                         </span>
-                    }
-                    @if (_isCombatFeedbackVisible)
-                    {
-                        <span class="battle-hit-slash" aria-hidden="true"></span>
-                        <strong class="battle-damage-popup" aria-live="polite">@_combatFeedbackText</strong>
                     }
                 </button>
                 }
             </div>
+            <div class="combat-fx-layer" aria-hidden="true"></div>
         </div>
         <button type="button" class="battle-feed" @onclick="OpenBattleLog" @ref="_logTrigger" aria-haspopup="dialog">
             <span class="battle-feed__live">战报</span>
             <span class="battle-feed__latest">@GetLatestLog()</span>
             <span class="battle-feed__open">打开完整战报 <span aria-hidden="true">↗</span></span>
         </button>
-        <div class="battle-stage__footer"><span><strong>进度</strong> 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @_roomDetail.SlotCount</span><span><strong>规则</strong> @(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击" : "无准备超时")</span></div>
+        <div class="battle-stage__footer"><span><strong>进度</strong> 第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波 · 敌人 @scene.CurrentEnemyNumber / @scene.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @scene.SlotCount</span><span><strong>规则</strong> @(scene.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击" : "无准备超时")</span></div>
     </section>
 
     var mobileActionSlot = ownSlots.FirstOrDefault(slot => slot.CharacterId == _mobileActionCharacterId) ?? ownSlots.FirstOrDefault();
@@ -272,7 +279,7 @@ else
                                     aria-pressed="@(soulSelected ? "true" : "false")"
                                     title="@GetSoulImprintHint(mobileActionSlot, mobileSoulImprint)"
                                     @onclick="() => ToggleSoulImprintAsync(mobileActionSlot, mobileSoulImprint)">
-                                <span class="battle-mobile-skill__icon" aria-hidden="true">✦</span>
+                                <span class="battle-mobile-skill__icon" aria-hidden="true">@if (ItemArt.ForCode(mobileSoulImprint.Code) is { } soulArt) { <img src="@soulArt" alt="" /> } else { <text>✦</text> }</span>
                                 <strong>魂印</strong>
                                 <small>@(soulSelected ? "已安排" : mobileSoulImprint.CooldownRoundsRemaining > 0 ? $"蓄力 {mobileSoulImprint.CooldownRoundsRemaining}" : "释放")</small>
                             </button>
@@ -388,14 +395,14 @@ else
             <button type="button" class="battle-shortcut" title="队伍编成与房间管理" @onclick="OpenManagement" @ref="_managementTrigger" aria-haspopup="dialog">
                 <span aria-hidden="true">☷</span> 队伍 <span class="battle-shortcut__count">@_roomDetail.Slots.Count(slot => slot.IsOccupied)/@_roomDetail.SlotCount</span>
             </button>
-            @if (_roomDetail.Rewards is not null)
+            @if (_roomDetail.CumulativeRewards is not null)
             {
                 <button type="button"
                         class="battle-shortcut"
                         @onclick="OpenRewards"
                         @ref="_rewardsTrigger"
                         aria-haspopup="dialog">
-                    <span aria-hidden="true">✦</span> 奖励
+                    <span aria-hidden="true">✦</span> 战利品
                 </button>
             }
         </div>
@@ -429,36 +436,20 @@ else
         </div>
     }
 
-    @if (_isRewardsOpen && _roomDetail.Rewards is { } dialogRewards)
+    @if (_isRewardsOpen && _roomDetail.CumulativeRewards is { } dialogRewards)
     {
         <div class="battle-log-overlay battle-reward-overlay" @onclick="CloseRewards">
             <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
                 <header class="battle-log-dialog__header">
                     <div>
-                        <span class="section-kicker">REWARD POOL</span>
-                        <h2 id="battle-reward-title">@(dialogRewards.IsCurrentRun ? "本轮奖励" : "上一轮奖励")</h2>
-                        <p>@(dialogRewards.Status == "Pending" ? "待结算" : dialogRewards.Status == "Victory" ? "通关已结算" : "战败已结算") · 第 @dialogRewards.RunSequence 轮</p>
+                        <span class="section-kicker">ROOM LOOT</span>
+                        <h2 id="battle-reward-title">房间累计战利品</h2>
+                        <p>已结算 @dialogRewards.CompletedRuns 轮 · 当前第 @_roomDetail.RunSequence 轮</p>
                     </div>
-                    <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭本轮奖励">×</button>
+                    <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭战利品">×</button>
                 </header>
                 <div class="battle-log-dialog__content battle-reward-dialog__content">
-                    <div class="battle-reward-dialog__totals">
-                        <span><small>金币</small><strong>+@dialogRewards.Gold</strong></span>
-                        <span><small>经验</small><strong>+@dialogRewards.Experience</strong></span>
-                    </div>
-                    @if (dialogRewards.Items.Count > 0)
-                    {
-                        <ul class="battle-reward-dialog__items">
-                            @foreach (var item in dialogRewards.Items)
-                            {
-                                <li><span><small>@item.CharacterName · @item.Source</small><strong>@item.Name</strong></span><b>× @item.Quantity</b></li>
-                            }
-                        </ul>
-                    }
-                    else
-                    {
-                        <p class="battle-reward-dialog__empty">@(dialogRewards.Status == "Defeat" ? "本轮没有可结算的击杀奖励。" : "本轮暂无物品奖励。")</p>
-                    }
+                    <RoomRewards Rewards="dialogRewards" />
                 </div>
             </section>
         </div>
@@ -555,6 +546,15 @@ else
                         <div><span>生命值</span><strong>@monsterStatus.MonsterHp / @monsterStatus.MonsterMaxHp</strong></div>
                         <progress value="@monsterStatus.MonsterHp" max="@monsterStatus.MonsterMaxHp" aria-label="@monsterStatus.MonsterName 生命值"></progress>
                         <small>当前 @monsterStatus.MonsterEffects.Count 个状态效果</small>
+                        @if (monsterStatus.IsPartyHpScaled)
+                        {
+                            <small>本场按 @monsterStatus.ScalingPartySize 人计算 · 生命 @monsterStatus.MonsterHpPercent% · 单人生命 @monsterStatus.MonsterBaseMaxHp</small>
+                            <small>中途加入保留剩余血量比例；阵亡、离线不会降低本场生命，下一场重新计算。</small>
+                        }
+                        else
+                        {
+                            <small>固定难度 · 生命不随队伍人数变化</small>
+                        }
                     </div>
                     @if (monsterStatus.MonsterEffects.Count == 0)
                     {
@@ -667,6 +667,14 @@ else
                         <strong>@_roomDetail.DungeonName <span>· 第 @_roomDetail.RunSequence 轮</span></strong>
                         <span>@(_roomDetail.IsPublic ? "公开房间 · 允许其他玩家加入" : "私人房间 · 不接受新玩家加入")</span>
                         <span>@(_roomDetail.IsRepeatBattle ? "循环讨伐" : "单次讨伐") · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
+                        @if (_roomDetail.IsPartyHpScaled)
+                        {
+                            <span>怪物生命随上阵人数增加；中途加入保留剩余血量比例，下一场按实际人数重新计算。</span>
+                        }
+                        else
+                        {
+                            <span>固定难度 · 怪物生命不随上阵人数变化</span>
+                        }
                         @if (_roomDetail.ExpiresAtUtc is DateTime expiresAt)
                         {
                             <span>任务截止 @DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc).ToLocalTime().ToString("MM-dd HH:mm")</span>
@@ -821,9 +829,13 @@ else
     private bool _isMonsterStatusDialogOpen;
     private bool _focusMonsterStatusDialogCloseButton;
     private bool _focusMonsterTrigger;
-    private CancellationTokenSource? _combatFeedbackCancellation;
-    private bool _isCombatFeedbackVisible;
-    private string _combatFeedbackText = string.Empty;
+    private ElementReference _battleStage;
+    private RoomDetailResponse? _combatScene;
+    private BattleFeedbackPlan? _activeCombatPlan;
+    private BattleFeedbackPlan? _pendingCombatPlan;
+    private BattleFeedbackPlan? _lastCombatPlan;
+    private bool _cancelCombatPlayback;
+    private string _combatAnnouncement = string.Empty;
     private sealed record BattleCountdown(string Label, DateTime DeadlineUtc, int DurationSeconds, string Kind);
     private sealed record BattleLogEntry(long Id, string Text);
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
@@ -851,6 +863,20 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null)
+            await Js.InvokeVoidAsync("battleCombat.preload", _battleStage);
+        if (_cancelCombatPlayback)
+        {
+            _cancelCombatPlayback = false;
+            await Js.InvokeVoidAsync("battleCombat.cancel", _battleStage);
+        }
+        if (_pendingCombatPlan is { } plan)
+        {
+            _pendingCombatPlan = null;
+            await PlayCombatFeedbackAsync(plan);
+            if (_refreshCancellation.IsCancellationRequested) return;
+        }
+
         if (!_hasRevealedShortViewport &&
             _roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter && slot.IsOccupied) == true)
         {
@@ -1634,23 +1660,34 @@ else
         }
         _roomDetail = detail;
         SyncMobileActionCharacter(previous, detail);
-        if (!allowCombatFeedback || previous is null || detail is null || detail.RoundNumber <= 0) return;
+        if (!allowCombatFeedback || detail is null)
+        {
+            ClearCombatFeedback();
+            return;
+        }
+        if (_activeCombatPlan is { } active && _combatScene is { } scene)
+        {
+            if (BattleFeedbackPlanner.CanFinishPlayback(scene, detail, active)) return;
+            ClearCombatFeedback();
+        }
+        // Inspect the killing round before treating a changed enemy or a closed
+        // room as navigation. Both can be part of that same server response.
+        if (BattleFeedbackPlanner.Create(previous, detail) is { } plan)
+        {
+            _combatScene = previous;
+            _activeCombatPlan = _pendingCombatPlan = plan;
+        }
+        else if (detail.ClosedAtUtc.HasValue || previous is not null &&
+            (!BattleFeedbackPlanner.SameEncounter(previous, detail) || detail.RoundNumber != previous.RoundNumber))
+            ClearCombatFeedback();
+    }
 
-        var resolvedAnotherRound = detail.RunSequence > previous.RunSequence ||
-            detail.RunSequence == previous.RunSequence && detail.RoundNumber > previous.RoundNumber;
-        if (!resolvedAnotherRound) return;
-
-        var sameEnemy = detail.RunSequence == previous.RunSequence &&
-            detail.CurrentWaveNumber == previous.CurrentWaveNumber &&
-            detail.CurrentEnemyNumber == previous.CurrentEnemyNumber &&
-            string.Equals(detail.MonsterName, previous.MonsterName, StringComparison.Ordinal);
-        var damage = sameEnemy
-            ? Math.Max(0, previous.MonsterHp - detail.MonsterHp)
-            : detail.RunSequence > previous.RunSequence
-                ? Math.Max(0, detail.MonsterMaxHp - detail.MonsterHp)
-                : Math.Max(0, previous.MonsterHp);
-        var defeated = sameEnemy ? detail.MonsterHp <= 0 : detail.RunSequence == previous.RunSequence;
-        ShowCombatFeedback(damage, defeated);
+    private void ClearCombatFeedback()
+    {
+        _cancelCombatPlayback = true;
+        _activeCombatPlan = _pendingCombatPlan = _lastCombatPlan = null;
+        _combatScene = null;
+        _combatAnnouncement = string.Empty;
     }
 
     private void SyncMobileActionCharacter(RoomDetailResponse? previous, RoomDetailResponse? current)
@@ -1682,30 +1719,36 @@ else
         _alignMobileQuickActions = true;
     }
 
-    private void ShowCombatFeedback(int damage, bool defeated)
-    {
-        _combatFeedbackCancellation?.Cancel();
-        _combatFeedbackCancellation?.Dispose();
-        _combatFeedbackCancellation = new CancellationTokenSource();
-        _combatFeedbackText = defeated
-            ? damage > 0 ? $"击破 · -{damage}" : "击破"
-            : damage > 0 ? $"-{damage}" : "命中";
-        _isCombatFeedbackVisible = true;
-        _ = HideCombatFeedbackAsync(_combatFeedbackCancellation.Token);
-    }
+    private static int HealthPercent(int? hp, int? maxHp) =>
+        (int)Math.Clamp((hp ?? 0) * 100L / Math.Max(1, maxHp ?? 1), 0, 100);
 
-    private async Task HideCombatFeedbackAsync(CancellationToken cancellationToken)
+    private string GetCombatHeadline() => _roomDetail?.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver
+        ? _roomDetail.MonsterHp <= 0 ? "讨伐完成" : "队伍战败"
+        : _roomDetail?.MonsterHp <= 0 ? "目标击破"
+        : _lastCombatPlan is not null ? "回合完成" : "等待出手";
+
+    private async Task PlayCombatFeedbackAsync(BattleFeedbackPlan plan)
     {
+        var assetsUnavailable = false;
         try
         {
-            await Task.Delay(900, cancellationToken);
-            await InvokeAsync(() =>
-            {
-                _isCombatFeedbackVisible = false;
-                StateHasChanged();
-            });
+            assetsUnavailable = await Js.InvokeAsync<string?>("battleCombat.play", _battleStage, plan) == "assets-unavailable";
         }
-        catch (OperationCanceledException) { }
+        catch (JSException) { /* Presentation must never prevent the authoritative room update. */ }
+        catch (TaskCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_activeCombatPlan, plan) && !_refreshCancellation.IsCancellationRequested)
+            {
+                _lastCombatPlan = plan;
+                _combatAnnouncement = $"第 {plan.Round} 回合，{plan.HitCount} 次命中，共造成 {plan.TotalDamage} 点伤害。" +
+                    (plan.CriticalCount > 0 ? $"{plan.CriticalCount} 次暴击。" : "") + (plan.Defeated ? "目标已击破。" : "");
+                if (assetsUnavailable) _combatAnnouncement += "部分战斗图片未能载入，已同步战斗结果。";
+                _activeCombatPlan = null;
+                _combatScene = null;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
     }
 
     private void GoToRooms() => Navigation.NavigateTo("/rooms");
@@ -1823,11 +1866,12 @@ else
         catch (OperationCanceledException) { }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
-        _combatFeedbackCancellation?.Cancel();
-        _combatFeedbackCancellation?.Dispose();
+        try { await Js.InvokeVoidAsync("battleCombat.cancel", _battleStage); }
+        catch (JSException) { }
+        catch (TaskCanceledException) { }
     }
 }

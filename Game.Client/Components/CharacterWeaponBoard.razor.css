@@ -29,6 +29,8 @@
 .weapon-board__resources { display: flex; flex-wrap: wrap; align-items: stretch; gap: .55rem; margin-top: .7rem; padding: .65rem .75rem; border: 1px solid #395469; border-radius: .75rem; background: #102130; }
 .weapon-board__resources > div { min-width: 115px; display: grid; gap: .08rem; padding: .45rem .65rem; border: 1px solid #405d70; border-radius: .48rem; background: #162b3d; }
 .weapon-board__resources span { color: var(--muted); font-size: .65rem; }
+.weapon-board__fragment-label { display: inline-flex; align-items: center; gap: .3rem; }
+.weapon-board__fragment-label img { width: 22px; height: 22px; object-fit: contain; image-rendering: pixelated; }
 .weapon-board__resources strong { color: #efc777; font-size: .86rem; font-variant-numeric: tabular-nums; }
 .weapon-board__resources p { flex: 1 1 270px; align-self: center; margin: 0; color: #9fb8c4; font-size: .69rem; }
 .weapon-board__effects { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-top: .7rem; padding: .75rem 1rem; border: 1px solid #395469; border-radius: .75rem; background: #142638; }

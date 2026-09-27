@@ -30,7 +30,8 @@ foreach (var (name, profile) in talentBuilds)
         throw new ArgumentException($"Invalid talent build: {name}");
 }
 var worldConfig = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath("Game.Server/world.json")).Build();
-var world = new WorldCatalog(Options.Create(worldConfig.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!));
+var partyScalingCatalog = new PartyScalingCatalog(Bind<PartyScalingOptions>(PartyScalingOptions.SectionName));
+var world = new WorldCatalog(Options.Create(worldConfig.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!), partyScalingCatalog);
 var runs = int.Parse(Option("--runs", "5"));
 var seedStart = int.Parse(Option("--seed-start", "1"));
 var sourceFiles = SourceHashes();
@@ -91,7 +92,7 @@ var report = new
         TalentBuildsFile = talentBuildPath.Length == 0 ? null : talentBuildPath,
         Compositions = compositions.Count > 0 ? compositions : null,
         SoulLoadouts = soulLoadouts,
-        Description = "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and reachable talent builds; weapon element defaults to dungeon region unless overridden; dungeon clear milestones pre-unlocked; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Raid weapons come from regional content; native souls require a previous endgame clear or exchange, so raid/native measures farming, not first-clear access. Auto uses production Auto conditions. Manual queues equipped skills before each round, reserving Guard effects for Deadly intents; it is a fixed policy, not optimal human play. Successful encounters include 30s repeat wait; failures have no automatic restart." },
+        Description = "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and reachable talent builds; weapon element defaults to dungeon region unless overridden; dungeon clear milestones pre-unlocked; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Raid weapons come from regional content; native souls require a previous endgame clear or exchange, so raid/native measures farming, not first-clear access. Auto uses production Auto conditions. Manual queues equipped skills before each round, reserving Guard effects for Deadly intents; it is a fixed policy, not optimal human play. Successful encounters include the full interval until the next run's first round (20s Auto, 10s manual), including the 5s respawn wait; failures have no automatic restart. Hunt HP uses the configured party scaling profile." },
     Summary = results.GroupBy(x => new { x.Stage, x.Element, x.Profession, x.SoulLoadout, x.Dungeon, x.PartySize }).Select(group => new
     {
         group.Key, Runs = group.Count(), Victories = group.Count(x => x.Victory),
@@ -237,7 +238,8 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var monsterCombat = new MonsterCombatService(db, combatCatalog, random);
     var runService = new DungeonRunService(db, rewardService, monsterCombat);
     var battle = new BattleService(db, users, consumables, skills, rewardService, runService, monsterCombat,
-        random: random, weaponCatalog: weapons, soulImprintCatalog: soulImprints);
+        random: random, weaponCatalog: weapons, soulImprintCatalog: soulImprints,
+        partyScalingService: new PartyScalingService(db, partyScalingCatalog));
     var seconds = 0d;
     var logs = new List<string>();
     var roundCounts = monsters.Select(monster => monster.Name).Distinct().ToDictionary(name => name, _ => 0);
@@ -272,7 +274,12 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         if (error is not null || result is null) throw new InvalidOperationException(error ?? "No result");
         roundCounts[active.Name] += room.RoundNumber - previousRounds;
         logs.AddRange(result.Logs);
-        if (room.Status == RoomStatus.BattleOver) { victory = result.IsVictory; if (victory) seconds += BattleRules.RepeatBattleDelaySeconds; break; }
+        if (room.Status == RoomStatus.BattleOver)
+        {
+            victory = result.IsVictory;
+            if (victory) seconds += mode == "auto" ? BattleRules.AutoRoundCooldownSeconds : BattleRules.RoundCooldownSeconds;
+            break;
+        }
         if (room.NextRoundAvailableAtUtc is DateTime next)
         {
             seconds += Math.Max(0, (next - result.ServerTimeUtc).TotalSeconds);

@@ -22,8 +22,11 @@ public sealed class BattleLogStore
             }
             foreach (var message in messages)
                 entries.Add(new BattleLogResponse { Id = ++_nextId, Text = message, CreatedAtUtc = createdAtUtc });
-            if (entries.Count > MaximumEntriesPerRoom)
-                entries.RemoveRange(0, entries.Count - MaximumEntriesPerRoom);
+            // Retain the whole newest settlement, even when a large skill chain
+            // exceeds the history budget. The client needs every hit for playback.
+            var retainedCount = Math.Max(MaximumEntriesPerRoom, messages.Count);
+            if (entries.Count > retainedCount)
+                entries.RemoveRange(0, entries.Count - retainedCount);
         }
     }
 
@@ -54,7 +57,7 @@ public sealed class BattleLogStore
         {
             _entriesByRoom.Remove(roomId);
             if (messages.Count == 0) return;
-            _entriesByRoom[roomId] = messages.TakeLast(MaximumEntriesPerRoom)
+            _entriesByRoom[roomId] = messages
                 .Select(message => new BattleLogResponse
                 {
                     Id = ++_nextId, Text = message, CreatedAtUtc = createdAtUtc

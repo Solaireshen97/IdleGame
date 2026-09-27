@@ -10,6 +10,8 @@ public class DungeonSummaryResponse
     public string RegionName { get; set; } = string.Empty;
     public string RegionCode { get; set; } = string.Empty;
     public string DungeonKind { get; set; } = string.Empty;
+    public string PartyScalingProfileCode { get; set; } = "fixed";
+    public List<int> PartyHpPercentages { get; set; } = [];
     public string Description { get; set; } = string.Empty;
     public int MinimumLevel { get; set; }
     public int RecommendedLevel { get; set; }

@@ -59,7 +59,7 @@
                         <div><span>角色金币</span><strong>◆ @_data.Gold</strong></div>
                         @foreach (var fragment in _data.Fragments)
                         {
-                            <div><span>@fragment.Name</span><strong>@fragment.Quantity</strong></div>
+                            <div><span class="weapon-board__fragment-label">@if (ItemArt.ForCode(fragment.Code) is { } fragmentArt) { <img src="@fragmentArt" alt="" /> } @fragment.Name</span><strong>@fragment.Quantity</strong></div>
                         }
                         <p>装等 1～10 使用 T1 碎片，11～20 使用 T2 碎片；碎片归当前角色所有。</p>
                     </div>

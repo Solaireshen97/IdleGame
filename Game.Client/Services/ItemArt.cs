@@ -34,6 +34,13 @@ public static class ItemArt
         ["eversong-goldleaf"] = "/art/items/herbs/eversong-goldleaf.png",
         ["eversong-dawnflower"] = "/art/items/herbs/eversong-dawnflower.png",
         ["eversong-sunpetal"] = "/art/items/herbs/eversong-sunpetal.png",
+        ["weapon-fragment-t1"] = "/art/items/fragments/weapon-fragment-t1.png",
+        ["deep-overseer-core"] = "/art/items/soul-imprints/deep-overseer-core.png",
+        ["plague-widow-essence"] = "/art/items/soul-imprints/plague-widow-essence.png",
+        ["molten-warlord-brand"] = "/art/items/soul-imprints/molten-warlord-brand.png",
+        ["frost-king-heart"] = "/art/items/soul-imprints/frost-king-heart.png",
+        ["storm-matriarch-plume"] = "/art/items/soul-imprints/storm-matriarch-plume.png",
+        ["dawn-core-prism"] = "/art/items/soul-imprints/dawn-core-prism.png",
     };
 
     public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)

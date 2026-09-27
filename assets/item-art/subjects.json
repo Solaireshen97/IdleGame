@@ -31,5 +31,16 @@
     {"code": "eversong-goldleaf", "subject": "one elegant golden-leaf herb sprig with three warm gold leaves and a slender green stem"},
     {"code": "eversong-dawnflower", "subject": "one dawn flower with peach-pink petals, pale golden center and two bright green leaves"},
     {"code": "eversong-sunpetal", "subject": "one rare sun petal flower with layered luminous gold petals, amber center and a tiny emerald stem"}
+  ],
+  "fragments": [
+    {"code":"weapon-fragment-t1","subject":"one compact cluster of three chipped blue-gray steel weapon fragments, one broken blade edge and small warm brass fracture highlights"}
+  ],
+  "soul-imprints": [
+    {"code":"deep-overseer-core","subject":"one rugged earth soul relic, angular gray ore core with a bold golden seismic crack and a dark iron collar"},
+    {"code":"plague-widow-essence","subject":"one widow-spider soul relic, rounded purple-black chitin core with an emerald venom center and two small fang-like projections"},
+    {"code":"molten-warlord-brand","subject":"one warlord soul relic, compact dark iron battle sigil with an axe-shaped outline and glowing orange-red molten cracks, no letters"},
+    {"code":"frost-king-heart","subject":"one frost king soul relic, faceted ice-blue frozen heart with a small silver crown-like ice crest and pale cyan edges"},
+    {"code":"storm-matriarch-plume","subject":"one storm soul relic, a single sweeping teal feather with a golden lightning-shaped central spine and deep blue tips"},
+    {"code":"dawn-core-prism","subject":"one dawn soul relic, faceted ivory-gold prismatic crystal held in a compact gold sun-shaped bracket with pale cyan highlights"}
   ]
 }

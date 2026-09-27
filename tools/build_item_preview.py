@@ -1,4 +1,4 @@
-"""Create a review sheet for potion and herb icons without changing assets."""
+"""Create item review sheets without changing the game assets."""
 
 import json
 from pathlib import Path
@@ -12,9 +12,8 @@ SOURCE = ROOT / "Game.Client" / "wwwroot" / "art" / "items"
 OUTPUT = ROOT / "assets" / "item-art" / "preview.png"
 
 
-def main() -> None:
-    items = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    columns, cell_width, cell_height = 8, 170, 190
+def render(items: list, output: Path, columns: int = 8) -> None:
+    cell_width, cell_height = 170, 190
     rows = (len(items) + columns - 1) // columns
     sheet = Image.new("RGB", (columns * cell_width, rows * cell_height), "#101e2d")
     draw = ImageDraw.Draw(sheet)
@@ -38,9 +37,17 @@ def main() -> None:
         sheet.paste(image, (x, y), image)
         draw.text((left + 12, top + 159), item["name"], font=font, fill="#f4d08b")
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(OUTPUT, optimize=True)
-    print(OUTPUT)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(output, optimize=True)
+    print(output)
+
+
+def main() -> None:
+    items = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    render(items, OUTPUT)
+    enhancement = [item for item in items if item["category"] in ("fragments", "soul-imprints")]
+    if enhancement:
+        render(enhancement, OUTPUT.with_name("enhancement-preview.png"), columns=4)
 
 
 if __name__ == "__main__":

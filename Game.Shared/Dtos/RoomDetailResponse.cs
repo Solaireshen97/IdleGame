@@ -8,6 +8,10 @@ public class RoomDetailResponse
     public int OwnerUserId { get; set; }
     public int DungeonId { get; set; }
     public string DungeonName { get; set; } = string.Empty;
+    public bool IsPartyHpScaled { get; set; }
+    public int ScalingPartySize { get; set; } = 1;
+    public int MonsterHpPercent { get; set; } = 100;
+    public int MonsterBaseMaxHp { get; set; }
     public string RegionName { get; set; } = string.Empty;
     public int SlotCount { get; set; }
     public string MonsterName { get; set; } = string.Empty;

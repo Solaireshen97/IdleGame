@@ -331,6 +331,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("Code").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Description").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("DungeonKind").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("PartyScalingProfileCode").IsRequired().HasColumnType("TEXT");
                     b.Property<bool>("IsVisible").HasColumnType("INTEGER");
                     b.Property<int>("MinimumLevel").HasColumnType("INTEGER");
                     b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
@@ -361,6 +362,8 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("CombatProfileCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("BaseMaxHp").HasColumnType("INTEGER");
 
                     b.Property<bool>("IsBoss")
                         .HasColumnType("INTEGER");
@@ -618,6 +621,8 @@ namespace Game.Server.Data.Migrations
 
                     b.Property<int>("RunSequence")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScalingPartySize").HasColumnType("INTEGER");
 
                     b.Property<int>("TotalWaveCount")
                         .HasColumnType("INTEGER");

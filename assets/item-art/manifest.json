@@ -201,5 +201,54 @@
     "name": "日耀花蕊",
     "file": "eversong-sunpetal.png",
     "subject": "one rare sun petal flower with layered luminous gold petals, amber center and a tiny emerald stem"
+  },
+  {
+    "category": "fragments",
+    "code": "weapon-fragment-t1",
+    "name": "T1 武器碎片",
+    "file": "weapon-fragment-t1.png",
+    "subject": "one compact cluster of three chipped blue-gray steel weapon fragments, one broken blade edge and small warm brass fracture highlights"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "deep-overseer-core",
+    "name": "深岩监工的震核",
+    "file": "deep-overseer-core.png",
+    "subject": "one rugged earth soul relic, angular gray ore core with a bold golden seismic crack and a dark iron collar"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "plague-widow-essence",
+    "name": "腐巢寡妇的毒核",
+    "file": "plague-widow-essence.png",
+    "subject": "one widow-spider soul relic, rounded purple-black chitin core with an emerald venom center and two small fang-like projections"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "molten-warlord-brand",
+    "name": "熔火督军的战印",
+    "file": "molten-warlord-brand.png",
+    "subject": "one warlord soul relic, compact dark iron battle sigil with an axe-shaped outline and glowing orange-red molten cracks, no letters"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "frost-king-heart",
+    "name": "霜脉之王的冻心",
+    "file": "frost-king-heart.png",
+    "subject": "one frost king soul relic, faceted ice-blue frozen heart with a small silver crown-like ice crest and pale cyan edges"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "storm-matriarch-plume",
+    "name": "风暴主母的雷羽",
+    "file": "storm-matriarch-plume.png",
+    "subject": "one storm soul relic, a single sweeping teal feather with a golden lightning-shaped central spine and deep blue tips"
+  },
+  {
+    "category": "soul-imprints",
+    "code": "dawn-core-prism",
+    "name": "黎明守卫的棱晶",
+    "file": "dawn-core-prism.png",
+    "subject": "one dawn soul relic, faceted ivory-gold prismatic crystal held in a compact gold sun-shaped bracket with pale cyan highlights"
   }
 ]

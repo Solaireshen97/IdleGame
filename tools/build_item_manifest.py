@@ -1,4 +1,4 @@
-"""Validate potion/herb subjects against the live catalog and generate client paths."""
+"""Validate item and soul-imprint art subjects and generate client paths."""
 
 import json
 from pathlib import Path
@@ -17,7 +17,10 @@ def main() -> None:
     catalogs = {
         "potions": {item["Code"]: item for item in config["Consumables"]["Items"]},
         "herbs": {item["Code"]: item for item in config["Materials"]["Items"]
-                  if not item["Code"].endswith("-token")},
+                  if not item["Code"].endswith("-token") and not item["Code"].startswith("weapon-fragment-t")},
+        "fragments": {item["Code"]: item for item in config["Materials"]["Items"]
+                      if item["Code"].startswith("weapon-fragment-t")},
+        "soul-imprints": {item["Code"]: item for item in config["SoulImprints"]["Items"]},
     }
     entries = []
     for category, catalog in catalogs.items():
@@ -31,6 +34,10 @@ def main() -> None:
                             "name": catalog[code]["Name"], "file": f"{code}.png",
                             "subject": item["subject"]})
 
+    missing_files = [item["code"] for item in entries
+                     if not (ROOT / "Game.Client" / "wwwroot" / "art" / "items" / item["category"] / item["file"]).is_file()]
+    if missing_files:
+        raise ValueError(f"Missing item images: {missing_files}")
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = [
@@ -52,7 +59,8 @@ def main() -> None:
         "}",
     ])
     SERVICE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Mapped {len(entries)} items ({len(catalogs['potions'])} potions, {len(catalogs['herbs'])} herbs)")
+    counts = ", ".join(f"{len(catalog)} {category}" for category, catalog in catalogs.items())
+    print(f"Mapped {len(entries)} items ({counts})")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,84 @@
+@using Game.Shared.Dtos
+
+<div class="room-loot">
+    <div class="room-loot__totals" aria-label="我的房间累计收益">
+        <div><small>累计金币</small><strong>+@Rewards.Gold.ToString("N0")</strong></div>
+        <div><small>累计经验</small><strong>+@Rewards.Experience.ToString("N0")</strong></div>
+    </div>
+    <p class="room-loot__hint">仅统计我的角色在当前房间的收益，同类物品已合并。</p>
+    @if (Rewards.HasPendingRewards)
+    {
+        <p class="room-loot__pending">包含本轮待结算奖励；经验以结算时为准。</p>
+    }
+    @if (Rewards.Characters.Count > 0)
+    {
+        <div class="room-loot__characters" role="group" aria-label="选择查看奖励的角色">
+            @foreach (var character in Rewards.Characters)
+            {
+                <button @key="character.CharacterId" type="button"
+                        class="room-loot__character @(character.CharacterId == _selectedCharacterId ? "room-loot__character--selected" : null)"
+                        aria-pressed="@(character.CharacterId == _selectedCharacterId ? "true" : "false")"
+                        @onclick="() => _selectedCharacterId = character.CharacterId">
+                    <strong>@character.CharacterName</strong>
+                    <small>@character.Items.Count 种物品</small>
+                </button>
+            }
+        </div>
+        @if (Rewards.Characters.FirstOrDefault(character => character.CharacterId == _selectedCharacterId) is { } selected)
+        {
+            <section @key="selected.CharacterId" class="room-loot__detail" aria-label="@($"{selected.CharacterName}的累计奖励")">
+                <div class="room-loot__identity"><h3>@selected.CharacterName</h3><span>累计收益</span></div>
+                <div class="room-loot__character-totals">
+                    <div><small>金币</small><strong>+@selected.Gold.ToString("N0")</strong>
+                        @if (selected.PendingGold > 0) { <small class="room-loot__pending">其中 @selected.PendingGold.ToString("N0") 待结算</small> }
+                    </div>
+                    <div><small>经验</small><strong>+@selected.Experience.ToString("N0")</strong>
+                        @if (selected.PendingExperience > 0) { <small class="room-loot__pending">其中 @selected.PendingExperience.ToString("N0") 待结算</small> }
+                    </div>
+                </div>
+                @if (selected.Items.Count > 0)
+                {
+                    <ul class="room-loot__items">
+                        @foreach (var item in selected.Items)
+                        {
+                            <li @key="(item.Kind, item.Code, item.Name)">
+                                <span><small>@GetKindName(item.Kind)</small><strong>@item.Name</strong></span>
+                                <span class="room-loot__quantity"><b>× @item.Quantity.ToString("N0")</b>
+                                    @if (item.PendingQuantity > 0) { <small class="room-loot__pending">其中 @item.PendingQuantity.ToString("N0") 待结算</small> }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="room-loot__empty">该角色在当前房间暂无物品奖励。</p>
+                }
+            </section>
+        }
+    }
+    else
+    {
+        <p class="room-loot__empty">当前房间暂无我的角色奖励。</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RoomCumulativeRewardsResponse Rewards { get; set; } = new();
+    private int? _selectedCharacterId;
+
+    protected override void OnParametersSet()
+    {
+        if (!Rewards.Characters.Any(character => character.CharacterId == _selectedCharacterId))
+            _selectedCharacterId = Rewards.Characters.FirstOrDefault()?.CharacterId;
+    }
+
+    private static string GetKindName(string kind) => kind switch
+    {
+        "Consumable" => "消耗品",
+        "Material" => "材料",
+        "Weapon" => "武器",
+        "SoulImprint" => "魂印",
+        _ => "物品"
+    };
+}

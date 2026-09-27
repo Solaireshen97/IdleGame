@@ -1,23 +1,76 @@
 (() => {
-    const observers = new WeakMap();
+    const maps = new WeakMap();
     window.talentUi = {
-        observe(map, reference) {
-            if (!(map instanceof HTMLElement) || observers.has(map)) return;
-            let frame = 0, last = 0, disposed = false;
-            const observer = new ResizeObserver(() => {
-                cancelAnimationFrame(frame);
-                frame = requestAnimationFrame(() => {
-                    if (disposed || !map.isConnected || !map.clientHeight) return;
-                    const capacity = Math.max(1, Math.min(10, Math.floor(map.clientHeight / 64)));
-                    if (capacity === last) return;
-                    last = capacity;
-                    reference.invokeMethodAsync('UpdateTierCapacity', capacity).catch(() => {});
-                });
+        attach(map) {
+            if (!(map instanceof HTMLElement) || maps.has(map)) return;
+            let drag = null, suppressClick = false;
+            const finish = event => {
+                if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+                const { pointerId, moved } = drag;
+                drag = null;
+                suppressClick = moved && event?.type === 'pointerup';
+                map.classList.remove('is-dragging');
+                if (map.hasPointerCapture(pointerId)) map.releasePointerCapture(pointerId);
+            };
+            const down = event => {
+                // Touch scrolling keeps the browser's native momentum and tap handling.
+                if (event.pointerType !== 'mouse' || event.button !== 0 || !event.isPrimary) return;
+                suppressClick = false;
+                if (map.scrollHeight <= map.clientHeight) return;
+                const bounds = map.getBoundingClientRect();
+                if (event.clientX >= bounds.left + map.clientLeft + map.clientWidth) return;
+                map.scrollTo({ top: map.scrollTop, behavior: 'instant' });
+                drag = { pointerId: event.pointerId, startY: event.clientY, startTop: map.scrollTop, moved: false };
+            };
+            const move = event => {
+                if (!drag || event.pointerId !== drag.pointerId) return;
+                if ((event.buttons & 1) === 0) { finish(event); return; }
+                const distance = event.clientY - drag.startY;
+                if (!drag.moved && Math.abs(distance) < 6) return;
+                if (!drag.moved) {
+                    drag.moved = true;
+                    map.setPointerCapture(event.pointerId);
+                    map.classList.add('is-dragging');
+                }
+                map.scrollTop = drag.startTop - distance;
+                event.preventDefault();
+            };
+            const click = event => {
+                if (suppressClick && event.detail !== 0) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+                suppressClick = false;
+            };
+            const preventDrag = event => event.preventDefault();
+            map.addEventListener('pointerdown', down);
+            map.addEventListener('pointermove', move);
+            map.addEventListener('pointercancel', finish);
+            map.addEventListener('lostpointercapture', finish);
+            map.addEventListener('click', click, true);
+            map.addEventListener('dragstart', preventDrag);
+            window.addEventListener('pointerup', finish);
+            maps.set(map, () => {
+                finish();
+                map.removeEventListener('pointerdown', down);
+                map.removeEventListener('pointermove', move);
+                map.removeEventListener('pointercancel', finish);
+                map.removeEventListener('lostpointercapture', finish);
+                map.removeEventListener('click', click, true);
+                map.removeEventListener('dragstart', preventDrag);
+                window.removeEventListener('pointerup', finish);
             });
-            observers.set(map, () => { disposed = true; cancelAnimationFrame(frame); observer.disconnect(); });
-            observer.observe(map);
         },
-        disconnect(map) { observers.get(map)?.(); observers.delete(map); },
+        disconnect(map) { maps.get(map)?.(); maps.delete(map); },
+        reveal(map, id) {
+            const node = document.getElementById(id);
+            if (!(map instanceof HTMLElement) || !node || !map.contains(node)) return;
+            const viewport = map.getBoundingClientRect(), bounds = node.getBoundingClientRect();
+            const top = viewport.top + map.clientTop + 12;
+            const bottom = viewport.top + map.clientTop + map.clientHeight - 12;
+            const distance = bounds.top < top ? bounds.top - top : bounds.bottom > bottom ? bounds.bottom - bottom : 0;
+            if (distance) map.scrollTo({ top: map.scrollTop + distance, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+        },
         focus(id) { document.getElementById(id)?.focus({ preventScroll: true }); },
         openDialog(dialog) {
             if (!(dialog instanceof HTMLElement)) return;

@@ -14,6 +14,140 @@ namespace Game.Server.Tests;
 public class RoomServiceTests
 {
     [Fact]
+    public async Task CumulativeRewardsIncludeAllRoomRunsAndKeepSameNamedCharactersSeparate()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync(null, "Slime", test.Token, isPublic: true);
+        await test.AddOtherActiveCharacterAsync();
+        var second = await test.AddCharacterAsync(test.ActiveCharacter.Name);
+        var retired = await test.AddCharacterAsync("Retired");
+        var (_, assignError) = await test.Service.AssignSlotAsync(created!.RoomId,
+            new AssignRoomSlotRequest { SlotIndex = 3, CharacterId = second.Id }, test.Token);
+        Assert.Null(assignError);
+        var room = (await test.Db.Rooms.FindAsync(created.RoomId))!;
+        room.RunSequence = 3;
+        room.Status = RoomStatus.Cooldown;
+        test.Db.RewardRuns.AddRange(
+            new RewardRun { RoomId = room.Id, Sequence = 1, Status = "Victory" },
+            new RewardRun { RoomId = room.Id, Sequence = 2, Status = "Defeat" },
+            new RewardRun { RoomId = room.Id, Sequence = 3 },
+            new RewardRun { RoomId = room.Id, Sequence = 4, Status = "Victory" });
+        AddRewards(test.Db, room.Id, 1, 1, test.ActiveCharacter.Id, 10, 8, 1);
+        AddRewards(test.Db, room.Id, 2, 1, test.ActiveCharacter.Id, 7, 5, 2);
+        AddRewards(test.Db, room.Id, 3, 1, test.ActiveCharacter.Id, 3, 2, 4);
+        AddRewards(test.Db, room.Id, 1, 1, second.Id, 6, 9, 5);
+        AddRewards(test.Db, room.Id, 2, 1, retired.Id, 2, 1, 1);
+        AddRewards(test.Db, room.Id, 3, 2, 2, 999, 999, 999);
+        AddRewards(test.Db, room.Id, 4, 1, test.ActiveCharacter.Id, 999, 999, 999);
+        AddRewards(test.Db, room.Id + 100, 1, 1, test.ActiveCharacter.Id, 999, 999, 999);
+        await test.Db.SaveChangesAsync();
+
+        var detail = await test.Service.GetRoomDetailAsync(room.Id, test.Token);
+
+        Assert.Null(detail!.ClosedAtUtc);
+        var rewards = Assert.IsType<RoomCumulativeRewardsResponse>(detail.CumulativeRewards);
+        Assert.Equal((2, 28, 25), (rewards.CompletedRuns, rewards.Gold, rewards.Experience));
+        Assert.True(rewards.HasPendingRewards);
+        Assert.Equal(3, rewards.Characters.Count);
+        var first = Assert.Single(rewards.Characters, character => character.CharacterId == test.ActiveCharacter.Id);
+        Assert.Equal((20, 15, 3, 2), (first.Gold, first.Experience, first.PendingGold, first.PendingExperience));
+        var potion = Assert.Single(first.Items);
+        Assert.Equal(("minor-healing-potion", 7, 4), (potion.Code, potion.Quantity, potion.PendingQuantity));
+        var secondRewards = Assert.Single(rewards.Characters, character => character.CharacterId == second.Id);
+        Assert.Equal(first.CharacterName, secondRewards.CharacterName);
+        Assert.Equal((6, 9, 5, 0), (secondRewards.Gold, secondRewards.Experience,
+            Assert.Single(secondRewards.Items).Quantity, secondRewards.PendingGold));
+        Assert.Contains(rewards.Characters, character => character.CharacterId == retired.Id);
+        Assert.DoesNotContain(rewards.Characters, character => character.CharacterId == 2);
+        Assert.Equal(13, rewards.Items.Sum(item => item.Quantity));
+        Assert.Equal(3, detail.Rewards!.Gold);
+        Assert.Equal(3, detail.Rewards.RunSequence);
+
+        var guest = await test.Service.GetRoomDetailAsync(room.Id, "other-token");
+        var guestCharacter = Assert.Single(guest!.CumulativeRewards!.Characters);
+        Assert.Equal(2, guestCharacter.CharacterId);
+        Assert.Equal(999, guest.CumulativeRewards.Gold);
+
+        var refreshed = await test.Service.GetRoomDetailAsync(room.Id, test.Token);
+        Assert.Equal(rewards.Gold, refreshed!.CumulativeRewards!.Gold);
+        Assert.Equal(potion.Quantity, refreshed.CumulativeRewards.Items.Single(item => item.CharacterId == first.CharacterId).Quantity);
+    }
+
+    [Fact]
+    public async Task CumulativeRewardsPersistOnNewRunAndAfterRoomClosesAndSlotsAreReleased()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        var room = (await test.Db.Rooms.FindAsync(created!.RoomId))!;
+        room.RunSequence = 2;
+        test.Db.RewardRuns.Add(new RewardRun { RoomId = room.Id, Sequence = 1, Status = "Victory" });
+        AddRewards(test.Db, room.Id, 1, 1, test.ActiveCharacter.Id, 10, 8, 2);
+        await test.Db.SaveChangesAsync();
+
+        var active = (await test.Service.GetRoomDetailAsync(room.Id, test.Token))!.CumulativeRewards!;
+        Assert.Equal((1, 10, 8), (active.CompletedRuns, active.Gold, active.Experience));
+        Assert.False(active.HasPendingRewards);
+        Assert.Equal(2, Assert.Single(Assert.Single(active.Characters).Items).Quantity);
+
+        await CharacterActivityManager.CloseBattleRoomAsync(test.Db, room, DateTime.UtcNow);
+        await test.Db.SaveChangesAsync();
+        Assert.All(await test.Db.RoomSlots.Where(slot => slot.RoomId == room.Id).ToListAsync(), slot => Assert.Null(slot.CharacterId));
+        var closed = (await test.Service.GetRoomDetailAsync(room.Id, test.Token))!.CumulativeRewards!;
+        Assert.Equal((active.CompletedRuns, active.Gold, active.Experience), (closed.CompletedRuns, closed.Gold, closed.Experience));
+        Assert.Equal(test.ActiveCharacter.Id, Assert.Single(closed.Characters).CharacterId);
+        Assert.Equal(2, Assert.Single(closed.Items).Quantity);
+    }
+
+    [Fact]
+    public async Task CumulativeRewardsKeepDifferentItemKindsSeparateAndPendingDropsBecomeSettled()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, _) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        test.Db.RewardRuns.Add(new RewardRun { RoomId = created!.RoomId, Sequence = 1 });
+        test.Db.RewardEntries.AddRange(
+            new RewardEntry { RoomId = created.RoomId, Sequence = 1, UserId = 1, CharacterId = 1, Kind = "Material", Code = "shared-name", Quantity = 2 },
+            new RewardEntry { RoomId = created.RoomId, Sequence = 1, UserId = 1, CharacterId = 1, Kind = "Consumable", Code = "shared-name", Quantity = 3 });
+        await test.Db.SaveChangesAsync();
+        var pending = (await test.Service.GetRoomDetailAsync(created.RoomId, test.Token))!.CumulativeRewards!;
+        Assert.True(pending.HasPendingRewards);
+        Assert.Equal(2, pending.Items.Count);
+        Assert.All(pending.Items, item => Assert.Equal(item.Quantity, item.PendingQuantity));
+
+        var run = await test.Db.RewardRuns.SingleAsync();
+        run.Status = "Victory";
+        run.SettledAtUtc = DateTime.UtcNow;
+        await test.Db.SaveChangesAsync();
+        var settled = (await test.Service.GetRoomDetailAsync(created.RoomId, test.Token))!.CumulativeRewards!;
+        Assert.False(settled.HasPendingRewards);
+        Assert.Equal(1, settled.CompletedRuns);
+        Assert.Equal(5, settled.Items.Sum(item => item.Quantity));
+        Assert.All(settled.Items, item => Assert.Equal(0, item.PendingQuantity));
+    }
+
+    [Fact]
+    public async Task CumulativeRewardsAreAvailableBeforeFirstDropWithAnEmptyCharacterSummary()
+    {
+        await using var test = await RoomTestContext.CreateAsync();
+        var (created, error) = await test.Service.CreateRoomAsync("Slime", test.Token);
+        Assert.Null(error);
+        var rewards = Assert.IsType<RoomCumulativeRewardsResponse>(created!.CumulativeRewards);
+        Assert.Equal((0, 0, 0), (rewards.CompletedRuns, rewards.Gold, rewards.Experience));
+        Assert.False(rewards.HasPendingRewards);
+        var character = Assert.Single(rewards.Characters);
+        Assert.Equal(test.ActiveCharacter.Id, character.CharacterId);
+        Assert.Empty(character.Items);
+    }
+
+    private static void AddRewards(GameDbContext db, int roomId, int sequence, int userId, int characterId,
+        int gold, int experience, int potions)
+    {
+        db.RewardEntries.AddRange(
+            new RewardEntry { RoomId = roomId, Sequence = sequence, UserId = userId, CharacterId = characterId, Kind = "Gold", Quantity = gold },
+            new RewardEntry { RoomId = roomId, Sequence = sequence, UserId = userId, CharacterId = characterId, Kind = "Experience", Quantity = experience },
+            new RewardEntry { RoomId = roomId, Sequence = sequence, UserId = userId, CharacterId = characterId, Kind = "Consumable", Code = "minor-healing-potion", Quantity = potions });
+    }
+
+    [Fact]
     public async Task CreateRoomAsync_ConfiguredEncounterPersistsEveryWaveAndSelectsFirstEnemy()
     {
         await using var test = await RoomTestContext.CreateAsync();

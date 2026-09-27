@@ -116,10 +116,18 @@
                     <div><strong>@monster.Name</strong><small>@(monster.IsBoss ? "首领" : "普通敌人") · 第 @monster.WaveNumber 波 / 第 @monster.Position 位</small></div>
                 </div>
                 <div class="monster-detail-stats" aria-label="怪物属性">
-                    <div><span>生命</span><strong>@monster.MaxHp</strong></div>
+                    <div><span>@(HasPartyHpScaling ? "单人生命" : "生命")</span><strong>@monster.MaxHp</strong></div>
                     <div><span>攻击</span><strong>@monster.Attack</strong></div>
                     <div><span>防御</span><strong>@monster.Defense</strong></div>
                 </div>
+                @if (HasPartyHpScaling)
+                {
+                    <p class="monster-weapon-note">生命随上阵角色人数增加；1～5人分别为 @string.Join(" / ", Dungeon.PartyHpPercentages.Select(percent => $"{percent}%"))。中途加入保留剩余血量比例，下一场按队伍人数重新计算。</p>
+                }
+                else
+                {
+                    <p class="monster-weapon-note">固定难度，怪物生命不随队伍人数变化。</p>
+                }
                 <p class="monster-weapon-note">切换到“掉落预览”可查看每只怪物的掉落及武器属性。</p>
             }
             else
@@ -181,6 +189,7 @@
     private bool _isPreparationTimeoutEnabled = true;
     private bool _isPublic;
     private MonsterPreviewResponse? SelectedMonster => Dungeon.Monsters.ElementAtOrDefault(_selectedMonsterIndex);
+    private bool HasPartyHpScaling => Dungeon.PartyHpPercentages.Any(percent => percent != 100);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

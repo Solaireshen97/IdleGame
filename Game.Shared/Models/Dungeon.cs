@@ -10,6 +10,7 @@ public class Dungeon
     public string RegionName { get; set; } = string.Empty;
     public string RegionCode { get; set; } = string.Empty;
     public string DungeonKind { get; set; } = "Hunt";
+    public string PartyScalingProfileCode { get; set; } = "fixed";
     public string Description { get; set; } = string.Empty;
     public int MinimumLevel { get; set; } = 1;
     public int RecommendedLevel { get; set; } = 1;

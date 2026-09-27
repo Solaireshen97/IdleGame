@@ -11,7 +11,7 @@ public sealed class WorldCatalog
     public IReadOnlyList<RegionOptions> Regions { get; }
     public IReadOnlyList<Dungeon> Dungeons { get; }
 
-    public WorldCatalog(IOptions<WorldOptions> options)
+    public WorldCatalog(IOptions<WorldOptions> options, PartyScalingCatalog? partyScaling = null)
     {
         Regions = options.Value.Regions;
         Dungeons = options.Value.Dungeons;
@@ -35,6 +35,7 @@ public sealed class WorldCatalog
                 dungeon.MinimumLevel < 1 || dungeon.RecommendedLevel < dungeon.MinimumLevel ||
                 dungeon.MonsterMaxHp <= 0 || dungeon.MonsterAttack < 0 || dungeon.MonsterDefense < 0 ||
                 dungeon.SlotCount != 5 || !Enum.IsDefined(dungeon.MonsterElement) ||
+                !(partyScaling ?? PartyScalingCatalog.Default).HasProfile(dungeon.PartyScalingProfileCode) ||
                 dungeon.DungeonKind is not ("Hunt" or "Elite" or "Dungeon" or "Legacy") ||
                 dungeon.IsVisible && (region is null || dungeon.MinimumLevel < region.MinimumLevel ||
                     dungeon.RecommendedLevel > region.MaximumLevel))

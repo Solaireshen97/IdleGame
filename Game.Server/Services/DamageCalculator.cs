@@ -59,35 +59,9 @@ public static class RecoveryCalculator
 
 public static class ElementMatchup
 {
-    public static int PlayerAttackPercent(ElementType? player, ElementType monster)
-    {
-        if (player is null) return 0;
-        if (IsLightDarkPair(player.Value, monster)) return 25;
-        return DirectionalPercent(player.Value, monster);
-    }
+    public static int PlayerAttackPercent(ElementType? player, ElementType monster) =>
+        Game.Shared.ElementMatchupRules.PlayerAttackPercent(player, monster);
 
-    public static int MonsterAttackPercent(ElementType monster, ElementType? player)
-    {
-        if (player is null) return 0;
-        if (IsLightDarkPair(player.Value, monster)) return -25;
-        return DirectionalPercent(monster, player.Value);
-    }
-
-    private static bool IsLightDarkPair(ElementType first, ElementType second) =>
-        first is ElementType.Light && second is ElementType.Dark ||
-        first is ElementType.Dark && second is ElementType.Light;
-
-    private static int DirectionalPercent(ElementType attacker, ElementType defender) =>
-        (attacker, defender) switch
-        {
-            (ElementType.Fire, ElementType.Wind) or
-            (ElementType.Wind, ElementType.Earth) or
-            (ElementType.Earth, ElementType.Water) or
-            (ElementType.Water, ElementType.Fire) => 25,
-            (ElementType.Wind, ElementType.Fire) or
-            (ElementType.Earth, ElementType.Wind) or
-            (ElementType.Water, ElementType.Earth) or
-            (ElementType.Fire, ElementType.Water) => -25,
-            _ => 0
-        };
+    public static int MonsterAttackPercent(ElementType monster, ElementType? player) =>
+        Game.Shared.ElementMatchupRules.MonsterAttackPercent(monster, player);
 }

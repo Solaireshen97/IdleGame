@@ -1,3 +1,4 @@
+@using Game.Client.Services
 @using Game.Shared
 @using Game.Shared.Dtos.Characters
 @using Game.Shared.Enums
@@ -9,7 +10,7 @@
         <div><span>SOUL IMPRINT</span><h2>魂印</h2><p>装备一枚首领魂印，在战斗中获得一个额外主动能力。</p></div>
         @if (_response is not null)
         {
-            <strong>@_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Name × @_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Quantity</strong>
+            <strong><img class="soul-board__fragment" src="@ItemArt.ForCode(WeaponRules.FragmentCode(1))" alt="" /> @_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Name × @_response.Fragments.FirstOrDefault(item => item.Tier == 1)?.Quantity</strong>
         }
     </header>
 
@@ -31,7 +32,13 @@
     {
         var equipped = _response.SoulImprints.SingleOrDefault(item => item.IsEquipped);
         <div class="soul-board__slot @(equipped is null ? "soul-board__slot--empty" : null)">
-            <span class="soul-board__sigil">@(equipped is null ? "◇" : ElementSymbol(equipped.Element))</span>
+            <span class="soul-board__sigil" aria-hidden="true">
+                @if (equipped is not null && ItemArt.ForCode(equipped.Code) is { } equippedArt)
+                {
+                    <img src="@equippedArt" alt="" />
+                }
+                else { <text>@(equipped is null ? "◇" : ElementSymbol(equipped.Element))</text> }
+            </span>
             <div><small>当前装备</small><strong>@(equipped?.Name ?? "未装备")</strong><p>@(equipped?.Description ?? "选择一枚魂印后，它会出现在战斗操作区。")</p></div>
             @if (equipped is not null)
             {
@@ -43,7 +50,7 @@
             @foreach (var item in _response.SoulImprints)
             {
                 <article class="soul-card @(item.IsEquipped ? "soul-card--equipped" : null)" @key="item.Id">
-                    <div class="soul-card__title"><span>@ElementSymbol(item.Element)</span><div><small>T@(item.Tier) · @WeaponRules.ElementName(item.Element)属性</small><h3>@item.Name</h3></div></div>
+                    <div class="soul-card__title"><span class="soul-card__sigil" aria-hidden="true">@if (ItemArt.ForCode(item.Code) is { } soulArt) { <img src="@soulArt" alt="" loading="lazy" /> } else { <text>@ElementSymbol(item.Element)</text> }</span><div><small>T@(item.Tier) · @WeaponRules.ElementName(item.Element)属性</small><h3>@item.Name</h3></div></div>
                     <p>@item.Description</p>
                     <dl>
                         <div><dt>能力</dt><dd>@EffectName(item.EffectType)</dd></div>

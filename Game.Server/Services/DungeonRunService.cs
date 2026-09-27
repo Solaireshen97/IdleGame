@@ -83,6 +83,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
 
     public async Task<Monster> ResetEncounterAsync(Room room)
     {
+        room.ScalingPartySize = 1;
         if (monsterCombatService is not null) await monsterCombatService.ResetRoomStateAsync(room.Id);
         var monsters = await dbContext.Monsters.Where(monster => monster.RoomId == room.Id)
             .OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).ToListAsync();
@@ -90,18 +91,24 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         {
             var legacyMonster = await dbContext.Monsters.FindAsync(room.MonsterId)
                 ?? throw new InvalidOperationException($"Room {room.Id} has no active monster.");
-            legacyMonster.Hp = legacyMonster.MaxHp;
+            RestoreBaseHealth(legacyMonster);
             room.CurrentWaveNumber = 1;
             room.TotalWaveCount = 1;
             return legacyMonster;
         }
 
-        foreach (var monster in monsters) monster.Hp = monster.MaxHp;
+        foreach (var monster in monsters) RestoreBaseHealth(monster);
         var first = monsters[0];
         room.MonsterId = first.Id;
         room.CurrentWaveNumber = first.WaveNumber;
         room.TotalWaveCount = monsters.Max(monster => monster.WaveNumber);
         return first;
+    }
+
+    private static void RestoreBaseHealth(Monster monster)
+    {
+        if (monster.BaseMaxHp <= 0) monster.BaseMaxHp = monster.MaxHp;
+        monster.Hp = monster.MaxHp = monster.BaseMaxHp;
     }
 
     private async Task<HashSet<int>> RecordDungeonClearsAsync(int dungeonId, IEnumerable<int> userIds, DateTime clearedAtUtc)

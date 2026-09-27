@@ -14,6 +14,7 @@
 	</PackageReference>
   </ItemGroup>
   <ItemGroup>
+	<Compile Include="..\Game.Client\Services\BattleFeedbackPlanner.cs" Link="Client\BattleFeedbackPlanner.cs" />
 	<ProjectReference Include="..\Game.Server\Game.Server.csproj" />
 	<ProjectReference Include="..\Game.Shared\Game.Shared.csproj" />
   </ItemGroup>

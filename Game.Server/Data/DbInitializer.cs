@@ -97,6 +97,7 @@ public static class DbInitializer
             dungeon.RegionName = definition.RegionName;
             dungeon.RegionCode = definition.RegionCode;
             dungeon.DungeonKind = definition.DungeonKind;
+            dungeon.PartyScalingProfileCode = definition.PartyScalingProfileCode;
             dungeon.Description = definition.Description;
             dungeon.MinimumLevel = definition.MinimumLevel;
             dungeon.RecommendedLevel = definition.RecommendedLevel;

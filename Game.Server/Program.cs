@@ -25,6 +25,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<DungeonRunService>();
+builder.Services.AddScoped<PartyScalingService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<RewardService>();
 builder.Services.AddScoped<BattleMilestoneService>();
@@ -46,6 +47,7 @@ builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(Weapo
 builder.Services.Configure<SoulImprintOptions>(builder.Configuration.GetSection(SoulImprintOptions.SectionName));
 builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
+builder.Services.Configure<PartyScalingOptions>(builder.Configuration.GetSection(PartyScalingOptions.SectionName));
 builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 builder.Services.Configure<MaterialOptions>(builder.Configuration.GetSection(MaterialOptions.SectionName));
@@ -63,6 +65,7 @@ builder.Services.AddSingleton<WeaponCatalog>();
 builder.Services.AddSingleton<SoulImprintCatalog>();
 builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
+builder.Services.AddSingleton<PartyScalingCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();

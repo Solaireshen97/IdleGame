@@ -1,7 +1,8 @@
-"""Build compact transparent weapon sprites from the generated pixel-art masters.
+"""Restore missing legacy weapon sprites from the generated pixel-art masters.
 
 The twelve source images are stored in assets/weapon-art/masters. The game's
-weapon catalog is the source of truth for the 99 exported item-code filenames.
+weapon catalog is the source of truth. Existing sprites and individually
+generated weapons are preserved; new designs require an explicit art subject.
 """
 
 from __future__ import annotations
@@ -102,6 +103,12 @@ def tint_sprite(master: Image.Image, element: str, ordinal: int) -> Image.Image:
 
 def main() -> None:
     items = json.loads(CATALOG.read_text(encoding="utf-8"))["Weapons"]["Items"]
+    subjects = json.loads((ROOT / "assets" / "weapon-art" / "subjects.json").read_text(encoding="utf-8"))
+    individual_codes = {item["code"] for item in subjects}
+    legacy_codes = {item["code"] for item in json.loads(MANIFEST.read_text(encoding="utf-8"))} - individual_codes
+    unknown = {item["Code"] for item in items} - legacy_codes - individual_codes
+    if unknown:
+        raise ValueError(f"New weapons require art subjects: {unknown}")
     masters = {shape: prepare_master(shape) for shape in (
         "sword", "dagger", "staff", "scepter", "saber", "bow",
         "hammer", "axe", "spear", "crossbow", "pickaxe", "club")}
@@ -112,8 +119,12 @@ def main() -> None:
         if not re.fullmatch(r"[a-z0-9-]+", code):
             raise ValueError(f"Unsafe weapon code: {code}")
         shape = weapon_shape(name, code)
-        image = tint_sprite(masters[shape], element, ordinal)
-        image.save(OUTPUT / f"{code}.png", optimize=True)
+        path = OUTPUT / f"{code}.png"
+        if not path.exists():
+            if code in individual_codes:
+                raise ValueError(f"Generate the individual weapon image first: {code}")
+            image = tint_sprite(masters[shape], element, ordinal)
+            image.save(path, optimize=True)
         manifest.append({"code": code, "name": name, "element": element, "shape": shape})
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = [
@@ -147,7 +158,9 @@ def main() -> None:
         sheet.paste(sprite, (x + 18, y + 14), sprite)
         draw.text((x + 15, y + 161), shape.upper(), font=ImageFont.load_default(), fill="#f0cd86")
     sheet.save(PREVIEW, optimize=True)
-    print(f"Exported {len(manifest)} weapon icons to {OUTPUT}")
+    from build_weapon_manifest import main as build_manifest
+    build_manifest()
+    print(f"Validated {len(manifest)} weapon icons in {OUTPUT}")
 
 
 if __name__ == "__main__":

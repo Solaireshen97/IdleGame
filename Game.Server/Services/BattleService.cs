@@ -8,8 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null)
+public class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
 {
+    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
     private static readonly TimeSpan RoundCooldown = TimeSpan.FromSeconds(BattleRules.RoundCooldownSeconds);
     private static readonly TimeSpan AutoRoundCooldown = TimeSpan.FromSeconds(BattleRules.AutoRoundCooldownSeconds);
     private static readonly TimeSpan PreparationTimeout = TimeSpan.FromSeconds(BattleRules.PreparationTimeoutSeconds);
@@ -154,6 +155,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
             room.RoundCooldownDurationSeconds = BattleRules.RepeatBattleDelaySeconds;
             room.PreparationStartedAtUtc = null;
             room.BattleEndedAtUtc = null;
+            await _partyScaling.SynchronizeAsync(room, slots.Select(entry => entry.Slot).ToList());
             if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
             restartedBattle = true;
         }
@@ -491,6 +493,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
         room.RoundCooldownDurationSeconds = null;
         room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? DateTime.UtcNow : null;
         room.BattleEndedAtUtc = null;
+        await _partyScaling.SynchronizeAsync(room, slots.Select(entry => entry.Slot).ToList());
         if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
         room.Version++;
         var save = await SaveAsync();
@@ -502,6 +505,7 @@ public class BattleService(GameDbContext dbContext, UserService userService, Con
     {
         var aliveSlots = slots.Where(x => x.Character.Hp > 0).OrderBy(x => x.Slot.SlotIndex).ToList();
         if (aliveSlots.Count == 0 || aliveSlots.Any(x => !x.Slot.IsConfirmed)) return (null, "PreparationRequired");
+        await _partyScaling.SynchronizeAsync(room, slots.Select(entry => entry.Slot).ToList());
         var clearedCharacterIds = await GetClearedCharacterIdsAsync(room.DungeonId);
         foreach (var entry in aliveSlots)
         {

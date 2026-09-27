@@ -13,9 +13,12 @@ public sealed class RoomRewardSummaryResponse
 
 public sealed class RoomRewardItemResponse
 {
+    public int CharacterId { get; set; }
     public string CharacterName { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    public int PendingQuantity { get; set; }
 }

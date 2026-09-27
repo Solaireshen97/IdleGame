@@ -11,8 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null)
+public class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
 {
+    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
     private const int SlotCount = 5;
     private TimeSpan MaximumActivityDuration => TimeSpan.FromHours(activityOptions?.Value.MaximumHours is > 0 and <= 168 ? activityOptions.Value.MaximumHours : 12);
 
@@ -62,6 +63,8 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             {
                 DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
                 RegionCode = dungeon.RegionCode, RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
+                PartyScalingProfileCode = dungeon.PartyScalingProfileCode,
+                PartyHpPercentages = _partyScaling.Catalog.GetHpPercentages(dungeon.PartyScalingProfileCode).ToList(),
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
                 ExperiencePercent = progressionService.ApplyDungeonExperienceModifier(100, currentLevel, dungeon.MinimumLevel),
@@ -105,7 +108,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         if (character!.Level < dungeon.MinimumLevel) return (null, "CharacterLevelTooLow");
         character.Hp = TalentRules.EffectiveMaxHp(character);
         var monsters = (encounterCatalog?.CreateMonsters(dungeon) ??
-            [new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense }]).ToList();
+            [new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, BaseMaxHp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense }]).ToList();
         var firstMonster = monsters.OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).First();
         var now = DateTime.UtcNow;
         var room = new Room
@@ -141,6 +144,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             await transaction.RollbackAsync();
             return (null, "CharacterAlreadyInRoom");
         }
+        await _partyScaling.SynchronizeAsync(room);
         if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, firstMonster);
         await dbContext.SaveChangesAsync();
         await transaction.CommitAsync();
@@ -204,6 +208,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             else room.NextRoundAvailableAtUtc = manualDeadline;
         }
         CharacterActivityManager.StartBattle(dbContext, character.Id, room, joinedAt);
+        await _partyScaling.SynchronizeAsync(room);
         room.Version++;
         try { await dbContext.SaveChangesAsync(); }
         catch (DbUpdateConcurrencyException)
@@ -262,6 +267,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
+        await _partyScaling.SynchronizeAsync(room);
         room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user.Id), null);
@@ -300,6 +306,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         target.PendingConsumableSlotIndex = null;
         target.PendingSkillSlotMask = 0;
         target.IsSoulImprintQueued = false;
+        await _partyScaling.SynchronizeAsync(room!);
         room!.Version++;
         try { await dbContext.SaveChangesAsync(); }
         catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
@@ -331,6 +338,7 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         slot.IsSoulImprintQueued = false;
         slot.HasParticipatedInRun = false;
         slot.LastParticipatedMonsterId = null;
+        await _partyScaling.SynchronizeAsync(room!);
         room.Version++;
         await dbContext.SaveChangesAsync();
         return (await BuildRoomDetailAsync(room, user!.Id), null);
@@ -481,44 +489,30 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
         var isPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled;
         var isAllAliveMembersAuto = aliveSlots.Count > 0 && aliveSlots.All(slot =>
             RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots));
-        var rewardRun = currentUserId.HasValue
+        var rewardRuns = currentUserId.HasValue
             ? await dbContext.RewardRuns.Where(run => run.RoomId == room.Id && run.Sequence <= room.RunSequence)
-                .OrderByDescending(run => run.Sequence).FirstOrDefaultAsync()
-            : null;
-        var rewardEntries = rewardRun is null ? [] : await dbContext.RewardEntries
+                .OrderByDescending(run => run.Sequence).ToListAsync()
+            : [];
+        var rewardRun = rewardRuns.FirstOrDefault();
+        var pendingSequences = rewardRuns.Where(run => run.Status == "Pending").Select(run => run.Sequence).ToList();
+        var rewardEntries = rewardRun is null ? [] : await dbContext.RewardEntries.AsNoTracking()
             .Where(entry => entry.RoomId == room.Id && entry.Sequence == rewardRun.Sequence && entry.UserId == currentUserId)
             .OrderBy(entry => entry.Id).ToListAsync();
-        var rewardCharacterIds = rewardEntries.Select(entry => entry.CharacterId).Distinct().ToList();
+        var cumulativeEntries = currentUserId.HasValue ? await dbContext.RewardEntries.AsNoTracking()
+            .Where(entry => entry.RoomId == room.Id && entry.Sequence <= room.RunSequence && entry.UserId == currentUserId.Value)
+            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code, entry.WeaponSnapshotJson })
+            .Select(group => new CumulativeRewardEntry
+            {
+                CharacterId = group.Key.CharacterId, Kind = group.Key.Kind, Code = group.Key.Code,
+                WeaponSnapshotJson = group.Key.WeaponSnapshotJson,
+                Quantity = group.Sum(entry => entry.Quantity),
+                PendingQuantity = group.Sum(entry => pendingSequences.Contains(entry.Sequence) ? entry.Quantity : 0)
+            }).ToListAsync()
+            : [];
+        var rewardCharacterIds = cumulativeEntries.Select(entry => entry.CharacterId)
+            .Concat(currentUserCharacterIds).Distinct().ToList();
         var rewardCharacters = await dbContext.Characters.Where(character => rewardCharacterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id, character => character.Name);
-        var cumulativeEntries = room.ClosedAtUtc.HasValue && currentUserId.HasValue
-            ? await dbContext.RewardEntries.Where(entry => entry.RoomId == room.Id && entry.UserId == currentUserId.Value).ToListAsync()
-            : [];
-        var completedRunCount = room.ClosedAtUtc.HasValue && currentUserId.HasValue
-            ? await dbContext.RewardRuns.CountAsync(run => run.RoomId == room.Id && run.Status != "Pending")
-            : 0;
-        var cumulativeCharacterIds = cumulativeEntries.Select(entry => entry.CharacterId).Distinct().ToList();
-        var cumulativeCharacters = await dbContext.Characters.Where(character => cumulativeCharacterIds.Contains(character.Id))
-            .ToDictionaryAsync(character => character.Id, character => character.Name);
-        var cumulativeItems = cumulativeEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
-            .Select(entry => new RoomRewardItemResponse
-            {
-                CharacterName = cumulativeCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
-                Kind = entry.Kind, Quantity = entry.Quantity, Source = "累计",
-                Name = entry.Kind switch
-                {
-                    "Consumable" => consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code,
-                    "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
-                    "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
-                    _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
-                }
-            })
-            .GroupBy(item => new { item.CharacterName, item.Kind, item.Name })
-            .Select(group => new RoomRewardItemResponse
-            {
-                CharacterName = group.Key.CharacterName, Kind = group.Key.Kind, Name = group.Key.Name,
-                Source = "累计", Quantity = group.Sum(item => item.Quantity)
-            }).OrderBy(item => item.CharacterName).ThenBy(item => item.Name).ToList();
         var monsterIntent = monsterCombatService is null ? null : await monsterCombatService.GetIntentResponseAsync(room, monster);
         var monsterEffects = monsterCombatService is null ? [] : await monsterCombatService.GetStatusResponsesAsync(room, "Monster", monster.Id);
         var characterEffects = new Dictionary<int, List<BattleStatusEffectResponse>>();
@@ -535,6 +529,10 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
             RegionName = dungeon.RegionName,
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
+            MonsterBaseMaxHp = monster.BaseMaxHp > 0 ? monster.BaseMaxHp : monster.MaxHp,
+            IsPartyHpScaled = _partyScaling.Catalog.ScalesHp(dungeon.PartyScalingProfileCode),
+            ScalingPartySize = room.ScalingPartySize,
+            MonsterHpPercent = _partyScaling.Catalog.GetHpPercent(dungeon.PartyScalingProfileCode, room.ScalingPartySize),
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, RunSequence = room.RunSequence, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
@@ -559,13 +557,9 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             MonsterIntent = monsterIntent,
             MonsterEffects = monsterEffects,
             BattleLogs = battleLogStore?.Get(room.Id) ?? [],
-            CumulativeRewards = room.ClosedAtUtc.HasValue ? new RoomCumulativeRewardsResponse
-            {
-                CompletedRuns = completedRunCount,
-                Gold = cumulativeEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity),
-                Experience = cumulativeEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity),
-                Items = cumulativeItems
-            } : null,
+            CumulativeRewards = currentUserId.HasValue
+                ? BuildCumulativeRewards(cumulativeEntries, rewardRuns, rewardCharacters, currentUserCharacterIds)
+                : null,
             Rewards = rewardRun is null || rewardRun.Sequence < room.RunSequence && rewardEntries.Count == 0
                 ? null : new RoomRewardSummaryResponse
             {
@@ -576,16 +570,11 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
                 Items = rewardEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
                     .Select(entry => new RoomRewardItemResponse
                     {
+                        CharacterId = entry.CharacterId, Code = entry.Code,
                         CharacterName = rewardCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
                         Kind = entry.Kind, Quantity = entry.Quantity,
                         Source = entry.EventKey == "clear" ? "通关" : "击杀",
-                        Name = entry.Kind switch
-                        {
-                            "Consumable" => consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code,
-                            "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
-                            "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
-                            _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
-                        }
+                        Name = DescribeRewardItem(entry)
                     }).ToList()
             },
             Slots = slots.Select(slot =>
@@ -735,6 +724,64 @@ public class RoomService(GameDbContext dbContext, UserService userService, Progr
             }).ToList()
         };
     }
+
+    private sealed class CumulativeRewardEntry
+    {
+        public int CharacterId { get; init; }
+        public string Kind { get; init; } = string.Empty;
+        public string Code { get; init; } = string.Empty;
+        public string? WeaponSnapshotJson { get; init; }
+        public int Quantity { get; init; }
+        public int PendingQuantity { get; init; }
+    }
+
+    private RoomCumulativeRewardsResponse BuildCumulativeRewards(List<CumulativeRewardEntry> entries,
+        List<RewardRun> runs, IReadOnlyDictionary<int, string> names, List<int> currentCharacterIds)
+    {
+        var items = entries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
+            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code,
+                Name = DescribeRewardItem(new RewardEntry { Kind = entry.Kind, Code = entry.Code, WeaponSnapshotJson = entry.WeaponSnapshotJson }) })
+            .Select(group => new RoomRewardItemResponse
+            {
+                CharacterId = group.Key.CharacterId,
+                CharacterName = names.GetValueOrDefault(group.Key.CharacterId, "角色"),
+                Kind = group.Key.Kind, Code = group.Key.Code, Name = group.Key.Name, Source = "累计",
+                Quantity = group.Sum(entry => entry.Quantity),
+                PendingQuantity = group.Sum(entry => entry.PendingQuantity)
+            }).OrderBy(item => item.CharacterId).ThenBy(item => item.Kind).ThenBy(item => item.Name).ToList();
+        var entriesByCharacter = entries.ToLookup(entry => entry.CharacterId);
+        var itemsByCharacter = items.ToLookup(item => item.CharacterId);
+        var characters = currentCharacterIds.Concat(entriesByCharacter.Select(group => group.Key)).Distinct()
+            .Select(characterId =>
+            {
+                var characterEntries = entriesByCharacter[characterId].ToList();
+                return new RoomCharacterRewardsResponse
+                {
+                    CharacterId = characterId, CharacterName = names.GetValueOrDefault(characterId, "角色"),
+                    Gold = characterEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity),
+                    Experience = characterEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity),
+                    PendingGold = characterEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.PendingQuantity),
+                    PendingExperience = characterEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.PendingQuantity),
+                    Items = itemsByCharacter[characterId].ToList()
+                };
+            }).ToList();
+        return new RoomCumulativeRewardsResponse
+        {
+            CompletedRuns = runs.Count(run => run.Status != "Pending"),
+            Gold = characters.Sum(character => character.Gold),
+            Experience = characters.Sum(character => character.Experience),
+            HasPendingRewards = entries.Any(entry => entry.PendingQuantity > 0),
+            Items = items, Characters = characters
+        };
+    }
+
+    private string DescribeRewardItem(RewardEntry entry) => entry.Kind switch
+    {
+        "Consumable" => consumableCatalog.FindItem(entry.Code)?.Name ?? entry.Code,
+        "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
+        "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
+        _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
+    };
 
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room, int? currentUserId = null)
     {

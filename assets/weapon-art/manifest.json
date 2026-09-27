@@ -3,594 +3,1155 @@
     "code": "ember-blade",
     "name": "余烬长剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "ember-blade.png",
+    "source": "master"
   },
   {
     "code": "cinder-knife",
     "name": "余烬短剑",
     "element": "Fire",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "cinder-knife.png",
+    "source": "master"
   },
   {
     "code": "lumen-staff",
     "name": "晨光法杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "lumen-staff.png",
+    "source": "master"
+  },
+  {
+    "code": "apprentice-wand",
+    "name": "学徒魔杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "apprentice-wand.png",
+    "source": "individual",
+    "group": "初始武器",
+    "subject": "a simple short apprentice wand, plain ashwood shaft with a small pale blue crystal and one brass binding",
+    "palette": "ashwood brown, pale blue, muted brass"
+  },
+  {
+    "code": "scout-longbow",
+    "name": "斥候长弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "scout-longbow.png",
+    "source": "individual",
+    "group": "初始武器",
+    "subject": "a modest scout longbow of dark wood, simple green leather grip and taut pale bowstring, no arrow",
+    "palette": "dark wood, forest green, warm ivory"
+  },
+  {
+    "code": "novice-dagger",
+    "name": "练习匕首",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "novice-dagger.png",
+    "source": "individual",
+    "group": "初始武器",
+    "subject": "a plain practice dagger with short dull steel blade, small brass guard and charcoal leather grip",
+    "palette": "steel gray, muted brass, charcoal"
   },
   {
     "code": "light-scepter",
     "name": "晨辉短杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "light-scepter.png",
+    "source": "master"
   },
   {
     "code": "tide-saber",
     "name": "潮汐弯刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "tide-saber.png",
+    "source": "master"
   },
   {
     "code": "gale-bow",
     "name": "疾风短弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "gale-bow.png",
+    "source": "master"
   },
   {
     "code": "stone-hammer",
     "name": "磐岩战锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "stone-hammer.png",
+    "source": "master"
   },
   {
     "code": "dusk-dagger",
     "name": "暮影匕首",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "dusk-dagger.png",
+    "source": "master"
   },
   {
     "code": "goldtooth-pickaxe",
     "name": "金牙的精工矿镐",
     "element": "Earth",
-    "shape": "pickaxe"
+    "shape": "pickaxe",
+    "file": "goldtooth-pickaxe.png",
+    "source": "master"
   },
   {
     "code": "mine-forge-blade",
     "name": "矿炉余烬剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "mine-forge-blade.png",
+    "source": "master"
   },
   {
     "code": "underground-river-saber",
     "name": "地下河弯刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "underground-river-saber.png",
+    "source": "master"
   },
   {
     "code": "tunnel-bulwark-hammer",
     "name": "坑道壁垒锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "tunnel-bulwark-hammer.png",
+    "source": "master"
   },
   {
     "code": "ventilation-shaft-bow",
     "name": "风井短弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "ventilation-shaft-bow.png",
+    "source": "master"
   },
   {
     "code": "miners-lantern-scepter",
     "name": "矿灯权杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "miners-lantern-scepter.png",
+    "source": "master"
   },
   {
     "code": "shaft-shadow-dagger",
     "name": "坑影匕首",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "shaft-shadow-dagger.png",
+    "source": "master"
   },
   {
     "code": "widow-silk-fang",
     "name": "织亡者之牙",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "widow-silk-fang.png",
+    "source": "master"
   },
   {
     "code": "graveflame-sword",
     "name": "墓火长剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "graveflame-sword.png",
+    "source": "master"
   },
   {
     "code": "mistwater-scepter",
     "name": "雾水权杖",
     "element": "Water",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "mistwater-scepter.png",
+    "source": "master"
   },
   {
     "code": "tombstone-maul",
     "name": "墓碑重锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "tombstone-maul.png",
+    "source": "master"
   },
   {
     "code": "nightbat-crossbow",
     "name": "夜蝠手弩",
     "element": "Wind",
-    "shape": "crossbow"
+    "shape": "crossbow",
+    "file": "nightbat-crossbow.png",
+    "source": "master"
   },
   {
     "code": "requiem-staff",
     "name": "安魂法杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "requiem-staff.png",
+    "source": "master"
   },
   {
     "code": "webshadow-blade",
     "name": "蛛影短刃",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "webshadow-blade.png",
+    "source": "master"
   },
   {
     "code": "ragefire-cleaver",
     "name": "怒焰裂刃",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "ragefire-cleaver.png",
+    "source": "master"
   },
   {
     "code": "cinderfang-axe",
     "name": "烬牙战斧",
     "element": "Fire",
-    "shape": "axe"
+    "shape": "axe",
+    "file": "cinderfang-axe.png",
+    "source": "master"
   },
   {
     "code": "quenching-blade",
     "name": "淬火长刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "quenching-blade.png",
+    "source": "master"
   },
   {
     "code": "basalt-warhammer",
     "name": "玄武岩战锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "basalt-warhammer.png",
+    "source": "master"
   },
   {
     "code": "ashwind-bow",
     "name": "灰烬风弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "ashwind-bow.png",
+    "source": "master"
   },
   {
     "code": "forge-sun-scepter",
     "name": "炉光权杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "forge-sun-scepter.png",
+    "source": "master"
   },
   {
     "code": "charcoal-ritual-dagger",
     "name": "炭影祭匕",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "charcoal-ritual-dagger.png",
+    "source": "master"
   },
   {
     "code": "frostfang-spear",
     "name": "冰牙寒泉枪",
     "element": "Water",
-    "shape": "spear"
+    "shape": "spear",
+    "file": "frostfang-spear.png",
+    "source": "master"
   },
   {
     "code": "hearthfire-axe",
     "name": "炉火战斧",
     "element": "Fire",
-    "shape": "axe"
+    "shape": "axe",
+    "file": "hearthfire-axe.png",
+    "source": "master"
   },
   {
     "code": "springice-saber",
     "name": "泉冰弯刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "springice-saber.png",
+    "source": "master"
   },
   {
     "code": "granite-guard-maul",
     "name": "花岗岩卫锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "granite-guard-maul.png",
+    "source": "master"
   },
   {
     "code": "snowgale-bow",
     "name": "雪风短弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "snowgale-bow.png",
+    "source": "master"
   },
   {
     "code": "icecrystal-scepter",
     "name": "冰晶权杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "icecrystal-scepter.png",
+    "source": "master"
   },
   {
     "code": "longnight-dagger",
     "name": "长夜匕首",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "longnight-dagger.png",
+    "source": "master"
   },
   {
     "code": "stormfeather-bow",
     "name": "风怒翎羽弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "stormfeather-bow.png",
+    "source": "master"
   },
   {
     "code": "sunbaked-spear",
     "name": "烈阳长矛",
     "element": "Fire",
-    "shape": "spear"
+    "shape": "spear",
+    "file": "sunbaked-spear.png",
+    "source": "master"
   },
   {
     "code": "dewcall-staff",
     "name": "唤露法杖",
     "element": "Water",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "dewcall-staff.png",
+    "source": "master"
   },
   {
     "code": "ancestor-stone-maul",
     "name": "先祖石锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "ancestor-stone-maul.png",
+    "source": "master"
   },
   {
     "code": "featherwind-blade",
     "name": "羽风长刃",
     "element": "Wind",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "featherwind-blade.png",
+    "source": "master"
   },
   {
     "code": "dawn-totem-scepter",
     "name": "晨曦图腾杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "dawn-totem-scepter.png",
+    "source": "master"
   },
   {
     "code": "nightfeather-dagger",
     "name": "夜羽匕首",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "nightfeather-dagger.png",
+    "source": "master"
   },
   {
     "code": "dawnwarden-staff",
     "name": "晨曦守望之杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "dawnwarden-staff.png",
+    "source": "master"
   },
   {
     "code": "sunspark-sword",
     "name": "阳火长剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "sunspark-sword.png",
+    "source": "master"
   },
   {
     "code": "silverbrook-saber",
     "name": "银溪弯刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "silverbrook-saber.png",
+    "source": "master"
   },
   {
     "code": "rootstone-hammer",
     "name": "根石战锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "rootstone-hammer.png",
+    "source": "master"
   },
   {
     "code": "goldleaf-longbow",
     "name": "金叶长弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "goldleaf-longbow.png",
+    "source": "master"
   },
   {
     "code": "dawnprayer-scepter",
     "name": "晨祷权杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "dawnprayer-scepter.png",
+    "source": "master"
   },
   {
     "code": "duskrune-blade",
     "name": "暮纹短刃",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "duskrune-blade.png",
+    "source": "master"
   },
   {
     "code": "t1-burning-blade-hatchet",
     "name": "燃刃短斧",
     "element": "Fire",
-    "shape": "axe"
+    "shape": "axe",
+    "file": "t1-burning-blade-hatchet.png",
+    "source": "master"
   },
   {
     "code": "t1-scorpion-hook-knife",
     "name": "赤蝎钩刃",
     "element": "Fire",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "t1-scorpion-hook-knife.png",
+    "source": "master"
   },
   {
     "code": "t1-soot-iron-hammer",
     "name": "烟熏铁锤",
     "element": "Fire",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "t1-soot-iron-hammer.png",
+    "source": "master"
   },
   {
     "code": "t1-candle-staff",
     "name": "烛头短杖",
     "element": "Fire",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-candle-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-fishbone-knife",
     "name": "鱼骨短刀",
     "element": "Water",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "t1-fishbone-knife.png",
+    "source": "master"
   },
   {
     "code": "t1-frostmane-hunting-spear",
     "name": "霜鬃猎矛",
     "element": "Water",
-    "shape": "spear"
+    "shape": "spear",
+    "file": "t1-frostmane-hunting-spear.png",
+    "source": "master"
   },
   {
     "code": "t1-frosted-wood-staff",
     "name": "结霜木杖",
     "element": "Water",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-frosted-wood-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-ice-tusk-mallet",
     "name": "冰牙骨槌",
     "element": "Water",
-    "shape": "club"
+    "shape": "club",
+    "file": "t1-ice-tusk-mallet.png",
+    "source": "master"
   },
   {
     "code": "t1-chipped-mining-pick",
     "name": "缺口矿镐",
     "element": "Earth",
-    "shape": "pickaxe"
+    "shape": "pickaxe",
+    "file": "t1-chipped-mining-pick.png",
+    "source": "master"
   },
   {
     "code": "t1-stone-edge-hatchet",
     "name": "石刃手斧",
     "element": "Earth",
-    "shape": "axe"
+    "shape": "axe",
+    "file": "t1-stone-edge-hatchet.png",
+    "source": "master"
   },
   {
     "code": "t1-boar-tusk-club",
     "name": "獠牙木棒",
     "element": "Earth",
-    "shape": "club"
+    "shape": "club",
+    "file": "t1-boar-tusk-club.png",
+    "source": "master"
   },
   {
     "code": "t1-ironbound-mallet",
     "name": "铁箍木槌",
     "element": "Earth",
-    "shape": "club"
+    "shape": "club",
+    "file": "t1-ironbound-mallet.png",
+    "source": "master"
   },
   {
     "code": "t1-fang-hunting-spear",
     "name": "兽牙猎矛",
     "element": "Wind",
-    "shape": "spear"
+    "shape": "spear",
+    "file": "t1-fang-hunting-spear.png",
+    "source": "master"
   },
   {
     "code": "t1-sinew-shortbow",
     "name": "兽筋短弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "t1-sinew-shortbow.png",
+    "source": "master"
   },
   {
     "code": "t1-feather-short-staff",
     "name": "羽饰短杖",
     "element": "Wind",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-feather-short-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-hide-wrapped-club",
     "name": "兽皮缠柄棍",
     "element": "Wind",
-    "shape": "club"
+    "shape": "club",
+    "file": "t1-hide-wrapped-club.png",
+    "source": "master"
   },
   {
     "code": "t1-sentry-old-sword",
     "name": "哨兵旧剑",
     "element": "Light",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "t1-sentry-old-sword.png",
+    "source": "master"
   },
   {
     "code": "t1-copper-ring-ritual-staff",
     "name": "铜环祭杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "t1-copper-ring-ritual-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-dusty-prayer-mace",
     "name": "蒙尘祈祷锤",
     "element": "Light",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "t1-dusty-prayer-mace.png",
+    "source": "master"
   },
   {
     "code": "t1-cracked-crystal-staff",
     "name": "裂晶短杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-cracked-crystal-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-spider-fang-knife",
     "name": "蛛牙小刀",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "t1-spider-fang-knife.png",
+    "source": "master"
   },
   {
     "code": "t1-wood-hilt-ritual-dagger",
     "name": "木柄祭匕",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "t1-wood-hilt-ritual-dagger.png",
+    "source": "master"
   },
   {
     "code": "t1-grave-thorn-staff",
     "name": "守墓棘杖",
     "element": "Dark",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-grave-thorn-staff.png",
+    "source": "master"
   },
   {
     "code": "t1-dim-apprentice-staff",
     "name": "黯淡学徒杖",
     "element": "Dark",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "t1-dim-apprentice-staff.png",
+    "source": "master"
   },
   {
     "code": "grizzled-bone-maul",
     "name": "灰熊骨槌",
     "element": "Earth",
-    "shape": "club"
+    "shape": "club",
+    "file": "grizzled-bone-maul.png",
+    "source": "master"
   },
   {
     "code": "riverpaw-chief-cleaver",
     "name": "河爪首领砍刀",
     "element": "Earth",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "riverpaw-chief-cleaver.png",
+    "source": "master"
   },
   {
     "code": "plague-stalker-fang",
     "name": "疫犬裂牙",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "plague-stalker-fang.png",
+    "source": "master"
   },
   {
     "code": "crypt-warden-staff",
     "name": "守墓人的提灯杖",
     "element": "Dark",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "crypt-warden-staff.png",
+    "source": "master"
   },
   {
     "code": "scorpid-queen-hook",
     "name": "蝎后尾钩",
     "element": "Fire",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "scorpid-queen-hook.png",
+    "source": "master"
   },
   {
     "code": "burning-champion-axe",
     "name": "燃刃勇士战斧",
     "element": "Fire",
-    "shape": "axe"
+    "shape": "axe",
+    "file": "burning-champion-axe.png",
+    "source": "master"
   },
   {
     "code": "icefang-hunting-spear",
     "name": "巨狼牙猎矛",
     "element": "Water",
-    "shape": "spear"
+    "shape": "spear",
+    "file": "icefang-hunting-spear.png",
+    "source": "master"
   },
   {
     "code": "glacier-giant-maul",
     "name": "冰川重槌",
     "element": "Water",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "glacier-giant-maul.png",
+    "source": "master"
   },
   {
     "code": "thunderhorn-bone-club",
     "name": "雷角骨棒",
     "element": "Wind",
-    "shape": "club"
+    "shape": "club",
+    "file": "thunderhorn-bone-club.png",
+    "source": "master"
   },
   {
     "code": "sky-hunter-bow",
     "name": "崖巢猎弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "sky-hunter-bow.png",
+    "source": "master"
   },
   {
     "code": "mana-serpent-staff",
     "name": "盘蛇晶杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "mana-serpent-staff.png",
+    "source": "master"
   },
   {
     "code": "runic-guard-mallet",
     "name": "符文守卫重锤",
     "element": "Light",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "runic-guard-mallet.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-fire",
     "name": "粗铁短剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "t1-shop-fire.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-water",
     "name": "河湾弯刀",
     "element": "Water",
-    "shape": "saber"
+    "shape": "saber",
+    "file": "t1-shop-water.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-earth",
     "name": "石纹短锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "t1-shop-earth.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-wind",
     "name": "轻木短弓",
     "element": "Wind",
-    "shape": "bow"
+    "shape": "bow",
+    "file": "t1-shop-wind.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-light",
     "name": "铜饰祈祷杖",
     "element": "Light",
-    "shape": "scepter"
+    "shape": "scepter",
+    "file": "t1-shop-light.png",
+    "source": "master"
   },
   {
     "code": "t1-shop-dark",
     "name": "灰木仪式匕",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "t1-shop-dark.png",
+    "source": "master"
   },
   {
     "code": "deep-forge-guard-sword",
     "name": "熔炉卫士长剑",
     "element": "Fire",
-    "shape": "sword"
+    "shape": "sword",
+    "file": "deep-forge-guard-sword.png",
+    "source": "master"
   },
   {
     "code": "deep-well-channel-staff",
     "name": "深井引流杖",
     "element": "Water",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "deep-well-channel-staff.png",
+    "source": "master"
   },
   {
     "code": "deep-vein-guard-maul",
     "name": "矿脉护卫重锤",
     "element": "Earth",
-    "shape": "hammer"
+    "shape": "hammer",
+    "file": "deep-vein-guard-maul.png",
+    "source": "master"
   },
   {
     "code": "tunnel-patrol-crossbow",
     "name": "矿道巡风弩",
     "element": "Wind",
-    "shape": "crossbow"
+    "shape": "crossbow",
+    "file": "tunnel-patrol-crossbow.png",
+    "source": "master"
   },
   {
     "code": "shaft-prayer-staff",
     "name": "井口祈愿杖",
     "element": "Light",
-    "shape": "staff"
+    "shape": "staff",
+    "file": "shaft-prayer-staff.png",
+    "source": "master"
   },
   {
     "code": "blackstone-ritual-dagger",
     "name": "黑石仪式匕",
     "element": "Dark",
-    "shape": "dagger"
+    "shape": "dagger",
+    "file": "blackstone-ritual-dagger.png",
+    "source": "master"
   },
   {
     "code": "deep-overseer-pickaxe",
     "name": "深岩监工的震地镐",
     "element": "Earth",
-    "shape": "pickaxe"
+    "shape": "pickaxe",
+    "file": "deep-overseer-pickaxe.png",
+    "source": "master"
+  },
+  {
+    "code": "crypt-censer-blade",
+    "name": "墓火香炉剑",
+    "element": "Fire",
+    "shape": "sword",
+    "file": "crypt-censer-blade.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a straight tomb-flame sword with a tiny ember-filled censer set into the guard, soot-dark steel and wrapped hilt",
+    "palette": "dark steel, ember orange, old bronze"
+  },
+  {
+    "code": "gravewater-crook",
+    "name": "墓泉引魂杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "gravewater-crook.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a curved soul-guide staff of dark wood with one blue droplet crystal hanging inside the hooked head",
+    "palette": "dark wood, watery blue, aged bronze"
+  },
+  {
+    "code": "tombstone-ward-maul",
+    "name": "墓碑守誓锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "tombstone-ward-maul.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a heavy square tombstone maul, weathered stone head with one simple oath rune, long leather-bound haft",
+    "palette": "stone gray, ochre, dark leather"
+  },
+  {
+    "code": "silkline-longbow",
+    "name": "蛛丝弦长弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "silkline-longbow.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a slender gnarled longbow with ivory spider-silk string and sparse web bindings on its dark wooden tips, no arrow",
+    "palette": "dark wood, ivory silk, muted teal"
+  },
+  {
+    "code": "last-rites-scepter",
+    "name": "安魂仪式权杖",
+    "element": "Light",
+    "shape": "scepter",
+    "file": "last-rites-scepter.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a short last-rites ritual scepter, ivory candle-shaped crystal held in an old brass fork above a dark grip",
+    "palette": "ivory, aged gold, dark brown"
+  },
+  {
+    "code": "widows-fang",
+    "name": "腐巢寡妇之牙",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "widows-fang.png",
+    "source": "individual",
+    "group": "瘟疫地穴·深层",
+    "subject": "a hooked widow-spider fang dagger, dark violet chitin blade with a small green venom groove and wrapped grip",
+    "palette": "dark violet, muted venom green, charcoal"
+  },
+  {
+    "code": "cinder-guard-cleaver",
+    "name": "熔心灰烬斩斧",
+    "element": "Fire",
+    "shape": "axe",
+    "file": "cinder-guard-cleaver.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a single-headed ash cleaver axe with broad blackened steel blade and one glowing ember crack near the edge",
+    "palette": "blackened steel, ember red, bronze"
+  },
+  {
+    "code": "steam-channel-staff",
+    "name": "蒸汽导流杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "steam-channel-staff.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a slim steam-channel staff, copper pipe shaft and a small blue valve crystal enclosed at the top",
+    "palette": "copper brown, steam blue, dark steel"
+  },
+  {
+    "code": "rage-basalt-warhammer",
+    "name": "熔心玄武岩战锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "rage-basalt-warhammer.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a broad basalt warhammer with angular dark stone head, ochre mineral veins and iron-collared wooden haft",
+    "palette": "basalt gray, ochre, dark wood"
+  },
+  {
+    "code": "smoke-runner-bow",
+    "name": "烟道疾行弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "smoke-runner-bow.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a lightweight recurve bow of charcoal wood, bronze limb caps and teal cloth grip, no arrow",
+    "palette": "charcoal wood, muted teal, bronze"
+  },
+  {
+    "code": "ember-oath-mace",
+    "name": "余烬誓约锤",
+    "element": "Light",
+    "shape": "hammer",
+    "file": "ember-oath-mace.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a one-handed oath mace with a small golden sun-shaped metal head, ivory inset and dark leather grip",
+    "palette": "warm gold, ivory, dark leather"
+  },
+  {
+    "code": "ashen-ritual-blade",
+    "name": "烬黑仪式刃",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "ashen-ritual-blade.png",
+    "source": "individual",
+    "group": "怒焰裂谷·熔心",
+    "subject": "a short black ritual blade with jagged charcoal edge and a violet jewel in its simple bronze guard",
+    "palette": "charcoal, muted violet, aged bronze"
+  },
+  {
+    "code": "hearth-thaw-blade",
+    "name": "融雪炉火剑",
+    "element": "Fire",
+    "shape": "sword",
+    "file": "hearth-thaw-blade.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a straight hearthfire sword with warm red-orange steel core, silver edge and small frost-blue guard caps",
+    "palette": "warm orange, silver steel, ice blue"
+  },
+  {
+    "code": "glacial-channel-staff",
+    "name": "冰河导能杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "glacial-channel-staff.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a frostwood staff with a single elongated blue ice crystal held in a simple silver cage",
+    "palette": "ice blue, silver, dark frostwood"
+  },
+  {
+    "code": "permafrost-maul",
+    "name": "永冻岩重锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "permafrost-maul.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a squat permafrost rock maul with square gray stone head capped by a thin pale ice layer",
+    "palette": "stone gray, pale cyan, dark wood"
+  },
+  {
+    "code": "snowdrift-longbow",
+    "name": "雪痕长弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "snowdrift-longbow.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a pale birch longbow with frost-blue grip, two small teal feather ties and taut white string, no arrow",
+    "palette": "pale birch, frost blue, muted teal"
+  },
+  {
+    "code": "aurora-prayer-staff",
+    "name": "极光祈愿杖",
+    "element": "Light",
+    "shape": "scepter",
+    "file": "aurora-prayer-staff.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a prayer staff with a compact ivory-gold fork surrounding one pale teal aurora crystal",
+    "palette": "ivory, warm gold, pale teal"
+  },
+  {
+    "code": "black-ice-dagger",
+    "name": "玄冰短匕",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "black-ice-dagger.png",
+    "source": "individual",
+    "group": "寒泉深窟·霜王座",
+    "subject": "a short angular black-ice dagger with translucent indigo blade and a small silver guard",
+    "palette": "indigo, cold silver, charcoal"
+  },
+  {
+    "code": "lightning-brand-saber",
+    "name": "雷痕弯刀",
+    "element": "Fire",
+    "shape": "saber",
+    "file": "lightning-brand-saber.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "a curved steel saber with one simple orange lightning-shaped groove and brass handguard",
+    "palette": "steel gray, orange, old brass"
+  },
+  {
+    "code": "raincaller-staff",
+    "name": "唤雨长杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "raincaller-staff.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "a long dark wooden raincalling staff crowned by a blue water-drop stone and a small feather tie",
+    "palette": "rain blue, dark wood, muted silver"
+  },
+  {
+    "code": "thunderhoof-maul",
+    "name": "雷蹄重锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "thunderhoof-maul.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "a heavy earthbound maul with squared stone head, brass hoof-shaped band and leather-wrapped shaft",
+    "palette": "ochre stone, brass, dark leather"
+  },
+  {
+    "code": "gale-feather-bow",
+    "name": "烈风雷羽弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "gale-feather-bow.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "a recurved gale bow with swept teal feather-like limb tips and simple bronze grip, no arrow",
+    "palette": "teal, dark wood, bronze"
+  },
+  {
+    "code": "skyfather-scepter",
+    "name": "苍穹先祖权杖",
+    "element": "Light",
+    "shape": "scepter",
+    "file": "skyfather-scepter.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "an ancestral sky scepter with a compact golden wing-shaped head surrounding an ivory stone",
+    "palette": "warm gold, ivory, dark wood"
+  },
+  {
+    "code": "stormshadow-knife",
+    "name": "风暴影刃",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "stormshadow-knife.png",
+    "source": "individual",
+    "group": "风怒巢穴·雷鸣峰",
+    "subject": "a lean curved shadow knife with dark indigo edge, one violet notch and a teal feather tied to the pommel",
+    "palette": "indigo, muted violet, teal"
+  },
+  {
+    "code": "sunflare-blade",
+    "name": "日焰长剑",
+    "element": "Fire",
+    "shape": "sword",
+    "file": "sunflare-blade.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a long straight sunflare sword with copper-gold guard, clean silver edge and a restrained ember-orange center stripe",
+    "palette": "silver steel, copper gold, ember orange"
+  },
+  {
+    "code": "manaflow-staff",
+    "name": "法流引导杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "manaflow-staff.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a slim mana-guiding staff, dark blue wooden shaft with silver rings and one faceted watery blue crystal",
+    "palette": "water blue, silver, dark navy wood"
+  },
+  {
+    "code": "runestone-core-maul",
+    "name": "符文核重锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "runestone-core-maul.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a blocky runestone core maul with gray stone head, one large ochre rune inset and short brass collars",
+    "palette": "stone gray, ochre, brass"
+  },
+  {
+    "code": "arcwind-bow",
+    "name": "奥风长弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "arcwind-bow.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a sleek arcane longbow of dark wood with teal crystal limb tips and two simple gold binding rings, no arrow",
+    "palette": "dark wood, teal, gold"
+  },
+  {
+    "code": "dawncore-scepter",
+    "name": "黎明核心权杖",
+    "element": "Light",
+    "shape": "scepter",
+    "file": "dawncore-scepter.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a dawn-core scepter with a compact ivory-gold cage holding one luminous pale gold crystal",
+    "palette": "ivory, warm gold, pale cyan"
+  },
+  {
+    "code": "voidglass-dagger",
+    "name": "虚空晶匕",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "voidglass-dagger.png",
+    "source": "individual",
+    "group": "晨曦遗迹·失控核心",
+    "subject": "a short faceted voidglass dagger with translucent violet blade, angular silver guard and charcoal grip",
+    "palette": "violet, cold silver, charcoal"
   }
 ]
