@@ -5,6 +5,7 @@
         <div><small>累计金币</small><strong>+@Rewards.Gold.ToString("N0")</strong></div>
         <div><small>累计经验</small><strong>+@Rewards.Experience.ToString("N0")</strong></div>
     </div>
+    @if (Rewards.MasteryGold > 0) { <p class="room-loot__hint">金币中包含精通加成 +@Rewards.MasteryGold.ToString("N0")。</p> }
     <p class="room-loot__hint">仅统计我的角色在当前房间的收益，同类物品已合并。</p>
     @if (Rewards.HasPendingRewards)
     {
@@ -39,14 +40,18 @@
                 @if (selected.Items.Count > 0)
                 {
                     <ul class="room-loot__items">
-                        @foreach (var item in selected.Items)
+                        @foreach (var group in selected.Items.GroupBy(item => RewardGroup(item.Source)))
                         {
-                            <li @key="(item.Kind, item.Code, item.Name)">
+                            <li class="room-loot__source"><strong>@group.Key</strong></li>
+                            @foreach (var item in group)
+                            {
+                            <li @key="(item.Kind, item.Code, item.Name, item.Source)">
                                 <span><small>@GetKindName(item.Kind)</small><strong>@item.Name</strong></span>
                                 <span class="room-loot__quantity"><b>× @item.Quantity.ToString("N0")</b>
                                     @if (item.PendingQuantity > 0) { <small class="room-loot__pending">其中 @item.PendingQuantity.ToString("N0") 待结算</small> }
                                 </span>
                             </li>
+                            }
                         }
                     </ul>
                 }
@@ -80,5 +85,12 @@
         "Weapon" => "武器",
         "SoulImprint" => "魂印",
         _ => "物品"
+    };
+
+    private static string RewardGroup(string source) => source switch
+    {
+        "精通追加" => "精通追加",
+        "挑战奖励" or "挑战额外奖励" => "挑战额外奖励",
+        _ => "基础战利品"
     };
 }

@@ -11,9 +11,9 @@ public class DungeonController(RoomService roomService) : ControllerBase
     public async Task<IActionResult> GetDungeons() => Ok(await roomService.GetDungeonsAsync(GetBearerToken()));
 
     [HttpGet("{dungeonId:int}")]
-    public async Task<IActionResult> GetDungeon(int dungeonId)
+    public async Task<IActionResult> GetDungeon(int dungeonId, [FromQuery] int depthLevel = 1)
     {
-        var dungeon = await roomService.GetDungeonAsync(dungeonId, GetBearerToken());
+        var dungeon = await roomService.GetDungeonAsync(dungeonId, GetBearerToken(), depthLevel);
         return dungeon is null ? NotFound() : Ok(dungeon);
     }
 

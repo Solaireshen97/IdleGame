@@ -61,7 +61,14 @@
                         {
                             <div><span class="weapon-board__fragment-label">@if (ItemArt.ForCode(fragment.Code) is { } fragmentArt) { <img src="@fragmentArt" alt="" /> } @fragment.Name</span><strong>@fragment.Quantity</strong></div>
                         }
-                        <p>装等 1～10 使用 T1 碎片，11～20 使用 T2 碎片；碎片归当前角色所有。</p>
+                        <p>装等 1～10 使用 T1 武器碎片，11～20 使用 T2 武器碎片；仅用于技能强化，归当前角色所有。</p>
+                        @foreach (var material in _data.BreakthroughMaterials)
+                        {
+                            <div><span>@material.FragmentName</span><strong>@material.FragmentQuantity</strong></div>
+                            <div><span>@material.StoneName</span><strong>@material.StoneQuantity</strong></div>
+                            <button type="button" class="weapon-quality-open" disabled="@(_isSaving || material.CanCraftQuantity < 1)" @onclick="() => CraftBreakthroughStoneAsync(material)">消耗 @material.FragmentsPerStone 碎片 · 合成 1 枚 @material.StoneName</button>
+                        }
+                        <p>通用突破石替代同阶段的一把同名武器素材；不用于技能强化。</p>
                     </div>
 
                     <div class="weapon-board__effects" aria-label="已生效的武器技能">
@@ -258,14 +265,14 @@
                         {
                             <p class="weapon-detail-preview">三枚水晶已全部点亮。</p>
                         }
-                        else if (MatchingQualityMaterials(inspected).Count == 0)
+                        else if (MatchingQualityMaterials(inspected).Count == 0 && BreakthroughMaterial(inspected) is null)
                         {
                             <p class="weapon-detail-preview">需要另一把未装备、未锁定的同名武器，点亮水晶数量不限。初始赠送武器不能作为素材。</p>
                         }
                         else
                         {
                             <button type="button" class="weapon-quality-open" @ref="_qualityPickerTrigger" @onclick="OpenQualityPicker" disabled="@_isSaving">
-                                <span><strong>选择同名武器素材</strong><small>@QualityMaterials(inspected).Count 把可用 · @MatchingQualityMaterials(inspected).Count 把同款</small></span><span aria-hidden="true">›</span>
+                                <span><strong>选择突破素材</strong><small>@QualityMaterials(inspected).Count 把同名武器可用 @(BreakthroughMaterial(inspected) is { } stone ? $"· {stone.StoneName} ×{stone.StoneQuantity}" : "")</small></span><span aria-hidden="true">›</span>
                             </button>
                         }
                     </section>
@@ -324,13 +331,21 @@
                         <button type="button" class="weapon-quality-close" @onclick="CloseQualityPicker" @ref="_qualityPickerCloseButton" aria-label="关闭素材选择">×</button>
                     </header>
                     <div class="weapon-quality-body">
-                        <p id="weapon-quality-description" class="weapon-quality-hint">仅未装备、未锁定、非初始赠品可消耗；不可用武器会显示原因。优先展示点亮水晶较少、装等较低的素材。</p>
+                        @if (BreakthroughMaterial(qualityTarget) is { } universal)
+                        {
+                            <button type="button" class="weapon-quality-option @(_useUniversalStone ? "weapon-quality-option--selected" : null)" disabled="@(_isSaving || universal.StoneQuantity < 1)" aria-pressed="@_useUniversalStone" @onclick="SelectUniversalStone">
+                                <strong>@universal.StoneName</strong><span>库存 @universal.StoneQuantity · 消耗 1 枚替代同名素材</span>
+                            </button>
+                            <p class="weapon-quality-hint">@universal.FragmentName ×@universal.FragmentQuantity · 每 @universal.FragmentsPerStone 个合成 1 枚石。</p>
+                            <button type="button" class="weapon-quality-open" disabled="@(_isSaving || universal.CanCraftQuantity < 1)" @onclick="() => CraftBreakthroughStoneAsync(universal)">合成 1 枚 @universal.StoneName</button>
+                        }
+                        <p id="weapon-quality-description" class="weapon-quality-hint">同名武器素材仅限未装备、未锁定、非初始赠品；不可用武器会显示原因。优先展示点亮水晶较少、装等较低的素材。</p>
                         <div class="weapon-quality-grid" role="group" aria-label="同款武器素材">
                             @foreach (var material in MatchingQualityMaterials(qualityTarget))
                             {
                                 var blockedReason = QualityMaterialBlockReason(material);
                                 <button type="button" class="weapon-quality-option element-@material.Element.ToString().ToLowerInvariant() @(_qualityMaterialId == material.Id ? "weapon-quality-option--selected" : null)"
-                                        @key="material.Id" @onclick="() => _qualityMaterialId = material.Id" disabled="@(_isSaving || blockedReason is not null)" aria-pressed="@(_qualityMaterialId == material.Id)"
+                                        @key="material.Id" @onclick="() => SelectQualityMaterial(material.Id)" disabled="@(_isSaving || blockedReason is not null)" aria-pressed="@(_qualityMaterialId == material.Id)"
                                         aria-label="@material.QualityName @material.Name，装等 @material.ItemLevel，攻击 @material.Attack，生命 @material.MaxHp，@(blockedReason ?? "可作为素材")">
                                     <span class="weapon-quality-option__top"><b>@WeaponRules.ElementName(material.Element)属性</b><small>#@material.Id</small></span>
                                     <span class="weapon-quality-option__crest" aria-hidden="true"><img src="@WeaponArt.ForCode(material.WeaponCode)" alt="" loading="lazy" /></span>
@@ -344,18 +359,18 @@
                         </div>
                         @if (QualityMaterials(qualityTarget).Count == 0)
                         {
-                            <p class="weapon-quality-warning">目前没有可消耗的素材。请先卸下或解锁同款武器。</p>
+                            <p class="weapon-quality-warning">@(BreakthroughMaterial(qualityTarget) is not null ? "目前没有可消耗的同名武器；可选择本阶段的通用突破石。" : "目前没有可消耗的同名武器。请先卸下或解锁同款武器。")</p>
                         }
                         @if (SelectedQualityMaterial is { } chosen)
                         {
                             <div class="weapon-quality-selection"><strong>已选：@chosen.QualityName · @chosen.Name #@chosen.Id</strong><span>装等 @chosen.ItemLevel · 攻击 @chosen.Attack · HP @chosen.MaxHp · 强化投入 +@chosen.Skills.Sum(skill => skill.EnhancementLevel)</span></div>
                         }
-                        <p class="weapon-quality-warning">点亮后素材会消失，素材已点亮的水晶与技能强化投入不会继承，也不会返还。</p>
+                        <p class="weapon-quality-warning">@(_useUniversalStone ? "此次消耗 1 枚通用突破石；目标武器保留。" : "点亮后素材武器会消失，素材已点亮的水晶与技能强化投入不会继承，也不会返还。")</p>
                         @if (_error is not null) { <p class="weapon-board__error" role="alert">@_error</p> }
                     </div>
                     <footer class="weapon-quality-footer">
                         <button type="button" class="weapon-quality-cancel" @onclick="CloseQualityPicker">取消</button>
-                        <button type="button" class="weapon-quality-confirm" @onclick="() => UpgradeQualityAsync(qualityTarget)" disabled="@(_isSaving || SelectedQualityMaterial is null)">消耗所选 · 提升至 @WeaponRules.QualityName(qualityTarget.QualityRank + 1)</button>
+                        <button type="button" class="weapon-quality-confirm" @onclick="() => UpgradeQualityAsync(qualityTarget)" disabled="@(_isSaving || (_useUniversalStone ? BreakthroughMaterial(qualityTarget)?.StoneQuantity is not > 0 : SelectedQualityMaterial is null))">消耗所选 · 提升至 @WeaponRules.QualityName(qualityTarget.QualityRank + 1)</button>
                     </footer>
                 </section>
             </div>
@@ -397,6 +412,7 @@
     private int? _inspectedWeaponId;
     private bool _detailFromSlot;
     private int _qualityMaterialId;
+    private bool _useUniversalStone;
     private bool _qualityPickerOpen;
     private bool _focusQualityPicker;
     private bool _focusQualityTrigger;
@@ -632,7 +648,7 @@
     {
         _inspectedWeaponId = weaponId;
         _detailFromSlot = false;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _qualityPickerOpen = false;
         _focusQualityTrigger = false;
         _focusWeaponTileId = null;
@@ -654,7 +670,7 @@
             _focusWorkspace = null;
         }
         _inspectedWeaponId = null;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _qualityPickerOpen = false;
         _focusQualityTrigger = false;
     }
@@ -666,7 +682,7 @@
         if (_isSaving) return Task.CompletedTask;
         _detailFromSlot = false;
         _inspectedWeaponId = null;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _qualityPickerOpen = false;
         _focusQualityTrigger = false;
         _focusWeaponTileId = null;
@@ -681,7 +697,7 @@
     private void OpenQualityPicker()
     {
         if (_isSaving || InspectedWeapon is null) return;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _qualityPickerOpen = true;
         _focusQualityPicker = true;
         _error = null;
@@ -690,7 +706,7 @@
     private void CloseQualityPicker()
     {
         _qualityPickerOpen = false;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _focusQualityTrigger = InspectedWeapon is not null;
         _error = null;
     }
@@ -738,7 +754,7 @@
         _selectedWeaponIds.Clear();
         _selectedSlot = index;
         _inventorySelectionMode = true;
-        _qualityMaterialId = 0;
+        _qualityMaterialId = 0; _useUniversalStone = false;
         _qualityPickerOpen = false;
         _focusQualityTrigger = false;
         _focusWeaponTileId = null;
@@ -879,6 +895,14 @@
 
     private async Task UpgradeQualityAsync(CharacterWeaponResponse weapon)
     {
+        if (_useUniversalStone)
+        {
+            if (BreakthroughMaterial(weapon) is not { StoneQuantity: > 0 } stone) return;
+            if (!await Js.InvokeAsync<bool>("confirm", $"消耗 1 枚{stone.StoneName}为 {weapon.Name} 点亮下一枚水晶？目标将变为 {WeaponRules.QualityName(weapon.QualityRank + 1)}。")) return;
+            await RunWeaponActionAsync(() => ApiService.UpgradeWeaponQualityAsync(CharacterId, weapon.Id, 0, true), $"{weapon.Name} 已提升至{WeaponRules.QualityName(weapon.QualityRank + 1)}。");
+            if (_error is null && _notice is not null) CloseQualityPicker();
+            return;
+        }
         var material = SelectedQualityMaterial;
         if (material is null) return;
         if (!await Js.InvokeAsync<bool>("confirm",
@@ -888,11 +912,18 @@
             $"{weapon.Name} 已提升至{WeaponRules.QualityName(weapon.QualityRank + 1)}。");
         if (_error is null && _notice is not null)
         {
-            _qualityMaterialId = 0;
+            _qualityMaterialId = 0; _useUniversalStone = false;
             _qualityPickerOpen = false;
             _focusQualityTrigger = false;
         }
     }
+
+    private WeaponBreakthroughMaterialResponse? BreakthroughMaterial(CharacterWeaponResponse weapon) =>
+        _data?.BreakthroughMaterials.FirstOrDefault(material => material.Tier == weapon.BreakthroughTier);
+    private void SelectUniversalStone() { _qualityMaterialId = 0; _useUniversalStone = true; }
+    private void SelectQualityMaterial(int id) { _useUniversalStone = false; _qualityMaterialId = id; }
+    private Task CraftBreakthroughStoneAsync(WeaponBreakthroughMaterialResponse material) =>
+        RunWeaponActionAsync(() => ApiService.CraftWeaponBreakthroughStoneAsync(CharacterId, material.Tier), $"已合成 1 枚{material.StoneName}。");
 
     private async Task SellAsync(CharacterWeaponResponse weapon)
     {
@@ -984,6 +1015,10 @@
         "StarterWeaponCannotBeConsumed" => "初始赠送武器不能作为点晶素材。",
         "WeaponCannotBeDismantled" => "这把武器没有可回收的材料；商店武器需强化后才能分解。",
         "InsufficientWeaponFragments" => "对应阶级的武器碎片不足。",
+        "InsufficientBreakthroughFragments" => "对应阶段的通用突破碎片不足。",
+        "InsufficientBreakthroughStones" => "对应阶段的通用突破石不足。",
+        "WeaponBreakthroughStageUnsupported" => "这把武器暂不支持通用突破石。",
+        "InvalidBreakthroughCraftRequest" => "合成数量无效，请刷新后重试。",
         "InvalidWeaponSelection" => "请选择有效的武器。",
         "MainWeaponRequired" => "主武器不能留空，请选择武器替换或与已装备的副武器交换。",
         "ConcurrencyConflict" => "武器盘已发生变化，请刷新后重试。",

@@ -479,6 +479,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             entry.Slot.HasParticipatedInRun = true;
             entry.Slot.LastParticipatedMonsterId = monster.Id;
         }
+        await rewardService.CaptureDungeonParticipantsAsync(room, aliveSlots.Select(entry => entry.Character.Id));
         var combatParticipants = slots.OrderBy(x => x.Slot.SlotIndex)
             .Select(x => new MonsterCombatParticipant(x.Slot, x.Character)).ToList();
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();

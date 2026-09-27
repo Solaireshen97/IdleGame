@@ -9,6 +9,15 @@
     backdrop-filter: blur(7px);
 }
 
+.depth-selection { margin-bottom: 1rem; padding-bottom: .8rem; border-bottom: 1px solid #3b5267; }
+.depth-selection h3 { margin: .65rem 0 .4rem; color: #e4d5ad; font-size: .8rem; }
+.depth-selection__levels { display: flex; flex-wrap: wrap; gap: .4rem; }
+.depth-selection__levels button { padding: .45rem .7rem; border: 1px solid #536e83; border-radius: .4rem; background: #132536; color: #b9cbd6; cursor: pointer; }
+.depth-selection__levels button.selected { border-color: #dfbe77; color: #f5e3b5; background: #3b392a; }
+.depth-selection__levels button:disabled { opacity: .5; cursor: wait; }
+.depth-selection__mechanic { color: #c6d5df; font-size: .76rem; line-height: 1.5; margin: .4rem 0; }
+.depth-selection__test { padding: .45rem .65rem; border-radius: .35rem; background: #59482366; color: #e2c990; font-size: .72rem; }
+
 .monster-detail-dialog {
     --element-color: #dfbe77;
     width: min(100%, 540px);

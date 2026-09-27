@@ -48,6 +48,11 @@ else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
             <span>第 @_roomDetail.RunSequence 轮 · @(_roomDetail.RoundNumber == 0 ? "到期停止" : _roomDetail.MonsterHp <= 0 ? "通关后停止" : "战败后停止")</span>
         </div>
         <p>本次任务已停止，角色可以开始新的战斗或其他活动。继续讨伐请创建新房间。</p>
+        @if (_roomDetail.SupportsDepths)
+        {
+            <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
+            <p>本次挑战深层 LV@(_roomDetail.DepthLevel) · 新获得的精通从下轮生效。</p>
+        }
         @if (_roomDetail.CumulativeRewards is { } cumulative)
         {
             <p>已结算 @cumulative.CompletedRuns 轮</p>
@@ -76,6 +81,11 @@ else
             <div>
                 <span class="section-kicker">@scene.RegionName · DUNGEON ENCOUNTER</span>
                 <h1>@scene.DungeonName</h1>
+                @if (_roomDetail.SupportsDepths)
+                {
+                    <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
+                    <small>深层 LV@(_roomDetail.DepthLevel) · @(_roomDetail.IsRepeatBattle ? "固定此层重复挑战" : "单次挑战") · 新精通从下轮生效</small>
+                }
             </div>
             <div class="battle-stage__meta">
                 <span class="battle-mode">第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波</span>

@@ -165,6 +165,9 @@ public partial class RoomService
             .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
         if (!minimumLevel.HasValue) return "DungeonNotFound";
         if (character.Level < minimumLevel.Value) return "CharacterLevelTooLow";
+        var depthError = await _depthProgress.AdmissionErrorAsync(operation.UserId,
+            (await dbContext.Dungeons.FindAsync(room.DungeonId))!, room.DepthLevel);
+        if (depthError is not null) return depthError;
         if (operation.Kind == RoomOperationKind.Join)
         {
             if (room.OwnerUserId == operation.UserId) return "CannotJoinOwnRoom";
@@ -266,6 +269,8 @@ public partial class RoomService
         "RoomPrivate" => "房主已关闭加入。",
         "CharacterAlreadyInRoom" => "角色正在其他房间或任务中。",
         "CharacterLevelTooLow" => "角色等级未达到进入要求。",
+        "DungeonDepthLocked" => "账号尚未开放这个深层等级。",
+        "InvalidDungeonDepth" => "这个深层等级暂未开放。",
         "NotOwner" or "NotCharacterOwner" => "已无权执行此操作。",
         "NotRoomParticipant" or "AlreadyInRoom" => "角色的组队状态已变化。",
         "BattleOver" => "该房间已结束战斗，无法加入。",

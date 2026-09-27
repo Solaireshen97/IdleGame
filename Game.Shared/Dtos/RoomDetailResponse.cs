@@ -7,6 +7,11 @@ public class RoomDetailResponse
     public int RoomId { get; set; }
     public int OwnerUserId { get; set; }
     public int DungeonId { get; set; }
+    public bool SupportsDepths { get; set; }
+    public int DepthLevel { get; set; } = 1;
+    public int MasteryLevel { get; set; }
+    public int CharacterHighestDepth { get; set; }
+    public int UnlockedDepth { get; set; } = 1;
     public string DungeonName { get; set; } = string.Empty;
     public bool IsPartyHpScaled { get; set; }
     public int ScalingPartySize { get; set; } = 1;

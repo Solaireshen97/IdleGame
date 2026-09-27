@@ -1,0 +1,15 @@
+<div class="dungeon-mastery" aria-label="当前角色的副本精通">
+    <div class="dungeon-mastery__summary"><span>账号开放 LV@(UnlockedDepth)</span><strong>@(MasteryLevel >= 4 ? "完全精通" : $"角色精通 {MasteryLevel}/4")</strong><span>@(HighestDepth > 0 ? $"最高通关 LV{HighestDepth}" : "尚未通关")</span></div>
+    <div class="dungeon-mastery__steps">
+        @for (var level = 1; level <= 4; level++)
+        {
+            <span class="@(MasteryLevel >= level ? "earned" : null)"><b>LV@(level)</b>@(level switch { 1 => "Auto", 2 => "金币", 3 => "击杀追加", _ => "通关追加" })</span>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int UnlockedDepth { get; set; } = 1;
+    [Parameter] public int MasteryLevel { get; set; }
+    [Parameter] public int HighestDepth { get; set; }
+}

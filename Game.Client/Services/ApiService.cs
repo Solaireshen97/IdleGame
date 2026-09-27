@@ -277,6 +277,14 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<DungeonSummaryResponse>>() : null;
     }
 
+    public async Task<DungeonSummaryResponse?> GetDungeonAsync(int dungeonId, int depthLevel = 1)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get, $"api/dungeons/{dungeonId}?depthLevel={depthLevel}", requiresAuth: true);
+        using var response = await httpClient.SendAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<DungeonSummaryResponse>() : null;
+    }
+
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
@@ -439,8 +447,13 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             }
 
             var error = await response.Content.ReadAsStringAsync();
-            if (error.Trim('"') == "CharacterAlreadyInRoom")
-                error = "当前角色已在另一个战斗中，请先离开原房间。";
+            error = error.Trim('"') switch
+            {
+                "CharacterAlreadyInRoom" => "当前角色已在另一个战斗中，请先离开原房间。",
+                "DungeonDepthLocked" => "这个账号尚未开放房间的深层层级，请先通关前一层。",
+                "InvalidDungeonDepth" => "房间的深层层级暂不可用。",
+                _ => error
+            };
             return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
         }
 
@@ -756,10 +769,16 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             $"api/user/characters/{characterId}/weapons/{weaponId}/skills/{skillSlotIndex}/enhance");
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> UpgradeWeaponQualityAsync(
-        int characterId, int weaponId, int materialWeaponId) =>
+        int characterId, int weaponId, int materialWeaponId, bool useUniversalStone = false) =>
         SendWeaponRequestAsync(HttpMethod.Post,
             $"api/user/characters/{characterId}/weapons/{weaponId}/quality/upgrade",
-            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId });
+            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId, UseUniversalStone = useUniversalStone });
+
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> CraftWeaponBreakthroughStoneAsync(
+        int characterId, int tier, int quantity = 1) =>
+        SendWeaponRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/weapons/breakthrough-stones/craft",
+            new CraftWeaponBreakthroughStoneRequest { Tier = tier, Quantity = quantity });
 
     private async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SendWeaponRequestAsync(
         HttpMethod method, string url, object? configuration = null)

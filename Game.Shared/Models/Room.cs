@@ -6,6 +6,8 @@ public class Room
 {
     public int Id { get; set; }
     public int DungeonId { get; set; }
+    public int DepthLevel { get; set; } = 1;
+    public string? DepthDefinitionJson { get; set; }
     public int MonsterId { get; set; }
     public int OwnerUserId { get; set; }
     public bool IsOwnerAutoEnabled { get; set; }

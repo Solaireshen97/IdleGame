@@ -8,8 +8,10 @@ namespace Game.Server.Services;
 
 public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService,
     MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null,
-    GatheringOpportunityService? gatheringOpportunities = null, RareSeedService? rareSeeds = null)
+    GatheringOpportunityService? gatheringOpportunities = null, RareSeedService? rareSeeds = null,
+    DungeonDepthProgressService? depthProgress = null)
 {
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext);
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
         DateTime now, List<string> logs, IReadOnlyCollection<int>? actualMonsterCharacterIds = null,
@@ -17,6 +19,10 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
     {
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return (defeatedMonster, false, "DungeonNotFound");
+        var isDepth = await _depthProgress.DefinitionAsync(room) is not null;
+        var killParticipants = isDepth && actualMonsterCharacterIds is not null
+            ? participants.Where(item => actualMonsterCharacterIds.Contains(item.Character.Id)).ToList()
+            : participants;
 
         var eventKey = defeatedMonster.RoomId.HasValue
             ? $"monster:{defeatedMonster.WaveNumber}:{defeatedMonster.Position}"
@@ -24,7 +30,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var rewardProfileCode = string.IsNullOrWhiteSpace(defeatedMonster.RewardProfileCode)
             ? dungeon.Code
             : defeatedMonster.RewardProfileCode;
-        if (await rewardService.RecordAsync(room, rewardProfileCode, participants, eventKey, false))
+        if (await rewardService.RecordAsync(room, rewardProfileCode, killParticipants, eventKey, false))
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualMonsterCharacterIds ?? participants.Select(participant => participant.Character.Id),
                 BattleMilestoneService.MonsterKillKind, rewardProfileCode, now);
@@ -55,11 +61,17 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         }
 
         SetBattleOver(room, now);
+        var clearParticipants = isDepth && actualRunCharacterIds is not null
+            ? participants.Where(item => actualRunCharacterIds.Contains(item.Character.Id)).ToList()
+            : participants;
         var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
-            participants.Select(participant => participant.UserId), now);
-        if (await rewardService.RecordAsync(room, dungeon.Code, participants, "clear", true))
+            clearParticipants.Select(participant => participant.UserId), now, room.DepthLevel);
+        if (await rewardService.RecordAsync(room, dungeon.Code, clearParticipants, "clear", true))
         {
-            var actualCharacterIds = actualRunCharacterIds ?? participants.Select(participant => participant.Character.Id).ToList();
+            var eligibleIds = clearParticipants.Select(participant => participant.Character.Id).ToHashSet();
+            var actualCharacterIds = actualRunCharacterIds is null ? eligibleIds.ToList()
+                : actualRunCharacterIds.Where(eligibleIds.Contains).Distinct().ToList();
+            await _depthProgress.RecordCharacterClearsAsync(room, actualCharacterIds, logs);
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualCharacterIds,
                 BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
@@ -76,7 +88,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var firstClearRewardCode = $"{dungeon.Code}-first-clear";
         if (firstClearUserIds.Count > 0 && rewardService.HasRewardProfile(firstClearRewardCode, true))
             await rewardService.RecordAsync(room, firstClearRewardCode,
-                participants.Where(participant => firstClearUserIds.Contains(participant.UserId)),
+                clearParticipants.Where(participant => firstClearUserIds.Contains(participant.UserId)),
                 "first-clear", true);
         await rewardService.SettleAsync(room, true, now, logs);
         logs.Add("副本挑战成功。");
@@ -113,17 +125,24 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         monster.Hp = monster.MaxHp = monster.BaseMaxHp;
     }
 
-    private async Task<HashSet<int>> RecordDungeonClearsAsync(int dungeonId, IEnumerable<int> userIds, DateTime clearedAtUtc)
+    private async Task<HashSet<int>> RecordDungeonClearsAsync(int dungeonId, IEnumerable<int> userIds, DateTime clearedAtUtc, int depthLevel)
     {
         var ids = userIds.Distinct().ToList();
-        var existingIds = await dbContext.UserDungeonClears
+        var existing = await dbContext.UserDungeonClears
             .Where(clear => clear.DungeonId == dungeonId && ids.Contains(clear.UserId))
-            .Select(clear => clear.UserId).ToListAsync();
-        var firstClearIds = ids.Except(existingIds).ToHashSet();
+            .ToListAsync();
+        existing = existing.Concat(dbContext.UserDungeonClears.Local.Where(clear => clear.DungeonId == dungeonId && ids.Contains(clear.UserId))).Distinct().ToList();
+        var firstClearIds = ids.Except(existing.Select(clear => clear.UserId)).ToHashSet();
+        foreach (var clear in existing.Where(clear => clear.HighestDepth < depthLevel))
+        {
+            clear.HighestDepth = depthLevel;
+            clear.Version++;
+        }
         dbContext.UserDungeonClears.AddRange(firstClearIds.Select(userId => new UserDungeonClear
         {
             UserId = userId,
             DungeonId = dungeonId,
+            HighestDepth = depthLevel,
             ClearedAtUtc = clearedAtUtc
         }));
         return firstClearIds;

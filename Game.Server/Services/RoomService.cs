@@ -8,11 +8,14 @@ using Game.Shared.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null)
+public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, DungeonDepthCatalog? depthCatalog = null, DungeonDepthProgressService? depthProgress = null)
 {
+    private readonly DungeonDepthCatalog _depthCatalog = depthCatalog ?? new(Options.Create(new DungeonDepthOptions()));
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, depthCatalog);
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
     private const int SlotCount = 5;
     private TimeSpan MaximumActivityDuration => TimeSpan.FromHours(activityOptions?.Value.MaximumHours is > 0 and <= 168 ? activityOptions.Value.MaximumHours : 12);
@@ -46,7 +49,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
 
     public async Task<List<DungeonSummaryResponse>> GetDungeonsAsync(string? token)
     {
-        var (_, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+        var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         var clearedDungeonCodes = error is null
             ? await dbContext.CharacterBattleMilestones.Where(milestone =>
                     milestone.CharacterId == character!.Id &&
@@ -56,11 +59,28 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var currentLevel = error is null ? character!.Level : 0;
         var dungeons = await dbContext.Dungeons.Where(dungeon => dungeon.IsVisible)
             .OrderBy(dungeon => dungeon.SortOrder).ToListAsync();
-        return dungeons.Select(dungeon =>
+        var result = new List<DungeonSummaryResponse>();
+        foreach (var dungeon in dungeons)
         {
             var canEnter = currentLevel >= dungeon.MinimumLevel;
-            return new DungeonSummaryResponse
+            var definition = _depthCatalog.Find(dungeon.Code);
+            var highest = definition is not null && character is not null ? await _depthProgress.HighestAsync(character.Id, dungeon.Id) : 0;
+            var mastery = Math.Min(4, highest);
+            var unlocked = definition is not null && user is not null ? await _depthProgress.UnlockedAsync(user.Id, dungeon.Id, definition.MaximumDepth) : 1;
+            result.Add(new DungeonSummaryResponse
             {
+                SupportsDepths = definition is not null, Stage = definition?.Stage ?? 0,
+                MaximumDepth = definition?.MaximumDepth ?? 1, UnlockedDepth = unlocked,
+                CharacterHighestDepth = highest, MasteryLevel = mastery, UsesPlaceholderBalance = definition is not null,
+                GoldBonusPercent = mastery >= 2 ? definition!.GoldBonusPercent : 0,
+                KillExtraRollChancePercent = mastery >= 3 ? definition!.KillExtraRollChancePercent : 0,
+                ClearExtraRollChancePercent = mastery >= 4 ? definition!.ClearExtraRollChancePercent : 0,
+                Depths = definition is null ? [] : Enumerable.Range(1, definition.MaximumDepth).Select(depth => new DungeonDepthPreviewResponse
+                {
+                    DepthLevel = depth, IsUnlocked = depth <= unlocked, IsChallenge = depth >= definition.ChallengeStartDepth,
+                    StatMultiplier = _depthCatalog.StatMultiplier(dungeon.Code, depth),
+                    AddedMechanics = _depthCatalog.AddedMechanics(dungeon.Code, depth).ToList()
+                }).ToList(),
                 DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
                 RegionCode = dungeon.RegionCode, RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
                 PartyScalingProfileCode = dungeon.PartyScalingProfileCode,
@@ -84,17 +104,45 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     RewardProfileCode = dungeon.Code
                 }]).Select(monster => BuildMonsterPreview(dungeon, monster)).ToList(),
                 RewardPreview = BuildRewardPreview(dungeon)
-            };
-        }).ToList();
+            });
+        }
+        return result;
     }
 
-    public async Task<DungeonSummaryResponse?> GetDungeonAsync(int dungeonId, string? token) =>
-        (await GetDungeonsAsync(token)).SingleOrDefault(dungeon => dungeon.DungeonId == dungeonId);
+    public async Task<DungeonSummaryResponse?> GetDungeonAsync(int dungeonId, string? token, int depthLevel = 1)
+    {
+        var result = (await GetDungeonsAsync(token)).SingleOrDefault(dungeon => dungeon.DungeonId == dungeonId);
+        if (result is null || !_depthCatalog.ValidateDepth(result.Code, depthLevel)) return null;
+        var dungeon = (await dbContext.Dungeons.FindAsync(dungeonId))!;
+        result.DepthLevel = depthLevel;
+        if (result.SupportsDepths)
+        {
+            result.Name = _depthCatalog.DisplayName(dungeon.Name, depthLevel);
+            result.MonsterMaxHp = _depthCatalog.ScaleStat(dungeon.MonsterMaxHp, depthLevel, dungeon.Code);
+            result.MonsterAttack = _depthCatalog.ScaleStat(dungeon.MonsterAttack, depthLevel, dungeon.Code);
+            if (depthLevel > result.UnlockedDepth)
+            {
+                result.CanEnter = false;
+                result.LockReason = $"账号需要先通关深层 LV{depthLevel - 1}";
+            }
+            if (encounterCatalog is not null) result.Monsters = encounterCatalog.CreateMonsters(dungeon, depthLevel)
+                .Select(monster => BuildMonsterPreview(dungeon, monster)).ToList();
+            var definition = _depthCatalog.Find(dungeon.Code)!;
+            if (depthLevel >= definition.ChallengeStartDepth)
+                result.RewardPreview.Add(new DungeonRewardPreviewResponse
+                {
+                    Source = "挑战额外奖励", Kind = "Material", Code = definition.ChallengeFragmentCode,
+                    Name = materialCatalog?.FindItem(definition.ChallengeFragmentCode)?.Name ?? definition.ChallengeFragmentCode,
+                    Quantity = definition.ChallengeFragmentQuantity, ChancePercent = definition.ChallengeFragmentChancePercent
+                });
+        }
+        return result;
+    }
 
     public Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(string monsterType, string? token) =>
         CreateRoomAsync(null, monsterType, token);
 
-    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false, bool isPreparationTimeoutEnabled = true, bool isPublic = false)
+    public async Task<(RoomDetailResponse? Detail, string? Error)> CreateRoomAsync(int? dungeonId, string? legacyMonsterType, string? token, bool isRepeatBattle = false, bool isPreparationTimeoutEnabled = true, bool isPublic = false, int depthLevel = 1)
     {
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
@@ -106,14 +154,18 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null || dungeonId.HasValue && !dungeon.IsVisible) return (null, "DungeonNotFound");
         if (character!.Level < dungeon.MinimumLevel) return (null, "CharacterLevelTooLow");
+        var depthError = await _depthProgress.AdmissionErrorAsync(user!.Id, dungeon, depthLevel);
+        if (depthError is not null) return (null, depthError);
         character.Hp = TalentRules.EffectiveMaxHp(character);
-        var monsters = (encounterCatalog?.CreateMonsters(dungeon) ??
+        var monsters = (encounterCatalog?.CreateMonsters(dungeon, depthLevel) ??
             [new Monster { Name = dungeon.MonsterName, Element = dungeon.MonsterElement, Hp = dungeon.MonsterMaxHp, BaseMaxHp = dungeon.MonsterMaxHp, MaxHp = dungeon.MonsterMaxHp, Attack = dungeon.MonsterAttack, Defense = dungeon.MonsterDefense }]).ToList();
         var firstMonster = monsters.OrderBy(monster => monster.WaveNumber).ThenBy(monster => monster.Position).First();
         var now = DateTime.UtcNow;
         var room = new Room
         {
             DungeonId = dungeon.Id, MonsterId = 0, OwnerUserId = user!.Id, SlotCount = dungeon.SlotCount,
+            DepthLevel = depthLevel,
+            DepthDefinitionJson = _depthCatalog.Find(dungeon.Code) is { } depthDefinition ? JsonSerializer.Serialize(depthDefinition) : null,
             Status = RoomStatus.NotStarted, IsRepeatBattle = isRepeatBattle, IsPublic = isPublic,
             IsPreparationTimeoutEnabled = isPreparationTimeoutEnabled,
             PreparationStartedAtUtc = isPreparationTimeoutEnabled ? now : null,
@@ -177,6 +229,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
         if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
         if (character!.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
+        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, (await dbContext.Dungeons.FindAsync(room.DungeonId))!, room.DepthLevel);
+        if (depthError is not null) return (null, depthError);
         if (room.OwnerUserId == user!.Id) return (null, "CannotJoinOwnRoom");
         if (room.Status == RoomStatus.BattleOver && (!room.IsRepeatBattle ||
             !await dbContext.Monsters.AnyAsync(monster => monster.Id == room.MonsterId && monster.Hp <= 0)))
@@ -301,6 +355,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
         if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
         if (character.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
+        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, (await dbContext.Dungeons.FindAsync(room.DungeonId))!, room.DepthLevel);
+        if (depthError is not null) return (null, depthError);
         var existingSlot = await dbContext.RoomSlots.FirstOrDefaultAsync(x => x.CharacterId == character.Id);
         if (existingSlot is null && await dbContext.CharacterActivities.AnyAsync(activity => activity.CharacterId == character.Id))
             return (null, "CharacterAlreadyInRoom");
@@ -556,11 +612,12 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             .OrderBy(entry => entry.Id).ToListAsync();
         var cumulativeEntries = currentUserId.HasValue ? await dbContext.RewardEntries.AsNoTracking()
             .Where(entry => entry.RoomId == room.Id && entry.Sequence <= room.RunSequence && entry.UserId == currentUserId.Value)
-            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code, entry.WeaponSnapshotJson })
+            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code, entry.WeaponSnapshotJson, entry.RewardSource })
             .Select(group => new CumulativeRewardEntry
             {
                 CharacterId = group.Key.CharacterId, Kind = group.Key.Kind, Code = group.Key.Code,
                 WeaponSnapshotJson = group.Key.WeaponSnapshotJson,
+                RewardSource = group.Key.RewardSource,
                 Quantity = group.Sum(entry => entry.Quantity),
                 PendingQuantity = group.Sum(entry => pendingSequences.Contains(entry.Sequence) ? entry.Quantity : 0)
             }).ToListAsync()
@@ -580,9 +637,17 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     entry.State is EntityState.Added or EntityState.Modified))
                 await dbContext.SaveChangesAsync();
         }
+        var activeCharacterId = currentUserId.HasValue ? (await dbContext.Users.FindAsync(currentUserId.Value))?.ActiveCharacterId : null;
+        var definition = await _depthProgress.DefinitionAsync(room);
+        var highestDepth = definition is not null && activeCharacterId.HasValue
+            ? await _depthProgress.HighestAsync(activeCharacterId.Value, dungeon.Id) : 0;
         return new RoomDetailResponse
         {
-            RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id, DungeonName = dungeon.Name, SlotCount = room.SlotCount,
+            RoomId = room.Id, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id,
+            DungeonName = definition is null ? dungeon.Name : _depthCatalog.DisplayName(dungeon.Name, room.DepthLevel), SlotCount = room.SlotCount,
+            SupportsDepths = definition is not null, DepthLevel = room.DepthLevel,
+            CharacterHighestDepth = highestDepth, MasteryLevel = Math.Min(4, highestDepth),
+            UnlockedDepth = definition is not null && currentUserId.HasValue ? await _depthProgress.UnlockedAsync(currentUserId.Value, dungeon.Id, definition.MaximumDepth) : 1,
             Operations = await GetOperationResponsesAsync(room.Id, currentUserId),
             RegionName = dungeon.RegionName,
             MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
@@ -623,6 +688,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 RunSequence = rewardRun.Sequence, IsCurrentRun = rewardRun.Sequence == room.RunSequence,
                 Status = rewardRun.Status, SettledAtUtc = rewardRun.SettledAtUtc,
                 Gold = rewardEntries.Where(entry => entry.Kind == "Gold").Sum(entry => entry.Quantity),
+                MasteryGold = rewardEntries.Where(entry => entry.Kind == "Gold" && entry.RewardSource == "Mastery").Sum(entry => entry.Quantity),
                 Experience = rewardEntries.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity),
                 Items = rewardEntries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
                     .Select(entry => new RoomRewardItemResponse
@@ -630,7 +696,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                         CharacterId = entry.CharacterId, Code = entry.Code,
                         CharacterName = rewardCharacters.GetValueOrDefault(entry.CharacterId, "角色"),
                         Kind = entry.Kind, Quantity = entry.Quantity,
-                        Source = entry.EventKey == "clear" ? "通关" : "击杀",
+                        Source = RewardSourceName(entry.RewardSource, entry.EventKey == "clear" ? "通关" : entry.EventKey == "first-clear" ? "首通" : "击杀"),
                         Name = DescribeRewardItem(entry)
                     }).ToList()
             },
@@ -793,6 +859,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
 
     private sealed class CumulativeRewardEntry
     {
+        public string RewardSource { get; init; } = "Base";
         public int CharacterId { get; init; }
         public string Kind { get; init; } = string.Empty;
         public string Code { get; init; } = string.Empty;
@@ -805,13 +872,13 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         List<RewardRun> runs, IReadOnlyDictionary<int, string> names, List<int> currentCharacterIds)
     {
         var items = entries.Where(entry => entry.Kind is "Consumable" or "Material" or "Weapon" or "SoulImprint")
-            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code,
+            .GroupBy(entry => new { entry.CharacterId, entry.Kind, entry.Code, entry.RewardSource,
                 Name = DescribeRewardItem(new RewardEntry { Kind = entry.Kind, Code = entry.Code, WeaponSnapshotJson = entry.WeaponSnapshotJson }) })
             .Select(group => new RoomRewardItemResponse
             {
                 CharacterId = group.Key.CharacterId,
                 CharacterName = names.GetValueOrDefault(group.Key.CharacterId, "角色"),
-                Kind = group.Key.Kind, Code = group.Key.Code, Name = group.Key.Name, Source = "累计",
+                Kind = group.Key.Kind, Code = group.Key.Code, Name = group.Key.Name, Source = RewardSourceName(group.Key.RewardSource, "基础奖励"),
                 Quantity = group.Sum(entry => entry.Quantity),
                 PendingQuantity = group.Sum(entry => entry.PendingQuantity)
             }).OrderBy(item => item.CharacterId).ThenBy(item => item.Kind).ThenBy(item => item.Name).ToList();
@@ -835,6 +902,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         {
             CompletedRuns = runs.Count(run => run.Status != "Pending"),
             Gold = characters.Sum(character => character.Gold),
+            MasteryGold = entries.Where(entry => entry.Kind == "Gold" && entry.RewardSource == "Mastery").Sum(entry => entry.Quantity),
             Experience = characters.Sum(character => character.Experience),
             HasPendingRewards = entries.Any(entry => entry.PendingQuantity > 0),
             Items = items, Characters = characters
@@ -847,6 +915,11 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         "Material" => materialCatalog?.FindItem(entry.Code)?.Name ?? entry.Code,
         "SoulImprint" => soulImprintCatalog?.Find(entry.Code)?.Name ?? entry.Code,
         _ => RewardCatalog.DeserializeWeapon(entry)?.DisplayName ?? entry.Code
+    };
+
+    private static string RewardSourceName(string source, string baseName) => source switch
+    {
+        "Mastery" => "精通追加", "Challenge" => "挑战奖励", _ => baseName
     };
 
     private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room, int? currentUserId = null)
@@ -863,7 +936,10 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         return new RoomSummaryResponse
         {
             RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
-            RegionCode = dungeon?.RegionCode ?? "", RegionName = dungeon?.RegionName ?? "", DungeonName = dungeon?.Name ?? "",
+            RegionCode = dungeon?.RegionCode ?? "", RegionName = dungeon?.RegionName ?? "",
+            DepthLevel = room.DepthLevel,
+            DungeonName = dungeon is not null && (_depthCatalog.Find(dungeon.Code) is not null || room.DepthDefinitionJson is not null)
+                ? _depthCatalog.DisplayName(dungeon.Name, room.DepthLevel) : dungeon?.Name ?? "",
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle, IsPublic = room.IsPublic,

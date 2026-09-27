@@ -61,7 +61,15 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
         int characterId, int weaponId, [FromBody] UpgradeWeaponQualityRequest request)
     {
         var (response, error) = await weaponService.UpgradeQualityAsync(
-            GetToken(), characterId, weaponId, request.MaterialWeaponId);
+            GetToken(), characterId, weaponId, request);
+        return error is null ? Ok(response) : ToError(error);
+    }
+
+    [HttpPost("breakthrough-stones/craft")]
+    public async Task<ActionResult<CharacterWeaponsResponse>> CraftBreakthroughStone(
+        int characterId, [FromBody] CraftWeaponBreakthroughStoneRequest request)
+    {
+        var (response, error) = await weaponService.CraftBreakthroughStoneAsync(GetToken(), characterId, request);
         return error is null ? Ok(response) : ToError(error);
     }
 

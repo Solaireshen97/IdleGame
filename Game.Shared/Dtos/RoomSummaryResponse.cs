@@ -5,6 +5,7 @@ namespace Game.Shared.Dtos;
 public class RoomSummaryResponse
 {
     public int RoomId { get; set; }
+    public int DepthLevel { get; set; } = 1;
     public string RegionCode { get; set; } = string.Empty;
     public string RegionName { get; set; } = string.Empty;
     public string DungeonName { get; set; } = string.Empty;

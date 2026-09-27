@@ -30,7 +30,7 @@ public class RoomController(RoomService roomService, BattleService battleService
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {
-        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false, request?.IsPreparationTimeoutEnabled ?? true, request?.IsPublic ?? false);
+        var (roomDetail, error) = await roomService.CreateRoomAsync(request?.DungeonId, request?.MonsterType, GetBearerToken(), request?.IsRepeatBattle ?? false, request?.IsPreparationTimeoutEnabled ?? true, request?.IsPublic ?? false, request?.DepthLevel ?? 1);
         if (roomDetail is null || error is not null)
         {
             return error switch
@@ -40,6 +40,7 @@ public class RoomController(RoomService roomService, BattleService battleService
                 "CharacterNotFound" => NotFound("Character not found."),
                 "CharacterAlreadyInRoom" => Conflict("CharacterAlreadyBusy"),
                 "CharacterLevelTooLow" => BadRequest("CharacterLevelTooLow"),
+                "DungeonDepthLocked" or "InvalidDungeonDepth" => BadRequest(error),
                 _ => BadRequest("Failed to create room.")
             };
         }

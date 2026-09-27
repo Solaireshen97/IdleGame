@@ -852,6 +852,39 @@ namespace Game.Server.Data.Migrations
                     b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId")
                         .OnDelete(DeleteBehavior.Cascade).IsRequired();
                 });
+            modelBuilder.Entity("Game.Shared.Models.Room", b =>
+                {
+                    b.Property<int>("DepthLevel").HasColumnType("INTEGER");
+                    b.Property<string>("DepthDefinitionJson").HasColumnType("TEXT");
+                });
+            modelBuilder.Entity("Game.Shared.Models.UserDungeonClear", b =>
+                {
+                    b.Property<int>("HighestDepth").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                });
+            modelBuilder.Entity("Game.Shared.Models.RewardEntry", b =>
+                {
+                    b.Property<string>("RewardSource").IsRequired().HasColumnType("TEXT");
+                });
+            modelBuilder.Entity("Game.Shared.Models.CharacterDungeonProgress", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("DungeonId").HasColumnType("INTEGER");
+                    b.Property<int>("HighestDepth").HasColumnType("INTEGER");
+                    b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
+                    b.HasKey("CharacterId", "DungeonId");
+                    b.ToTable("CharacterDungeonProgress", t => t.HasCheckConstraint("CK_CharacterDungeonProgress_Depth", "HighestDepth >= 1"));
+                });
+            modelBuilder.Entity("Game.Shared.Models.DungeonRunParticipant", b =>
+                {
+                    b.Property<int>("RoomId").HasColumnType("INTEGER");
+                    b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("MasteryLevel").HasColumnType("INTEGER");
+                    b.HasKey("RoomId", "RunSequence", "CharacterId");
+                    b.ToTable("DungeonRunParticipants", t => t.HasCheckConstraint("CK_DungeonRunParticipants_Mastery", "MasteryLevel BETWEEN 0 AND 4"));
+                    b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

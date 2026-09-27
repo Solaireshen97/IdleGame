@@ -7,10 +7,14 @@ namespace Game.Server.Services;
 public sealed class DungeonEncounterCatalog
 {
     private readonly Dictionary<string, List<DungeonWaveOptions>> _dungeons;
+    private readonly DungeonDepthCatalog? _depthCatalog;
+    private readonly MonsterCombatCatalog? _combatCatalog;
 
     public DungeonEncounterCatalog(IOptions<DungeonEncounterOptions> options, MonsterCombatCatalog? combatCatalog = null,
-        RewardCatalog? rewardCatalog = null)
+        RewardCatalog? rewardCatalog = null, DungeonDepthCatalog? depthCatalog = null)
     {
+        _depthCatalog = depthCatalog;
+        _combatCatalog = combatCatalog;
         _dungeons = new Dictionary<string, List<DungeonWaveOptions>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (code, waves) in options.Value.Dungeons)
         {
@@ -21,29 +25,45 @@ public sealed class DungeonEncounterCatalog
                     rewardCatalog is not null && !rewardCatalog.HasRewardProfile(
                         string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? code : monster.RewardProfileCode, false)))
                 throw new InvalidOperationException($"Invalid dungeon encounter: {code}");
+            foreach (var monster in waves.SelectMany(wave => wave.Monsters))
+                depthCatalog?.ValidateStats(code, monster.MaxHp, monster.Attack, monster.Name);
             _dungeons.Add(code, waves);
         }
+        foreach (var code in depthCatalog?.DungeonCodes ?? [])
+            if (!_dungeons.ContainsKey(code))
+                throw new InvalidOperationException($"Invalid dungeon depth configuration: {code}; a configured encounter is required to validate depth stats.");
     }
 
     public bool HasDefinition(string code) => _dungeons.ContainsKey(code);
 
-    public IReadOnlyList<Monster> CreateMonsters(Dungeon dungeon)
+    public IReadOnlyList<Monster> CreateMonsters(Dungeon dungeon, int depth = 1)
     {
+        if (!(_depthCatalog?.ValidateDepth(dungeon.Code, depth) ?? depth == 1))
+            throw new ArgumentOutOfRangeException(nameof(depth));
         if (!_dungeons.TryGetValue(dungeon.Code, out var waves))
-            return [CreateLegacyMonster(dungeon)];
+        {
+            var legacy = CreateLegacyMonster(dungeon);
+            legacy.Hp = legacy.MaxHp = legacy.BaseMaxHp = Scale(legacy.MaxHp);
+            legacy.Attack = Scale(legacy.Attack);
+            return [legacy];
+        }
+
+        int Scale(int value) => _depthCatalog?.ScaleStat(value, depth, dungeon.Code) ?? value;
 
         return waves.SelectMany((wave, waveIndex) => wave.Monsters.Select((monster, monsterIndex) => new Monster
         {
             Name = monster.Name,
             Element = monster.Element,
-            Hp = monster.MaxHp,
-            BaseMaxHp = monster.MaxHp,
-            MaxHp = monster.MaxHp,
-            Attack = monster.Attack,
+            Hp = Scale(monster.MaxHp),
+            BaseMaxHp = Scale(monster.MaxHp),
+            MaxHp = Scale(monster.MaxHp),
+            Attack = Scale(monster.Attack),
             Defense = monster.Defense,
             WaveNumber = waveIndex + 1,
             Position = monsterIndex + 1,
-            CombatProfileCode = monster.CombatProfileCode,
+            CombatProfileCode = monster.IsBoss && depth > 1
+                ? _combatCatalog?.ResolveDepthProfile(monster.CombatProfileCode, depth) ?? monster.CombatProfileCode
+                : monster.CombatProfileCode,
             RewardProfileCode = monster.RewardProfileCode,
             IsBoss = monster.IsBoss
         })).ToList();

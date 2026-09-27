@@ -27,3 +27,4 @@ p.room-loot__pending { margin: .3rem 0 0; line-height: 1.5; }
 .room-loot__quantity b { color: #f2c979; font-size: .9rem; }
 .room-loot__quantity small { max-width: 8rem; }
 .room-loot__empty { margin: .8rem 0 0; padding: 1rem .5rem; border: 1px dashed #49657a; border-radius: .65rem; color: #9fb3c1; font-size: .8rem; text-align: center; line-height: 1.6; }
+.room-loot__items li.room-loot__source { padding: .85rem 0 .35rem; color: #e7ce96; border-top: 0; }

@@ -32,8 +32,9 @@ public sealed class MainControlRemovalMigrationTests
         await migrator.MigrateAsync("20260927060000_AddParallelPlanting");
 
         Assert.False(db.Database.HasPendingModelChanges());
-        var rooms = await db.Rooms.Where(room => room.Id >= 501).OrderBy(room => room.Id).ToListAsync();
-        Assert.Equal(new[] { true, false, true, false }, rooms.Select(room => room.IsOwnerAutoEnabled));
+        var ownerAutoPreferences = await db.Rooms.Where(room => room.Id >= 501).OrderBy(room => room.Id)
+            .Select(room => room.IsOwnerAutoEnabled).ToListAsync();
+        Assert.Equal(new[] { true, false, true, false }, ownerAutoPreferences);
         var autoPreferences = new List<bool>();
         var characterIds = new List<int>();
         await using (var command = connection.CreateCommand())
@@ -55,9 +56,7 @@ public sealed class MainControlRemovalMigrationTests
         }
 
         // A rollback can reconstruct the legacy switch without losing the new preference.
-        rooms[0].IsOwnerAutoEnabled = false;
-        rooms[1].IsOwnerAutoEnabled = true;
-        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("UPDATE Rooms SET IsOwnerAutoEnabled = 0 WHERE Id = 501; UPDATE Rooms SET IsOwnerAutoEnabled = 1 WHERE Id = 502;");
         await migrator.MigrateAsync("20260927000000_AddPartyHpScaling");
         await using var restored = connection.CreateCommand();
         restored.CommandText = "SELECT RoomId,IsAutoEnabled FROM RoomSlots WHERE IsMainControl = 1 ORDER BY RoomId";

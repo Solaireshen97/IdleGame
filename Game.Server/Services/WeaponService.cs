@@ -7,8 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog, WeaponCatalog weaponCatalog)
+public sealed class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog, WeaponCatalog weaponCatalog,
+    WeaponBreakthroughCatalog? breakthroughCatalog = null)
 {
+    private readonly WeaponBreakthroughCatalog _breakthroughCatalog = breakthroughCatalog ??
+        new WeaponBreakthroughCatalog(Microsoft.Extensions.Options.Options.Create(new Game.Server.Configuration.WeaponBreakthroughOptions()));
     public async Task<(CharacterWeaponsResponse? Response, string? Error)> GetAsync(string? token, int characterId)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
@@ -208,26 +211,45 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         }
     }
 
-    public async Task<(CharacterWeaponsResponse? Response, string? Error)> UpgradeQualityAsync(
+    public Task<(CharacterWeaponsResponse? Response, string? Error)> UpgradeQualityAsync(
         string? token, int characterId, int weaponId, int materialWeaponId)
+        => UpgradeQualityAsync(token, characterId, weaponId,
+            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId });
+
+    public async Task<(CharacterWeaponsResponse? Response, string? Error)> UpgradeQualityAsync(
+        string? token, int characterId, int weaponId, UpgradeWeaponQualityRequest request)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
-        if (weaponId == materialWeaponId || materialWeaponId <= 0) return (null, "InvalidQualityMaterial");
+        var materialWeaponId = request.MaterialWeaponId;
+        if (request.UseUniversalStone ? materialWeaponId != 0 : weaponId == materialWeaponId || materialWeaponId <= 0)
+            return (null, "InvalidQualityMaterial");
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
         var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
             .Where(weapon => weapon.CharacterId == characterId &&
                 (weapon.Id == weaponId || weapon.Id == materialWeaponId)).ToListAsync();
         var target = weapons.SingleOrDefault(weapon => weapon.Id == weaponId);
         var material = weapons.SingleOrDefault(weapon => weapon.Id == materialWeaponId);
-        if (target is null || material is null) return (null, "WeaponNotOwned");
+        if (target is null || !request.UseUniversalStone && material is null) return (null, "WeaponNotOwned");
         if (target.QualityRank >= WeaponRules.MaxQualityBonusLevels) return (null, "WeaponQualityAtMaximum");
-        if (!string.Equals(weaponCatalog.FindItem(target.WeaponCode)?.Code ?? target.WeaponCode,
-                weaponCatalog.FindItem(material.WeaponCode)?.Code ?? material.WeaponCode,
-                StringComparison.OrdinalIgnoreCase)) return (null, "QualityMaterialMustMatch");
-        if (material.EquippedSlotIndex.HasValue) return (null, "WeaponEquipped");
-        if (material.IsLocked) return (null, "WeaponLocked");
-        if (material.Origin == WeaponOrigin.Starter) return (null, "StarterWeaponCannotBeConsumed");
+        CharacterItemStack? stoneStack = null;
+        if (request.UseUniversalStone)
+        {
+            var recipe = _breakthroughCatalog.FindForWeapon(target.ItemLevel);
+            if (recipe is null) return (null, "WeaponBreakthroughStageUnsupported");
+            stoneStack = await dbContext.CharacterItemStacks.SingleOrDefaultAsync(stack =>
+                stack.CharacterId == characterId && stack.ItemCode == recipe.StoneCode);
+            if (stoneStack is null || stoneStack.Quantity < 1) return (null, "InsufficientBreakthroughStones");
+        }
+        else
+        {
+            if (!string.Equals(weaponCatalog.FindItem(target.WeaponCode)?.Code ?? target.WeaponCode,
+                    weaponCatalog.FindItem(material!.WeaponCode)?.Code ?? material.WeaponCode,
+                    StringComparison.OrdinalIgnoreCase)) return (null, "QualityMaterialMustMatch");
+            if (material.EquippedSlotIndex.HasValue) return (null, "WeaponEquipped");
+            if (material.IsLocked) return (null, "WeaponLocked");
+            if (material.Origin == WeaponOrigin.Starter) return (null, "StarterWeaponCannotBeConsumed");
+        }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
@@ -235,10 +257,56 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             target.QualityRank++;
             target.Version++;
             character!.Version++;
-            dbContext.CharacterWeapons.Remove(material);
+            if (stoneStack is not null)
+            {
+                stoneStack.Quantity--;
+                stoneStack.Version++;
+            }
+            else dbContext.CharacterWeapons.Remove(material!);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
+        }
+        catch (DbUpdateException)
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
+    public async Task<(CharacterWeaponsResponse? Response, string? Error)> CraftBreakthroughStoneAsync(
+        string? token, int characterId, CraftWeaponBreakthroughStoneRequest request)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        var recipe = _breakthroughCatalog.FindTier(request.Tier);
+        if (recipe is null || request.Quantity <= 0) return (null, "InvalidBreakthroughCraftRequest");
+        var cost = (long)recipe.FragmentsPerStone * request.Quantity;
+        if (cost > int.MaxValue) return (null, "InvalidBreakthroughCraftRequest");
+        if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
+        var stacks = await dbContext.CharacterItemStacks.Where(stack => stack.CharacterId == characterId &&
+            (stack.ItemCode == recipe.FragmentCode || stack.ItemCode == recipe.StoneCode)).ToListAsync();
+        var fragments = stacks.SingleOrDefault(stack => stack.ItemCode == recipe.FragmentCode);
+        if (fragments is null || fragments.Quantity < cost) return (null, "InsufficientBreakthroughFragments");
+        var stones = stacks.SingleOrDefault(stack => stack.ItemCode == recipe.StoneCode);
+        if ((long)(stones?.Quantity ?? 0) + request.Quantity > int.MaxValue)
+            return (null, "InvalidBreakthroughCraftRequest");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        try
+        {
+            fragments.Quantity -= (int)cost;
+            fragments.Version++;
+            if (stones is null)
+            {
+                stones = new CharacterItemStack { CharacterId = characterId, ItemCode = recipe.StoneCode };
+                dbContext.CharacterItemStacks.Add(stones);
+            }
+            else stones.Version++;
+            stones.Quantity += request.Quantity;
+            character!.Version++;
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return (await BuildResponseAsync(character), null);
         }
         catch (DbUpdateException)
         {
@@ -294,6 +362,9 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             .ThenByDescending(item => item.ItemLevel).ThenBy(item => item.Id).ToListAsync();
         var fragmentStacks = await dbContext.CharacterItemStacks.Where(stack =>
             stack.CharacterId == character.Id && stack.ItemCode.StartsWith("weapon-fragment-t")).ToListAsync();
+        var breakthroughCodes = _breakthroughCatalog.Recipes.SelectMany(recipe => new[] { recipe.FragmentCode, recipe.StoneCode }).ToList();
+        var breakthroughStacks = await dbContext.CharacterItemStacks.Where(stack =>
+            stack.CharacterId == character.Id && breakthroughCodes.Contains(stack.ItemCode)).ToListAsync();
         var main = weapons.SingleOrDefault(item => item.EquippedSlotIndex == WeaponRules.MainSlotIndex);
         var bonuses = weaponCatalog.CalculateBonuses(weapons);
         var highestStackTier = fragmentStacks.Select(stack => ParseFragmentTier(stack.ItemCode)).DefaultIfEmpty(1).Max();
@@ -331,6 +402,18 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 Name = WeaponRules.FragmentName(tier),
                 Quantity = fragmentStacks.SingleOrDefault(stack => stack.ItemCode == WeaponRules.FragmentCode(tier))?.Quantity ?? 0
             }).ToList(),
+            BreakthroughMaterials = _breakthroughCatalog.Recipes.Select(recipe =>
+            {
+                var fragments = breakthroughStacks.SingleOrDefault(stack => stack.ItemCode == recipe.FragmentCode)?.Quantity ?? 0;
+                var stones = breakthroughStacks.SingleOrDefault(stack => stack.ItemCode == recipe.StoneCode)?.Quantity ?? 0;
+                return new WeaponBreakthroughMaterialResponse
+                {
+                    Tier = recipe.Tier, FragmentCode = recipe.FragmentCode, FragmentName = $"T{recipe.Tier} 通用突破碎片",
+                    FragmentQuantity = fragments, StoneCode = recipe.StoneCode, StoneName = $"T{recipe.Tier} 通用突破石",
+                    StoneQuantity = stones, FragmentsPerStone = recipe.FragmentsPerStone,
+                    CanCraftQuantity = Math.Min(fragments / recipe.FragmentsPerStone, int.MaxValue - stones)
+                };
+            }).ToList(),
             Weapons = weapons.Select(item => new CharacterWeaponResponse
             {
                 Id = item.Id,
@@ -341,6 +424,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 MaxHp = item.MaxHp,
                 ItemLevel = item.ItemLevel,
                 FragmentTier = WeaponRules.FragmentTier(item.ItemLevel),
+                BreakthroughTier = _breakthroughCatalog.FindForWeapon(item.ItemLevel)?.Tier,
                 SellGold = item.SellGold,
                 CanSell = true,
                 Origin = item.Origin,

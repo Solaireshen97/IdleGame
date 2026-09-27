@@ -86,6 +86,9 @@ public sealed class RewardCatalog
         };
     }
 
+    public bool RollChance(decimal chancePercent) => chancePercent >= 100 ||
+        chancePercent > 0 && (decimal)_random.NextDouble() * 100 < chancePercent;
+
     public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear)
     {
         var bundles = isClear ? _clears : _kills;

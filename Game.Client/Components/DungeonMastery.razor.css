@@ -1,0 +1,6 @@
+.dungeon-mastery { padding: .65rem 0; color: #a8bdca; font-size: .72rem; }
+.dungeon-mastery__summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem; }
+.dungeon-mastery__summary strong { color: #f1d595; }
+.dungeon-mastery__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; margin-top: .6rem; }
+.dungeon-mastery__steps span { display: grid; gap: .2rem; padding: .45rem; border: 1px solid #3b5267; border-radius: .4rem; text-align: center; }
+.dungeon-mastery__steps .earned { border-color: #a99560; color: #f1d595; background: #a995601c; }

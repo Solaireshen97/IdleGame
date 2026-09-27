@@ -6,8 +6,13 @@ using System.Text.Json;
 namespace Game.Server.Services;
 
 public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression,
-    ProductionService? production = null, PlantingCatalog? planting = null)
+    ProductionService? production = null, PlantingCatalog? planting = null,
+    DungeonDepthProgressService? depthProgress = null)
 {
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext);
+
+    public Task CaptureDungeonParticipantsAsync(Room room, IEnumerable<int> characterIds) =>
+        _depthProgress.CaptureAsync(room, characterIds);
     public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear)
     {
         var drops = catalog.GetDropPreview(rewardCode, isClear).ToList();
@@ -34,9 +39,59 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         {
             RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey
         });
+        var definition = await _depthProgress.DefinitionAsync(room);
+        var isRegular = eventKey == "clear" || eventKey.StartsWith("monster:", StringComparison.Ordinal);
         foreach (var participant in participants.DistinctBy(entry => entry.Character.Id))
-            dbContext.RewardEntries.AddRange(catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
-                eventKey, participant.UserId, participant.Character.Id));
+        {
+            var entries = catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
+                eventKey, participant.UserId, participant.Character.Id).ToList();
+            if (definition is not null && isRegular)
+            {
+                var mastery = await _depthProgress.RunMasteryAsync(room, participant.Character.Id);
+                if (mastery >= 2)
+                {
+                    // Carry fractional gold across kills in this attempt rather than losing it on each small drop.
+                    var savedGold = await dbContext.RewardEntries.Where(item => item.RoomId == room.Id &&
+                        item.Sequence == room.RunSequence && item.CharacterId == participant.Character.Id &&
+                        item.Kind == "Gold" && item.RewardSource == "Base" &&
+                        (item.EventKey == "clear" || item.EventKey.StartsWith("monster:"))).ToListAsync();
+                    var previousGold = savedGold.Concat(dbContext.RewardEntries.Local.Where(item =>
+                        item.RoomId == room.Id && item.Sequence == room.RunSequence &&
+                        item.CharacterId == participant.Character.Id && item.Kind == "Gold" && item.RewardSource == "Base" &&
+                        (item.EventKey == "clear" || item.EventKey.StartsWith("monster:", StringComparison.Ordinal))))
+                        .Distinct().Sum(item => (long)item.Quantity);
+                    var baseGold = entries.Where(item => item.Kind == "Gold").Sum(item => (long)item.Quantity);
+                    var rate = definition.GoldBonusPercent / 100m;
+                    var bonus = checked((int)(decimal.Floor((previousGold + baseGold) * rate) - decimal.Floor(previousGold * rate)));
+                    if (bonus > 0) entries.Add(new RewardEntry
+                    {
+                        RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
+                        UserId = participant.UserId, CharacterId = participant.Character.Id,
+                        Kind = "Gold", Quantity = bonus, RewardSource = "Mastery"
+                    });
+                }
+                var chance = isClear ? mastery >= 4 ? definition.ClearExtraRollChancePercent : 0m
+                    : mastery >= 3 ? definition.KillExtraRollChancePercent : 0m;
+                if (catalog.RollChance(chance))
+                {
+                    var extra = catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
+                        eventKey, participant.UserId, participant.Character.Id)
+                        .Where(item => item.Kind is not ("Gold" or "Experience")).ToList();
+                    foreach (var item in extra) item.RewardSource = "Mastery";
+                    entries.AddRange(extra);
+                }
+                if (isClear && room.DepthLevel >= definition.ChallengeStartDepth &&
+                    catalog.RollChance(definition.ChallengeFragmentChancePercent))
+                    entries.Add(new RewardEntry
+                    {
+                        RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
+                        UserId = participant.UserId, CharacterId = participant.Character.Id,
+                        Kind = "Material", Code = definition.ChallengeFragmentCode,
+                        Quantity = definition.ChallengeFragmentQuantity, RewardSource = "Challenge"
+                    });
+            }
+            dbContext.RewardEntries.AddRange(entries);
+        }
         return true;
     }
 

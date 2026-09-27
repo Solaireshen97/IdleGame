@@ -44,7 +44,48 @@ public sealed class MonsterCombatCatalog
                 !_profiles.TryAdd(code, profile))
                 throw new InvalidOperationException($"Invalid monster combat profile: {code}");
         }
+
+        // Temporary attacks exercise cumulative depth loading; the themed mechanics are not implemented yet.
+        string[] names = ["深层核心试击（占位）", "深层压力试击（占位）", "深层循环试击（占位）"];
+        for (var depth = 2; depth <= 4; depth++)
+        {
+            var code = $"depth-placeholder-lv{depth}";
+            if (!_skills.TryAdd(code, new MonsterSkillOptions
+                {
+                    Code = code,
+                    Name = names[depth - 2],
+                    Description = $"LV{depth} 逐层装载验证：对前排造成101%攻击伤害。真实核心、压力及循环机制尚未实现。",
+                    DamagePowerPercent = 101,
+                    CooldownRounds = 3,
+                    ForcedPriority = 102 - depth
+                }))
+                throw new InvalidOperationException($"Reserved depth skill code: {code}");
+        }
+        foreach (var (baseCode, baseProfile) in _profiles.ToArray())
+        {
+            for (var depth = 2; depth <= 4; depth++)
+            {
+                var code = DepthProfileCode(baseCode, depth);
+                if (!_profiles.TryAdd(code, new MonsterCombatProfileOptions
+                    {
+                        SkillUseChancePercent = baseProfile.SkillUseChancePercent,
+                        Skills = baseProfile.Skills.Select(skill => new MonsterProfileSkillOptions
+                            { Code = skill.Code, Weight = skill.Weight })
+                            .Concat(Enumerable.Range(2, depth - 1).Select(level => new MonsterProfileSkillOptions
+                                { Code = $"depth-placeholder-lv{level}" })).ToList()
+                    }))
+                    throw new InvalidOperationException($"Reserved depth profile code: {code}");
+            }
+        }
     }
+
+    public string ResolveDepthProfile(string baseProfileCode, int depth) => depth <= 1
+        ? baseProfileCode
+        : _profiles.ContainsKey(DepthProfileCode(baseProfileCode, Math.Min(depth, 4)))
+            ? DepthProfileCode(baseProfileCode, Math.Min(depth, 4))
+            : baseProfileCode;
+
+    private static string DepthProfileCode(string baseProfileCode, int depth) => $"{baseProfileCode}:depth-lv{depth}";
 
     public BattleStatusOptions? FindStatus(string? code) =>
         code is not null && _statuses.TryGetValue(code, out var status) ? status : null;

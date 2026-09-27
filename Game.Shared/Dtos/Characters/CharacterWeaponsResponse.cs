@@ -20,6 +20,7 @@ public sealed class CharacterWeaponsResponse
     public List<ActiveWeaponSkillResponse> ActiveSkills { get; set; } = [];
     public List<WeaponEffectResponse> ActiveEffects { get; set; } = [];
     public List<WeaponFragmentResponse> Fragments { get; set; } = [];
+    public List<WeaponBreakthroughMaterialResponse> BreakthroughMaterials { get; set; } = [];
     public List<CharacterWeaponResponse> Weapons { get; set; } = [];
 }
 
@@ -33,6 +34,7 @@ public sealed class CharacterWeaponResponse
     public int MaxHp { get; set; }
     public int ItemLevel { get; set; }
     public int FragmentTier { get; set; }
+    public int? BreakthroughTier { get; set; }
     public int SellGold { get; set; }
     public bool CanSell { get; set; } = true;
     public WeaponOrigin Origin { get; set; }
@@ -68,6 +70,19 @@ public sealed class WeaponFragmentResponse
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Quantity { get; set; }
+}
+
+public sealed class WeaponBreakthroughMaterialResponse
+{
+    public int Tier { get; set; }
+    public string FragmentCode { get; set; } = string.Empty;
+    public string FragmentName { get; set; } = string.Empty;
+    public int FragmentQuantity { get; set; }
+    public string StoneCode { get; set; } = string.Empty;
+    public string StoneName { get; set; } = string.Empty;
+    public int StoneQuantity { get; set; }
+    public int FragmentsPerStone { get; set; }
+    public int CanCraftQuantity { get; set; }
 }
 
 public sealed class ActiveWeaponSkillResponse

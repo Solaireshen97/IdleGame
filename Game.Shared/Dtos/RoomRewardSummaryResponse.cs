@@ -7,6 +7,7 @@ public sealed class RoomRewardSummaryResponse
     public string Status { get; set; } = string.Empty;
     public DateTime? SettledAtUtc { get; set; }
     public int Gold { get; set; }
+    public int MasteryGold { get; set; }
     public int Experience { get; set; }
     public List<RoomRewardItemResponse> Items { get; set; } = [];
 }

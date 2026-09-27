@@ -25,6 +25,7 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<DungeonRunService>();
+builder.Services.AddScoped<DungeonDepthProgressService>();
 builder.Services.AddScoped<PartyScalingService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<RewardService>();
@@ -46,6 +47,8 @@ builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(Weapo
 builder.Services.Configure<SoulImprintOptions>(builder.Configuration.GetSection(SoulImprintOptions.SectionName));
 builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
+builder.Services.Configure<DungeonDepthOptions>(builder.Configuration.GetSection(DungeonDepthOptions.SectionName));
+builder.Services.Configure<WeaponBreakthroughOptions>(builder.Configuration.GetSection(WeaponBreakthroughOptions.SectionName));
 builder.Services.Configure<PartyScalingOptions>(builder.Configuration.GetSection(PartyScalingOptions.SectionName));
 builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
@@ -63,6 +66,8 @@ builder.Services.AddSingleton<WeaponCatalog>();
 builder.Services.AddSingleton<SoulImprintCatalog>();
 builder.Services.AddSingleton<RewardCatalog>();
 builder.Services.AddSingleton<DungeonEncounterCatalog>();
+builder.Services.AddSingleton<DungeonDepthCatalog>();
+builder.Services.AddSingleton<WeaponBreakthroughCatalog>();
 builder.Services.AddSingleton<PartyScalingCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
 builder.Services.AddSingleton<ShopCatalog>();
@@ -95,6 +100,18 @@ using (var scope = app.Services.CreateScope())
     var encounters = scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>();
     world.ValidateContent(weapons, encounters,
         scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
+    var depthCatalog = scope.ServiceProvider.GetRequiredService<DungeonDepthCatalog>();
+    var materials = scope.ServiceProvider.GetRequiredService<MaterialCatalog>();
+    foreach (var dungeon in world.Dungeons)
+    {
+        if (depthCatalog.Find(dungeon.Code) is not { } depth) continue;
+        depthCatalog.ValidateStats(dungeon.Code, dungeon.MonsterMaxHp, dungeon.MonsterAttack, dungeon.MonsterName);
+        if (materials.FindItem(depth.ChallengeFragmentCode) is null)
+            throw new InvalidOperationException($"Unknown challenge fragment for {dungeon.Code}: {depth.ChallengeFragmentCode}");
+    }
+    foreach (var recipe in scope.ServiceProvider.GetRequiredService<WeaponBreakthroughCatalog>().Recipes)
+        if (materials.FindItem(recipe.FragmentCode) is null || materials.FindItem(recipe.StoneCode) is null)
+            throw new InvalidOperationException($"Unknown breakthrough materials for T{recipe.Tier}");
     _ = scope.ServiceProvider.GetRequiredService<PlantingCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world, encounters);

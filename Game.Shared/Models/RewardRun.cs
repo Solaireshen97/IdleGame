@@ -21,6 +21,7 @@ public sealed class RewardEntry
     public int RoomId { get; set; }
     public int Sequence { get; set; }
     public string EventKey { get; set; } = string.Empty;
+    public string RewardSource { get; set; } = "Base";
     public int UserId { get; set; }
     public int CharacterId { get; set; }
     public string Kind { get; set; } = string.Empty;

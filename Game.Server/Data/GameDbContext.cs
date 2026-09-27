@@ -22,6 +22,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<UserLoginSession> UserLoginSessions => Set<UserLoginSession>();
     public DbSet<Dungeon> Dungeons => Set<Dungeon>();
     public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
+    public DbSet<CharacterDungeonProgress> CharacterDungeonProgress => Set<CharacterDungeonProgress>();
+    public DbSet<DungeonRunParticipant> DungeonRunParticipants => Set<DungeonRunParticipant>();
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
@@ -43,6 +45,15 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CharacterDungeonProgress>().HasKey(item => new { item.CharacterId, item.DungeonId });
+        modelBuilder.Entity<CharacterDungeonProgress>().Property(item => item.Version).IsConcurrencyToken();
+        modelBuilder.Entity<CharacterDungeonProgress>().ToTable(table => table.HasCheckConstraint(
+            "CK_CharacterDungeonProgress_Depth", "HighestDepth >= 1"));
+        modelBuilder.Entity<DungeonRunParticipant>().HasKey(item => new { item.RoomId, item.RunSequence, item.CharacterId });
+        modelBuilder.Entity<DungeonRunParticipant>().HasOne<Room>().WithMany().HasForeignKey(item => item.RoomId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<DungeonRunParticipant>().ToTable(table => table.HasCheckConstraint(
+            "CK_DungeonRunParticipants_Mastery", "MasteryLevel BETWEEN 0 AND 4"));
+        modelBuilder.Entity<UserDungeonClear>().Property(item => item.Version).IsConcurrencyToken();
         modelBuilder.Entity<LogisticsRequest>().HasKey(request => new { request.CharacterId, request.RequestId });
         modelBuilder.Entity<CharacterGardenPlot>().HasIndex(plot => new { plot.CharacterId, plot.PlotIndex }).IsUnique();
         modelBuilder.Entity<CharacterGardenPlot>().Property(plot => plot.Version).IsConcurrencyToken();
