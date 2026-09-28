@@ -150,7 +150,7 @@ public class ShopServiceTests
     }
 
     [Fact]
-    public async Task DungeonExchangeConsumesCharacterMaterialAndCreatesQualityWeapon()
+    public async Task DungeonExchangeConsumesCharacterMaterialAndCreatesNormalQualityWeapon()
     {
         await using var test = await ShopTestContext.CreateAsync();
         test.Db.CharacterItemStacks.Add(new CharacterItemStack
@@ -172,7 +172,7 @@ public class ShopServiceTests
         Assert.Equal(2, result!.Shop.Materials.Single(material => material.Code == "kobold-mine-token").Quantity);
         Assert.Contains("余烬短剑", result.WeaponDisplayName);
         Assert.Equal(100, result.Shop.Gold);
-        Assert.Single(await test.Db.CharacterWeapons.ToListAsync());
+        Assert.Equal(0, (await test.Db.CharacterWeapons.SingleAsync()).QualityRank);
         Assert.Null(rejected);
         Assert.Equal("InsufficientDungeonCurrency", rejectedError);
     }

@@ -47,6 +47,14 @@ public sealed class CharacterWeaponResponse
     public bool IsLocked { get; set; }
     public int? EquippedSlotIndex { get; set; }
     public List<WeaponSkillResponse> Skills { get; set; } = [];
+    public List<LockedWeaponSkillResponse> LockedSkills { get; set; } = [];
+}
+
+public sealed class LockedWeaponSkillResponse
+{
+    public string Name { get; set; } = string.Empty;
+    public int UnlockQualityRank { get; set; }
+    public string Description { get; set; } = string.Empty;
 }
 
 public sealed class WeaponSkillResponse

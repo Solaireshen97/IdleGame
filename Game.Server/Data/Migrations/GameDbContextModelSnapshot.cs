@@ -200,8 +200,8 @@ namespace Game.Server.Data.Migrations
                     b.HasIndex("WeaponId", "SkillCode").IsUnique();
                     b.ToTable("CharacterWeaponSkills", t =>
                     {
-                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 20");
-                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 20 AND QualityBonusLevel = 0 AND EnhancementLevel BETWEEN 0 AND 6 AND Level = BaseLevel + EnhancementLevel");
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Level", "Level BETWEEN 1 AND 10");
+                        t.HasCheckConstraint("CK_CharacterWeaponSkills_Progression", "BaseLevel BETWEEN 1 AND 10 AND QualityBonusLevel = 0 AND EnhancementLevel BETWEEN 0 AND 9 AND Level = BaseLevel + EnhancementLevel");
                         t.HasCheckConstraint("CK_CharacterWeaponSkills_Slot", "SlotIndex BETWEEN 1 AND 3");
                     });
                 });

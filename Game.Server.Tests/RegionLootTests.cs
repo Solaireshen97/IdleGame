@@ -77,7 +77,7 @@ public sealed class RegionLootTests
             foreach (var drop in drops)
             {
                 reachable.Add(drop.Code);
-                Assert.Equal(new[] { 2, 1 }, weapons.FindItem(drop.Code)!.Skills.Select(skill => skill.Level));
+                Assert.All(weapons.FindItem(drop.Code)!.Skills, skill => Assert.Equal(1, skill.Level));
             }
         }
         Assert.Equal(4, reachable.Count);
@@ -101,15 +101,37 @@ public sealed class RegionLootTests
         Assert.Equal(new[] { "t1-candle-staff", "t1-burning-blade-hatchet" }, preview.Select(drop => drop.Code));
         Assert.Equal(new[] { 3m, 1m }, preview.Select(drop => drop.ChancePercent));
         Assert.Equal(preview[0].Code, rewards.FirstHuntWeapon(hunt)!.Code);
+        Assert.Equal(0, rewards.FirstHuntWeapon(hunt)!.QualityRank);
         var drops = rewards.Roll(hunt, false, 1, 1, "test", 1, 1).Where(entry => entry.Kind == "Weapon").ToList();
         Assert.Equal(count, drops.Count);
         Assert.Equal(preview.Take(count).Select(drop => drop.Code), drops.Select(drop => drop.Code));
-        Assert.All(drops, entry => Assert.Equal(entry.Code, RewardCatalog.DeserializeWeapon(entry)!.Code));
+        Assert.All(drops, entry =>
+        {
+            var snapshot = RewardCatalog.DeserializeWeapon(entry)!;
+            Assert.Equal(entry.Code, snapshot.Code);
+            Assert.Equal(0, snapshot.QualityRank);
+        });
+    }
+
+    [Fact]
+    public void DeepDungeonClearWeaponRewardsAlwaysStartAtNormalQuality()
+    {
+        var config = Configuration();
+        IOptions<T> Bind<T>(string section) where T : class, new() => Options.Create(config.GetSection(section).Get<T>()!);
+        var weapons = new WeaponCatalog(Bind<WeaponOptions>(WeaponOptions.SectionName));
+        var rewards = new RewardCatalog(Bind<RewardOptions>(RewardOptions.SectionName),
+            new ConsumableCatalog(Bind<ConsumableOptions>(ConsumableOptions.SectionName)), weapons,
+            new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName)),
+            new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName)), new FixedRandom(0));
+
+        var drops = rewards.Roll("kobold-mine-depths", true, 1, 1, "deep-clear", 1, 1)
+            .Where(entry => entry.Kind == "Weapon").ToList();
+        Assert.NotEmpty(drops);
+        Assert.All(drops, entry => Assert.Equal(0, RewardCatalog.DeserializeWeapon(entry)!.QualityRank));
     }
 
     private sealed class FixedRandom(double roll) : Random
     {
         public override double NextDouble() => roll;
-        public override long NextInt64(long maxValue) => 0;
     }
 }

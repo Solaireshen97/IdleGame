@@ -132,7 +132,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         CharacterSoulImprint? soulImprint = null;
         if (string.Equals(offer.RewardKind, "Weapon", StringComparison.OrdinalIgnoreCase))
         {
-            weaponSnapshot = weapons.CreateDropSnapshot(rewardCode) with { Origin = WeaponOrigin.Exchange };
+            weaponSnapshot = weapons.CreateRewardSnapshot(rewardCode) with { Origin = WeaponOrigin.Exchange };
         }
         else if (string.Equals(offer.RewardKind, "Material", StringComparison.OrdinalIgnoreCase))
         {

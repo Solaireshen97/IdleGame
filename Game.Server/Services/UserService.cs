@@ -444,9 +444,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         var catalog = weaponCatalog ?? throw new InvalidOperationException("A weapon catalog is required to create characters.");
         var weapons = catalog.CreateStarterWeapons(character.Id, character.ProfessionCode);
         dbContext.CharacterWeapons.AddRange(weapons);
-        var main = weapons.Single(weapon => weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex);
-        character.Attack = main.Attack;
-        character.MaxHp = main.MaxHp;
+        character.Attack = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.Attack);
+        character.MaxHp = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.MaxHp);
         catalog.ApplyBonuses(character, weapons);
         character.Hp = TalentRules.EffectiveMaxHp(character);
         character.Version++;

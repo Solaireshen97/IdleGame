@@ -987,7 +987,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             Attack = drop.Weapon.Attack, MaxHp = drop.Weapon.MaxHp,
             Skills = drop.Weapon.Skills.Select(skill => new WeaponDropSkillPreviewResponse
             {
-                Name = skill.Name, Level = skill.Level, Description = skill.Description
+                Name = skill.Name, Level = skill.Level, Description = skill.Description,
+                UnlockQualityRank = skill.UnlockQualityRank
             }).ToList()
         }
     };

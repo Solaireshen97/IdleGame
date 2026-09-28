@@ -14,6 +14,10 @@ public static class WeaponEffectLabels
         WeaponSkillEffectType.DoubleAttackChancePercent => "二连击率",
         WeaponSkillEffectType.NormalEchoPercent => "普攻追击",
         WeaponSkillEffectType.SkillDamagePercent => "技能伤害",
+        WeaponSkillEffectType.DirectDamageReductionPercent => "坚韧",
+        WeaponSkillEffectType.LowHpDamageReductionPercent => "坚守",
+        WeaponSkillEffectType.RampAttackPercent => "精进",
+        WeaponSkillEffectType.ElementAdvantagePercent => "克敌",
         _ => effect.ToString()
     };
 
@@ -27,6 +31,10 @@ public static class WeaponEffectLabels
         WeaponSkillEffectType.DoubleAttackChancePercent => "普通攻击有概率多攻击一次，不重复使用技能或道具",
         WeaponSkillEffectType.NormalEchoPercent => "每次普攻命中后追加部分伤害，追击不会再次触发其他攻击",
         WeaponSkillEffectType.SkillDamagePercent => "提高职业技能的直接伤害，不影响治疗、道具或持续伤害",
+        WeaponSkillEffectType.DirectDamageReductionPercent => "常驻降低直接承伤，与守护及状态减伤乘算",
+        WeaponSkillEffectType.LowHpDamageReductionPercent => "生命低于50%时按比例降低直接承伤",
+        WeaponSkillEffectType.RampAttackPercent => "每回合累积攻击收益，第10回合达到上限",
+        WeaponSkillEffectType.ElementAdvantagePercent => "只在攻击实际克制目标时扩大属性优势",
         _ => ""
     };
 }

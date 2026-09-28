@@ -29,6 +29,10 @@ public class Character
     [NotMapped] public decimal TemporaryWeaponDoubleAttackChancePercent { get; set; }
     [NotMapped] public decimal TemporaryWeaponNormalEchoPercent { get; set; }
     [NotMapped] public decimal TemporaryWeaponSkillDamagePercent { get; set; }
+    [NotMapped] public decimal CombatWeaponDirectReductionPercent { get; set; }
+    [NotMapped] public decimal CombatWeaponLowHpReductionPercent { get; set; }
+    [NotMapped] public decimal CombatWeaponRampAttackPerRoundPercent { get; set; }
+    [NotMapped] public decimal CombatWeaponElementAdvantagePercent { get; set; }
     public int Level { get; set; } = 1;
     public int GatheringLevel { get; set; } = 1;
     public int AlchemyLevel { get; set; } = 1;

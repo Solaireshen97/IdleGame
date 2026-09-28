@@ -57,7 +57,7 @@
 | `Rewards.MonsterKills` / `Rewards.DungeonClears` | 金币、经验、补给、武器与通用碎片 |
 | `DungeonDepths` | 普通副本到深层副本的显式账号前置映射 |
 | `Materials` / `DungeonExchange` | 通用素材与深层兑换 |
-| `Weapons` | 武器的元素、技能、基础数值与随机品质规则 |
+| `Weapons` | 武器的元素、技能与基础数值；新获得武器固定普通品质 |
 | `Progression` | 升级经验和角色等级上限 |
 
 调整配置后重启服务端。地区列表由 `GET /api/regions` 返回；副本列表与房间摘要包含稳定的 `RegionCode`。前端仅负责显示和选择，战斗、奖励、库存和兑换继续由后端决定。

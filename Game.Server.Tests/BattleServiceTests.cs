@@ -728,12 +728,11 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task GuaranteedEpicWeaponDropPersistsQualityCapacityAndDisplaysIt()
+    public async Task GuaranteedWeaponDropPersistsNormalQualityAndDisplaysIt()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         var progression = ProgressionTestFactory.Create();
-        var rewardService = RewardTestFactory.CreateService(test.Db, progression,
-            guaranteedWeapon: true, qualityBonusLevels: 3);
+        var rewardService = RewardTestFactory.CreateService(test.Db, progression, guaranteedWeapon: true);
         var service = new BattleService(test.Db,
             new UserService(test.Db, progression, SkillTestFactory.Create()), ConsumableTestFactory.Create(),
             SkillTestFactory.Create(), rewardService);
@@ -748,17 +747,17 @@ public partial class BattleServiceTests
         Assert.Null(weapon.EquippedSlotIndex);
         Assert.Equal(7, weapon.Attack);
         var skill = Assert.Single(weapon.Skills);
-        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal(0, weapon.QualityRank);
         Assert.Equal((2, 2, 0, 0),
             (skill.Level, skill.BaseLevel, skill.QualityBonusLevel, skill.EnhancementLevel));
-        Assert.Contains(victory.Logs, log => log.Contains("三晶·疾风短弓"));
+        Assert.Contains(victory.Logs, log => log.Contains("疾风短弓"));
         Assert.Contains(await test.Db.RewardEntries.ToListAsync(), entry =>
             entry.Kind == "Weapon" && entry.EventKey == "monster:1" && entry.WeaponSnapshotJson is not null);
         var roomService = new RoomService(test.Db,
             new UserService(test.Db, progression, SkillTestFactory.Create()), progression,
             ConsumableTestFactory.Create(), SkillTestFactory.Create(), rewardService);
         var detail = await roomService.GetRoomDetailAsync(test.Room.Id, test.Token);
-        Assert.Equal("三晶·疾风短弓", detail!.Rewards!.Items.Single(item => item.Kind == "Weapon").Name);
+        Assert.Equal("疾风短弓", detail!.Rewards!.Items.Single(item => item.Kind == "Weapon").Name);
     }
 
     [Fact]

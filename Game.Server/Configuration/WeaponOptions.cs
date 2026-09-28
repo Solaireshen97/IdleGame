@@ -9,19 +9,10 @@ public sealed class WeaponOptions
     public List<WeaponTemplateOptions> Items { get; set; } = [];
     public List<WeaponSkillDefinitionOptions> Skills { get; set; } = [];
     public List<WeaponEffectRuleOptions> EffectRules { get; set; } = [];
+    public int StarterEquippedSlotCount { get; set; } = 1;
     public Dictionary<string, List<string>> StarterPacks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> Replacements { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<int> EnhancementFragmentCosts { get; set; } = [];
-    public List<WeaponSkillGrowthSegmentOptions> SkillGrowth { get; set; } = [];
-    public WeaponDropQualityWeightsOptions DropQualityWeights { get; set; } = new();
-}
-
-public sealed class WeaponDropQualityWeightsOptions
-{
-    public int Common { get; set; } = 60;
-    public int Uncommon { get; set; } = 25;
-    public int Rare { get; set; } = 12;
-    public int Epic { get; set; } = 3;
 }
 
 public sealed class WeaponTemplateOptions
@@ -38,12 +29,6 @@ public sealed class WeaponTemplateOptions
     public List<WeaponSkillGrantOptions> Skills { get; set; } = [];
 }
 
-public sealed class WeaponSkillGrowthSegmentOptions
-{
-    public int? MaximumLevel { get; set; }
-    public decimal MultiplierPercent { get; set; }
-}
-
 public sealed class WeaponSkillDefinitionOptions
 {
     public string Code { get; set; } = string.Empty;
@@ -57,6 +42,7 @@ public sealed class WeaponSkillEffectOptions
 {
     public WeaponSkillEffectType EffectType { get; set; }
     public decimal LevelWeight { get; set; } = 1m;
+    public decimal? PercentPerLevel { get; set; }
 }
 
 public sealed class WeaponEffectRuleOptions
@@ -70,4 +56,5 @@ public sealed class WeaponSkillGrantOptions
 {
     public string Code { get; set; } = string.Empty;
     public int Level { get; set; }
+    public int UnlockQualityRank { get; set; }
 }

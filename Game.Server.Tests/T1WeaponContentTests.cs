@@ -17,6 +17,18 @@ public sealed class T1WeaponContentTests
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
 
     [Fact]
+    public void EveryConfiguredWeaponSkillStartsAtLevelOneAndUsesQualityCapacity()
+    {
+        var options = Configuration().GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!;
+        Assert.NotEmpty(options.Items);
+        Assert.All(options.Items.SelectMany(item => item.Skills), skill => Assert.Equal(1, skill.Level));
+        Assert.Equal(new[] { 4, 6, 8, 10 }, Enumerable.Range(0, 4).Select(WeaponRules.MaximumSkillLevel));
+        Assert.Equal(new[] { 3, 5, 7, 9 }, Enumerable.Range(0, 4)
+            .Select(rank => WeaponRules.EnhancementLimit(rank, 1)));
+        Assert.Equal(10, WeaponRules.MaxSkillLevel);
+    }
+
+    [Fact]
     public void EveryHuntHasTargetLootAndAllTwentyFourFieldWeaponsAreReachable()
     {
         var configuration = Configuration();
@@ -29,18 +41,19 @@ public sealed class T1WeaponContentTests
             .Where(drop => drop.Kind == "Weapon")).ToList();
         var templates = drops.Select(drop => catalog.FindItem(drop.Code)!).DistinctBy(item => item.Code).ToList();
         Assert.Equal(24, templates.Count);
-        Assert.All(templates.GroupBy(item => item.Element), group =>
-        {
-            Assert.Equal(4, group.Count());
-            Assert.Equal(20, group.Average(item => item.Attack));
-            Assert.Equal(50, group.Average(item => item.MaxHp));
-        });
+        Assert.All(templates.GroupBy(item => item.Element), group => Assert.Equal(4, group.Count()));
         Assert.All(templates, item =>
         {
             Assert.Equal(1, item.ItemLevel);
-            Assert.Equal(new[] { 2, 1 }, item.Skills.Select(skill => skill.Level));
-            Assert.Equal(40m, item.Attack + item.MaxHp / 2.5m);
+            Assert.All(item.Skills, skill => Assert.Equal(1, skill.Level));
         });
+        var redesigned = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "t1-candle-staff", "t1-ice-tusk-mallet", "t1-stone-edge-hatchet",
+            "t1-feather-short-staff", "t1-sentry-old-sword", "t1-dim-apprentice-staff"
+        };
+        Assert.All(templates.Where(item => !redesigned.Contains(item.Code)), item =>
+            Assert.Equal(40m, item.Attack + item.MaxHp / 2.5m));
         Assert.All(ordinary, dungeon => Assert.InRange(
             rewards.MonsterKills[dungeon.Code].Drops.Count(drop => drop.Kind == "Weapon"), 2, 3));
     }
@@ -59,7 +72,7 @@ public sealed class T1WeaponContentTests
         Assert.All(weapons, item =>
         {
             Assert.Equal(1, item.ItemLevel);
-            Assert.Equal(new[] { 3, 3 }, item.Skills.Select(skill => skill.Level));
+            Assert.All(item.Skills, skill => Assert.Equal(1, skill.Level));
             Assert.Equal(46m, item.Attack + item.MaxHp / 2.5m);
             Assert.Single(rewards.MonsterKills.Values, bundle => bundle.Drops.Any(drop => drop.Code == item.Code));
         });
@@ -77,14 +90,14 @@ public sealed class T1WeaponContentTests
         {
             var item = catalog.FindItem(product.Code)!;
             Assert.Equal(40, product.Price);
-            Assert.Equal((18, 45, 1), (item.Attack, item.MaxHp, item.ItemLevel));
-            Assert.Equal(1, Assert.Single(item.Skills).Level);
+            Assert.Equal((90, 110, 1), (item.Attack, item.MaxHp, item.ItemLevel));
+            Assert.Equal(("weapon-health-small", 1), (Assert.Single(item.Skills).Code, item.Skills[0].Level));
         });
         Assert.All(WorldCatalog.LoadDefault().Regions, region =>
         {
             var item = catalog.FindItem(region.FeaturedWeaponCode)!;
             Assert.InRange(item.Attack + item.MaxHp / 2.5m, 44, 46);
-            Assert.Equal(new[] { 3, 2 }, item.Skills.Select(skill => skill.Level));
+            Assert.All(item.Skills, skill => Assert.Equal(1, skill.Level));
         });
     }
 
@@ -97,15 +110,23 @@ public sealed class T1WeaponContentTests
     public void BaseProfessionsReceiveMatchingShopWeaponsAsStarters(string professionCode, string weaponCode,
         ElementType element)
     {
-        var weapon = Assert.Single(T1WeaponEffectTests.ProductionCatalog()
-            .CreateStarterWeapons(7, professionCode));
+        var weapons = T1WeaponEffectTests.ProductionCatalog().CreateStarterWeapons(7, professionCode);
+        Assert.Equal(WeaponRules.SlotCount, weapons.Count);
+        Assert.Equal(Enumerable.Range(1, WeaponRules.SlotCount), weapons.Select(item => item.EquippedSlotIndex!.Value));
+        Assert.True(weapons[0].IsLocked);
+        Assert.All(weapons.Skip(1), item => Assert.False(item.IsLocked));
+        var weapon = weapons[0];
+        Assert.All(weapons, item => Assert.Equal(weaponCode, item.WeaponCode));
         Assert.Equal(weaponCode, weapon.WeaponCode);
         Assert.Equal(element, weapon.Element);
         Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
         Assert.Equal(WeaponOrigin.Starter, weapon.Origin);
-        Assert.Equal((18, 45, 8), (weapon.Attack, weapon.MaxHp, weapon.SellGold));
+        Assert.Equal((90, 110, 8), (weapon.Attack, weapon.MaxHp, weapon.SellGold));
         Assert.Equal(0, weapon.QualityRank);
-        Assert.Equal(("weapon-attack", 1), (Assert.Single(weapon.Skills).SkillCode, weapon.Skills[0].Level));
+        Assert.All(weapons, item => Assert.Equal(("weapon-health-small", 1),
+            (Assert.Single(item.Skills).SkillCode, item.Skills[0].Level)));
+        var bonuses = T1WeaponEffectTests.ProductionCatalog().CalculateBonuses(weapons);
+        Assert.Equal(20m, bonuses.HealthPercent);
         var product = Assert.Single(Configuration().GetSection(ShopOptions.SectionName).Get<ShopOptions>()!.Items,
             item => item.Code == weaponCode && item.Kind == "Weapon");
         Assert.Equal(40, product.Price);
@@ -252,12 +273,11 @@ public sealed class T1WeaponContentTests
                 dungeon.MonsterElement).EffectiveRewardCode, weaponDrops[0].Code);
             // Advanced weapons remain gated by clearing the dungeon; boss kills can give lower-tier weapons.
             Assert.DoesNotContain(rewards.MonsterKills[$"{dungeon.Code}-boss"].Drops,
-                drop => drop.Kind == "Weapon" && catalog.FindItem(drop.Code)!.Skills.Select(skill => skill.Level)
-                    .SequenceEqual(new[] { 4, 3 }));
+                drop => drop.Kind == "Weapon" && offers.Any(offer => offer.EffectiveRewardCode == drop.Code));
             Assert.All(offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!), item =>
             {
                 Assert.Equal(1, item.ItemLevel);
-                Assert.Equal(new[] { 4, 3 }, item.Skills.Select(skill => skill.Level));
+                Assert.All(item.Skills, skill => Assert.Equal(1, skill.Level));
                 Assert.InRange(item.Attack + item.MaxHp / 2.5m, 47, 51);
             });
         }
@@ -299,13 +319,13 @@ public sealed class T1WeaponContentTests
         Assert.True(rebased.IsLocked);
         Assert.Equal(1, rebased.EquippedSlotIndex);
         Assert.Equal(3, rebased.QualityRank);
-        Assert.Equal(("weapon-might", 3, 0, 2, 5), Skill(rebased, 1));
-        Assert.Equal(("weapon-skill", 2, 0, 1, 3), Skill(rebased, 2));
+        Assert.Equal(("weapon-might", 1, 0, 2, 3), Skill(rebased, 1));
+        Assert.Equal(("weapon-skill", 1, 0, 1, 2), Skill(rebased, 2));
         Assert.Equal("t1-wood-hilt-ritual-dagger", mapped.WeaponCode);
         Assert.Equal(ElementType.Dark, mapped.Element);
         Assert.Equal(2, mapped.EquippedSlotIndex);
         Assert.Equal((44, 105, 25), (character.Attack, character.MaxHp, character.Hp));
-        Assert.Equal(112, TalentRules.EffectiveMaxHp(character));
+        Assert.Equal(111, TalentRules.EffectiveMaxHp(character));
         var version = rebased.Version;
         await DbInitializer.InitializeAsync(db, catalog);
         Assert.Equal(version, rebased.Version);
@@ -331,7 +351,7 @@ public sealed class T1WeaponContentTests
         Assert.Equal(1, actual.TemplateRevision);
         Assert.Equal(3, actual.QualityRank);
         Assert.All(actual.Skills, skill => Assert.Equal(0, skill.QualityBonusLevel));
-        Assert.Equal(2, actual.Skills[0].Level);
+        Assert.Equal(1, actual.Skills[0].Level);
         Assert.Equal(2, actual.Skills.Count);
     }
 }

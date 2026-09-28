@@ -7,14 +7,14 @@ public static class WeaponRules
     public const int SlotCount = 10;
     public const int MainSlotIndex = 1;
     public const int MaxSkillsPerWeapon = 3;
-    public const int MaxSkillLevel = 20;
+    public const int MaxSkillLevel = 10;
     public const int MaxQualityBonusLevels = 3;
-    public const int MaxEnhancementPerSkill = 3;
-    public const int MaxEnhancementWithQuality = MaxEnhancementPerSkill + MaxQualityBonusLevels;
+    public const int MaxEnhancementWithQuality = 9;
+
+    public static int MaximumSkillLevel(int qualityRank) => 4 + 2 * Math.Clamp(qualityRank, 0, MaxQualityBonusLevels);
 
     public static int EnhancementLimit(int qualityRank, int baseLevel) =>
-        Math.Min(MaxEnhancementPerSkill + Math.Clamp(qualityRank, 0, MaxQualityBonusLevels),
-            MaxSkillLevel - baseLevel);
+        Math.Max(0, Math.Min(MaxEnhancementWithQuality, MaximumSkillLevel(qualityRank) - baseLevel));
 
     public static int FragmentTier(int itemLevel)
     {

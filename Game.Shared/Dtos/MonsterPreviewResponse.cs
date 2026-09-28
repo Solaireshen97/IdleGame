@@ -29,4 +29,5 @@ public sealed class WeaponDropSkillPreviewResponse
     public string Name { get; set; } = string.Empty;
     public int Level { get; set; }
     public string Description { get; set; } = string.Empty;
+    public int UnlockQualityRank { get; set; }
 }

@@ -1,4 +1,6 @@
+using Game.Shared;
 using Game.Shared.Enums;
+using Game.Shared.Models;
 
 namespace Game.Server.Services;
 
@@ -35,6 +37,31 @@ public static class DamageCalculator
 
 public static class WeaponCombatRules
 {
+    public static decimal AttackBonusPercent(Character character, int roundNumber) =>
+        Math.Clamp(character.WeaponAttackBonusPercent + character.TemporaryWeaponAttackBonusPercent +
+            character.CombatWeaponRampAttackPerRoundPercent * Math.Min(10, Math.Max(1, roundNumber + 1)), 0m, 300m);
+
+    public static decimal ElementAttackPercent(ElementType? attacker, ElementType defender, decimal advantagePercent)
+    {
+        var basePercent = ElementMatchup.PlayerAttackPercent(attacker, defender);
+        return basePercent > 0 ? basePercent * (1m + Math.Clamp(advantagePercent, 0m, 100m) / 100m) : basePercent;
+    }
+
+    public static decimal WeaponReductionPercent(Character character)
+    {
+        var maxHp = TalentRules.EffectiveMaxHp(character);
+        var lowHpFactor = maxHp <= 0 ? 0m : Math.Clamp((.5m - character.Hp / (decimal)maxHp) / .5m, 0m, 1m);
+        return Math.Clamp(character.CombatWeaponDirectReductionPercent +
+            character.CombatWeaponLowHpReductionPercent * lowHpFactor, 0m, 50m);
+    }
+
+    public static decimal CombinedDirectReductionPercent(decimal otherReduction, Character character)
+    {
+        var weapon = WeaponReductionPercent(character);
+        var combined = 100m * (1m - (1m - otherReduction / 100m) * (1m - weapon / 100m));
+        return Math.Min(BattleRules.MaxTotalDamageReductionPercent, combined);
+    }
+
     public static decimal HealthDamagePercent(int hp, int maxHp, decimal stamina, decimal enmity)
     {
         if (hp <= 0 || maxHp <= 0) return 0;
@@ -43,8 +70,12 @@ public static class WeaponCombatRules
                enmity * Math.Clamp((.5m - ratio) / .5m, 0, 1);
     }
 
-    public static bool RollPercent(decimal chance, Random? random = null) =>
-        chance >= 100 || chance > 0 && (decimal)(random ?? Random.Shared).NextDouble() * 100m < chance;
+    public static bool RollPercent(decimal chance, Random? random = null)
+    {
+        var finalChance = Math.Clamp(chance, 0m, 100m);
+        return finalChance >= 100m || finalChance > 0m &&
+            (decimal)(random ?? Random.Shared).NextDouble() * 100m < finalChance;
+    }
 
     // Echo receives an already resolved normal hit: never apply damage zones twice.
     public static int EchoDamage(int normalDamage, decimal echoPercent) =>

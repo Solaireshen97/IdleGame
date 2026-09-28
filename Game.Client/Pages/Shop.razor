@@ -104,7 +104,7 @@
                 var balance = GetMaterialQuantity(firstOffer.CurrencyCode);
                 <section class="exchange-section">
                     <header><div><span class="section-kicker">DUNGEON EXCHANGE</span><h2>@dungeon.Key.DungeonName</h2></div><strong>◆ @firstOffer.CurrencyName × @balance</strong></header>
-                    <p>武器兑换会随机点亮 0～3 枚品质水晶；材料兑换的数量固定并直接存入当前角色背包。</p>
+                    <p>兑换武器获得时固定为普通品质（0 突破），之后可用同名武器或通用突破石主动突破；材料兑换的数量固定并直接存入当前角色背包。</p>
                     <div class="shop-grid">
                     @foreach (var offer in dungeon)
                     {
@@ -119,7 +119,7 @@
                                 <p>攻击 +@offer.Attack · HP +@offer.MaxHp</p>
                                 <div class="shop-item__weapon-meta">
                                     <span class="shop-item__element">@WeaponRules.ElementName(weaponElement)属性</span>
-                                    <span class="shop-item__quality" title="兑换后随机点亮 0～3 枚品质水晶，基础攻击与生命固定。"><span>水晶品质</span><WeaponQualityCrystals Unrevealed="true" /><strong>随机 0～@(WeaponRules.MaxQualityBonusLevels) 晶</strong></span>
+                                    <span class="shop-item__quality" title="兑换获得时固定为普通品质、0 突破；之后可用同名武器或通用突破石主动突破。"><span>水晶品质</span><WeaponQualityCrystals Rank="0" /><strong>@WeaponRules.QualityName(0) · 固定</strong></span>
                                 </div>
                                 <div class="shop-item__skills">
                                     @foreach (var skill in offer.WeaponSkills)
@@ -169,7 +169,7 @@
                             <p>攻击 +@item.Attack · HP +@item.MaxHp</p>
                             <div class="shop-item__weapon-meta">
                                 <span class="shop-item__element">@(item.Element is { } element ? WeaponRules.ElementName(element) : "无")属性</span>
-                                <span class="shop-item__quality" title="金币购买的武器固定为未点亮，可在武器详情中消耗同款武器点亮水晶。"><span>水晶品质</span><WeaponQualityCrystals Rank="0" /><strong>@WeaponRules.QualityName(0) · 固定</strong></span>
+                                <span class="shop-item__quality" title="金币购买的武器固定为普通品质、0 突破；之后可用同名武器或通用突破石主动突破。"><span>水晶品质</span><WeaponQualityCrystals Rank="0" /><strong>@WeaponRules.QualityName(0) · 固定</strong></span>
                             </div>
                             <div class="shop-item__skills">
                                 @foreach (var skill in item.WeaponSkills)

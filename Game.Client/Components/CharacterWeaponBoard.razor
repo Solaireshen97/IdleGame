@@ -82,15 +82,15 @@
                             @foreach (var effect in _data.ActiveEffects)
                             {
                                 <div class="weapon-board__effect" title="@effect.Description">
-                                    <strong>@effect.Name · Lv @effect.EffectiveLevel.ToString("0.##")</strong>
-                                    <span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%</span>
+                                    <strong>@effect.Name</strong>
+                                    <span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent or WeaponSkillEffectType.LowHpDamageReductionPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%@(effect.EffectType == WeaponSkillEffectType.RampAttackPercent ? " / 回合" : null)</span>
                                     <small>@effect.Description</small>
                                 </div>
                             }
                         }
                     </div>
 
-                        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。同效果的有效等级合计后采用递减收益，复合技能按各效果的权重计入。</p>
+                        <p class="weapon-board__footnote">十把武器的基础攻击与 HP 全部计入；技能只计算主属性相同的已装备武器。不同档位按各自每级数值合计，再受效果上限约束。</p>
                     </div>
                     <footer><button type="button" @onclick="LoadAsync" disabled="@_isSaving">刷新配装</button><button type="button" @onclick="CloseOverview">返回武器盘</button></footer>
                 </section>
@@ -161,7 +161,7 @@
             </div>
             <div class="weapon-board__inventory-tools"><small aria-live="polite">@FilteredWeapons.Count / @_data.Weapons.Count 把</small><label><input type="checkbox" checked="@_onlyUnequipped" @onchange="ToggleOnlyUnequipped" />未装备</label><button type="button" class="@(_batchMode ? "active" : null)" aria-pressed="@(_batchMode ? "true" : "false")" @onclick="ToggleBatchMode">@(_batchMode ? "退出批量" : "批量管理")</button></div>
         </div>
-        <p class="weapon-board__crystal-hint">水晶品质：三格由空到满，每点亮一格提高技能强化上限。</p>
+        <p class="weapon-board__crystal-hint">水晶品质：新技能从 Lv1 起步；突破阶级 0/1/2/3 时，每条技能可强化到 Lv4/Lv6/Lv8/Lv10。</p>
         <div class="weapon-board__inventory" @ref="_inventoryList">
             @if (FilteredWeapons.Count == 0)
             {
@@ -255,12 +255,16 @@
             <WeaponDetailDialog @key="inspected.Id" Name="@inspected.Name" Element="@inspected.Element" ItemLevel="@inspected.ItemLevel"
                                 Attack="@inspected.Attack" MaxHp="@inspected.MaxHp" Skills="@GetDetailSkills(inspected)"
                                 Category="OWNED WEAPON" Subtitle="@detailSubtitle" QualityRank="@inspected.QualityRank" ManagementLabel="强化 / 点晶"
-                                Note="@(inspected.Origin == WeaponOrigin.Starter ? "初始武器换下并解锁后可出售；不产基础碎片，强化后分解仅返还投入的 50%。" : inspected.Origin == WeaponOrigin.Shop ? "商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
+                                Note="@(inspected.LockedSkills.Count > 0 ? $"满突破解锁：{string.Join("、", inspected.LockedSkills.Select(skill => skill.Name))}。" : inspected.Origin == WeaponOrigin.Starter ? "初始武器换下并解锁后可出售；不产基础碎片，强化后分解仅返还投入的 50%。" : inspected.Origin == WeaponOrigin.Shop ? "商店武器不产基础碎片；强化后分解仅返还投入的 50%。" : null)"
                                 CloseLabel="@(_detailFromSlot ? "← 返回武器盘" : "← 返回武器仓库")" OnClose="CloseWeaponDetails">
                 <AdditionalContent>
                     <section class="weapon-detail-management" aria-label="点亮品质水晶">
-                        <h3>点亮水晶 <small>@inspected.QualityName · 每条技能强化上限 +@(WeaponRules.MaxEnhancementPerSkill + inspected.QualityRank)</small></h3>
-                        <p class="weapon-detail-preview">三格水晶表示武器品质，每点亮一格，每条技能的强化上限 +1；基础攻击与生命不变。</p>
+                        <h3>点亮水晶 <small>@inspected.QualityName · 每条技能最高 Lv@WeaponRules.MaximumSkillLevel(inspected.QualityRank)</small></h3>
+                        <p class="weapon-detail-preview">三格水晶表示武器突破阶级；每突破一次，每条技能的总等级上限提高 2 级，基础攻击与生命不变。</p>
+                        @foreach (var lockedSkill in inspected.LockedSkills)
+                        {
+                            <p class="weapon-detail-preview">突破阶级 @lockedSkill.UnlockQualityRank 解锁 @lockedSkill.Name Lv1：@lockedSkill.Description</p>
+                        }
                         @if (inspected.QualityRank >= WeaponRules.MaxQualityBonusLevels)
                         {
                             <p class="weapon-detail-preview">三枚水晶已全部点亮。</p>
@@ -284,7 +288,7 @@
                             {
                                 var canAfford = skill.NextEnhancementCost is int cost && GetFragmentQuantity(inspected.FragmentTier) >= cost;
                                 <div class="weapon-detail-management__row">
-                                    <span><strong>@skill.Name</strong><small>基础 Lv@(skill.BaseLevel) · 强化 +@(skill.EnhancementLevel) / @(skill.MaximumEnhancementLevel)</small></span>
+                                    <span><strong>@skill.Name</strong><small>当前 Lv@(skill.Level) / 上限 Lv@(skill.BaseLevel + skill.MaximumEnhancementLevel) · 已强化 @skill.EnhancementLevel 次</small></span>
                                     <button type="button" @onclick="() => EnhanceAsync(inspected, skill)" disabled="@(_isSaving || skill.NextEnhancementCost is null || !canAfford)">
                                         @(skill.NextEnhancementCost is int nextCost ? $"强化 · T{inspected.FragmentTier} ×{nextCost}" : "强化已满")
                                     </button>
@@ -736,7 +740,11 @@
         {
             Name = skill.Name, Level = skill.Level,
             Description = $"{skill.Description} · {(skill.IsActive ? "生效" : "未生效")}"
-        }).ToList();
+        }).Concat(weapon.LockedSkills.Select(skill => new WeaponDropSkillPreviewResponse
+        {
+            Name = skill.Name, Level = 1, Description = skill.Description,
+            UnlockQualityRank = skill.UnlockQualityRank
+        })).ToList();
 
     private static string GetWeaponTileLabel(CharacterWeaponResponse weapon)
     {

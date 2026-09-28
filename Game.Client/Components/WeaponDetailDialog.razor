@@ -47,7 +47,7 @@
                         <ul>
                             @foreach (var skill in Skills)
                             {
-                                <li><strong>@skill.Name <small>Lv.@skill.Level</small></strong><span>@skill.Description</span></li>
+                                <li><strong>@skill.Name <small>@(skill.UnlockQualityRank > 0 ? $"突破阶级 {skill.UnlockQualityRank} 解锁 Lv.{skill.Level}" : $"Lv.{skill.Level}")</small></strong><span>@skill.Description</span></li>
                             }
                         </ul>
                     }

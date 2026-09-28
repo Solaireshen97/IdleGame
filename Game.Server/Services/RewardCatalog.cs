@@ -71,7 +71,7 @@ public sealed class RewardCatalog
                 for (var index = 0; index < drop.Quantity; index++)
                 {
                     var entry = NewEntry(drop.Kind, drop.Code, 1);
-                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateDropSnapshot(drop.Code, _random));
+                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateRewardSnapshot(drop.Code));
                     entries.Add(entry);
                 }
             }
@@ -117,9 +117,8 @@ public sealed class RewardCatalog
             item.Skills.Select(grant =>
             {
                 var skill = _weapons.FindSkill(grant.Code)!;
-                var effects = WeaponCatalog.EffectsFor(skill).Select(effect =>
-                    $"{WeaponEffectLabels.Name(effect.EffectType)} +{_weapons.CalculateEffectPercent(effect.EffectType, grant.Level * effect.LevelWeight):0.##}%");
-                return new WeaponDropSkillPreview(skill.Name, grant.Level, string.Join(" · ", effects));
+                return new WeaponDropSkillPreview(skill.Name, grant.Level,
+                    _weapons.DescribeSkill(skill, grant.Level), grant.UnlockQualityRank);
             }).ToList());
     }
 
@@ -195,4 +194,4 @@ public sealed record RewardDropPreview(string Kind, string Code, string Name, in
     WeaponDropPreview? Weapon);
 public sealed record WeaponDropPreview(ElementType Element, int ItemLevel, int Attack, int MaxHp,
     IReadOnlyList<WeaponDropSkillPreview> Skills);
-public sealed record WeaponDropSkillPreview(string Name, int Level, string Description);
+public sealed record WeaponDropSkillPreview(string Name, int Level, string Description, int UnlockQualityRank = 0);

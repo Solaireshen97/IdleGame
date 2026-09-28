@@ -400,9 +400,9 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var damage = DamageCalculator.Calculate(scaledAttack, 0,
             factors: new DamageFactors(AttackPercent: attackPercent,
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
-                ReductionPercent: Math.Min(BattleRules.MaxTotalDamageReductionPercent,
+                ReductionPercent: WeaponCombatRules.CombinedDirectReductionPercent(
                     guard.ReductionPercent + targetReduction + (isAreaAttack ? potion.AreaDamageReductionPercent : 0) -
-                    potion.DamageTakenPercent)));
+                    potion.DamageTakenPercent, target.Character)));
         target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
         logs.Add(skillName is null
             ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
@@ -413,8 +413,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             {
                 const int counterPower = 50;
                 var counter = DamageCalculator.Calculate(TalentRules.EffectiveAttack(target.Character), monster.Defense,
-                    factors: new DamageFactors(AttackPercent: target.Character.WeaponAttackBonusPercent +
-                        target.Character.TemporaryWeaponAttackBonusPercent + potion.AttackPercent,
+                    factors: new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(target.Character, room.RoundNumber) +
+                        potion.AttackPercent,
                         ConsumablePercent: potion.FinalDamagePercent), attackPowerPercent: counterPower);
                 monster.Hp = Math.Max(0, monster.Hp - counter);
                 logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 招架后反击 {monster.Name}，造成 {counter} 点伤害。");

@@ -14,39 +14,23 @@ public sealed class WeaponCatalog
     private readonly Dictionary<string, List<string>> _starterPacks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _replacements = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<int> _enhancementFragmentCosts;
-    private readonly IReadOnlyList<WeaponSkillGrowthSegmentOptions> _skillGrowth;
-    private readonly IReadOnlyList<int> _dropQualityWeights;
+    private readonly int _starterEquippedSlotCount;
     public int StartingCharacterGold { get; }
 
     public WeaponCatalog(IOptions<WeaponOptions> options)
     {
         StartingCharacterGold = options.Value.StartingCharacterGold;
         if (StartingCharacterGold < 0) throw new InvalidOperationException("Starting gold cannot be negative.");
+        _starterEquippedSlotCount = options.Value.StarterEquippedSlotCount;
+        if (_starterEquippedSlotCount is < 1 or > WeaponRules.SlotCount)
+            throw new InvalidOperationException("Starter equipped slot count is invalid.");
         var enhancementCosts = options.Value.EnhancementFragmentCosts.Count == 0
-            ? new List<int> { 2, 4, 8, 16, 32, 64 }
+            ? new List<int> { 2, 4, 8, 8, 8, 8, 8, 8, 8 }
             : options.Value.EnhancementFragmentCosts;
         if (enhancementCosts.Count != WeaponRules.MaxEnhancementWithQuality ||
             enhancementCosts.Any(cost => cost <= 0))
-            throw new InvalidOperationException("Weapon enhancement costs must define six positive steps.");
+            throw new InvalidOperationException("Weapon enhancement costs must define nine positive steps.");
         _enhancementFragmentCosts = enhancementCosts.ToList();
-        var qualityOptions = options.Value.DropQualityWeights;
-        var dropQualityWeights = new[]
-        {
-            qualityOptions.Common, qualityOptions.Uncommon, qualityOptions.Rare, qualityOptions.Epic
-        };
-        if (dropQualityWeights.Length != WeaponRules.MaxQualityBonusLevels + 1 ||
-            dropQualityWeights.Any(weight => weight < 0) ||
-            dropQualityWeights.Sum(weight => (long)weight) <= 0)
-            throw new InvalidOperationException("Weapon drop quality weights must define four non-negative values with a positive total.");
-        _dropQualityWeights = dropQualityWeights.ToList();
-        _skillGrowth = options.Value.SkillGrowth.ToList();
-        if (_skillGrowth.Count > 0 && (_skillGrowth.Any(segment => segment.MultiplierPercent <= 0) ||
-            _skillGrowth[^1].MaximumLevel is not null ||
-            _skillGrowth.Take(_skillGrowth.Count - 1).Any(segment => segment.MaximumLevel is null or <= 0) ||
-            _skillGrowth.Take(_skillGrowth.Count - 1).Select(segment => segment.MaximumLevel!.Value)
-                .Zip(_skillGrowth.Skip(1).Select(segment => segment.MaximumLevel ?? int.MaxValue), (left, right) => left < right)
-                .Any(valid => !valid)))
-            throw new InvalidOperationException("Invalid weapon skill growth curve.");
         foreach (var rule in options.Value.EffectRules)
         {
             if (!Enum.IsDefined(rule.EffectType) || rule.PercentPerLevel <= 0 || rule.MaximumPercent <= 0 ||
@@ -54,7 +38,7 @@ public sealed class WeaponCatalog
                 throw new InvalidOperationException($"Invalid weapon effect rule: {rule.EffectType}");
         }
         // Legacy single-effect definitions remain readable. They must agree on the
-        // rate for a shared effect; aliases cannot create separate diminishing curves.
+        // rate for a shared effect; aliases cannot create separate effect rules.
         foreach (var group in options.Value.Skills.Where(skill => skill.Effects.Count == 0).GroupBy(skill => skill.EffectType))
         {
             if (_effectRules.ContainsKey(group.Key)) continue;
@@ -67,6 +51,7 @@ public sealed class WeaponCatalog
         {
             if (string.IsNullOrWhiteSpace(skill.Code) || string.IsNullOrWhiteSpace(skill.Name) ||
                 EffectsFor(skill).Any(effect => !Enum.IsDefined(effect.EffectType) || effect.LevelWeight <= 0 ||
+                    effect.PercentPerLevel is <= 0 ||
                     !_effectRules.ContainsKey(effect.EffectType)) ||
                 EffectsFor(skill).Select(effect => effect.EffectType).Distinct().Count() != EffectsFor(skill).Count ||
                 !_skills.TryAdd(skill.Code, skill))
@@ -78,7 +63,8 @@ public sealed class WeaponCatalog
                 !Enum.IsDefined(item.Element) || item.Attack < 0 || item.MaxHp <= 0 || item.ItemLevel <= 0 ||
                 item.SellGold < 0 || item.DismantleFragments <= 0 || item.Revision < 0 ||
                 item.Skills.Count > WeaponRules.MaxSkillsPerWeapon ||
-                item.Skills.Any(skill => skill.Level is < 1 or > WeaponRules.MaxSkillLevel || !_skills.ContainsKey(skill.Code)) ||
+                item.Skills.Any(skill => skill.Level is < 1 or > WeaponRules.MaxSkillLevel ||
+                    skill.UnlockQualityRank is < 0 or > WeaponRules.MaxQualityBonusLevels || !_skills.ContainsKey(skill.Code)) ||
                 item.Skills.Select(skill => skill.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() != item.Skills.Count ||
                 !_items.TryAdd(item.Code, item))
                 throw new InvalidOperationException($"Invalid weapon configuration: {item.Code}");
@@ -87,7 +73,9 @@ public sealed class WeaponCatalog
         {
             if (string.IsNullOrWhiteSpace(profession) || codes.Count == 0 ||
                 codes.Distinct(StringComparer.OrdinalIgnoreCase).Count() != codes.Count ||
-                codes.Any(code => !_items.ContainsKey(code)) || !_starterPacks.TryAdd(profession, codes))
+                codes.Any(code => !_items.ContainsKey(code)) ||
+                (_starterEquippedSlotCount > 1 && codes.Count != 1) ||
+                !_starterPacks.TryAdd(profession, codes))
                 throw new InvalidOperationException($"Invalid starter weapons for: {profession}");
         }
         if (_items.Count == 0 || _starterPacks.Count == 0)
@@ -109,7 +97,10 @@ public sealed class WeaponCatalog
         };
         if (!_starterPacks.TryGetValue(professionCode, out var codes) && !_starterPacks.TryGetValue(fallbackCode, out codes))
             throw new InvalidOperationException($"Missing starter weapons for: {professionCode}");
-        return codes.Select((code, index) =>
+        var starterCodes = _starterEquippedSlotCount > 1
+            ? Enumerable.Repeat(codes[0], _starterEquippedSlotCount)
+            : codes;
+        return starterCodes.Select((code, index) =>
         {
             var item = _items[code];
             return new CharacterWeapon
@@ -126,15 +117,17 @@ public sealed class WeaponCatalog
                 SellGold = item.SellGold,
                 DismantleFragments = item.DismantleFragments,
                 IsLocked = index == 0,
-                Skills = item.Skills.Select((skill, skillIndex) => new CharacterWeaponSkill
+                Skills = item.Skills.Select((skill, skillIndex) => (skill, skillIndex))
+                    .Where(entry => entry.skill.UnlockQualityRank == 0)
+                    .Select(entry => new CharacterWeaponSkill
                 {
-                    SlotIndex = skillIndex + 1,
-                    SkillCode = skill.Code,
-                    Level = skill.Level,
-                    BaseLevel = skill.Level,
+                    SlotIndex = entry.skillIndex + 1,
+                    SkillCode = entry.skill.Code,
+                    Level = entry.skill.Level,
+                    BaseLevel = entry.skill.Level,
                     SpentFragments = 0
                 }).ToList(),
-                EquippedSlotIndex = index == 0 ? 1 : null
+                EquippedSlotIndex = _starterEquippedSlotCount > 1 ? index + 1 : index == 0 ? 1 : null
             };
         }).ToList();
     }
@@ -172,8 +165,12 @@ public sealed class WeaponCatalog
         weapon.ItemLevel = item.ItemLevel;
         weapon.SellGold = item.SellGold;
         weapon.DismantleFragments = item.DismantleFragments;
-        weapon.Skills = item.Skills.Select((grant, index) =>
+        weapon.Skills = item.Skills.Select((grant, index) => (grant, index))
+            .Where(entry => entry.grant.UnlockQualityRank <= weapon.QualityRank ||
+                existing.ContainsKey(entry.index + 1))
+            .Select(entry =>
         {
+            var (grant, index) = entry;
             var old = existing.GetValueOrDefault(index + 1);
             var enhancement = old?.EnhancementLevel ?? 0;
             if (grant.Level + enhancement > WeaponRules.MaxSkillLevel)
@@ -183,6 +180,22 @@ public sealed class WeaponCatalog
                 Level = grant.Level + enhancement, SpentFragments = old is null ? 0 : InvestedFragments(old) };
         }).ToList();
         weapon.Version++;
+    }
+
+    public void UnlockSkillsForQuality(CharacterWeapon weapon)
+    {
+        var item = FindItem(weapon.WeaponCode);
+        if (item is null) return;
+        foreach (var (grant, index) in item.Skills.Select((grant, index) => (grant, index)))
+        {
+            if (grant.UnlockQualityRank == 0 || grant.UnlockQualityRank > weapon.QualityRank ||
+                weapon.Skills.Any(skill => skill.SlotIndex == index + 1)) continue;
+            weapon.Skills.Add(new CharacterWeaponSkill
+            {
+                SlotIndex = index + 1, SkillCode = grant.Code, BaseLevel = grant.Level,
+                Level = grant.Level, SpentFragments = 0
+            });
+        }
     }
 
     public CharacterWeapon MaterializeReward(WeaponRewardSnapshot snapshot, int characterId)
@@ -200,9 +213,12 @@ public sealed class WeaponCatalog
             ? _enhancementFragmentCosts[completedEnhancements]
             : throw new ArgumentOutOfRangeException(nameof(completedEnhancements));
 
+    // Persisted spending is authoritative. Null belongs to pre-tracking skills, so retain
+    // their historical 2/4/8/16/32/64 estimate instead of repricing them on each balance change.
     public int InvestedFragments(CharacterWeaponSkill skill) => skill.SpentFragments ?? skill.EnhancementLevel switch
     {
         0 => 0, 1 => 2, 2 => 6, 3 => 14, 4 => 30, 5 => 62, 6 => 126,
+        7 => 134, 8 => 142, 9 => 150,
         _ => throw new InvalidOperationException("Invalid historical enhancement rank.")
     };
 
@@ -221,31 +237,34 @@ public sealed class WeaponCatalog
         definition.Effects.Count > 0 ? definition.Effects : [new() { EffectType = definition.EffectType }];
 
     public string DescribeSkill(WeaponSkillDefinitionOptions definition, int level) => string.Join(" · ",
-        EffectsFor(definition).Select(effect => $"{WeaponEffectLabels.Name(effect.EffectType)}有效等级 {(level * effect.LevelWeight):0.##}"));
+        EffectsFor(definition).Select(effect =>
+        {
+            var value = SkillEffectPercent(effect, level);
+            return effect.EffectType switch
+            {
+                WeaponSkillEffectType.RampAttackPercent => $"精进每回合 +{value:0.##}%（第10回合封顶）",
+                WeaponSkillEffectType.ElementAdvantagePercent => $"克制优势 +{value:0.##}%",
+                WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent or
+                    WeaponSkillEffectType.LowHpDamageReductionPercent =>
+                    $"{WeaponEffectLabels.Name(effect.EffectType)}最高 +{value:0.##}%",
+                _ => $"{WeaponEffectLabels.Name(effect.EffectType)} +{value:0.##}%"
+            };
+        }));
 
     // Compatibility value for single-effect callers. Composite effects are exposed individually.
     public decimal CalculateSkillPercent(WeaponSkillDefinitionOptions definition, int level) =>
         EffectsFor(definition).Count == 1
-            ? CalculateEffectPercent(EffectsFor(definition)[0].EffectType, level * EffectsFor(definition)[0].LevelWeight) : 0;
+            ? Math.Min(_effectRules[EffectsFor(definition)[0].EffectType].MaximumPercent,
+                SkillEffectPercent(EffectsFor(definition)[0], level)) : 0;
+
+    private decimal SkillEffectPercent(WeaponSkillEffectOptions effect, decimal level) =>
+        level * effect.LevelWeight * (effect.PercentPerLevel ?? _effectRules[effect.EffectType].PercentPerLevel);
 
     public decimal CalculateEffectPercent(WeaponSkillEffectType effect, decimal level)
     {
         if (level <= 0) return 0;
         var rule = _effectRules[effect];
-        if (_skillGrowth.Count == 0) return Math.Min(rule.MaximumPercent, level * rule.PercentPerLevel);
-        var total = 0m;
-        var consumed = 0m;
-        foreach (var segment in _skillGrowth)
-        {
-            var segmentLevels = segment.MaximumLevel is int maximum
-                ? Math.Min(level, maximum) - consumed
-                : level - consumed;
-            if (segmentLevels > 0)
-                total += segmentLevels * rule.PercentPerLevel * segment.MultiplierPercent / 100m;
-            if (segment.MaximumLevel is int end) consumed = end;
-            if (consumed >= level || segment.MaximumLevel is null) break;
-        }
-        return Math.Min(rule.MaximumPercent, total);
+        return Math.Min(rule.MaximumPercent, level * rule.PercentPerLevel);
     }
 
     public WeaponRewardSnapshot CreateRewardSnapshot(string code)
@@ -253,26 +272,8 @@ public sealed class WeaponCatalog
         var item = FindItem(code) ?? throw new InvalidOperationException($"Unknown weapon reward: {code}");
         return new WeaponRewardSnapshot(item.Code, item.Name, item.Element, item.Attack, item.MaxHp,
             item.ItemLevel, item.SellGold, item.DismantleFragments,
-            item.Skills.Select(skill => new WeaponRewardSkillSnapshot(skill.Code, skill.Level)).ToList(), item.Revision);
-    }
-
-    public WeaponRewardSnapshot CreateDropSnapshot(string code, Random? random = null)
-    {
-        var snapshot = CreateRewardSnapshot(code);
-        random ??= Random.Shared;
-        return snapshot with { QualityRank = RollQualityBonusLevels(random) };
-    }
-
-    private int RollQualityBonusLevels(Random random)
-    {
-        var totalWeight = _dropQualityWeights.Sum(weight => (long)weight);
-        var roll = random.NextInt64(totalWeight);
-        for (var index = 0; index < _dropQualityWeights.Count; index++)
-        {
-            if (roll < _dropQualityWeights[index]) return index;
-            roll -= _dropQualityWeights[index];
-        }
-        return 0;
+            item.Skills.Where(skill => skill.UnlockQualityRank == 0)
+                .Select(skill => new WeaponRewardSkillSnapshot(skill.Code, skill.Level)).ToList(), item.Revision);
     }
 
     public WeaponSkillBonuses CalculateBonuses(IEnumerable<CharacterWeapon> weapons,
@@ -304,11 +305,22 @@ public sealed class WeaponCatalog
             .ToList();
 
         var effects = active.SelectMany(skill => EffectsFor(FindSkill(skill.Code)!)
-                .Select(effect => (effect.EffectType, Level: skill.Level * effect.LevelWeight)))
+                .Select(effect => (effect.EffectType, Level: skill.Level * effect.LevelWeight,
+                    Percent: SkillEffectPercent(effect, skill.Level))))
             .GroupBy(effect => effect.EffectType)
             .Select(group => new WeaponEffectBonus(group.Key, group.Sum(effect => effect.Level),
-                CalculateEffectPercent(group.Key, group.Sum(effect => effect.Level))))
+                Math.Min(_effectRules[group.Key].MaximumPercent, group.Sum(effect => effect.Percent))))
             .OrderBy(effect => effect.EffectType).ToList();
+        var directReduction = effects.SingleOrDefault(effect =>
+            effect.EffectType == WeaponSkillEffectType.DirectDamageReductionPercent)?.TotalPercent ?? 0;
+        var lowHpReductionIndex = effects.FindIndex(effect =>
+            effect.EffectType == WeaponSkillEffectType.LowHpDamageReductionPercent);
+        if (lowHpReductionIndex >= 0)
+            effects[lowHpReductionIndex] = effects[lowHpReductionIndex] with
+            {
+                TotalPercent = Math.Min(effects[lowHpReductionIndex].TotalPercent,
+                    Math.Max(0, 50m - directReduction))
+            };
         decimal Percent(WeaponSkillEffectType effect) => effects.SingleOrDefault(item => item.EffectType == effect)?.TotalPercent ?? 0;
         return new WeaponSkillBonuses(Percent(WeaponSkillEffectType.AttackPercent),
             Percent(WeaponSkillEffectType.MaxHpPercent), Percent(WeaponSkillEffectType.CriticalChancePercent), active, effects);

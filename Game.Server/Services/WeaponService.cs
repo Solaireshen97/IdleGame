@@ -226,8 +226,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             return (null, "InvalidQualityMaterial");
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
         var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
-            .Where(weapon => weapon.CharacterId == characterId &&
-                (weapon.Id == weaponId || weapon.Id == materialWeaponId)).ToListAsync();
+            .Where(weapon => weapon.CharacterId == characterId).ToListAsync();
         var target = weapons.SingleOrDefault(weapon => weapon.Id == weaponId);
         var material = weapons.SingleOrDefault(weapon => weapon.Id == materialWeaponId);
         if (target is null || !request.UseUniversalStone && material is null) return (null, "WeaponNotOwned");
@@ -255,6 +254,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         try
         {
             target.QualityRank++;
+            weaponCatalog.UnlockSkillsForQuality(target);
             target.Version++;
             character!.Version++;
             if (stoneStack is not null)
@@ -263,6 +263,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 stoneStack.Version++;
             }
             else dbContext.CharacterWeapons.Remove(material!);
+            if (target.EquippedSlotIndex.HasValue) RecalculateCharacter(character!, weapons.Where(weapon => weapon != material).ToList());
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
@@ -436,6 +437,16 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 QualityCode = WeaponRules.QualityCode(item.QualityRank),
                 IsLocked = item.IsLocked,
                 EquippedSlotIndex = item.EquippedSlotIndex,
+                LockedSkills = (weaponCatalog.FindItem(item.WeaponCode)?.Skills ?? [])
+                    .Where((grant, index) => grant.UnlockQualityRank > item.QualityRank &&
+                        item.Skills.All(skill => skill.SlotIndex != index + 1))
+                    .Select(grant => new LockedWeaponSkillResponse
+                    {
+                        Name = weaponCatalog.FindSkill(grant.Code)?.Name ?? grant.Code,
+                        UnlockQualityRank = grant.UnlockQualityRank,
+                        Description = weaponCatalog.FindSkill(grant.Code) is { } definition
+                            ? weaponCatalog.DescribeSkill(definition, grant.Level) : string.Empty
+                    }).ToList(),
                 Skills = item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
                 {
                     var definition = weaponCatalog.FindSkill(skill.SkillCode);

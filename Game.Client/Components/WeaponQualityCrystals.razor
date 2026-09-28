@@ -6,11 +6,7 @@
         <svg class="weapon-crystals__gem @(index < LitCount ? "weapon-crystals__gem--lit" : null)"
              viewBox="0 0 16 22" aria-hidden="true" focusable="false">
             <path class="weapon-crystals__outline" d="M8 1 15 11 8 21 1 11Z" />
-            @if (Unrevealed)
-            {
-                <g><text class="weapon-crystals__unknown" x="8" y="14" text-anchor="middle">?</text></g>
-            }
-            else if (index < LitCount)
+            @if (index < LitCount)
             {
                 <path class="weapon-crystals__facet--light" d="M8 1 8 11 1 11Z" />
                 <path class="weapon-crystals__facet--top" d="M8 1 15 11 8 11Z" />
@@ -24,9 +20,6 @@
 
 @code {
     [Parameter] public int Rank { get; set; }
-    [Parameter] public bool Unrevealed { get; set; }
-    private int LitCount => Unrevealed ? 0 : Math.Clamp(Rank, 0, WeaponRules.MaxQualityBonusLevels);
-    private string Label => Unrevealed
-        ? $"水晶品质：尚未确定，获得时随机点亮 0～{WeaponRules.MaxQualityBonusLevels} 枚水晶"
-        : $"水晶品质：{WeaponRules.QualityName(LitCount)}，已点亮 {LitCount}/{WeaponRules.MaxQualityBonusLevels} 枚水晶";
+    private int LitCount => Math.Clamp(Rank, 0, WeaponRules.MaxQualityBonusLevels);
+    private string Label => $"水晶品质：{WeaponRules.QualityName(LitCount)}，已点亮 {LitCount}/{WeaponRules.MaxQualityBonusLevels} 枚水晶";
 }

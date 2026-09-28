@@ -86,10 +86,21 @@ public sealed class T1WeaponEconomyTests
 
         Assert.Null(error);
         var character = await test.Db.Characters.SingleAsync(item => item.Id == created!.CharacterId);
-        var weapon = await test.Db.CharacterWeapons.SingleAsync(item => item.CharacterId == character.Id);
+        var weapons = await test.Db.CharacterWeapons.Include(item => item.Skills)
+            .Where(item => item.CharacterId == character.Id).OrderBy(item => item.EquippedSlotIndex).ToListAsync();
+        Assert.Equal(WeaponRules.SlotCount, weapons.Count);
+        var weapon = weapons[0];
+        Assert.All(weapons, item => Assert.Equal(weaponCode, item.WeaponCode));
+        Assert.Equal(Enumerable.Range(1, WeaponRules.SlotCount), weapons.Select(item => item.EquippedSlotIndex!.Value));
+        Assert.True(weapon.IsLocked);
+        Assert.All(weapons.Skip(1), item => Assert.False(item.IsLocked));
         Assert.Equal(weaponCode, weapon.WeaponCode);
         Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
-        Assert.Equal((18, 45, 45), (character.Attack, character.MaxHp, character.Hp));
+        Assert.All(weapons, item => Assert.Equal("weapon-health-small", Assert.Single(item.Skills).SkillCode));
+        Assert.Equal((900, 1100, 1320), (character.Attack, character.MaxHp, character.Hp));
+        Assert.Equal(20m, character.WeaponHealthBonusPercent);
+        var current = (await test.Users.GetCurrentCharacterAsync(test.Token)).Response!;
+        Assert.Equal((900, 1320), (current.Attack, current.MaxHp));
         Assert.Equal(120, character.Gold);
         Assert.Equal(professionCode, character.ProfessionCode);
         Assert.Equal("新角色", character.Name);
@@ -137,16 +148,18 @@ public sealed class T1WeaponEconomyTests
     {
         await using var test = await EconomyContext.CreateAsync();
         Assert.Equal(120, test.Character.Gold);
-        Assert.Equal(WeaponOrigin.Starter, (await test.Db.CharacterWeapons.SingleAsync()).Origin);
+        Assert.All(await test.Db.CharacterWeapons.ToListAsync(), item => Assert.Equal(WeaponOrigin.Starter, item.Origin));
         var created = await test.Users.CreateCurrentCharacterAsync(test.Token,
             new CreateCharacterRequest { Name = "第二角色", ProfessionCode = "cleric" });
         Assert.Null(created.Error);
         Assert.Equal(120, test.Character.Gold);
         Assert.Equal(0, (await test.Db.Characters.SingleAsync(item => item.Id == created.Response!.CharacterId)).Gold);
 
-        var starter = await test.Db.CharacterWeapons.SingleAsync(weapon => weapon.CharacterId == test.Character.Id);
+        var starter = await test.Db.CharacterWeapons.SingleAsync(weapon =>
+            weapon.CharacterId == test.Character.Id && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex);
         var inventory = (await test.Armory.GetAsync(test.Token, test.Character.Id)).Response!;
-        var initialWeapon = Assert.Single(inventory.Weapons);
+        Assert.Equal(WeaponRules.SlotCount, inventory.Weapons.Count);
+        var initialWeapon = Assert.Single(inventory.Weapons, item => item.Id == starter.Id);
         Assert.True(initialWeapon.CanSell);
         Assert.Equal(starter.SellGold, initialWeapon.SellGold);
         Assert.Equal("WeaponEquipped", (await test.Armory.SellAsync(test.Token, test.Character.Id,
@@ -185,8 +198,9 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(expectedGold, (await test.Db.Characters.AsNoTracking().SingleAsync(item => item.Id == test.Character.Id)).Gold);
         Assert.DoesNotContain(sold.Response.Weapons, weapon => selected.Any(item => item.Id == weapon.Id));
         Assert.False(await test.Db.CharacterWeapons.AnyAsync(weapon => selected.Select(item => item.Id).Contains(weapon.Id)));
-        Assert.Equal(WeaponRules.MainSlotIndex, Assert.Single(sold.Response.Weapons).EquippedSlotIndex);
-        Assert.Equal(replacement.Id, Assert.Single(sold.Response.Weapons).Id);
+        Assert.Equal(WeaponRules.SlotCount, sold.Response.Weapons.Count);
+        Assert.Equal(replacement.Id, Assert.Single(sold.Response.Weapons,
+            item => item.EquippedSlotIndex == WeaponRules.MainSlotIndex).Id);
     }
 
     [Fact]
@@ -198,6 +212,7 @@ public sealed class T1WeaponEconomyTests
         Assert.Null(bought.Error);
         Assert.Equal(80, test.Character.Gold);
         var weapon = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Shop);
+        Assert.Equal(0, weapon.QualityRank);
         Assert.Equal(0, test.Weapons.DismantleReturn(weapon));
         Assert.False(test.Weapons.CanDismantle(weapon));
         Assert.Equal(0, weapon.Skills.Sum(skill => skill.QualityBonusLevel));
@@ -210,8 +225,8 @@ public sealed class T1WeaponEconomyTests
 
         Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1)).Error);
         Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1)).Error);
-        Assert.Equal(10, weapon.Skills.Single().SpentFragments);
-        Assert.Equal(5, test.Weapons.DismantleReturn(weapon));
+        Assert.Equal(6, weapon.Skills.Single().SpentFragments);
+        Assert.Equal(3, test.Weapons.DismantleReturn(weapon));
         Assert.True(test.Weapons.CanDismantle(weapon));
         var rejected = await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1);
         Assert.Equal("InsufficientWeaponFragments", rejected.Error);
@@ -219,22 +234,51 @@ public sealed class T1WeaponEconomyTests
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
             new WeaponBatchRequest { WeaponIds = [weapon.Id] });
         Assert.Null(recycled.Error);
-        Assert.Equal(5, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
+        Assert.Equal(7, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(80, test.Character.Gold);
     }
 
     [Fact]
-    public void PriceChangesDoNotRevalueHistoricMaterialsAndFullNewEnhancementCostsThirtyFour()
+    public async Task BoughtSameTemplateCanReplaceStarterOffhandWithoutChangingStartingStats()
+    {
+        await using var test = await EconomyContext.CreateAsync();
+        var main = await test.Db.CharacterWeapons.SingleAsync(item =>
+            item.CharacterId == test.Character.Id && item.EquippedSlotIndex == WeaponRules.MainSlotIndex);
+        var offhand = await test.Db.CharacterWeapons.SingleAsync(item =>
+            item.CharacterId == test.Character.Id && item.EquippedSlotIndex == 2);
+        var purchase = await test.Shop.PurchaseAsync(test.Token,
+            new PurchaseShopItemRequest { CharacterId = test.Character.Id, Code = main.WeaponCode,
+                Quantity = 1, RequestId = Guid.NewGuid().ToString("N") });
+        Assert.Null(purchase.Error);
+        var bought = await test.Db.CharacterWeapons.SingleAsync(item => item.CharacterId == test.Character.Id &&
+            item.Origin == WeaponOrigin.Shop);
+        Assert.Null(bought.EquippedSlotIndex);
+
+        var equipped = await test.Armory.SetSlotAsync(test.Token, test.Character.Id, 2,
+            new SetWeaponSlotRequest { WeaponId = bought.Id });
+        Assert.Null(equipped.Error);
+        Assert.Null(offhand.EquippedSlotIndex);
+        Assert.Equal(2, bought.EquippedSlotIndex);
+        Assert.True(main.IsLocked);
+        Assert.Equal((900, 1100, 1320), (test.Character.Attack, test.Character.MaxHp, test.Character.Hp));
+        Assert.Equal(20m, test.Character.WeaponHealthBonusPercent);
+    }
+
+    [Fact]
+    public void NineEnhancementStepsCostSixtyTwoAndRecordedOldInvestmentIsNotRevalued()
     {
         var catalog = T1WeaponEffectTests.ProductionCatalog();
-        Assert.Equal(new[] { 2, 8, 24 }, Enumerable.Range(0, 3).Select(catalog.EnhancementCost));
+        Assert.Equal(new[] { 2, 4, 8, 8, 8, 8, 8, 8, 8 }, Enumerable.Range(0, 9).Select(catalog.EnhancementCost));
         var old = new CharacterWeaponSkill { EnhancementLevel = 2, SpentFragments = 6 };
         Assert.Equal(6, catalog.InvestedFragments(old));
         old.SpentFragments += catalog.EnhancementCost(old.EnhancementLevel);
         old.EnhancementLevel++;
-        Assert.Equal(30, catalog.InvestedFragments(old));
+        Assert.Equal(14, catalog.InvestedFragments(old));
         Assert.Equal(14, catalog.InvestedFragments(new CharacterWeaponSkill { EnhancementLevel = 3 }));
-        Assert.Equal(34, Enumerable.Range(0, 3).Sum(catalog.EnhancementCost));
+        Assert.Equal(new[] { 0, 2, 6, 14, 30, 62, 126, 134, 142, 150 },
+            Enumerable.Range(0, 10).Select(level =>
+                catalog.InvestedFragments(new CharacterWeaponSkill { EnhancementLevel = level })));
+        Assert.Equal(62, Enumerable.Range(0, 9).Sum(catalog.EnhancementCost));
     }
 
     [Fact]

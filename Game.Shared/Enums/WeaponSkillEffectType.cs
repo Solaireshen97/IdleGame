@@ -9,5 +9,9 @@ public enum WeaponSkillEffectType
     EnmityPercent,
     DoubleAttackChancePercent,
     NormalEchoPercent,
-    SkillDamagePercent
+    SkillDamagePercent,
+    DirectDamageReductionPercent,
+    LowHpDamageReductionPercent,
+    RampAttackPercent,
+    ElementAdvantagePercent
 }

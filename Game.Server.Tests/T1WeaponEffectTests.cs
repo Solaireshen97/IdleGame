@@ -31,7 +31,7 @@ public sealed class T1WeaponEffectTests
     };
 
     [Fact]
-    public void CompositeAndSingleSkillsShareOneEffectCurveAndIgnoreOffElementAndInventory()
+    public void CompositeAndSingleSkillsCombineLinearlyAndIgnoreOffElementAndInventory()
     {
         var catalog = ProductionCatalog();
         var offElement = Weapon(3, ("weapon-attack", 20));
@@ -39,25 +39,25 @@ public sealed class T1WeaponEffectTests
         var inventory = Weapon(4, ("weapon-attack", 20));
         inventory.EquippedSlotIndex = null;
         var bonuses = catalog.CalculateBonuses([Weapon(1, ("weapon-attack", 10)),
-            Weapon(2, ("weapon-might", 20)), offElement, inventory]);
+            Weapon(2, ("weapon-might", 10)), offElement, inventory]);
 
-        Assert.Equal(30, bonuses.AttackPercent); // effective level20, not 20%+20%
-        Assert.Equal(30, bonuses.HealthPercent);
+        Assert.Equal(40, bonuses.AttackPercent); // medium attack + small attack from the composite.
+        Assert.Equal(20, bonuses.HealthPercent);
         Assert.Equal(20, bonuses.Effects.Single(effect => effect.EffectType == WeaponSkillEffectType.AttackPercent).EffectiveLevel);
         Assert.Equal(2, bonuses.ActiveSkills.Count);
         Assert.Empty(catalog.CalculateBonuses([offElement, inventory]).Effects);
     }
 
     [Theory]
-    [InlineData(WeaponSkillEffectType.AttackPercent, 20, 30, 40, 60)]
-    [InlineData(WeaponSkillEffectType.MaxHpPercent, 30, 45, 60, 75)]
-    [InlineData(WeaponSkillEffectType.CriticalChancePercent, 30, 45, 60, 60)]
-    [InlineData(WeaponSkillEffectType.StaminaPercent, 20, 30, 30, 30)]
-    [InlineData(WeaponSkillEffectType.EnmityPercent, 40, 60, 60, 60)]
-    [InlineData(WeaponSkillEffectType.DoubleAttackChancePercent, 20, 30, 40, 40)]
-    [InlineData(WeaponSkillEffectType.NormalEchoPercent, 15, 22.5, 30, 30)]
-    [InlineData(WeaponSkillEffectType.SkillDamagePercent, 40, 60, 80, 80)]
-    public void ProductionEffectCurvesMatchT1Budget(WeaponSkillEffectType effect, double at10, double at20, double at40, double cap)
+    [InlineData(WeaponSkillEffectType.AttackPercent, 25, 50, 100, 300)]
+    [InlineData(WeaponSkillEffectType.MaxHpPercent, 30, 60, 120, 400)]
+    [InlineData(WeaponSkillEffectType.CriticalChancePercent, 15, 30, 60, 100)]
+    [InlineData(WeaponSkillEffectType.StaminaPercent, 20, 40, 80, 150)]
+    [InlineData(WeaponSkillEffectType.EnmityPercent, 50, 100, 200, 200)]
+    [InlineData(WeaponSkillEffectType.DoubleAttackChancePercent, 17.5, 35, 70, 100)]
+    [InlineData(WeaponSkillEffectType.NormalEchoPercent, 15, 30, 60, 100)]
+    [InlineData(WeaponSkillEffectType.SkillDamagePercent, 20, 40, 80, 200)]
+    public void ProductionEffectsGrowLinearlyUntilTemporarySafetyCap(WeaponSkillEffectType effect, double at10, double at20, double at40, double cap)
     {
         var catalog = ProductionCatalog();
         Assert.Equal((decimal)at10, catalog.CalculateEffectPercent(effect, 10));
@@ -67,12 +67,40 @@ public sealed class T1WeaponEffectTests
     }
 
     [Fact]
-    public void FractionalCompositeLevelsCrossCurveBoundariesWithoutRounding()
+    public void FractionalCompositeLevelsCombineWithoutRounding()
     {
         var bonuses = ProductionCatalog().CalculateBonuses([
             Weapon(1, ("weapon-double", 10)), Weapon(2, ("weapon-momentum", 1))]);
-        Assert.Equal(20.4m, bonuses.Percent(WeaponSkillEffectType.DoubleAttackChancePercent));
-        Assert.Equal(.6m, bonuses.Percent(WeaponSkillEffectType.NormalEchoPercent));
+        Assert.Equal(18.75m, bonuses.Percent(WeaponSkillEffectType.DoubleAttackChancePercent));
+        Assert.Equal(1m, bonuses.Percent(WeaponSkillEffectType.NormalEchoPercent));
+    }
+
+    [Fact]
+    public void AggregateLevelsStopAtEachEffectsTemporarySafetyCap()
+    {
+        var weapons = Enumerable.Range(1, WeaponRules.SlotCount)
+            .Select(slot => Weapon(slot, ("weapon-attack", 10), ("weapon-might", 10), ("weapon-critical", 10))).ToList();
+        var bonuses = ProductionCatalog().CalculateBonuses(weapons);
+
+        Assert.Equal(200, bonuses.Effects.Single(effect =>
+            effect.EffectType == WeaponSkillEffectType.AttackPercent).EffectiveLevel);
+        Assert.Equal(300, bonuses.AttackPercent);
+        Assert.Equal(100, bonuses.CriticalChancePercent);
+    }
+
+    [Fact]
+    public void FinalBattleChanceClampsCombinedWeaponTemporaryAndTalentBonuses()
+    {
+        var random = new FixedRollRandom(.95);
+        Assert.True(WeaponCombatRules.RollPercent(60 + 30 + 15, random));
+        Assert.True(WeaponCombatRules.RollPercent(60 + 50, random));
+        Assert.False(WeaponCombatRules.RollPercent(60 + 30, random));
+        Assert.False(WeaponCombatRules.RollPercent(-20, random));
+    }
+
+    private sealed class FixedRollRandom(double roll) : Random
+    {
+        public override double NextDouble() => roll;
     }
 
     [Theory]

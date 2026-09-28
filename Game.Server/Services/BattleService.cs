@@ -524,10 +524,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             {
                 var critical = RollCritical(entry.Character);
                 var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(entry.Character), monster.Defense,
-                    factors: new DamageFactors(AttackPercent: entry.Character.WeaponAttackBonusPercent + entry.Character.TemporaryWeaponAttackBonusPercent + statusAttack + entry.Character.TalentNormalAttackPercent + operationBonuses.GetValueOrDefault(entry.Character.Id).AttackPercent,
+                    factors: new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(entry.Character, room.RoundNumber) + statusAttack + entry.Character.TalentNormalAttackPercent + operationBonuses.GetValueOrDefault(entry.Character.Id).AttackPercent,
                         HealthPercent: healthPercent,
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                        ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
+                        ElementPercent: WeaponCombatRules.ElementAttackPercent(element, monster.Element, entry.Character.CombatWeaponElementAdvantagePercent),
                         ReductionPercent: monsterReduction,
                         ConsumablePercent: operationBonuses.GetValueOrDefault(entry.Character.Id).FinalDamagePercent +
                             operationBonuses.GetValueOrDefault(entry.Character.Id).NormalAttackDamagePercent));
@@ -579,8 +579,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     var targetElement = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
                     var damage = DamageCalculator.Calculate(monster.Attack, 0,
                         factors: new DamageFactors(ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, targetElement),
-                            ReductionPercent: roundDefense.ForCharacter(target.Character.Id).ReductionPercent -
-                                operationBonuses.GetValueOrDefault(target.Character.Id).DamageTakenPercent));
+                            ReductionPercent: WeaponCombatRules.CombinedDirectReductionPercent(
+                                roundDefense.ForCharacter(target.Character.Id).ReductionPercent -
+                                operationBonuses.GetValueOrDefault(target.Character.Id).DamageTakenPercent, target.Character)));
                     target.Character.Hp = Math.Max(0, target.Character.Hp - damage);
                     logs.Add($"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
                 }
@@ -670,12 +671,11 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 var critical = RollCritical(participant.Character, isSkill: true);
                 var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
                     factors: new DamageFactors(
-                        AttackPercent: participant.Character.WeaponAttackBonusPercent +
-                            participant.Character.TemporaryWeaponAttackBonusPercent + statusAttack +
+                        AttackPercent: WeaponCombatRules.AttackBonusPercent(participant.Character, room.RoundNumber) + statusAttack +
                             operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
                         HealthPercent: healthPercent,
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                        ElementPercent: ElementMatchup.PlayerAttackPercent(definition.Element, monster.Element),
+                        ElementPercent: WeaponCombatRules.ElementAttackPercent(definition.Element, monster.Element, participant.Character.CombatWeaponElementAdvantagePercent),
                         ReductionPercent: monsterReduction,
                         SkillDamagePercent: participant.Character.WeaponSkillDamagePercent +
                             participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent,
@@ -900,10 +900,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 var monsterReduction = monsterCombatService is null ? 0m :
                     await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
                 var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
-                    damageEffect.Power, new DamageFactors(AttackPercent: participant.Character.WeaponAttackBonusPercent + participant.Character.TemporaryWeaponAttackBonusPercent + attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
+                    damageEffect.Power, new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(participant.Character, room.RoundNumber) + attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
                         HealthPercent: healthPercent,
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                        ElementPercent: ElementMatchup.PlayerAttackPercent(element, monster.Element),
+                        ElementPercent: WeaponCombatRules.ElementAttackPercent(element, monster.Element, participant.Character.CombatWeaponElementAdvantagePercent),
                         ReductionPercent: monsterReduction,
                         SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho + conditionalDamageBonus + predatorBonus +
                             (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
@@ -1328,13 +1328,19 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             dbContext.Entry(buff).State == EntityState.Added && buff.RoomId == room.Id &&
             buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
             ids.Contains(buff.CharacterId))).ToList();
-        var weapons = active.Count == 0 || weaponCatalog is null ? [] :
+        var weapons = weaponCatalog is null ? [] :
             await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
                 .Where(weapon => ids.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex != null).ToListAsync();
         foreach (var entry in entries)
         {
             var buffs = active.Where(buff => buff.CharacterId == entry.Character.Id).ToList();
-            if (buffs.Count == 0 || weaponCatalog is null) BattleConsumableBonusCalculator.Apply(entry.Character, null);
+            if (buffs.Count == 0 || weaponCatalog is null)
+            {
+                BattleConsumableBonusCalculator.Apply(entry.Character, null);
+                if (weaponCatalog is not null)
+                    BattleConsumableBonusCalculator.ApplyCombatEffects(entry.Character,
+                        weaponCatalog.CalculateBonuses(weapons.Where(weapon => weapon.CharacterId == entry.Character.Id)));
+            }
             else
             {
                 var levels = buffs.GroupBy(buff => buff.WeaponSkillCode, StringComparer.OrdinalIgnoreCase)

@@ -42,12 +42,12 @@ public sealed class WeaponServiceTests
         var starters = catalog.CreateStarterWeapons(1, "knight");
         var bonuses = catalog.CalculateBonuses(starters);
 
-        Assert.Single(starters);
-        Assert.Equal(2, bonuses.AttackPercent);
-        Assert.Equal(0, bonuses.HealthPercent);
+        Assert.Equal(WeaponRules.SlotCount, starters.Count);
+        Assert.Equal(0, bonuses.AttackPercent);
+        Assert.Equal(20, bonuses.HealthPercent);
         Assert.Equal(1, Assert.Single(starters.Single(weapon => weapon.EquippedSlotIndex == 1).Skills).Level);
         Assert.Equal("t1-shop-fire", starters[0].WeaponCode);
-        Assert.Equal((18, 45), (starters[0].Attack, starters[0].MaxHp));
+        Assert.Equal((90, 110), (starters[0].Attack, starters[0].MaxHp));
     }
 
     [Fact]
@@ -358,6 +358,8 @@ public sealed class WeaponServiceTests
         await using var test = await WeaponTestContext.CreateAsync(CreateSkillCatalog());
         var main = test.Weapons.Single(weapon => weapon.EquippedSlotIndex == 1);
         main.ItemLevel = 10;
+        main.Skills.Single().BaseLevel = 1;
+        main.Skills.Single().Level = 1;
         test.Db.CharacterItemStacks.Add(new CharacterItemStack
         {
             CharacterId = 1, ItemCode = WeaponRules.FragmentCode(1), Quantity = 14
@@ -374,9 +376,9 @@ public sealed class WeaponServiceTests
         var (_, maximumError) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
 
         var skill = Assert.Single(response!.Weapons.Single(weapon => weapon.Id == main.Id).Skills);
-        Assert.Equal((5, 2, 3), (skill.Level, skill.BaseLevel, skill.EnhancementLevel));
+        Assert.Equal((4, 1, 3), (skill.Level, skill.BaseLevel, skill.EnhancementLevel));
         Assert.Null(skill.NextEnhancementCost);
-        Assert.Equal(10, response.AttackBonusPercent);
+        Assert.Equal(8, response.AttackBonusPercent);
         Assert.Equal(0, response.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
         Assert.Equal("WeaponSkillAtMaximum", maximumError);
 
@@ -390,17 +392,49 @@ public sealed class WeaponServiceTests
     }
 
     [Fact]
-    public void ConfiguredSkillGrowthReducesLaterLevelValue()
+    public async Task NineEnhancementsChargeConfiguredStepsAndDismantleRefundsActualInvestment()
+    {
+        await using var test = await WeaponTestContext.CreateAsync(CreateSkillCatalog());
+        var main = test.Weapons.Single(weapon => weapon.EquippedSlotIndex == 1);
+        main.QualityRank = 3;
+        main.Skills.Single().BaseLevel = 1;
+        main.Skills.Single().Level = 1;
+        test.Db.CharacterItemStacks.Add(new CharacterItemStack
+        {
+            CharacterId = 1, ItemCode = WeaponRules.FragmentCode(1), Quantity = 62
+        });
+        await test.Db.SaveChangesAsync();
+
+        var remaining = 62;
+        foreach (var cost in new[] { 2, 4, 8, 8, 8, 8, 8, 8, 8 })
+        {
+            var (response, error) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+            Assert.Null(error);
+            remaining -= cost;
+            Assert.Equal(remaining, response!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
+            Assert.Equal(62 - remaining, main.Skills.Single().SpentFragments);
+        }
+        Assert.Equal(0, remaining);
+        Assert.Equal("WeaponSkillAtMaximum",
+            (await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1)).Error);
+
+        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        Assert.Null((await test.Service.SetSlotAsync(test.Token, 1, 1,
+            new SetWeaponSlotRequest { WeaponId = water.Id })).Error);
+        Assert.Null((await test.Service.SetLockAsync(test.Token, 1, main.Id,
+            new SetWeaponLockRequest { IsLocked = false })).Error);
+        var (recycled, recycleError) = await test.Service.DismantleAsync(test.Token, 1,
+            new WeaponBatchRequest { WeaponIds = [main.Id] });
+        Assert.Null(recycleError);
+        Assert.Equal(32, recycled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
+    }
+
+    [Fact]
+    public void LegacySingleEffectDefinitionAlsoGrowsLinearly()
     {
         var options = new WeaponOptions
         {
-            EnhancementFragmentCosts = [2, 4, 8, 16, 32, 64],
-            SkillGrowth =
-            [
-                new WeaponSkillGrowthSegmentOptions { MaximumLevel = 5, MultiplierPercent = 100 },
-                new WeaponSkillGrowthSegmentOptions { MaximumLevel = 10, MultiplierPercent = 60 },
-                new WeaponSkillGrowthSegmentOptions { MaximumLevel = null, MultiplierPercent = 30 }
-            ],
+            EnhancementFragmentCosts = [2, 4, 8, 8, 8, 8, 8, 8, 8],
             Skills =
             [
                 new WeaponSkillDefinitionOptions { Code = "weapon-attack", Name = "攻击", EffectType = WeaponSkillEffectType.AttackPercent, PercentPerLevel = 2 }
@@ -417,18 +451,14 @@ public sealed class WeaponServiceTests
         var bonus = catalog.CalculateBonuses(catalog.CreateStarterWeapons(1, "knight"));
 
         Assert.Equal(8, Assert.Single(bonus.ActiveSkills).Level);
-        Assert.Equal(13.6m, bonus.AttackPercent);
+        Assert.Equal(16m, bonus.AttackPercent);
     }
 
     [Fact]
-    public void EpicDropRaisesEverySkillEnhancementLimitWithoutChangingBaseLevels()
+    public void NewWeaponRewardsStartAtNormalQualityWithoutChangingBaseLevels()
     {
         var options = new WeaponOptions
         {
-            DropQualityWeights = new WeaponDropQualityWeightsOptions
-            {
-                Common = 0, Uncommon = 0, Rare = 0, Epic = 1
-            },
             Skills =
             [
                 new WeaponSkillDefinitionOptions { Code = "weapon-attack", Name = "攻击", EffectType = WeaponSkillEffectType.AttackPercent, PercentPerLevel = 2 },
@@ -452,16 +482,15 @@ public sealed class WeaponServiceTests
         var catalog = new WeaponCatalog(Options.Create(options));
 
         var shopSnapshot = catalog.CreateRewardSnapshot("stone-hammer");
-        var dropSnapshot = catalog.CreateDropSnapshot("stone-hammer", new Random(42));
+        var dropSnapshot = catalog.CreateRewardSnapshot("stone-hammer");
         var weapon = dropSnapshot.ToCharacterWeapon(1);
 
         Assert.Equal(0, shopSnapshot.QualityRank);
-        Assert.Equal(3, dropSnapshot.QualityRank);
-        Assert.Equal("三晶", dropSnapshot.QualityName);
-        Assert.Equal(3, weapon.QualityRank);
+        Assert.Equal(0, dropSnapshot.QualityRank);
+        Assert.Equal(0, weapon.QualityRank);
         Assert.Equal(new[] { 2, 1 }, weapon.Skills.Select(skill => skill.Level));
-        Assert.All(weapon.Skills, skill =>
-            Assert.Equal(6, WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel)));
+        Assert.Equal(new[] { 2, 3 }, weapon.Skills.Select(skill =>
+            WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel)));
         Assert.All(weapon.Skills, skill => Assert.Equal(0, skill.EnhancementLevel));
     }
 
@@ -500,7 +529,7 @@ public sealed class WeaponServiceTests
         var (second, secondError) = await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, whiteMaterial.Id);
         Assert.Null(secondError);
         Assert.Equal(2, target.QualityRank);
-        Assert.Equal(5, second!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
+        Assert.Equal(6, second!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
         Assert.Equal(6, target.Skills.Single().Level);
 
         var greenMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
@@ -510,7 +539,7 @@ public sealed class WeaponServiceTests
         var (third, thirdError) = await test.Service.UpgradeQualityAsync(test.Token, 1, target.Id, greenMaterial.Id);
         Assert.Null(thirdError);
         Assert.Equal(3, target.QualityRank);
-        Assert.Equal(6, third!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
+        Assert.Equal(8, third!.Weapons.Single(item => item.Id == target.Id).Skills.Single().MaximumEnhancementLevel);
         var unusedMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
         test.Db.CharacterWeapons.Add(unusedMaterial);
         await test.Db.SaveChangesAsync();
@@ -584,7 +613,7 @@ public sealed class WeaponServiceTests
         {
             Assert.Equal(1, skill.BaseLevel);
             Assert.Equal(1, skill.Level);
-            Assert.Equal(6, WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel));
+            Assert.Equal(9, WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel));
         });
     }
 
@@ -648,13 +677,13 @@ public sealed class WeaponServiceTests
         [
             new WeaponSkillDefinitionOptions { Code = "weapon-attack", Name = "攻击", EffectType = WeaponSkillEffectType.AttackPercent, PercentPerLevel = attackPerLevel },
             new WeaponSkillDefinitionOptions { Code = "weapon-health", Name = "生命", EffectType = WeaponSkillEffectType.MaxHpPercent, PercentPerLevel = 3 },
-            new WeaponSkillDefinitionOptions { Code = "weapon-critical", Name = "暴击率", EffectType = WeaponSkillEffectType.CriticalChancePercent, PercentPerLevel = 5 }
+            new WeaponSkillDefinitionOptions { Code = "weapon-critical", Name = "暴击率", EffectType = WeaponSkillEffectType.CriticalChancePercent, PercentPerLevel = guaranteedCritical ? 10 : 5 }
         ],
         Items =
         [
             new WeaponTemplateOptions { Code = "ember-blade", Name = "余烬长剑", Element = ElementType.Fire, Attack = 20, MaxHp = 100,
                 Skills = guaranteedCritical
-                    ? [new WeaponSkillGrantOptions { Code = "weapon-attack", Level = 2 }, new WeaponSkillGrantOptions { Code = "weapon-critical", Level = 20 }]
+                    ? [new WeaponSkillGrantOptions { Code = "weapon-attack", Level = 2 }, new WeaponSkillGrantOptions { Code = "weapon-critical", Level = 10 }]
                     : [new WeaponSkillGrantOptions { Code = "weapon-attack", Level = 2 }] },
             new WeaponTemplateOptions { Code = "tide-saber", Name = "潮汐弯刀", Element = ElementType.Water, Attack = 8, MaxHp = 24,
                 Skills = [new WeaponSkillGrantOptions { Code = "weapon-health", Level = 2 }] },

@@ -115,7 +115,7 @@
                     </section>
                     }
                 }
-                <p class="monster-weapon-note">掉率为每次对应击败或通关时的判定概率。</p>
+                <p class="monster-weapon-note">掉率为每次对应击败或通关时的判定概率；获得的武器固定为普通品质（0 突破），之后可主动突破。</p>
             }
             else if (SelectedMonster is { } monster)
             {
@@ -198,9 +198,9 @@
     @if (_selectedWeapon is { Weapon: { } weapon } selectedDrop)
     {
         <WeaponDetailDialog Name="@selectedDrop.Name" Element="@weapon.Element" ItemLevel="@weapon.ItemLevel"
-                            Attack="@weapon.Attack" MaxHp="@weapon.MaxHp" Skills="@weapon.Skills"
+                            Attack="@weapon.Attack" MaxHp="@weapon.MaxHp" Skills="@weapon.Skills" QualityRank="0"
                             Category="WEAPON PREVIEW" Subtitle="@($"基础模板 · 装等 {weapon.ItemLevel}")"
-                            Note="显示的是基础属性；掉落武器点亮的品质水晶只提高每条技能的强化上限。"
+                            Note="掉落时固定为普通品质、0 突破；之后可用同名武器或通用突破石主动突破，点亮的水晶只提高每条技能的强化上限。"
                             CloseLabel="← 返回掉落预览" OnClose="CloseWeapon" />
     }
 </div>
