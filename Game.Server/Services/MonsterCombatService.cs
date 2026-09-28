@@ -81,6 +81,10 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                catalog.FindSkill(intent.SkillCode)?.IsInterruptible == true;
     }
 
+    public bool HasAnyInterruptibleSkill(Monster monster) =>
+        catalog.FindProfile(monster.CombatProfileCode)?.Skills.Any(entry =>
+            catalog.FindSkill(entry.Code)?.IsInterruptible == true) == true;
+
     public async Task<bool> InterruptCurrentIntentAsync(Room room, Monster monster)
     {
         var intent = await EnsureIntentAsync(room, monster);
@@ -127,10 +131,10 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     }
 
     public Task<bool> ApplyStatusAsync(Room room, string targetType, int targetId, string statusCode,
-        int durationRounds, List<string> logs, string targetLabel) =>
+        int durationRounds, List<string> logs, string targetLabel, int? perTickValue = null) =>
         ApplyStatusCoreAsync(room, targetType, targetId,
             new MonsterStatusApplicationOptions { StatusCode = statusCode, DurationRounds = durationRounds },
-            logs, targetLabel);
+            logs, targetLabel, perTickValue);
 
     public async Task<List<BattleStatusEffectResponse>> GetStatusResponsesAsync(Room room, string targetType, int targetId)
     {
@@ -249,8 +253,23 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                      effect.ExpiresAfterRound >= room.RoundNumber))
         {
             var definition = catalog.FindStatus(effect.EffectCode);
+            if (definition?.EffectType == "HealOverTime")
+            {
+                if (effect.TargetType != "Character") continue;
+                var target = participants.SingleOrDefault(entry => entry.Character.Id == effect.TargetId);
+                if (target is null || target.Character.Hp <= 0) continue;
+                var maxHp = TalentRules.EffectiveMaxHp(target.Character);
+                var healing = Math.Max(1, effect.PerTickValue ??
+                    (int)decimal.Floor(Math.Abs(definition.ValuePerStack) * effect.Stacks));
+                var restored = Math.Min(healing, Math.Max(0, maxHp - target.Character.Hp));
+                if (restored <= 0) continue;
+                target.Character.Hp += restored;
+                logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 受到 {definition.Name} 治疗，恢复 {restored} 点生命。");
+                continue;
+            }
             if (definition?.EffectType != "DamageOverTime") continue;
-            var damage = Math.Max(1, (int)decimal.Floor(Math.Abs(definition.ValuePerStack) * effect.Stacks));
+            var damage = Math.Max(1, effect.PerTickValue ??
+                (int)decimal.Floor(Math.Abs(definition.ValuePerStack) * effect.Stacks));
             if (effect.TargetType == "Character")
             {
                 var target = participants.SingleOrDefault(entry => entry.Character.Id == effect.TargetId);
@@ -326,10 +345,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     }
 
     private async Task<bool> ApplyStatusCoreAsync(Room room, string targetType, int targetId,
-        MonsterStatusApplicationOptions application, List<string> logs, string targetLabel)
+        MonsterStatusApplicationOptions application, List<string> logs, string targetLabel,
+        int? perTickValue = null)
     {
         var definition = catalog.FindStatus(application.StatusCode);
         if (definition is null) return false;
+        if (perTickValue is <= 0) throw new ArgumentOutOfRangeException(nameof(perTickValue));
         var effect = dbContext.BattleStatusEffects.Local.FirstOrDefault(entry => entry.RoomId == room.Id &&
                 entry.RunSequence == room.RunSequence && entry.TargetType == targetType && entry.TargetId == targetId &&
                 entry.EffectCode == definition.Code);
@@ -355,13 +376,21 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             else if (definition.Stacking == "AddStack") effect.Stacks = Math.Min(definition.MaxStacks, effect.Stacks + 1);
             // Only a new exposure gets the first-round grace period. Refreshing an
             // existing poison/burn must not suppress its already-due damage tick.
-            if (!wasActive || definition.EffectType != "DamageOverTime")
+            if (!wasActive || definition.EffectType is not ("DamageOverTime" or "HealOverTime"))
                 effect.AppliedRound = room.RoundNumber;
+        }
+        if (!wasActive)
+            effect.PerTickValue = perTickValue;
+        else if (perTickValue.HasValue && definition.EffectType is "DamageOverTime" or "HealOverTime")
+        {
+            var currentPotency = effect.PerTickValue ??
+                Math.Max(1, (int)decimal.Floor(Math.Abs(definition.ValuePerStack) * effect.Stacks));
+            effect.PerTickValue = Math.Max(currentPotency, perTickValue.Value);
         }
         var expiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
         // A shorter poison application from an ally must not cut an existing extended
         // poison short. New exposure after expiry or cleansing starts its own duration.
-        effect.ExpiresAfterRound = wasActive && definition.EffectType == "DamageOverTime"
+        effect.ExpiresAfterRound = wasActive && definition.EffectType is "DamageOverTime" or "HealOverTime"
             ? Math.Max(effect.ExpiresAfterRound, expiresAfterRound) : expiresAfterRound;
         logs.Add($"{targetLabel} 获得 {definition.Name}，持续 {application.DurationRounds} 回合{(effect.Stacks > 1 ? $"（{effect.Stacks} 层）" : "")}。");
         return true;

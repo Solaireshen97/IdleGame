@@ -11,4 +11,5 @@ public sealed class BattleStatusEffect
     public int Stacks { get; set; } = 1;
     public int AppliedRound { get; set; }
     public int ExpiresAfterRound { get; set; }
+    public int? PerTickValue { get; set; }
 }
