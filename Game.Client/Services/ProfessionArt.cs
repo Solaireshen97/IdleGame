@@ -10,35 +10,15 @@ public static class ProfessionArt
         ["mage"] = "/art/professions/mage.png",
         ["hunter"] = "/art/professions/hunter.png",
         ["rogue"] = "/art/professions/rogue.png",
-        ["knight"] = "/art/professions/knight.png",
-        ["warrior"] = "/art/professions/warrior.png",
-        ["priest"] = "/art/professions/priest.png",
-        ["inquisitor"] = "/art/professions/inquisitor.png",
-        ["elementalist"] = "/art/professions/elementalist.png",
-        ["arcanist"] = "/art/professions/arcanist.png",
-        ["marksman"] = "/art/professions/marksman.png",
-        ["beastmaster"] = "/art/professions/beastmaster.png",
-        ["assassin"] = "/art/professions/assassin.png",
-        ["trickster"] = "/art/professions/trickster.png",
     };
 
     private static readonly Dictionary<string, string> CodesByName = new(StringComparer.Ordinal)
     {
-        ["剑士"] = "swordsman",
+        ["骑士"] = "swordsman",
         ["祭司"] = "acolyte",
         ["法师"] = "mage",
         ["猎人"] = "hunter",
         ["盗贼"] = "rogue",
-        ["骑士"] = "knight",
-        ["战士"] = "warrior",
-        ["牧师"] = "priest",
-        ["审判官"] = "inquisitor",
-        ["元素使"] = "elementalist",
-        ["奥术师"] = "arcanist",
-        ["神射手"] = "marksman",
-        ["兽王"] = "beastmaster",
-        ["刺客"] = "assassin",
-        ["诡术师"] = "trickster",
     };
 
     public static string ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)

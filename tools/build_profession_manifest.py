@@ -16,13 +16,14 @@ def main() -> None:
     subjects = json.loads(SUBJECTS.read_text(encoding="utf-8"))
     professions = {item["Code"]: item for item in config["Skills"]["Professions"]}
     planned = {item["code"]: item for item in subjects}
-    if professions.keys() != planned.keys():
-        raise ValueError(f"missing={professions.keys() - planned.keys()}, extra={planned.keys() - professions.keys()}")
+    missing = professions.keys() - planned.keys()
+    if missing:
+        raise ValueError(f"missing={missing}")
 
     entries = []
-    for item in subjects:
-        profession = professions[item["code"]]
-        entries.append({"code": item["code"], "name": profession["Name"],
+    for profession in config["Skills"]["Professions"]:
+        item = planned[profession["Code"]]
+        entries.append({"code": profession["Code"], "name": profession["Name"],
                         "base": profession.get("BaseProfessionCode"),
                         "file": f"{item['code']}.png", "subject": item["subject"]})
     MANIFEST.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
