@@ -418,6 +418,8 @@ public sealed class GatheringServiceTests
                 });
             await db.SaveChangesAsync();
             var world = WorldCatalog.LoadDefault();
+            // This fixture exercises the retired elite encounter in isolation.
+            world.Dungeons.Single(item => item.Code == "elwynn-grizzled-bear").IsVisible = true;
             var materials = new MaterialCatalog(Options.Create(new MaterialOptions
             {
                 Items =

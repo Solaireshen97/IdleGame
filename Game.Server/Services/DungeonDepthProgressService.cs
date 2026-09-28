@@ -31,9 +31,20 @@ public sealed class DungeonDepthProgressService(GameDbContext db, DungeonDepthCa
 
     public async Task<int> UnlockedAsync(int userId, int dungeonId, int maximumDepth)
     {
+        var dungeon = await db.Dungeons.FindAsync(dungeonId);
+        if (dungeon is null) return 0;
         var clear = db.UserDungeonClears.Local.FirstOrDefault(item => item.UserId == userId && item.DungeonId == dungeonId)
             ?? await db.UserDungeonClears.SingleOrDefaultAsync(item => item.UserId == userId && item.DungeonId == dungeonId);
-        return Math.Min(maximumDepth, (clear?.HighestDepth ?? 0) + 1);
+        // Existing depth progress remains valid even if the new prerequisite was never recorded.
+        if (clear is { HighestDepth: > 0 }) return Math.Min(maximumDepth, clear.HighestDepth + 1);
+        var prerequisite = catalog?.Find(dungeon.Code)?.PrerequisiteDungeonCode;
+        if (string.IsNullOrWhiteSpace(prerequisite)) return 1;
+        var ordinaryId = await db.Dungeons.Where(item => item.Code == prerequisite && item.RegionCode == dungeon.RegionCode &&
+            item.DungeonKind == "Dungeon").Select(item => (int?)item.Id).SingleOrDefaultAsync();
+        if (!ordinaryId.HasValue) return 0;
+        var ordinaryClear = db.UserDungeonClears.Local.Any(item => item.UserId == userId && item.DungeonId == ordinaryId.Value) ||
+            await db.UserDungeonClears.AnyAsync(item => item.UserId == userId && item.DungeonId == ordinaryId.Value);
+        return ordinaryClear ? 1 : 0;
     }
 
     public async Task<string?> AdmissionErrorAsync(int userId, Dungeon dungeon, int depth)

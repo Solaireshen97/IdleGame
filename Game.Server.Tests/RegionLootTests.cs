@@ -27,7 +27,7 @@ public sealed class RegionLootTests
         var world = WorldCatalog.LoadDefault();
         var region = world.Regions.Single(region => region.FeaturedElement.ToString() == element);
         var challenges = world.Dungeons.Where(dungeon => dungeon.IsVisible && dungeon.RegionCode == region.Code).ToList();
-        Assert.Equal(11, challenges.Count);
+        Assert.Equal(5, challenges.Count);
         // Check the whole region, including overlaps between hunts and dungeon waves.
         var fingerprints = new Dictionary<string, string>();
 
@@ -38,6 +38,11 @@ public sealed class RegionLootTests
             {
                 var profile = string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? dungeon.Code : monster.RewardProfileCode;
                 var drops = rewards.MonsterKills[profile].Drops.Where(drop => drop.Kind == "Weapon").ToList();
+                if (dungeon.DungeonKind == "Dungeon" && dungeon.MinimumLevel < 10)
+                {
+                    Assert.Empty(drops);
+                    continue;
+                }
                 Assert.InRange(drops.Count, 2, 3);
                 Assert.Equal(drops.Count, drops.Select(drop => drop.Code).Distinct().Count());
                 Assert.All(drops, drop =>
@@ -59,13 +64,13 @@ public sealed class RegionLootTests
         }
 
         var hunts = challenges.Where(dungeon => dungeon.DungeonKind == "Hunt").OrderBy(dungeon => dungeon.SortOrder).ToList();
-        Assert.Equal(7, hunts.Count);
+        Assert.Equal(3, hunts.Count);
         var huntFingerprints = new HashSet<string>();
         var reachable = new HashSet<string>();
         for (var index = 0; index < hunts.Count; index++)
         {
             var drops = rewards.MonsterKills[hunts[index].Code].Drops.Where(drop => drop.Kind == "Weapon").ToList();
-            var expected = index < 2 ? new[] { 3m, 1m } : index < 4 ? new[] { 6m, 2m } : new[] { 10m, 4m, 2m };
+            var expected = index == 0 ? new[] { 3m, 1m } : index == 1 ? new[] { 6m, 2m } : new[] { 10m, 4m, 2m };
             Assert.Equal(expected, drops.Select(drop => drop.ChancePercent));
             Assert.True(huntFingerprints.Add(string.Join(";", drops.OrderBy(drop => drop.Code)
                 .Select(drop => $"{drop.Code}:{drop.ChancePercent}"))));

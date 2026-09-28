@@ -17,7 +17,7 @@ public class ProgressionServiceTests
 
         Assert.Equal([60, 120, 220, 350, 500, 700, 1000, 1400, 1900], settings.ExperienceToNextLevel);
         Assert.Equal(6250, settings.ExperienceToNextLevel.Sum());
-        Assert.Equal([100, 75, 40, 15, 0], settings.ExperiencePercentByLevelDifference);
+        Assert.Equal([100, 100, 100, 100, 100, 75, 40, 15, 0], settings.ExperiencePercentByLevelDifference);
     }
 
     [Fact]
@@ -55,11 +55,15 @@ public class ProgressionServiceTests
 
     [Theory]
     [InlineData(5, 5, 100)]
-    [InlineData(6, 5, 75)]
-    [InlineData(7, 5, 40)]
-    [InlineData(8, 5, 15)]
-    [InlineData(9, 5, 0)]
+    [InlineData(6, 5, 100)]
+    [InlineData(7, 5, 100)]
+    [InlineData(8, 5, 100)]
+    [InlineData(9, 5, 100)]
     [InlineData(10, 5, 0)]
+    [InlineData(6, 1, 75)]
+    [InlineData(7, 1, 40)]
+    [InlineData(8, 1, 15)]
+    [InlineData(9, 1, 0)]
     public void ApplyDungeonExperienceModifier_UsesConfiguredLevelDifference(int characterLevel, int dungeonLevel, int expected)
     {
         var progression = ProgressionTestFactory.Create();

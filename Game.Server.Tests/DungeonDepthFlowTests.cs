@@ -19,6 +19,8 @@ public sealed class DungeonDepthFlowTests
         await using var test = await Scenario.CreateAsync();
         foreach (var depth in new[] { 0, 7 })
             Assert.Equal("InvalidDungeonDepth", (await test.Rooms.CreateRoomAsync(100, null, "owner", depthLevel: depth)).Error);
+        Assert.Equal("DungeonDepthLocked", (await test.Rooms.CreateRoomAsync(100, null, "owner", depthLevel: 1)).Error);
+        await test.UnlockAsync(1, 102, 1);
         Assert.Equal("DungeonDepthLocked", (await test.Rooms.CreateRoomAsync(100, null, "owner", depthLevel: 2)).Error);
         Assert.Empty(await test.Db.Rooms.ToListAsync());
 
@@ -36,6 +38,25 @@ public sealed class DungeonDepthFlowTests
             Assert.Null((await test.Rooms.RemoveSlotAsync(room.Id, 1, "owner")).Error);
             Assert.False(await test.Db.CharacterActivities.AnyAsync(activity => activity.CharacterId == 1));
         }
+    }
+
+    [Fact]
+    public async Task OrdinaryClearUnlocksDepthOneForTheAccountButNotAnotherAccount()
+    {
+        await using var test = await Scenario.CreateAsync();
+        Assert.Equal(0, (await test.Rooms.GetDungeonAsync(100, "owner"))!.UnlockedDepth);
+        Assert.Equal("DungeonDepthLocked", (await test.Rooms.CreateRoomAsync(100, null, "owner")).Error);
+        await test.UnlockAsync(1, 102, 1);
+        (await test.Db.Users.FindAsync(1))!.ActiveCharacterId = 3;
+        (await test.Db.Characters.FindAsync(3))!.Level = 1;
+        await test.Db.SaveChangesAsync();
+        Assert.Equal(1, (await test.Rooms.GetDungeonAsync(100, "owner"))!.UnlockedDepth);
+        var room = await test.CreateRoomAsync(100, 1);
+        Assert.Equal("DungeonDepthLocked", (await test.Rooms.JoinRoomAsync(room.Id,
+            new JoinRoomRequest { SlotIndex = 2 }, "guest")).Error);
+        await test.UnlockAsync(2, 102, 1);
+        Assert.Null((await test.Rooms.JoinRoomAsync(room.Id,
+            new JoinRoomRequest { SlotIndex = 2 }, "guest")).Error);
     }
 
     [Fact]
@@ -170,9 +191,10 @@ public sealed class DungeonDepthFlowTests
             {
                 var code = $"test-content-{id}";
                 db.Dungeons.Add(new Dungeon { Id = id, Code = code, Name = $"副本{id}", DungeonKind = "Dungeon", IsVisible = true,
-                    MinimumLevel = id == 101 ? 20 : 10, RecommendedLevel = 20, SlotCount = 5, PartyScalingProfileCode = "fixed", MonsterName = "Test", MonsterMaxHp = 10, MonsterAttack = 1 });
+                    MinimumLevel = id == 101 ? 20 : id == 102 ? 8 : 10, RecommendedLevel = 20, SlotCount = 5, PartyScalingProfileCode = "fixed", MonsterName = "Test", MonsterMaxHp = 10, MonsterAttack = 1 });
                 if (id == 102) continue;
                 definitions.Dungeons[code] = new DungeonDepthDefinitionOptions { Stage = id == 101 ? 2 : 1, MaximumDepth = 6,
+                    PrerequisiteDungeonCode = "test-content-102",
                     ChallengeFragmentCode = $"t{id - 99}-universal-breakthrough-fragment", ChallengeFragmentChancePercent = 0 };
                 encounters.Dungeons[code] = [
                     new DungeonWaveOptions { Monsters = [new EncounterMonsterOptions { Name = "Guard", MaxHp = 100, Attack = 1, RewardProfileCode = "slime-field" }] },

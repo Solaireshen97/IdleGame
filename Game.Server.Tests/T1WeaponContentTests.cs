@@ -24,7 +24,7 @@ public sealed class T1WeaponContentTests
         var catalog = T1WeaponEffectTests.ProductionCatalog();
         var world = WorldCatalog.LoadDefault();
         var ordinary = world.Dungeons.Where(dungeon => dungeon.IsVisible && dungeon.DungeonKind == "Hunt").ToList();
-        Assert.Equal(42, ordinary.Count);
+        Assert.Equal(18, ordinary.Count);
         var drops = ordinary.SelectMany(dungeon => rewards.MonsterKills[dungeon.Code].Drops
             .Where(drop => drop.Kind == "Weapon")).ToList();
         var templates = drops.Select(drop => catalog.FindItem(drop.Code)!).DistinctBy(item => item.Code).ToList();

@@ -62,7 +62,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var result = new List<DungeonSummaryResponse>();
         foreach (var dungeon in dungeons)
         {
-            var canEnter = currentLevel >= dungeon.MinimumLevel;
+            var canEnter = error is null;
             var definition = _depthCatalog.Find(dungeon.Code);
             var highest = definition is not null && character is not null ? await _depthProgress.HighestAsync(character.Id, dungeon.Id) : 0;
             var mastery = Math.Min(4, highest);
@@ -87,9 +87,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 PartyHpPercentages = _partyScaling.Catalog.GetHpPercentages(dungeon.PartyScalingProfileCode).ToList(),
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
-                ExperiencePercent = progressionService.ApplyDungeonExperienceModifier(100, currentLevel, dungeon.MinimumLevel),
-                CanEnter = canEnter,
-                LockReason = canEnter ? null : $"需要角色达到 Lv.{dungeon.MinimumLevel}",
+                ExperiencePercent = progressionService.ApplyDungeonExperienceModifier(100, currentLevel, dungeon.ExperienceReferenceLevel),
+                CanEnter = canEnter && unlocked > 0,
+                LockReason = !canEnter ? "请先选择角色" : unlocked == 0 ? "账号需先通关本地区普通副本" : null,
                 MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
                 MonsterMaxHp = dungeon.MonsterMaxHp, MonsterAttack = dungeon.MonsterAttack,
                 MonsterDefense = dungeon.MonsterDefense, SlotCount = dungeon.SlotCount,
@@ -123,7 +123,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             if (depthLevel > result.UnlockedDepth)
             {
                 result.CanEnter = false;
-                result.LockReason = $"账号需要先通关深层 LV{depthLevel - 1}";
+                result.LockReason = depthLevel == 1
+                    ? "账号需先通关本地区普通副本"
+                    : $"账号需要先通关深层 LV{depthLevel - 1}";
             }
             if (encounterCatalog is not null) result.Monsters = encounterCatalog.CreateMonsters(dungeon, depthLevel)
                 .Select(monster => BuildMonsterPreview(dungeon, monster)).ToList();
@@ -153,7 +155,6 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             ? await dbContext.Dungeons.FindAsync(dungeonId.Value)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null || dungeonId.HasValue && !dungeon.IsVisible) return (null, "DungeonNotFound");
-        if (character!.Level < dungeon.MinimumLevel) return (null, "CharacterLevelTooLow");
         var depthError = await _depthProgress.AdmissionErrorAsync(user!.Id, dungeon, depthLevel);
         if (depthError is not null) return (null, depthError);
         character.Hp = TalentRules.EffectiveMaxHp(character);
@@ -225,11 +226,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             }
             return (null, "RoomClosed");
         }
-        var minimumLevel = await dbContext.Dungeons.Where(dungeon => dungeon.Id == room.DungeonId)
-            .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
-        if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
-        if (character!.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
-        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, (await dbContext.Dungeons.FindAsync(room.DungeonId))!, room.DepthLevel);
+        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
+        if (dungeon is null) return (null, "DungeonNotFound");
+        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, dungeon, room.DepthLevel);
         if (depthError is not null) return (null, depthError);
         if (room.OwnerUserId == user!.Id) return (null, "CannotJoinOwnRoom");
         if (room.Status == RoomStatus.BattleOver && (!room.IsRepeatBattle ||
@@ -351,11 +350,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == request.CharacterId);
         if (character is null) return (null, "CharacterNotFound");
         if (character.UserId != user!.Id) return (null, "NotCharacterOwner");
-        var minimumLevel = await dbContext.Dungeons.Where(dungeon => dungeon.Id == room!.DungeonId)
-            .Select(dungeon => (int?)dungeon.MinimumLevel).SingleOrDefaultAsync();
-        if (!minimumLevel.HasValue) return (null, "DungeonNotFound");
-        if (character.Level < minimumLevel.Value) return (null, "CharacterLevelTooLow");
-        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, (await dbContext.Dungeons.FindAsync(room.DungeonId))!, room.DepthLevel);
+        var dungeon = await dbContext.Dungeons.FindAsync(room!.DungeonId);
+        if (dungeon is null) return (null, "DungeonNotFound");
+        var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, dungeon, room.DepthLevel);
         if (depthError is not null) return (null, depthError);
         var existingSlot = await dbContext.RoomSlots.FirstOrDefaultAsync(x => x.CharacterId == character.Id);
         if (existingSlot is null && await dbContext.CharacterActivities.AnyAsync(activity => activity.CharacterId == character.Id))

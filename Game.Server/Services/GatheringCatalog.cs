@@ -20,7 +20,7 @@ public sealed class GatheringCatalog
                 alternatives.All(code => code != point.UnlockTargetCode && world.Dungeons.Any(item =>
                     item.Code == code && item.IsVisible &&
                     (point.UnlockKind != "DungeonClear" || item.DungeonKind == "Dungeon") &&
-                    (!point.IsRare || item.DungeonKind == "Elite")));
+                    (!point.IsRare || item.DungeonKind == "Elite" || item.DungeonKind == "Dungeon")));
             if (string.IsNullOrWhiteSpace(point.Code) || string.IsNullOrWhiteSpace(point.Name) ||
                 !_points.TryAdd(point.Code, point) ||
                 !isGlobal && !world.Regions.Any(region => region.Code == point.RegionCode) ||
@@ -31,7 +31,8 @@ public sealed class GatheringCatalog
                 point.MinimumCharacterLevel <= 0 || point.MinimumGatheringLevel <= 0 || dungeon is null || !validAlternatives ||
                 point.UnlockKind is not ("MonsterKill" or "DungeonClear") ||
                 point.UnlockKind == "DungeonClear" && dungeon.DungeonKind != "Dungeon" ||
-                point.IsRare && (point.UnlockKind != "MonsterKill" || dungeon.DungeonKind != "Elite"))
+                point.IsRare && !((point.UnlockKind == "MonsterKill" && dungeon.DungeonKind == "Elite") ||
+                    (point.UnlockKind == "DungeonClear" && dungeon.DungeonKind == "Dungeon")))
                 throw new InvalidOperationException($"Invalid gathering point: {point.Code}");
         }
     }

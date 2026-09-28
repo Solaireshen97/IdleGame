@@ -26,11 +26,11 @@ public sealed class ProgressionService
     public int? GetExperienceToNextLevel(int level) =>
         level >= _settings.MaximumLevel ? null : _settings.ExperienceToNextLevel[level - 1];
 
-    public int ApplyDungeonExperienceModifier(int reward, int characterLevel, int dungeonMinimumLevel)
+    public int ApplyDungeonExperienceModifier(int reward, int characterLevel, int experienceReferenceLevel)
     {
         if (reward < 0) throw new ArgumentOutOfRangeException(nameof(reward));
         if (reward == 0 || characterLevel >= _settings.MaximumLevel) return 0;
-        var levelDifference = Math.Max(0, characterLevel - Math.Max(1, dungeonMinimumLevel));
+        var levelDifference = Math.Max(0, characterLevel - Math.Max(1, experienceReferenceLevel));
         var index = Math.Min(levelDifference, _settings.ExperiencePercentByLevelDifference.Count - 1);
         return checked((int)((long)reward * _settings.ExperiencePercentByLevelDifference[index] / 100));
     }

@@ -42,13 +42,13 @@ public class ShopConfigurationTests
         Assert.Equal(new[] { 500, 1500, 4000 }, characterSlots.UnlockCosts);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
-        Assert.Equal(90, exchanges.Offers.Count);
+        Assert.Equal(48, exchanges.Offers.Count);
         var weaponOffers = exchanges.Offers.Where(offer => offer.RewardKind == "Weapon").ToList();
         var fragmentOffers = exchanges.Offers.Where(offer => offer.RewardKind == "Material").ToList();
-        Assert.Equal(72, weaponOffers.Count);
-        Assert.Equal(12, fragmentOffers.Count);
+        Assert.Equal(36, weaponOffers.Count);
+        Assert.Equal(6, fragmentOffers.Count);
         Assert.Equal(6, weaponOffers.Select(offer => weapons.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
-        Assert.Equal(12, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
+        Assert.Equal(6, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
         Assert.All(exchanges.Offers.GroupBy(offer => offer.DungeonCode), group =>
         {
             Assert.Equal(6, group.Where(offer => offer.RewardKind == "Weapon")

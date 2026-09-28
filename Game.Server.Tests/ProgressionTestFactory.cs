@@ -10,6 +10,6 @@ internal static class ProgressionTestFactory
     {
         MaximumLevel = 10,
         ExperienceToNextLevel = [20, 30, 40, 50, 60, 70, 80, 90, 100],
-        ExperiencePercentByLevelDifference = [100, 75, 40, 15, 0]
+        ExperiencePercentByLevelDifference = [100, 100, 100, 100, 100, 75, 40, 15, 0]
     }));
 }

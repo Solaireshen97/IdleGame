@@ -75,9 +75,9 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualCharacterIds,
                 BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
-            if (dungeon.DungeonKind == "Elite" && rareSeeds is not null)
+            if ((dungeon.DungeonKind is "Elite" or "Dungeon") && rareSeeds is not null)
                 await rareSeeds.RecordDropsAsync(room, dungeon.Code, participants, actualCharacterIds);
-            if (dungeon.DungeonKind == "Elite" && gatheringOpportunities is not null)
+            if ((dungeon.DungeonKind is "Elite" or "Dungeon") && gatheringOpportunities is not null)
             {
                 var names = participants.DistinctBy(participant => participant.Character.Id)
                     .ToDictionary(participant => participant.Character.Id, participant => participant.Character.Name);

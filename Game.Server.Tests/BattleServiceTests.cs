@@ -655,18 +655,18 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
-        Assert.Equal(4, test.Character.Experience);
-        Assert.Contains(victory.Logs, log => log.Contains("获得 4 点经验值"));
-        Assert.Equal(4, await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").SumAsync(entry => entry.Quantity));
+        Assert.Equal(10, test.Character.Experience);
+        Assert.Contains(victory.Logs, log => log.Contains("获得 10 点经验值"));
+        Assert.Equal(10, await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").SumAsync(entry => entry.Quantity));
         var detail = await test.GetRoomDetailAsync();
-        Assert.Equal(4, detail!.Rewards!.Experience);
+        Assert.Equal(10, detail!.Rewards!.Experience);
     }
 
     [Fact]
-    public async Task VictoryExperienceIsRemovedWhenDungeonIsFourLevelsBelowCharacter()
+    public async Task VictoryExperienceIsRemovedWhenDungeonIsEightLevelsBelowCharacter()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
-        test.Character.Level = 5;
+        test.Character.Level = 9;
         await test.Db.SaveChangesAsync();
 
         var (victory, error) = await test.Service.StartPreparationAsync(1, test.Token);

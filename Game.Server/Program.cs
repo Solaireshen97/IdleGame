@@ -105,6 +105,10 @@ using (var scope = app.Services.CreateScope())
     foreach (var dungeon in world.Dungeons)
     {
         if (depthCatalog.Find(dungeon.Code) is not { } depth) continue;
+        if (!string.IsNullOrWhiteSpace(depth.PrerequisiteDungeonCode) && !world.Dungeons.Any(candidate =>
+            candidate.Code == depth.PrerequisiteDungeonCode && candidate.RegionCode == dungeon.RegionCode &&
+            candidate.DungeonKind == "Dungeon" && candidate.IsVisible && depthCatalog.Find(candidate.Code) is null))
+            throw new InvalidOperationException($"Invalid ordinary dungeon prerequisite for {dungeon.Code}: {depth.PrerequisiteDungeonCode}");
         depthCatalog.ValidateStats(dungeon.Code, dungeon.MonsterMaxHp, dungeon.MonsterAttack, dungeon.MonsterName);
         if (materials.FindItem(depth.ChallengeFragmentCode) is null)
             throw new InvalidOperationException($"Unknown challenge fragment for {dungeon.Code}: {depth.ChallengeFragmentCode}");

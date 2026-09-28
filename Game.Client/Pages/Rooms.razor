@@ -114,7 +114,6 @@ else
                 <div class="lobby-segments" role="group" aria-label="筛选挑战类型">
                     <button type="button" class="@(_dungeonKind == "" ? "active" : null)" aria-pressed="@(_dungeonKind == "" ? "true" : "false")" @onclick='() => SetDungeonKind("")'>全部</button>
                     <button type="button" class="@(_dungeonKind == "Hunt" ? "active" : null)" aria-pressed="@(_dungeonKind == "Hunt" ? "true" : "false")" @onclick='() => SetDungeonKind("Hunt")'>讨伐</button>
-                    <button type="button" class="@(_dungeonKind == "Elite" ? "active" : null)" aria-pressed="@(_dungeonKind == "Elite" ? "true" : "false")" @onclick='() => SetDungeonKind("Elite")'>精英</button>
                     <button type="button" class="@(_dungeonKind == "Dungeon" ? "active" : null)" aria-pressed="@(_dungeonKind == "Dungeon" ? "true" : "false")" @onclick='() => SetDungeonKind("Dungeon")'>副本</button>
                 </div>
                 <label><input type="checkbox" checked="@_onlyAvailable" @onchange="ToggleAvailable" />可挑战</label>
@@ -123,10 +122,10 @@ else
                 @foreach (var dungeon in FilteredDungeons.Skip((Math.Clamp(CurrentPage, 1, PageCount) - 1) * PageSize).Take(PageSize))
                 {
                     <button type="button" id="dungeon-@dungeon.DungeonId" @key="dungeon.DungeonId" class="dungeon-card @(!dungeon.CanEnter ? "dungeon-card--locked" : null)" aria-haspopup="dialog" @onclick="() => SelectDungeon(dungeon.DungeonId)">
-                        <span class="dungeon-card__topline"><span>@DungeonKindName(dungeon.DungeonKind)</span><span class="level-badge @(dungeon.CanEnter ? null : "level-badge--locked")">Lv.@dungeon.MinimumLevel</span></span>
+                        <span class="dungeon-card__topline"><span>@DungeonKindName(dungeon.DungeonKind)</span><span class="level-badge">推荐 Lv.@dungeon.RecommendedLevel</span></span>
                         <strong>@dungeon.Name</strong>
                         <span class="dungeon-card__summary">@dungeon.WaveCount 波 · @dungeon.MonsterCount 名敌人 @(dungeon.SupportsDepths ? $"· T{dungeon.Stage} 深层" : "")</span>
-                        <span class="dungeon-card__bottom"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><small>@(!dungeon.CanEnter ? "等级未达标 ›" : dungeon.IsClearedByCurrentUser ? "已通关 ›" : "查看挑战 ›")</small></span>
+                        <span class="dungeon-card__bottom"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><small>@(!dungeon.CanEnter ? "需要解锁 ›" : dungeon.IsClearedByCurrentUser ? "已通关 ›" : "查看挑战 ›")</small></span>
                     </button>
                 }
                 @if (ResultCount == 0)
@@ -148,7 +147,7 @@ else
     <div class="lobby-info-overlay" @onclick="CloseRegionInfo" @onkeydown="HandleRegionKey">
         <section class="lobby-info-dialog" role="dialog" aria-modal="true" aria-labelledby="region-info-title" @ref="_regionDialog" @onclick:stopPropagation>
             <header><div><span class="section-kicker">REGION GUIDE</span><h2 id="region-info-title">@info.Name</h2></div><button type="button" @ref="_regionClose" @onclick="CloseRegionInfo" aria-label="关闭地区情报">×</button></header>
-            <div class="lobby-info-body"><p>@info.Description</p><dl><div><dt>推荐等级</dt><dd>Lv.@info.MinimumLevel–@info.MaximumLevel</dd></div><div><dt>地区属性</dt><dd>@WeaponRules.ElementName(info.FeaturedElement)</dd></div><div><dt>特色副本</dt><dd>@info.FeaturedDungeonName</dd></div><div><dt>专属武器</dt><dd>@info.FeaturedWeaponName</dd></div></dl></div>
+            <div class="lobby-info-body"><p>@info.Description</p><dl><div><dt>推荐等级</dt><dd>Lv.@info.MinimumLevel–@info.MaximumLevel</dd></div><div><dt>地区属性</dt><dd>@WeaponRules.ElementName(info.FeaturedElement)</dd></div><div><dt>组队试炼</dt><dd>@info.FeaturedDungeonName</dd></div></dl></div>
             <footer><button type="button" class="button button--primary" @onclick="CloseRegionInfo">返回挑战列表</button></footer>
         </section>
     </div>
@@ -321,7 +320,6 @@ else
             _message = errorMessage?.Trim().Trim('"') switch
             {
                 "CharacterAlreadyBusy" => "当前角色已在另一个战斗中，请先离开原房间。",
-                "CharacterLevelTooLow" => _selectedDungeon.LockReason ?? "当前角色等级不足。",
                 "DungeonDepthLocked" => "账号尚未开放所选层级，请先通关前一层。",
                 "InvalidDungeonDepth" => "所选层级暂未开放，请重新选择。",
                 _ => errorMessage ?? "创建房间失败。"

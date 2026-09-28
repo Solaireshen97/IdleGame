@@ -148,7 +148,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             if (experienceEntries.Count == 0) continue;
             var baseExperience = experienceEntries.Sum(entry => entry.Quantity);
             var adjustedExperience = progression.ApplyDungeonExperienceModifier(
-                baseExperience, characters[group.Key].Level, dungeon.MinimumLevel);
+                baseExperience, characters[group.Key].Level, dungeon.ExperienceReferenceLevel);
             if (adjustedExperience == baseExperience) continue;
 
             for (var index = 0; index < experienceEntries.Count; index++)

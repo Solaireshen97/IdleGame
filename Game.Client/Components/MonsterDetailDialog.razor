@@ -13,7 +13,7 @@
             <div>
                 <span class="monster-detail-kicker">@CurrentDungeon.RegionName <span> / @(CurrentDungeon.SupportsDepths ? $"T{CurrentDungeon.Stage} 深层副本" : "冒险准备")</span></span>
                 <h2 id="monster-detail-title">@DungeonTitle</h2>
-                <p><span>@CurrentDungeon.WaveCount 波 · @CurrentDungeon.MonsterCount 名敌人</span><span>角色 Lv.@CurrentDungeon.MinimumLevel 起</span></p>
+                <p><span>@CurrentDungeon.WaveCount 波 · @CurrentDungeon.MonsterCount 名敌人</span><span>推荐 Lv.@CurrentDungeon.RecommendedLevel</span></p>
             </div>
             @if (FeaturedMonster is { } featured)
             {
