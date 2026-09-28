@@ -27,7 +27,7 @@ public sealed class SkillProgressionProductionTests
             var levelTen = catalog.SkillsForProfessionAtLevel(profession.Code, 10);
             var levelThirty = catalog.SkillsForProfessionAtLevel(profession.Code, 30);
             Assert.NotEmpty(levelOne);
-            Assert.Equal(profession.Code == "swordsman" ? 4 : 5, levelTen.Count);
+            Assert.Equal(5, levelTen.Count);
             Assert.Equal(levelTen.Count, levelThirty.Count);
             Assert.Contains(levelThirty, skill => skill.Code == profession.SharedSkillCode);
             Assert.All(levelThirty, skill =>
@@ -40,6 +40,68 @@ public sealed class SkillProgressionProductionTests
             });
         }
     }
+
+    [Fact]
+    public void KnightCatalogHasFiveSkillsWithExactRankProgressionAndSharedRebuke()
+    {
+        var catalog = LoadProductionCatalog();
+        var knight = catalog.FindProfession("swordsman")!;
+        Assert.Equal(new[] { "sword-slash" }, knight.StartingSkills);
+        Assert.Equal("knight-rebuke", knight.SharedSkillCode);
+        Assert.Equal("信仰壁垒", catalog.FindSkill("knight-faith-barrier")!.Name);
+        Assert.Equal("责难", catalog.FindSkill("knight-rebuke")!.Name);
+
+        var expected = new[]
+        {
+            (Code: "sword-slash", Unlock: 1, Rank2: 12, Rank3: 22, Initial: 1, Cooldown: 3),
+            (Code: "knight-faith-barrier", Unlock: 3, Rank2: 14, Rank3: 24, Initial: 0, Cooldown: 5),
+            (Code: "knight-rebuke", Unlock: 5, Rank2: 16, Rank3: 26, Initial: 0, Cooldown: 4),
+            (Code: "knight-invigorate", Unlock: 7, Rank2: 18, Rank3: 28, Initial: 2, Cooldown: 5),
+            (Code: "knight-holy-aura", Unlock: 10, Rank2: 20, Rank3: 30, Initial: 3, Cooldown: 6)
+        };
+        foreach (var item in expected)
+        {
+            var skill = catalog.FindSkill(item.Code)!;
+            Assert.Equal((item.Unlock, item.Rank2, item.Rank3),
+                (skill.UnlockLevel, skill.Level2UnlockLevel, skill.Level3UnlockLevel));
+            Assert.Equal((item.Initial, item.Cooldown), (skill.InitialCooldownRounds, skill.CooldownRounds));
+            Assert.DoesNotContain(catalog.SkillsForProfessionAtLevel("swordsman", item.Unlock - 1),
+                candidate => candidate.Code == item.Code);
+            Assert.Equal(1, SkillCatalog.RankFor(skill, item.Rank2 - 1));
+            Assert.Equal(2, SkillCatalog.RankFor(skill, item.Rank2));
+            Assert.Equal(3, SkillCatalog.RankFor(skill, item.Rank3));
+        }
+
+        var rank1 = catalog.SkillsForProfessionAtLevel("swordsman", 10).ToDictionary(skill => skill.Code);
+        var rank2 = catalog.SkillsForProfessionAtLevel("swordsman", 20).ToDictionary(skill => skill.Code);
+        var rank3 = catalog.SkillsForProfessionAtLevel("swordsman", 30).ToDictionary(skill => skill.Code);
+        Assert.Equal(50, Effect(rank1["sword-slash"], "Damage").AttackPowerPercent);
+        Assert.Equal(60, Effect(rank2["sword-slash"], "Damage").AttackPowerPercent);
+        Assert.Equal(15, Effect(rank3["sword-slash"], "Guard").Power);
+        Assert.Equal(10, Effect(rank1["knight-faith-barrier"], "Guard", "AllAlive").Power);
+        Assert.Equal(15, Effect(rank2["knight-faith-barrier"], "Guard", "AllAlive").Power);
+        Assert.Equal(4, rank3["knight-faith-barrier"].CooldownRounds);
+        Assert.Equal(30, Effect(rank1["knight-rebuke"], "Damage").AttackPowerPercent);
+        Assert.Equal(40, Effect(rank2["knight-rebuke"], "Damage").AttackPowerPercent);
+        Assert.Equal(50, Effect(rank3["knight-rebuke"], "Damage").AttackPowerPercent);
+        Assert.Equal("PreferInterrupt", rank3["knight-rebuke"].AutoCondition);
+        Assert.Equal(8, Effect(rank1["knight-invigorate"], "Heal", "LowestHpAllyFixed").HealMaxHpPercent);
+        Assert.Equal(10, Effect(rank2["knight-invigorate"], "Heal", "LowestHpAllyFixed").HealMaxHpPercent);
+        Assert.Equal(4, rank3["knight-invigorate"].CooldownRounds);
+        Assert.Equal(20, Effect(rank1["knight-holy-aura"], "ApplyStatus", "Monster").AttackPowerPercent);
+        Assert.Equal(6, Effect(rank2["knight-holy-aura"], "ApplyStatus", "AllAlive").HealMaxHpPercent);
+        Assert.Equal(30, Effect(rank3["knight-holy-aura"], "ApplyStatus", "Monster").AttackPowerPercent);
+
+        var sharedOwner = new Character { ProfessionCode = "mage", Level = 10 };
+        var shared = catalog.ResolveSkillForLevel(sharedOwner, "knight-rebuke",
+            new Dictionary<string, int> { ["swordsman"] = 30 })!;
+        Assert.Equal(10, Effect(shared, "Damage").AttackPowerPercent);
+        Assert.Equal("InterruptibleIntent", shared.AutoCondition);
+    }
+
+    private static CombatSkillEffectOptions Effect(CombatSkillOptions skill, string type, string? target = null) =>
+        Assert.Single(SkillCatalog.EffectsFor(skill), effect => effect.Type == type &&
+            (target is null || effect.Target == target));
 
     [Fact]
     public async Task SkillsUnlockWithoutTalentPurchasesAndExposeRankAndInitialCooldown()
@@ -77,7 +139,7 @@ public sealed class SkillProgressionProductionTests
         Assert.Equal(2, locked.SharedSkills.Count);
         Assert.All(locked.SharedSkills, skill => Assert.False(skill.CanEquip));
         Assert.Equal("SkillNotLearned", (await test.Service.SetSlotAsync("token", 1, 1,
-            new SetSkillSlotRequest { SkillCode = "sword-intercept" })).Error);
+            new SetSkillSlotRequest { SkillCode = "knight-rebuke" })).Error);
         Assert.Empty((await test.Service.GetAsync("token", 2)).Response!.SharedSkills);
 
         test.Character.Level = 10;
@@ -85,11 +147,11 @@ public sealed class SkillProgressionProductionTests
         Assert.All((await test.Service.GetAsync("token", 1)).Response!.SharedSkills,
             skill => Assert.True(skill.CanEquip));
         Assert.Null((await test.Service.SetSlotAsync("token", 1, 1,
-            new SetSkillSlotRequest { SkillCode = "sword-intercept" })).Error);
+            new SetSkillSlotRequest { SkillCode = "knight-rebuke" })).Error);
         Assert.Equal("SharedSkillLimitReached", (await test.Service.SetSlotAsync("token", 1, 2,
             new SetSkillSlotRequest { SkillCode = "hunter-rapid-volley" })).Error);
         Assert.Contains((await test.Service.GetAsync("token", 1)).Response!.Slots,
-            slot => slot.SkillCode == "sword-intercept");
+            slot => slot.SkillCode == "knight-rebuke");
     }
 
     private static SkillCatalog LoadProductionCatalog()
