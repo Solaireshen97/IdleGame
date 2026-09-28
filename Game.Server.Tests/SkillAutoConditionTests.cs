@@ -134,11 +134,15 @@ public partial class BattleServiceTests
     public async Task AutoConditionFollowsSkillWhenSwappedAndIsClearedWhenUnequipped()
     {
         await using var test = await BattleTestContext.CreateAsync();
+        test.Character.ProfessionCode = "knight";
+        test.Character.Level = 3;
         var settings = MakeSkillSettingsService(test.Db);
-        await settings.SetSlotAsync(test.Token, 1, 1, new SetSkillSlotRequest
+        var (_, firstError) = await settings.SetSlotAsync(test.Token, 1, 1, new SetSkillSlotRequest
             { SkillCode = "knight-strike", AutoUseEnabled = true, AutoConditionOverride = "MonsterHpBelowThreshold", AutoHpThresholdPercent = 35 });
-        await settings.SetSlotAsync(test.Token, 1, 2, new SetSkillSlotRequest
+        var (_, secondError) = await settings.SetSlotAsync(test.Token, 1, 2, new SetSkillSlotRequest
             { SkillCode = "knight-guard", AutoUseEnabled = false, AutoConditionOverride = "SelfHpBelowThreshold", AutoHpThresholdPercent = 65 });
+        Assert.Null(firstError);
+        Assert.Null(secondError);
 
         var (swapped, error) = await settings.SwapSlotsAsync(test.Token, 1,
             new SwapSkillSlotsRequest { FromSlotIndex = 1, ToSlotIndex = 2 });

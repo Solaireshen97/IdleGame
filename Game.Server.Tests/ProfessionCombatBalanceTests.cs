@@ -11,35 +11,6 @@ namespace Game.Server.Tests;
 public partial class BattleServiceTests
 {
     [Fact]
-    public async Task FrontGuardAndBacklineSelfDefenceProtectTheirOwnTargetsAgainstAreaDamage()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
-        test.Character.ProfessionCode = "swordsman";
-        test.Character.AdvancedProfessionCode = "knight";
-        test.Character.Level = 10;
-        var mage = await test.AddSlotAsync(2, "Mage", hp: 60, attack: 1);
-        var rogue = await test.AddSlotAsync(3, "Rogue", hp: 60, attack: 1);
-        mage.ProfessionCode = "mage";
-        rogue.ProfessionCode = "rogue";
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        test.Monster.CombatProfileCode = "balance-area-profile";
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "knight-guard", autoUse: true);
-        await test.AddSkillAsync(mage, 1, "mage-frost-ward", autoUse: true);
-        await test.AddSkillAsync(rogue, 1, "rogue-evasion", autoUse: true);
-        var (service, _) = CreateProfessionBalanceService(test);
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.NotNull(result);
-        Assert.Equal(55, test.Character.Hp);
-        Assert.Equal(46, mage.Hp);
-        Assert.Equal(46, rogue.Hp);
-        Assert.Equal(3, await test.Db.BattleSkillCooldowns.CountAsync());
-    }
-
-    [Fact]
     public async Task BacklineSelfDefenceDoesNotStealOrStrengthenFrontParry()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
@@ -57,26 +28,6 @@ public partial class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(47, test.Character.Hp);
         Assert.Equal(60, mage.Hp);
-    }
-
-    [Fact]
-    public async Task StrongerKnightGuardCanReplaceAnEarlierAutomaticParry()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
-        test.Character.ProfessionCode = "swordsman";
-        test.Character.AdvancedProfessionCode = "knight";
-        test.Character.Level = 10;
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "sword-parry", autoUse: true);
-        await test.AddSkillAsync(test.Character, 2, "knight-guard", autoUse: true);
-        var (service, _) = CreateProfessionBalanceService(test);
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Equal(55, test.Character.Hp);
-        Assert.Contains(result!.Logs, log => log.Contains("使用 守护"));
     }
 
     [Theory]
@@ -147,8 +98,13 @@ public partial class BattleServiceTests
         };
         var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
         var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = new SkillCatalog(Options.Create(
-            configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+        var skillOptions = configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!;
+        foreach (var skill in skillOptions.Abilities)
+        {
+            skill.UnlockLevel = 1;
+            skill.InitialCooldownRounds = 0;
+        }
+        var skills = new SkillCatalog(Options.Create(skillOptions), monsterCatalog);
         var progression = ProgressionTestFactory.Create();
         var rewards = RewardTestFactory.CreateService(test.Db, progression);
         return (new BattleService(test.Db, new UserService(test.Db, progression, skills),

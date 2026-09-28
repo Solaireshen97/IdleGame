@@ -132,22 +132,16 @@ public partial class BattleServiceTests
         };
         var monsters = new MonsterCombatCatalog(Options.Create(monsterOptions));
         var monsterCombat = new MonsterCombatService(test.Db, monsters);
-        var skills = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);
+        var skills = CreateImmediateProductionSkills(configuration, monsters);
         var skill = skills.FindSkill(skillCode)!;
         test.Character.ProfessionCode = skill.ProfessionCode;
         test.Character.Level = 10;
-        test.Character.TalentPoints = 9;
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         test.Monster.CombatProfileCode = "manual-interrupt-probe";
         await test.Db.SaveChangesAsync();
 
         var progression = ProgressionTestFactory.Create();
         var userService = new UserService(test.Db, progression, skills);
-        var skillService = new SkillService(test.Db, userService, skills);
-        foreach (var root in skills.TalentNodesForProfession(skill.ProfessionCode).Where(node => node.Tier == 1))
-            Assert.Null((await skillService.UnlockTalentNodeAsync(test.Token, test.Character.Id, root.Code)).Error);
-        var unlock = skills.TalentNodesForProfession(skill.ProfessionCode).Single(node => node.SkillCode == skillCode);
-        Assert.Null((await skillService.UnlockTalentNodeAsync(test.Token, test.Character.Id, unlock.Code)).Error);
         await test.AddSkillAsync(test.Character, 1, skillCode, autoUse);
 
         var intent = await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);

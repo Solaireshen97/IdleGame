@@ -148,7 +148,7 @@ else
     private int? _deletingCharacterId;
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
-    private string _newProfessionCode = "swordsman";
+    private string _newProfessionCode = string.Empty;
     private string? _message;
     private bool _isMessageError;
     private CharacterOperation? _activeOperation;
@@ -224,7 +224,7 @@ else
         _isCreating = true;
         ClearMessage();
         _newCharacterName = string.Empty;
-        _newProfessionCode = _professions.FirstOrDefault()?.Code ?? "swordsman";
+        _newProfessionCode = _professions.FirstOrDefault()?.Code ?? string.Empty;
     }
 
     private void CancelCreate()

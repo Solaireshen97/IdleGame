@@ -654,11 +654,30 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
     }
 
-    public Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> GetCharacterTalentsAsync(int characterId) =>
-        SendTalentRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/talents");
-
     public async Task<List<ProfessionResponse>?> GetProfessionsAsync() =>
         await httpClient.GetFromJsonAsync<List<ProfessionResponse>>("api/skills/professions");
+
+    public Task<(CharacterCombatProfessionsResponse? Response, string? ErrorMessage)> GetCharacterProfessionsAsync(int characterId) =>
+        SendCharacterProfessionRequestAsync(HttpMethod.Get, $"api/skills/professions/{characterId}");
+
+    public Task<(CharacterCombatProfessionsResponse? Response, string? ErrorMessage)> SwitchCharacterProfessionAsync(int characterId, string professionCode) =>
+        SendCharacterProfessionRequestAsync(HttpMethod.Post, $"api/skills/professions/{characterId}/switch",
+            new SwitchCombatProfessionRequest { ProfessionCode = professionCode });
+
+    private async Task<(CharacterCombatProfessionsResponse? Response, string? ErrorMessage)> SendCharacterProfessionRequestAsync(
+        HttpMethod method, string url, object? body = null)
+    {
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        using var response = await httpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            var error = await response.Content.ReadAsStringAsync();
+            return (null, string.IsNullOrWhiteSpace(error) ? "职业操作失败。" : error.Trim().Trim('"'));
+        }
+        return (await response.Content.ReadFromJsonAsync<CharacterCombatProfessionsResponse>(), null);
+    }
 
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> GetCharacterSkillsAsync(int characterId) =>
         SendSkillRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/skills");
@@ -881,21 +900,6 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             return (null, string.IsNullOrWhiteSpace(error) ? "补给操作失败。" : error);
         }
         return (await response.Content.ReadFromJsonAsync<CharacterConsumablesResponse>(), null);
-    }
-
-    private async Task<(CharacterTalentsResponse? Response, string? ErrorMessage)> SendTalentRequestAsync(HttpMethod method, string url)
-    {
-        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-                await userSessionService.ClearToken();
-            var error = await response.Content.ReadAsStringAsync();
-            return (null, string.IsNullOrWhiteSpace(error) ? "天赋操作失败。" : error);
-        }
-
-        return (await response.Content.ReadFromJsonAsync<CharacterTalentsResponse>(), null);
     }
 
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> SelectCurrentCharacterAsync(int characterId)

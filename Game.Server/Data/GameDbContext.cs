@@ -7,6 +7,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Character> Characters => Set<Character>();
+    public DbSet<CharacterCombatProfession> CharacterCombatProfessions => Set<CharacterCombatProfession>();
     public DbSet<CharacterActivity> CharacterActivities => Set<CharacterActivity>();
     public DbSet<CharacterBattleMilestone> CharacterBattleMilestones => Set<CharacterBattleMilestone>();
     public DbSet<CharacterGatheringOpportunity> CharacterGatheringOpportunities => Set<CharacterGatheringOpportunity>();
@@ -45,6 +46,11 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CharacterCombatProfession>().HasKey(item => new { item.CharacterId, item.ProfessionCode });
+        modelBuilder.Entity<CharacterCombatProfession>().HasOne<Character>().WithMany()
+            .HasForeignKey(item => item.CharacterId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CharacterCombatProfession>().ToTable(table => table.HasCheckConstraint(
+            "CK_CharacterCombatProfessions_Progress", "Level BETWEEN 1 AND 30 AND Experience >= 0"));
         modelBuilder.Entity<CharacterDungeonProgress>().HasKey(item => new { item.CharacterId, item.DungeonId });
         modelBuilder.Entity<CharacterDungeonProgress>().Property(item => item.Version).IsConcurrencyToken();
         modelBuilder.Entity<CharacterDungeonProgress>().ToTable(table => table.HasCheckConstraint(

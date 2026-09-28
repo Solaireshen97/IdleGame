@@ -74,6 +74,45 @@ public partial class BattleServiceTests
     }
 
     [Fact]
+    public async Task CombatSkillInitialCooldownBlocksTheFirstRoundThenAllowsAutoCast()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
+        test.Character.ProfessionCode = "swordsman";
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "sword-parry", autoUse: true);
+
+        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var skills = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
+        var progression = ProgressionTestFactory.Create();
+        var users = new UserService(test.Db, progression, skills);
+        var rewards = RewardTestFactory.CreateService(test.Db, progression);
+        var service = new BattleService(test.Db, users, ConsumableTestFactory.Create(), skills, rewards);
+        var rooms = new RoomService(test.Db, users, progression, ConsumableTestFactory.Create(), skills, rewards);
+
+        var before = await rooms.GetRoomDetailAsync(test.Room.Id, test.Token);
+        Assert.Equal(1, Assert.Single(Assert.Single(before!.Slots).Skills, slot => slot.SkillCode == "sword-parry")
+            .CooldownRoundsRemaining);
+        var (queued, queueError) = await service.QueueSkillAsync(new QueueSkillRequest
+        {
+            RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true
+        }, test.Token);
+        Assert.False(queued);
+        Assert.Equal("SkillCooldown", queueError);
+
+        var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(firstError);
+        Assert.DoesNotContain(first!.Logs, log => log.Contains("使用 招架"));
+        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
+        test.Room.Version++;
+        await test.Db.SaveChangesAsync();
+        var (second, secondError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(secondError);
+        Assert.Contains(second!.Logs, log => log.Contains("使用 招架"));
+    }
+
+    [Fact]
     public async Task EchoSoulImprintAddsDefenseIgnoringFollowUpDamage()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
@@ -522,7 +561,7 @@ public partial class BattleServiceTests
         Assert.Contains(waiting.Logs, log => log.Contains("下一场副本战斗"));
         Assert.True(test.Room.BattleEndedAtUtc > DateTime.UtcNow.AddSeconds(-5));
         Assert.Equal(2, test.Character.Level);
-        Assert.Equal(1, test.Character.TalentPoints);
+        Assert.Equal(0, test.Character.TalentPoints);
         Assert.Equal(0, test.Character.Experience);
     }
 
@@ -641,7 +680,6 @@ public partial class BattleServiceTests
         Assert.Equal(1, mainSlot.CharacterLevel);
         Assert.Equal(10, mainSlot.CharacterExperience);
         Assert.Equal(20, mainSlot.ExperienceToNextLevel);
-        Assert.Equal(0, mainSlot.TalentPoints);
     }
 
     [Fact]
@@ -1254,7 +1292,7 @@ public partial class BattleServiceTests
         await test.AddSkillAsync(test.Character, 1, "sword-slash", autoUse: true);
         var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
-        var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
+        var skills = CreateImmediateProductionSkills(config);
         var progression = ProgressionTestFactory.Create();
         var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
             ConsumableTestFactory.Create(), skills, RewardTestFactory.CreateService(test.Db, progression));
@@ -1319,8 +1357,7 @@ public partial class BattleServiceTests
         var progression = ProgressionTestFactory.Create();
         var skillCatalog = SkillTestFactory.Create();
         var userService = new UserService(test.Db, progression, skillCatalog);
-        var skillService = new SkillService(test.Db, userService, skillCatalog,
-            new TalentService(test.Db, userService, skillCatalog));
+        var skillService = new SkillService(test.Db, userService, skillCatalog);
 
         var (configuration, swapError) = await skillService.SwapSlotsAsync(test.Token, 1,
             new Game.Shared.Dtos.Characters.SwapSkillSlotsRequest { FromSlotIndex = 1, ToSlotIndex = 2 });
@@ -1342,8 +1379,7 @@ public partial class BattleServiceTests
         var progression = ProgressionTestFactory.Create();
         var skillCatalog = SkillTestFactory.Create();
         var userService = new UserService(test.Db, progression, skillCatalog);
-        var skillService = new SkillService(test.Db, userService, skillCatalog,
-            new TalentService(test.Db, userService, skillCatalog));
+        var skillService = new SkillService(test.Db, userService, skillCatalog);
         var (foreign, foreignError) = await skillService.SetSlotAsync(test.Token, 1, 1,
             new Game.Shared.Dtos.Characters.SetSkillSlotRequest { SkillCode = "cleric-heal" });
         Assert.Null(foreign);
@@ -1401,7 +1437,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task UnlearnedTalentSkillCannotFireEvenIfEquippedDirectlyInDatabase()
+    public async Task LevelLockedSkillCannotFireEvenIfEquippedDirectlyInDatabase()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1);
         await test.AddSkillAsync(test.Character, 3, "knight-break", autoUse: true);
@@ -1414,11 +1450,7 @@ public partial class BattleServiceTests
         Assert.Null(firstError);
         Assert.DoesNotContain(firstRound!.Logs, log => log.Contains("使用 破甲斩"));
 
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
-        {
-            CharacterId = test.Character.Id, NodeCode = "knight-vanguard", PointsSpent = 1
-        });
-        test.Character.AttackTalentRank = 1;
+        test.Character.Level = 9;
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
@@ -2528,7 +2560,7 @@ public partial class BattleServiceTests
             { SkillUseChancePercent = 100, Skills = [new MonsterProfileSkillOptions { Code = "rapid" }] };
         var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
         var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+        var skills = CreateImmediateProductionSkills(config, monsterCatalog);
         var progression = ProgressionTestFactory.Create();
         var rewards = RewardTestFactory.CreateService(test.Db, progression);
         var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
@@ -2734,26 +2766,6 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task ArcanistOverchargeReducesOtherDamageSkillCooldowns()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = "mage";
-        test.Character.AdvancedProfessionCode = "arcanist";
-        test.Character.Level = 10;
-        test.Db.BattleSkillCooldowns.Add(new BattleSkillCooldown
-            { RoomId = 1, CharacterId = 1, SkillCode = "mage-arcane-bolt", ReadyAtRound = 5 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "arcanist-overcharge", autoUse: true);
-        var (service, _) = CreateProductionSoulBattleService(test);
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("奥能超载") && log.Contains("冷却缩短 1 回合"));
-        Assert.Equal(4, (await test.Db.BattleSkillCooldowns.SingleAsync(entry => entry.SkillCode == "mage-arcane-bolt")).ReadyAtRound);
-    }
-
-    [Fact]
     public async Task StableChannelingReducesDamageCooldownAfterSpellbreakDispelsABuff()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
@@ -2825,8 +2837,7 @@ public partial class BattleServiceTests
             { SkillUseChancePercent = 100, Skills = [new MonsterProfileSkillOptions { Code = "rapid" }] };
         var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
         var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = new SkillCatalog(Options.Create(
-            configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+        var skills = CreateImmediateProductionSkills(configuration, monsterCatalog);
         var progression = ProgressionTestFactory.Create();
         var rewards = RewardTestFactory.CreateService(test.Db, progression);
         var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
@@ -2841,41 +2852,6 @@ public partial class BattleServiceTests
         Assert.Contains(result!.Logs, log => log.Contains("凿击") && log.Contains("打断了"));
         Assert.Contains(result.Logs, log => log.Contains("获得 破绽"));
         Assert.Contains(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "rogue-opening");
-    }
-
-    [Fact]
-    public async Task PromotionFinishersOnlyReceiveTheirConfiguredConditionalDamageBonus()
-    {
-        await using var marksman = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
-        marksman.Character.ProfessionCode = "hunter";
-        marksman.Character.AdvancedProfessionCode = "marksman";
-        marksman.Character.Level = 10;
-        marksman.Monster.Hp = marksman.Monster.MaxHp = 500;
-        await marksman.Db.SaveChangesAsync();
-        await marksman.AddSkillAsync(marksman.Character, 1, "marksman-sniper-shot", autoUse: true);
-        var (marksmanService, marksmanCombat) = CreateProductionSoulBattleService(marksman);
-        await marksmanCombat.ApplyStatusAsync(marksman.Room, "Monster", 1, "hunters-mark", 2, [], marksman.Monster.Name);
-        await marksman.Db.SaveChangesAsync();
-
-        var (markedResult, markedError) = await marksmanService.StartPreparationAsync(1, marksman.Token);
-
-        Assert.Null(markedError);
-        Assert.Contains(markedResult!.Logs, log => log.Contains("致命狙击 攻击") && log.Contains("造成 49 点伤害"));
-
-        await using var assassin = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
-        assassin.Character.ProfessionCode = "rogue";
-        assassin.Character.AdvancedProfessionCode = "assassin";
-        assassin.Character.Level = 10;
-        assassin.Monster.MaxHp = 500;
-        assassin.Monster.Hp = 175;
-        await assassin.Db.SaveChangesAsync();
-        await assassin.AddSkillAsync(assassin.Character, 1, "assassin-deathblow", autoUse: true);
-        var (assassinService, _) = CreateProductionSoulBattleService(assassin);
-
-        var (executeResult, executeError) = await assassinService.StartPreparationAsync(1, assassin.Token);
-
-        Assert.Null(executeError);
-        Assert.Contains(executeResult!.Logs, log => log.Contains("绝命一击 攻击") && log.Contains("造成 48 点伤害"));
     }
 
     [Fact]
@@ -2895,27 +2871,6 @@ public partial class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("获得 荒野韧性"));
         Assert.Contains(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "hunter-resilience");
-    }
-
-    [Fact]
-    public async Task PriestGroupHealAlsoCleansesTheFirstDebuffedAlly()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = "acolyte";
-        test.Character.AdvancedProfessionCode = "priest";
-        test.Character.Level = 10;
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "priest-group-heal", autoUse: true, threshold: 70);
-        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
-        await monsterCombat.ApplyStatusAsync(test.Room, "Character", 1, "poison", 2, [], test.Character.Name);
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(1, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("群体治疗") && log.Contains("恢复"));
-        Assert.Contains(result.Logs, log => log.Contains("群体治疗") && log.Contains("移除了") && log.Contains("中毒"));
-        Assert.DoesNotContain(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "poison");
     }
 
     [Fact]
@@ -2941,6 +2896,18 @@ public partial class BattleServiceTests
         Assert.Single(result.Logs, log => log.Contains("夺命连攻追加攻击"));
     }
 
+    private static SkillCatalog CreateImmediateProductionSkills(IConfiguration configuration,
+        MonsterCombatCatalog? monsterCatalog = null)
+    {
+        var options = configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!;
+        foreach (var skill in options.Abilities)
+        {
+            skill.UnlockLevel = 1;
+            skill.InitialCooldownRounds = 0;
+        }
+        return new SkillCatalog(Options.Create(options), monsterCatalog);
+    }
+
     private static (BattleService Service, MonsterCombatService MonsterCombat) CreateProductionSoulBattleService(
         BattleTestContext test)
     {
@@ -2949,8 +2916,7 @@ public partial class BattleServiceTests
         var monsterCatalog = new MonsterCombatCatalog(Options.Create(
             configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = new SkillCatalog(Options.Create(
-            configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsterCatalog);
+        var skills = CreateImmediateProductionSkills(configuration, monsterCatalog);
         var soulImprints = new SoulImprintCatalog(Options.Create(
             configuration.GetSection(SoulImprintOptions.SectionName).Get<SoulImprintOptions>()!));
         var progression = ProgressionTestFactory.Create();

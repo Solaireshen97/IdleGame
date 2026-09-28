@@ -17,6 +17,18 @@ namespace Game.Server.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.6");
 
+            modelBuilder.Entity("Game.Shared.Models.CharacterCombatProfession", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<string>("ProfessionCode").IsRequired().HasColumnType("TEXT");
+                    b.Property<int>("Level").HasColumnType("INTEGER");
+                    b.Property<int>("Experience").HasColumnType("INTEGER");
+                    b.Property<string>("SkillLoadoutJson").HasColumnType("TEXT");
+                    b.HasKey("CharacterId", "ProfessionCode");
+                    b.ToTable("CharacterCombatProfessions", t => t.HasCheckConstraint(
+                        "CK_CharacterCombatProfessions_Progress", "Level BETWEEN 1 AND 30 AND Experience >= 0"));
+                });
+
             modelBuilder.Entity("Game.Shared.Models.Character", b =>
                 {
                     b.Property<int>("Id")
@@ -182,6 +194,12 @@ namespace Game.Server.Data.Migrations
                         t.HasCheckConstraint("CK_CharacterWeapons_Stats", "Attack >= 0 AND MaxHp > 0");
                         t.HasCheckConstraint("CK_CharacterWeapons_Slot", "EquippedSlotIndex IS NULL OR EquippedSlotIndex BETWEEN 1 AND 10");
                     });
+                });
+
+            modelBuilder.Entity("Game.Shared.Models.CharacterCombatProfession", b =>
+                {
+                    b.HasOne("Game.Shared.Models.Character", null).WithMany()
+                        .HasForeignKey("CharacterId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                 });
 
             modelBuilder.Entity("Game.Shared.Models.CharacterWeaponSkill", b =>

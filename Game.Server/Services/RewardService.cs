@@ -179,7 +179,15 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             {
                 var gain = progression.AwardExperience(character, experience);
                 if (gain.ExperienceGained > 0) logs.Add($"{character.Name} 获得 {gain.ExperienceGained} 点经验值。");
-                if (gain.LevelsGained > 0) logs.Add($"{character.Name} 升至 Lv.{character.Level}，获得 {gain.LevelsGained} 点天赋点。");
+                if (gain.LevelsGained > 0) logs.Add($"{character.Name} 的当前职业升至 Lv.{character.Level}。");
+                var activeProgress = await dbContext.CharacterCombatProfessions.FindAsync(character.Id, character.ProfessionCode);
+                if (activeProgress is null)
+                    dbContext.CharacterCombatProfessions.Add(activeProgress = new CharacterCombatProfession
+                    {
+                        CharacterId = character.Id, ProfessionCode = character.ProfessionCode
+                    });
+                activeProgress.Level = character.Level;
+                activeProgress.Experience = character.Experience;
             }
             foreach (var items in group.Where(entry => entry.Kind is "Consumable" or "Material").GroupBy(entry => entry.Code))
             {

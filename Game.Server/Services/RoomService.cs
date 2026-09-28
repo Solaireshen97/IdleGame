@@ -584,11 +584,11 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var equippedSoulImprints = soulImprintCatalog is null ? [] : await dbContext.CharacterSoulImprints
             .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId) &&
                 entry.EquippedSlotIndex == SoulImprintRules.SlotIndex).ToListAsync();
-        var purchasedSkillNodes = (await dbContext.CharacterSkillTalents
+        var professionLevelsByCharacter = (await dbContext.CharacterCombatProfessions
             .Where(entry => currentUserCharacterIds.Contains(entry.CharacterId)).ToListAsync())
             .GroupBy(entry => entry.CharacterId)
-            .ToDictionary(group => group.Key,
-                group => group.ToDictionary(entry => entry.NodeCode, entry => entry.PointsSpent, StringComparer.OrdinalIgnoreCase));
+            .ToDictionary(group => group.Key, group => group.ToDictionary(entry => entry.ProfessionCode,
+                entry => entry.Level, StringComparer.OrdinalIgnoreCase));
         var isCurrentUserAutoUnlocked = currentUserAliveSlots.Any(slot =>
             slot.CharacterId.HasValue && clearedDungeonCharacterIds.Contains(slot.CharacterId.Value));
         var currentUserSlot = slots.FirstOrDefault(slot => slot.UserId == currentUserId && slot.CharacterId.HasValue);
@@ -704,8 +704,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 var ownCharacterId = slot.UserId == currentUserId ? slot.CharacterId : null;
                 var healingUses = ownCharacterId is int healingCharacterId
                     ? healingPotionStates.GetValueOrDefault(healingCharacterId)?.UsesUsed ?? 0 : 0;
-                var ownedSkillNodes = ownCharacterId is int ownedId && purchasedSkillNodes.TryGetValue(ownedId, out var nodes)
-                    ? nodes : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var ownProfessionLevels = ownCharacterId is int professionCharacterId &&
+                    professionLevelsByCharacter.TryGetValue(professionCharacterId, out var levels)
+                    ? levels : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 var ownConsumables = ownCharacterId is int id
                     ? Enumerable.Range(1, ConsumableRules.SlotCount).Select(index =>
                     {
@@ -756,9 +757,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     ? Enumerable.Range(1, SkillRules.SlotCount).Select(index =>
                     {
                         var equipped = skillSlots.FirstOrDefault(entry => entry.CharacterId == skillCharacterId && entry.SlotIndex == index);
-                        var skill = skillCatalog.FindSkill(equipped?.SkillCode);
-                        if (skill is not null && (character is null || !skillCatalog.IsLearned(character, skill.Code, ownedSkillNodes)))
-                            skill = null;
+                        var skill = character is null ? null :
+                            skillCatalog.ResolveSkillForLevel(character, equipped?.SkillCode, ownProfessionLevels);
                         var cooldown = skill is null ? null : skillCooldowns.FirstOrDefault(entry => entry.CharacterId == skillCharacterId && entry.SkillCode == skill.Code);
                         return new RoomSkillSlotResponse
                         {
@@ -776,7 +776,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                                 Type = effect.Type, Target = effect.Target, Power = effect.Power,
                                 StatusCode = effect.StatusCode, DurationRounds = effect.DurationRounds
                             }).ToList(),
-                            CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
+                            InitialCooldownRounds = skill?.InitialCooldownRounds ?? 0,
+                            CooldownRoundsRemaining = Math.Max(0,
+                                (cooldown?.ReadyAtRound ?? skill?.InitialCooldownRounds ?? 0) - room.RoundNumber),
                             AutoUseEnabled = skill is not null && equipped?.AutoUseEnabled == true,
                             AutoHpThresholdPercent = equipped?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent
                         };
@@ -849,7 +851,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 }
                 var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots);
                 var isOffline = RoomAutoPolicy.IsOffline(room, slot, now);
-                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotMask = ownCharacterId.HasValue ? slot.PendingConsumableSlotMask : 0, HealingPotionUsesUsed = healingUses, HealingPotionUsesRemaining = ownCharacterId.HasValue ? Math.Max(0, ConsumableRules.HealingPotionUsesPerRun - healingUses) : 0, HealingPotionUsesLimit = ownCharacterId.HasValue ? ConsumableRules.HealingPotionUsesPerRun : 0, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), TalentPoints = character?.TalentPoints, IsOccupied = slot.CharacterId.HasValue, IsCurrentUserCharacter = slot.UserId == currentUserId, IsQuickSkillCastEnabled = ownCharacterId.HasValue && character?.IsQuickSkillCastEnabled == true, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotMask = ownCharacterId.HasValue ? slot.PendingConsumableSlotMask : 0, HealingPotionUsesUsed = healingUses, HealingPotionUsesRemaining = ownCharacterId.HasValue ? Math.Max(0, ConsumableRules.HealingPotionUsesPerRun - healingUses) : 0, HealingPotionUsesLimit = ownCharacterId.HasValue ? ConsumableRules.HealingPotionUsesPerRun : 0, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), IsOccupied = slot.CharacterId.HasValue, IsCurrentUserCharacter = slot.UserId == currentUserId, IsQuickSkillCastEnabled = ownCharacterId.HasValue && character?.IsQuickSkillCastEnabled == true, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }

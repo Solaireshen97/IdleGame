@@ -65,7 +65,9 @@ public sealed class T1CombatScalingTests
             new CharacterSkillSlot { CharacterId = 1, SlotIndex = 2, SkillCode = "acolyte-holy-bolt", AutoUseEnabled = true });
         await db.SaveChangesAsync();
         var config = Production();
-        var skills = new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
+        var skillOptions = config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!;
+        foreach (var skill in skillOptions.Abilities) skill.InitialCooldownRounds = 0;
+        var skills = new SkillCatalog(Options.Create(skillOptions));
         var potions = new ConsumableCatalog(Options.Create(config.GetSection(ConsumableOptions.SectionName).Get<ConsumableOptions>()!));
         var progression = ProgressionTestFactory.Create();
         var users = new UserService(db, progression, skills);

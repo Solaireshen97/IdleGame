@@ -35,10 +35,10 @@ public sealed class ActiveCharacterState(ApiService apiService)
     private static bool SameCharacter(CurrentCharacterResponse? left, CurrentCharacterResponse? right) =>
         left is null ? right is null : right is not null &&
         left.CharacterId == right.CharacterId && left.ActiveBattleRoomId == right.ActiveBattleRoomId &&
-        left.Name == right.Name &&
+        left.Name == right.Name && left.ProfessionCode == right.ProfessionCode &&
+        left.ProfessionName == right.ProfessionName &&
         left.Hp == right.Hp && left.MaxHp == right.MaxHp &&
         left.Attack == right.Attack &&
         left.Level == right.Level && left.Experience == right.Experience &&
-        left.ExperienceToNextLevel == right.ExperienceToNextLevel &&
-        left.TalentPoints == right.TalentPoints;
+        left.ExperienceToNextLevel == right.ExperienceToNextLevel;
 }

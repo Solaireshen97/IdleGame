@@ -14,6 +14,7 @@ public sealed class ProfessionOptions
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public List<string> StartingSkills { get; set; } = [];
+    public string? SharedSkillCode { get; set; }
     public bool IsPromotion { get; set; }
     public string? BaseProfessionCode { get; set; }
     public int RequiredLevel { get; set; } = 1;
@@ -30,11 +31,34 @@ public sealed class CombatSkillOptions
     public decimal AttackPowerPercent { get; set; } = 100;
     public decimal HealMaxHpPercent { get; set; }
     public int CooldownRounds { get; set; }
+    public int InitialCooldownRounds { get; set; }
+    public int UnlockLevel { get; set; }
+    public int Level2UnlockLevel { get; set; }
+    public int Level3UnlockLevel { get; set; }
+    public CombatSkillVariantOptions? Level2 { get; set; }
+    public CombatSkillVariantOptions? Level3 { get; set; }
+    public CombatSkillVariantOptions? SharedVersion { get; set; }
     public decimal ConditionalDamageBonusPercent { get; set; }
     public string? RequiredTargetStatusCode { get; set; }
     public int? TargetHpBelowPercent { get; set; }
     public string AutoCondition { get; set; } = string.Empty;
     public List<CombatSkillEffectOptions> Effects { get; set; } = [];
+}
+
+public sealed class CombatSkillVariantOptions
+{
+    public string? Name { get; set; }
+    public string? Description { get; set; }
+    public int? Power { get; set; }
+    public decimal? AttackPowerPercent { get; set; }
+    public decimal? HealMaxHpPercent { get; set; }
+    public int? CooldownRounds { get; set; }
+    public int? InitialCooldownRounds { get; set; }
+    public decimal? ConditionalDamageBonusPercent { get; set; }
+    public string? RequiredTargetStatusCode { get; set; }
+    public int? TargetHpBelowPercent { get; set; }
+    public string? AutoCondition { get; set; }
+    public List<CombatSkillEffectOptions>? Effects { get; set; }
 }
 
 public sealed class CombatSkillEffectOptions

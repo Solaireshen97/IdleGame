@@ -733,7 +733,7 @@ else
                         }
                         <span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击（不自动施放技能）" : "无准备超时") · 按槽位 1 → @_roomDetail.SlotCount 行动</span>
                     </div>
-                    <p class="formation-panel__progress-note">角色升级会获得天赋点；可在职业天赋页分配点数并配置技能。</p>
+                    <p class="formation-panel__progress-note">当前职业获得战斗经验，技能随职业等级自动解锁和升级；可在职业与技能页配置技能栏。</p>
                     @if (IsOwner)
                     {
                         <p class="formation-panel__progress-note">在空位选择已上阵角色可直接移入；在已占用位置选择其他自有队员可交换站位。可直接点击自己任意队员的技能进行操作。</p>
@@ -755,7 +755,6 @@ else
                                     <div class="party-slot__experience">
                                         <div class="party-slot__experience-label"><span>EXP</span><strong>@(slot.ExperienceToNextLevel is int nextExperience ? $"{slot.CharacterExperience} / {nextExperience}" : "MAX")</strong></div>
                                         <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
-                                        <small>未分配天赋点 @slot.TalentPoints</small>
                                     </div>
                                     <div class="party-slot__badges">@if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsOffline) { <span class="status-badge">@(_roomDetail.IsPreparationTimeoutEnabled ? "离线 · 等待准备超时" : "离线 · 等待准备")</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动攻击</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
                                 }

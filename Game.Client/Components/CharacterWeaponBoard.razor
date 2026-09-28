@@ -54,7 +54,7 @@
                 <section class="weapon-overview-dialog" role="dialog" aria-modal="true" aria-labelledby="weapon-overview-title" @onclick:stopPropagation @ref="_overviewDialog">
                     <header><div><span class="weapon-board__eyebrow">FORMATION</span><h2 id="weapon-overview-title">配装详情与资源</h2><p>@_data.CharacterName · @_data.ProfessionName</p></div><button type="button" @onclick="CloseOverview" @ref="_overviewClose" aria-label="关闭配装详情">×</button></header>
                     <div class="weapon-overview-body">
-                        <div class="weapon-overview-totals"><span>天赋后攻击 <strong>@_data.EffectiveAttack</strong></span><span>生命上限 <strong>@_data.EffectiveMaxHp</strong></span><span>攻击加成 +@_data.AttackBonusPercent.ToString("0.##")%</span><span>生命加成 +@_data.HealthBonusPercent.ToString("0.##")%</span></div>
+                        <div class="weapon-overview-totals"><span>当前攻击 <strong>@_data.EffectiveAttack</strong></span><span>生命上限 <strong>@_data.EffectiveMaxHp</strong></span><span>攻击加成 +@_data.AttackBonusPercent.ToString("0.##")%</span><span>生命加成 +@_data.HealthBonusPercent.ToString("0.##")%</span></div>
                     <div class="weapon-board__resources" aria-label="武器养成资源">
                         <div><span>角色金币</span><strong>◆ @_data.Gold</strong></div>
                         @foreach (var fragment in _data.Fragments)

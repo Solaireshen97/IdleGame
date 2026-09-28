@@ -26,7 +26,6 @@ public class RoomSlotResponse
     public int? CharacterLevel { get; set; }
     public int? CharacterExperience { get; set; }
     public int? ExperienceToNextLevel { get; set; }
-    public int? TalentPoints { get; set; }
     public bool IsOccupied { get; set; }
     public bool IsCurrentUserCharacter { get; set; }
     public bool IsQuickSkillCastEnabled { get; set; }
@@ -71,6 +70,7 @@ public class RoomSkillSlotResponse
     public string AutoCondition { get; set; } = "Always";
     public string? AutoConditionOverride { get; set; }
     public List<Game.Shared.Dtos.Characters.SkillEffectResponse> Effects { get; set; } = [];
+    public int InitialCooldownRounds { get; set; }
     public int CooldownRoundsRemaining { get; set; }
     public bool AutoUseEnabled { get; set; }
     public int AutoHpThresholdPercent { get; set; }
