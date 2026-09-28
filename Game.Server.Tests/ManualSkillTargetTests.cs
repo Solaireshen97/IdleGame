@@ -203,15 +203,13 @@ public partial class BattleServiceTests
     }
 
     [Theory]
-    [InlineData("hunter", null, "hunter-field-mend")]
-    [InlineData("mage", null, "mage-frost-ward")]
-    [InlineData("acolyte", "priest", "priest-group-heal")]
-    [InlineData("swordsman", null, "sword-slash")]
-    public async Task FixedScopeSkillsRejectManualAllyOverride(string profession, string? promotion, string code)
+    [InlineData("hunter", "hunter-field-mend")]
+    [InlineData("mage", "mage-frost-ward")]
+    [InlineData("swordsman", "sword-slash")]
+    public async Task FixedScopeSkillsRejectManualAllyOverride(string profession, string code)
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 50);
         test.Character.ProfessionCode = profession;
-        test.Character.AdvancedProfessionCode = promotion;
         test.Character.Level = 10;
         await test.AddSkillAsync(test.Character, 1, code, autoUse: false);
         var (service, _) = CreateProductionSoulBattleService(test);
@@ -231,9 +229,9 @@ public partial class BattleServiceTests
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 30, characterAttack: 1, monsterAttack: 1);
         test.Character.ProfessionCode = "cleric";
+        test.Character.Level = 10;
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         var chosen = await test.AddSlotAsync(2, "Chosen", hp: 80, attack: 1);
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = test.Character.Id, NodeCode = "cleric-light", PointsSpent = 1 });
         await test.AddSkillAsync(test.Character, 1, "cleric-heal", autoUse: false);
         await test.AddSkillAsync(test.Character, 2, "cleric-blessing", autoUse: false);
         foreach (var index in new[] { 1, 2 })

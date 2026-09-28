@@ -41,7 +41,7 @@
     </div>
 
     <div class="character-card__progress">
-        <div><strong>Lv @Character.Level</strong><span>@(Character.ExperienceToNextLevel is int required ? $"EXP {Character.Experience} / {required}" : "等级已满")</span></div>
+        <div><strong>@Character.ProfessionName · Lv @Character.Level</strong><span>@(Character.ExperienceToNextLevel is int required ? $"EXP {Character.Experience} / {required}" : "等级已满")</span></div>
         <progress value="@(Character.ExperienceToNextLevel is null ? 1 : Character.Experience)" max="@(Character.ExperienceToNextLevel ?? 1)" aria-label="@Character.Name 经验值"></progress>
     </div>
 
@@ -53,10 +53,6 @@
         <div>
             <dt>攻击</dt>
             <dd>@Character.Attack</dd>
-        </div>
-        <div class="character-card__talents">
-            <dt>天赋点</dt>
-            <dd>@Character.TalentPoints</dd>
         </div>
     </dl>
 </article>

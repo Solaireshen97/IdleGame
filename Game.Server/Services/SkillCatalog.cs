@@ -20,11 +20,6 @@ public sealed class SkillCatalog
                 !_professions.TryAdd(profession.Code, profession))
                 throw new InvalidOperationException($"Invalid profession configuration: {profession.Code}");
         }
-        if (_professions.TryGetValue(SkillRules.DefaultProfessionCode, out var defaultProfession) && defaultProfession.IsPromotion)
-            throw new InvalidOperationException("The default profession must be a base profession.");
-        foreach (var profession in _professions.Values.Where(item => item.IsPromotion))
-            if (profession.BaseProfessionCode is null || !_professions.TryGetValue(profession.BaseProfessionCode, out var parent) || parent.IsPromotion)
-                throw new InvalidOperationException($"Invalid promotion configuration: {profession.Code}");
 
         foreach (var skill in options.Value.Abilities)
         {
@@ -40,44 +35,47 @@ public sealed class SkillCatalog
                 hasConditionalDamage && !hasDamage ||
                 skill.RequiredTargetStatusCode is not null && monsterCombatCatalog is not null && monsterCombatCatalog.FindStatus(skill.RequiredTargetStatusCode) is null ||
                 AutoConditionFor(skill) is not ("Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent") ||
-                skill.CooldownRounds < 0 || !_skills.TryAdd(skill.Code, skill))
+                skill.CooldownRounds < 0 || skill.InitialCooldownRounds < 0 || !_skills.TryAdd(skill.Code, skill))
                 throw new InvalidOperationException($"Invalid skill configuration: {skill.Code}");
+        }
+        foreach (var group in _skills.Values.GroupBy(skill => skill.ProfessionCode, StringComparer.OrdinalIgnoreCase))
+        {
+            var index = 0;
+            foreach (var skill in group)
+            {
+                skill.UnlockLevel = skill.UnlockLevel == 0 ?
+                    _professions[group.Key].StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) ? 1 :
+                    Math.Min(10, 1 + index * 2) : skill.UnlockLevel;
+                skill.Level2UnlockLevel = skill.Level2UnlockLevel == 0 ? 20 : skill.Level2UnlockLevel;
+                skill.Level3UnlockLevel = skill.Level3UnlockLevel == 0 ? 30 : skill.Level3UnlockLevel;
+                if (skill.UnlockLevel is < 1 or > 10 || skill.Level2UnlockLevel is < 11 or > 20 ||
+                    skill.Level3UnlockLevel is < 21 or > 30 ||
+                    !ValidVariant(skill, skill.Level2) || !ValidVariant(skill, skill.Level3) || !ValidVariant(skill, skill.SharedVersion))
+                    throw new InvalidOperationException($"Invalid skill progression: {skill.Code}");
+                index++;
+            }
         }
         foreach (var profession in _professions.Values)
             if (profession.StartingSkills.Count == 0 || profession.StartingSkills.Distinct(StringComparer.OrdinalIgnoreCase).Count() != profession.StartingSkills.Count ||
                 profession.StartingSkills.Any(code => !_skills.TryGetValue(code, out var skill) || !string.Equals(skill.ProfessionCode, profession.Code, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException($"Invalid starting skills for profession: {profession.Code}");
+        foreach (var profession in _professions.Values.Where(item => !item.IsPromotion))
+        {
+            profession.SharedSkillCode ??= _skills.Values.LastOrDefault(skill =>
+                string.Equals(skill.ProfessionCode, profession.Code, StringComparison.OrdinalIgnoreCase))?.Code;
+            if (profession.SharedSkillCode is not null && (!_skills.TryGetValue(profession.SharedSkillCode, out var shared) ||
+                !string.Equals(shared.ProfessionCode, profession.Code, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Invalid shared skill: {profession.Code}");
+        }
 
+        // Legacy battle formulas still read two former node values. No talent tree is active.
         foreach (var node in options.Value.TalentNodes)
-        {
-            var validSkill = node.SkillCode is null || _skills.TryGetValue(node.SkillCode, out var skill) &&
-                string.Equals(skill.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase);
-            if (string.IsNullOrWhiteSpace(node.Code) || string.IsNullOrWhiteSpace(node.Name) || string.IsNullOrWhiteSpace(node.Description) ||
-                !_professions.TryGetValue(node.ProfessionCode, out var profession) || profession.IsPromotion || !validSkill ||
-                node.Cost != 1 || node.MaxRank is < 1 or > 3 || node.Tier < 1 || node.Column is < 1 or > 3 ||
-                node.RequiredLevel is < 1 or > SkillRules.PromotionLevel || node.RequiredTreePoints is < 0 or > 20 ||
-                string.IsNullOrWhiteSpace(node.BranchCode) || !_talentNodes.TryAdd(node.Code, node))
-                throw new InvalidOperationException($"Invalid talent configuration: {node.Code}");
-        }
-        foreach (var node in _talentNodes.Values)
-            if (!AreValidPrerequisites(node, node.Prerequisites) ||
-                !AreValidPrerequisites(node, node.AnyPrerequisites) ||
-                node.Prerequisites.Intersect(node.AnyPrerequisites, StringComparer.OrdinalIgnoreCase).Any())
-                throw new InvalidOperationException($"Invalid talent prerequisites: {node.Code}");
+            if (!string.IsNullOrWhiteSpace(node.Code)) _talentNodes.TryAdd(node.Code, node);
 
-        foreach (var skill in _skills.Values)
-        {
-            var owner = _professions[skill.ProfessionCode];
-            if (!owner.StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) &&
-                !_talentNodes.Values.Any(node => string.Equals(node.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException($"Skill has no unlock path: {skill.Code}");
-        }
     }
 
     public IReadOnlyCollection<ProfessionOptions> Professions => _professions.Values;
     public IReadOnlyList<ProfessionOptions> BaseProfessions => _professions.Values.Where(item => !item.IsPromotion).ToList();
-    public IReadOnlyList<ProfessionOptions> PromotionsFor(string baseCode) => _professions.Values
-        .Where(item => item.IsPromotion && string.Equals(item.BaseProfessionCode, baseCode, StringComparison.OrdinalIgnoreCase)).ToList();
     public ProfessionOptions? FindProfession(string? code)
     {
         if (code is not null && _professions.TryGetValue(code, out var value)) return value;
@@ -86,79 +84,88 @@ public sealed class SkillCatalog
         if (string.Equals(code, "acolyte", StringComparison.OrdinalIgnoreCase) && _professions.TryGetValue("cleric", out value)) return value;
         return null;
     }
-    public ProfessionOptions? EffectiveProfession(Character character) => FindProfession(character.AdvancedProfessionCode) ?? FindProfession(character.ProfessionCode);
+    public ProfessionOptions? EffectiveProfession(Character character) => FindProfession(character.ProfessionCode);
     public CombatSkillOptions? FindSkill(string? code) => code is not null && _skills.TryGetValue(code, out var value) ? value : null;
     public SkillTalentNodeOptions? FindTalentNode(string? code) => code is not null && _talentNodes.TryGetValue(code, out var value) ? value : null;
-    public IReadOnlyList<SkillTalentNodeOptions> TalentNodesForProfession(string professionCode) => _talentNodes.Values
-        .Where(node => string.Equals(node.ProfessionCode, professionCode, StringComparison.OrdinalIgnoreCase)).OrderBy(node => node.Tier).ThenBy(node => node.Column).ToList();
 
-    public bool ArePrerequisitesMet(SkillTalentNodeOptions node, IReadOnlyDictionary<string, int> ranks)
-    {
-        var requiredPrerequisitesMet = node.Prerequisites.All(code =>
-            ranks.GetValueOrDefault(code) >= (_talentNodes.TryGetValue(code, out var parent) ? parent.MaxRank : int.MaxValue));
-        var anyPrerequisiteMet = node.AnyPrerequisites.Count == 0 || node.AnyPrerequisites.Any(code =>
-            ranks.GetValueOrDefault(code) >= (_talentNodes.TryGetValue(code, out var parent) ? parent.MaxRank : int.MaxValue));
-        return requiredPrerequisitesMet && anyPrerequisiteMet;
-    }
+    public bool IsLearned(Character character, string? skillCode, IReadOnlyDictionary<string, int> ranks,
+        IReadOnlyDictionary<string, int>? professionLevels = null) =>
+        ResolveSkillForLevel(character, skillCode, professionLevels) is not null;
 
-    public bool IsNodeActive(Character character, SkillTalentNodeOptions node, IReadOnlyDictionary<string, int> ranks) =>
-        ranks.GetValueOrDefault(node.Code) > 0 && node.RequiredLevel <= character.Level && ArePrerequisitesMet(node, ranks);
-
-    public string? RefundBlockReason(Character character, SkillTalentNodeOptions refundedNode, IReadOnlyDictionary<string, int> ranks)
-    {
-        var remaining = new Dictionary<string, int>(ranks, StringComparer.OrdinalIgnoreCase);
-        remaining[refundedNode.Code] = remaining.GetValueOrDefault(refundedNode.Code) - 1;
-        var nodes = TalentNodesForProfession(character.ProfessionCode);
-        foreach (var node in nodes.Where(node => remaining.GetValueOrDefault(node.Code) > 0))
-            if (!ArePrerequisitesMet(node, remaining))
-                return $"请先回退「{node.Name}」：它仍需要当前天赋作为前置。";
-
-        // Replay purchases to prevent retained ranks from supplying their own entry-point requirement.
-        var rebuilt = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var total = nodes.Sum(node => remaining.GetValueOrDefault(node.Code));
-        var spent = 0;
-        while (spent < total)
-        {
-            var progressed = false;
-            foreach (var node in nodes)
-            {
-                var rank = rebuilt.GetValueOrDefault(node.Code);
-                if (rank >= remaining.GetValueOrDefault(node.Code) || character.Level < node.RequiredLevel + rank ||
-                    spent < node.RequiredTreePoints || !ArePrerequisitesMet(node, rebuilt)) continue;
-                rebuilt[node.Code] = rank + 1;
-                spent++;
-                progressed = true;
-            }
-            if (progressed) continue;
-            var blocked = nodes.First(node => rebuilt.GetValueOrDefault(node.Code) < remaining.GetValueOrDefault(node.Code));
-            return $"请先回退「{blocked.Name}」：回退后基础树投入不足以保留该天赋。";
-        }
-        return null;
-    }
-
-    private bool AreValidPrerequisites(SkillTalentNodeOptions node, IReadOnlyCollection<string> prerequisites) =>
-        prerequisites.Distinct(StringComparer.OrdinalIgnoreCase).Count() == prerequisites.Count &&
-        prerequisites.All(code => _talentNodes.TryGetValue(code, out var parent) &&
-            string.Equals(parent.ProfessionCode, node.ProfessionCode, StringComparison.OrdinalIgnoreCase) && parent.Tier < node.Tier);
-
-    public bool IsLearned(Character character, string? skillCode, IReadOnlyDictionary<string, int> ranks)
+    public CombatSkillOptions? ResolveSkillForLevel(Character character, string? skillCode,
+        IReadOnlyDictionary<string, int>? professionLevels = null)
     {
         var skill = FindSkill(skillCode);
-        if (skill is null) return false;
-        if (FindProfession(character.ProfessionCode)?.StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) == true) return true;
-        if (FindProfession(character.AdvancedProfessionCode)?.StartingSkills.Contains(skill.Code, StringComparer.OrdinalIgnoreCase) == true) return true;
-        var resolvedBaseCode = FindProfession(character.ProfessionCode)?.Code ?? character.ProfessionCode;
-        return _talentNodes.Values.Any(node => string.Equals(node.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(node.ProfessionCode, resolvedBaseCode, StringComparison.OrdinalIgnoreCase) && IsNodeActive(character, node, ranks));
+        if (skill is null) return null;
+        var currentProfession = FindProfession(character.ProfessionCode)?.Code ?? character.ProfessionCode;
+        if (string.Equals(skill.ProfessionCode, currentProfession, StringComparison.OrdinalIgnoreCase))
+        {
+            if (character.Level < skill.UnlockLevel) return null;
+            var rank = RankFor(skill, character.Level);
+            return ApplyVariant(skill, rank == 3 ? skill.Level3 : rank == 2 ? skill.Level2 : null);
+        }
+        var source = FindProfession(skill.ProfessionCode);
+        if (character.Level < SkillRules.SharedSkillEquipLevel || source?.SharedSkillCode is null ||
+            !string.Equals(source.SharedSkillCode, skill.Code, StringComparison.OrdinalIgnoreCase) ||
+            professionLevels?.GetValueOrDefault(source.Code) < SkillRules.SharedSkillUnlockLevel) return null;
+        return ApplyVariant(ApplyVariant(skill, skill.Level3), skill.SharedVersion);
     }
 
-    public IReadOnlyList<CombatSkillOptions> LearnedSkills(Character character, IReadOnlyDictionary<string, int> ranks)
+    public IReadOnlyList<CombatSkillOptions> LearnedSkills(Character character, IReadOnlyDictionary<string, int> ranks,
+        IReadOnlyDictionary<string, int>? professionLevels = null)
     {
-        var codes = new List<string>();
-        codes.AddRange(FindProfession(character.ProfessionCode)?.StartingSkills ?? []);
-        codes.AddRange(FindProfession(character.AdvancedProfessionCode)?.StartingSkills ?? []);
-        codes.AddRange(TalentNodesForProfession(character.ProfessionCode).Where(node => node.SkillCode is not null && IsNodeActive(character, node, ranks)).Select(node => node.SkillCode!));
-        return codes.Distinct(StringComparer.OrdinalIgnoreCase).Select(code => _skills[code]).ToList();
+        return _skills.Values.Where(skill => string.Equals(skill.ProfessionCode, character.ProfessionCode, StringComparison.OrdinalIgnoreCase))
+            .Select(skill => ResolveSkillForLevel(character, skill.Code, professionLevels)).OfType<CombatSkillOptions>().ToList();
+    }
+
+    public IReadOnlyList<CombatSkillOptions> SkillsForProfessionAtLevel(string professionCode, int level) =>
+        _skills.Values.Where(skill => string.Equals(skill.ProfessionCode, professionCode, StringComparison.OrdinalIgnoreCase) &&
+            level >= skill.UnlockLevel).Select(skill => ApplyVariant(skill,
+                RankFor(skill, level) == 3 ? skill.Level3 : RankFor(skill, level) == 2 ? skill.Level2 : null)).ToList();
+
+    public IReadOnlyList<CombatSkillOptions> SharedSkills(Character character, IReadOnlyDictionary<string, int> professionLevels) =>
+        _professions.Values.Where(profession => !profession.IsPromotion && profession.SharedSkillCode is not null &&
+            !string.Equals(profession.Code, character.ProfessionCode, StringComparison.OrdinalIgnoreCase) &&
+            professionLevels.GetValueOrDefault(profession.Code) >= SkillRules.SharedSkillUnlockLevel)
+            .Select(profession => ResolveSkillForLevel(character, profession.SharedSkillCode, professionLevels) ??
+                ApplyVariant(ApplyVariant(_skills[profession.SharedSkillCode!], _skills[profession.SharedSkillCode!].Level3),
+                    _skills[profession.SharedSkillCode!].SharedVersion))
+            .ToList();
+
+    public static int RankFor(CombatSkillOptions skill, int level) => level >= skill.Level3UnlockLevel ? 3 :
+        level >= skill.Level2UnlockLevel ? 2 : 1;
+
+    private static CombatSkillOptions ApplyVariant(CombatSkillOptions skill, CombatSkillVariantOptions? variant)
+    {
+        if (variant is null) return skill;
+        return new CombatSkillOptions
+        {
+            Code = skill.Code, ProfessionCode = skill.ProfessionCode, Name = variant.Name ?? skill.Name,
+            Description = variant.Description ?? skill.Description, EffectType = skill.EffectType,
+            Power = variant.Power ?? skill.Power, AttackPowerPercent = variant.AttackPowerPercent ?? skill.AttackPowerPercent,
+            HealMaxHpPercent = variant.HealMaxHpPercent ?? skill.HealMaxHpPercent,
+            CooldownRounds = variant.CooldownRounds ?? skill.CooldownRounds,
+            InitialCooldownRounds = variant.InitialCooldownRounds ?? skill.InitialCooldownRounds,
+            ConditionalDamageBonusPercent = variant.ConditionalDamageBonusPercent ?? skill.ConditionalDamageBonusPercent,
+            RequiredTargetStatusCode = variant.RequiredTargetStatusCode ?? skill.RequiredTargetStatusCode,
+            TargetHpBelowPercent = variant.TargetHpBelowPercent ?? skill.TargetHpBelowPercent,
+            AutoCondition = variant.AutoCondition ?? skill.AutoCondition, Effects = variant.Effects ?? skill.Effects,
+            UnlockLevel = skill.UnlockLevel, Level2UnlockLevel = skill.Level2UnlockLevel,
+            Level3UnlockLevel = skill.Level3UnlockLevel, Level2 = skill.Level2, Level3 = skill.Level3,
+            SharedVersion = skill.SharedVersion
+        };
+    }
+
+    private static bool ValidVariant(CombatSkillOptions skill, CombatSkillVariantOptions? variant)
+    {
+        if (variant is null) return true;
+        var resolved = ApplyVariant(skill, variant);
+        return resolved.CooldownRounds >= 0 && resolved.InitialCooldownRounds >= 0 &&
+            resolved.AttackPowerPercent is >= 0 and <= 1000 && resolved.HealMaxHpPercent is >= 0 and <= 100 &&
+            resolved.ConditionalDamageBonusPercent is >= 0 and <= 200 &&
+            resolved.TargetHpBelowPercent is null or >= 1 and <= 100 &&
+            AutoConditionFor(resolved) is "Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent" &&
+            (variant.Effects is null || variant.Effects.Count > 0 && variant.Effects.All(IsValidEffect));
     }
 
     public static IReadOnlyList<CombatSkillEffectOptions> EffectsFor(CombatSkillOptions skill) => skill.Effects.Count > 0 ? skill.Effects :

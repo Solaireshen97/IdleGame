@@ -1,6 +1,8 @@
 using Game.Server.Configuration;
+using Game.Server.Services;
 using Game.Shared.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Game.Server.Tests;
@@ -8,15 +10,15 @@ namespace Game.Server.Tests;
 public class ProgressionServiceTests
 {
     [Fact]
-    public void ProductionProgression_UsesSlowerTenLevelCurve()
+    public void ProductionProgression_DefinesThirtyLevelCurve()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
-        var settings = new ConfigurationBuilder().AddJsonFile(path).Build()
-            .GetSection(ProgressionOptions.SectionName).Get<ProgressionOptions>()!;
+        var settings = ProductionSettings();
 
-        Assert.Equal([60, 120, 220, 350, 500, 700, 1000, 1400, 1900], settings.ExperienceToNextLevel);
-        Assert.Equal(6250, settings.ExperienceToNextLevel.Sum());
+        Assert.Equal(30, settings.MaximumLevel);
+        Assert.Equal(29, settings.ExperienceToNextLevel.Count);
+        Assert.Equal([60, 120, 220, 350, 500, 700, 1000, 1400, 1900], settings.ExperienceToNextLevel.Take(9));
+        Assert.Equal(30900, settings.ExperienceToNextLevel[^1]);
+        Assert.Equal(282250, settings.ExperienceToNextLevel.Sum());
         Assert.Equal([100, 100, 100, 100, 100, 75, 40, 15, 0], settings.ExperiencePercentByLevelDifference);
     }
 
@@ -32,21 +34,21 @@ public class ProgressionServiceTests
         Assert.Equal(2, gain.LevelsGained);
         Assert.Equal(3, character.Level);
         Assert.Equal(5, character.Experience);
-        Assert.Equal(2, character.TalentPoints);
+        Assert.Equal(0, character.TalentPoints);
         Assert.Equal((76, 100, 20), (character.Hp, character.MaxHp, character.Attack));
     }
 
     [Fact]
     public void AwardExperience_StopsAtConfiguredLevelCap()
     {
-        var progression = ProgressionTestFactory.Create();
+        var progression = new ProgressionService(Options.Create(ProductionSettings()));
         var character = new Character { Level = 1 };
 
-        progression.AwardExperience(character, 1_000);
+        progression.AwardExperience(character, 300_000);
         var afterCap = progression.AwardExperience(character, 10);
 
-        Assert.Equal(10, character.Level);
-        Assert.Equal(9, character.TalentPoints);
+        Assert.Equal(30, character.Level);
+        Assert.Equal(0, character.TalentPoints);
         Assert.Equal(0, character.Experience);
         Assert.Null(progression.GetExperienceToNextLevel(character.Level));
         Assert.Equal(0, afterCap.ExperienceGained);
@@ -71,6 +73,14 @@ public class ProgressionServiceTests
         var adjusted = progression.ApplyDungeonExperienceModifier(100, characterLevel, dungeonLevel);
 
         Assert.Equal(expected, adjusted);
+    }
+
+    private static ProgressionOptions ProductionSettings()
+    {
+        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        return new ConfigurationBuilder().AddJsonFile(path).Build()
+            .GetSection(ProgressionOptions.SectionName).Get<ProgressionOptions>()!;
     }
 
 }

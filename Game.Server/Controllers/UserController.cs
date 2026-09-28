@@ -8,7 +8,7 @@ namespace Game.Server.Controllers;
 
 [ApiController]
 [Route("api/user")]
-public class UserController(UserService userService, TalentService talentService, ConsumableService consumableService, SkillService skillService) : ControllerBase
+public class UserController(UserService userService, ConsumableService consumableService, SkillService skillService) : ControllerBase
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest? request)
@@ -164,13 +164,6 @@ public class UserController(UserService userService, TalentService talentService
         };
     }
 
-    [HttpGet("characters/{characterId:int}/talents")]
-    public async Task<IActionResult> GetTalents(int characterId)
-    {
-        var (response, error) = await talentService.GetAsync(GetBearerToken(), characterId);
-        return TalentResult(response, error);
-    }
-
     [HttpGet("characters/{characterId:int}/consumables")]
     public async Task<IActionResult> GetConsumables(int characterId)
     {
@@ -227,57 +220,14 @@ public class UserController(UserService userService, TalentService talentService
         return SkillResult(response, error);
     }
 
-    [HttpPost("characters/{characterId:int}/skills/talents/{nodeCode}/unlock")]
-    public async Task<IActionResult> UnlockSkillTalent(int characterId, string nodeCode)
-    {
-        var (response, error) = await skillService.UnlockTalentNodeAsync(GetBearerToken(), characterId, nodeCode);
-        return SkillResult(response, error);
-    }
-
-    [HttpPost("characters/{characterId:int}/skills/talents/{nodeCode}/refund")]
-    public async Task<IActionResult> RefundSkillTalent(int characterId, string nodeCode)
-    {
-        var (response, error) = await skillService.RefundTalentNodeAsync(GetBearerToken(), characterId, nodeCode);
-        return SkillResult(response, error);
-    }
-
-    [HttpPost("characters/{characterId:int}/skills/talents/reset")]
-    public async Task<IActionResult> ResetSkillTalents(int characterId)
-    {
-        var (response, error) = await skillService.ResetTalentTreeAsync(GetBearerToken(), characterId);
-        return SkillResult(response, error);
-    }
-
-    [HttpPost("characters/{characterId:int}/profession/promote")]
-    public async Task<IActionResult> PromoteCharacter(int characterId, [FromBody] PromoteCharacterRequest? request)
-    {
-        if (request is null) return BadRequest("Request body is required.");
-        var (response, error) = await skillService.PromoteAsync(GetBearerToken(), characterId, request);
-        return SkillResult(response, error);
-    }
-
     private IActionResult SkillResult(CharacterSkillsResponse? response, string? error) => error switch
     {
         null => Ok(response),
         "Unauthorized" => Unauthorized(),
         "UserNotFound" or "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(403, "NotOwner"),
-        "LoadoutLocked" or "SkillAlreadyEquipped" or "AlreadyPromoted" or "ConcurrencyConflict" => Conflict(error),
+        "LoadoutLocked" or "SkillAlreadyEquipped" or "SharedSkillLimitReached" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
-    };
-
-    private IActionResult TalentResult(CharacterTalentsResponse? response, string? error) => error switch
-    {
-        null => Ok(response),
-        "Unauthorized" => Unauthorized(),
-        "UserNotFound" or "CharacterNotFound" => NotFound("Character not found."),
-        "NotOwner" => StatusCode(403, "Character does not belong to current user."),
-        "InsufficientTalentPoints" => BadRequest("Not enough talent points."),
-        "TalentMaxRank" => BadRequest("Talent is already at maximum rank."),
-        "InvalidTalent" => BadRequest("Invalid talent type."),
-        "LoadoutLocked" => Conflict("LoadoutLocked"),
-        "ConcurrencyConflict" => Conflict("Character changed. Please refresh and try again."),
-        _ => BadRequest("Talent operation failed.")
     };
 
     [HttpPost("logout")]

@@ -6,6 +6,8 @@ public static class SkillRules
     public const int DefaultAutoHpThresholdPercent = 70;
     public const string DefaultProfessionCode = "swordsman";
     public const int PromotionLevel = 10;
+    public const int SharedSkillEquipLevel = 10;
+    public const int SharedSkillUnlockLevel = 30;
 
     public static int SlotMask(int slotIndex) => 1 << (slotIndex - 1);
 

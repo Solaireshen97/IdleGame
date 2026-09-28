@@ -372,15 +372,19 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         {
             var equipped = await dbContext.CharacterSkillSlots.SingleOrDefaultAsync(
                 slot => slot.CharacterId == participant.Character.Id && slot.SlotIndex == request.SkillSlotIndex);
-            var skill = skillCatalog.FindSkill(equipped?.SkillCode);
+            var professionLevels = (await dbContext.CharacterCombatProfessions
+                .Where(entry => entry.CharacterId == participant.Character.Id).ToListAsync())
+                .ToDictionary(entry => entry.ProfessionCode, entry => entry.Level, StringComparer.OrdinalIgnoreCase);
+            var skill = skillCatalog.ResolveSkillForLevel(participant.Character, equipped?.SkillCode, professionLevels);
             var purchasedNodes = (await dbContext.CharacterSkillTalents
                 .Where(node => node.CharacterId == participant.Character.Id).ToListAsync())
                 .ToDictionary(node => node.NodeCode, node => node.PointsSpent, StringComparer.OrdinalIgnoreCase);
-            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, purchasedNodes))
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, purchasedNodes, professionLevels))
                 return (false, "SkillNotEquipped");
             var cooldown = await dbContext.BattleSkillCooldowns.SingleOrDefaultAsync(entry =>
                 entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
-            if (cooldown?.ReadyAtRound > room.RoundNumber) return (false, "SkillCooldown");
+            if ((cooldown?.ReadyAtRound ?? skill.InitialCooldownRounds) > room.RoundNumber)
+                return (false, "SkillCooldown");
             if (request.TargetCharacterId.HasValue &&
                 (!SkillTargetRules.CanChooseAllyTarget(SkillCatalog.EffectsFor(skill).Select(effect => (effect.Type, effect.Target))) ||
                  !slots!.Any(entry => entry.Character.Id == request.TargetCharacterId && entry.Character.Hp > 0)))
@@ -830,19 +834,27 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             .GroupBy(node => node.CharacterId)
             .ToDictionary(group => group.Key,
                 group => group.ToDictionary(node => node.NodeCode, node => node.PointsSpent, StringComparer.OrdinalIgnoreCase));
+        var professionLevels = (await dbContext.CharacterCombatProfessions
+            .Where(entry => characterIds.Contains(entry.CharacterId)).ToListAsync())
+            .GroupBy(entry => entry.CharacterId)
+            .ToDictionary(group => group.Key, group => group.ToDictionary(entry => entry.ProfessionCode,
+                entry => entry.Level, StringComparer.OrdinalIgnoreCase));
         var guardsByCharacter = new Dictionary<int, CharacterRoundDefense>();
         var usedByCharacter = aliveSlots.ToDictionary(entry => entry.Character.Id,
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
         async Task<bool> TryUseAsync(SlotCharacter participant, CharacterSkillSlot slot, bool automatic)
         {
-            var skill = skillCatalog.FindSkill(slot.SkillCode);
+            var levels = professionLevels.GetValueOrDefault(participant.Character.Id) ??
+                new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var skill = skillCatalog.ResolveSkillForLevel(participant.Character, slot.SkillCode, levels);
             var used = usedByCharacter[participant.Character.Id];
             var ranks = purchasedNodes.GetValueOrDefault(participant.Character.Id) ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, ranks) ||
+            if (skill is null || !skillCatalog.IsLearned(participant.Character, skill.Code, ranks, levels) ||
                 used.Contains(skill.Code)) return false;
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id && entry.SkillCode == skill.Code);
-            if (cooldown?.ReadyAtRound > room.RoundNumber || automatic && !slot.AutoUseEnabled) return false;
+            if ((cooldown?.ReadyAtRound ?? skill.InitialCooldownRounds) > room.RoundNumber ||
+                automatic && !slot.AutoUseEnabled) return false;
             if (automatic && !await MeetsAutoConditionAsync(room, monster, skill, participant, aliveSlots,
                     slot, ranks)) return false;
             var chosenTargetId = automatic ? null : SkillQueueRules.TargetCharacterId(participant.Slot, slot.SlotIndex);
@@ -878,7 +890,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 foreach (var entry in cooldowns.Where(entry => entry.CharacterId == participant.Character.Id &&
                              entry.SkillCode != skill.Code && entry.ReadyAtRound > room.RoundNumber &&
                              !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix) &&
-                             skillCatalog.FindSkill(entry.SkillCode) is { } coolingSkill &&
+                             skillCatalog.ResolveSkillForLevel(participant.Character, entry.SkillCode, levels) is { } coolingSkill &&
                              SkillCatalog.EffectsFor(coolingSkill).Any(coolingEffect => coolingEffect.Type == "Damage")))
                 {
                     entry.ReadyAtRound = Math.Max(room.RoundNumber, entry.ReadyAtRound - rounds);

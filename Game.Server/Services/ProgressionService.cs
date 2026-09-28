@@ -47,7 +47,6 @@ public sealed class ProgressionService
         {
             character.Experience -= _settings.ExperienceToNextLevel[character.Level - 1];
             character.Level++;
-            character.TalentPoints++;
             levelsGained++;
         }
 

@@ -13,5 +13,4 @@ public class CurrentCharacterResponse
     public int Level { get; set; }
     public int Experience { get; set; }
     public int? ExperienceToNextLevel { get; set; }
-    public int TalentPoints { get; set; }
 }

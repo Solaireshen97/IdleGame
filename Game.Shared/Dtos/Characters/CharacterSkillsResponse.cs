@@ -5,42 +5,10 @@ public class CharacterSkillsResponse
     public int CharacterId { get; set; }
     public string ProfessionCode { get; set; } = string.Empty;
     public string ProfessionName { get; set; } = string.Empty;
-    public string? AdvancedProfessionCode { get; set; }
-    public string? AdvancedProfessionName { get; set; }
     public int Level { get; set; }
-    public int TalentPoints { get; set; }
-    public bool CanPromote { get; set; }
-    public List<ProfessionResponse> PromotionOptions { get; set; } = [];
     public List<LearnedSkillResponse> LearnedSkills { get; set; } = [];
+    public List<SharedSkillResponse> SharedSkills { get; set; } = [];
     public List<EquippedSkillResponse> Slots { get; set; } = [];
-    public List<SkillTalentNodeResponse> TalentNodes { get; set; } = [];
-}
-
-public class SkillTalentNodeResponse
-{
-    public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string? SkillCode { get; set; }
-    public string SkillName { get; set; } = string.Empty;
-    public string SkillDescription { get; set; } = string.Empty;
-    public int Cost { get; set; }
-    public int Rank { get; set; }
-    public int MaxRank { get; set; }
-    public int Tier { get; set; }
-    public int Column { get; set; }
-    public int RequiredLevel { get; set; }
-    public string BranchCode { get; set; } = string.Empty;
-    public int RequiredTreePoints { get; set; }
-    public string? ExclusiveGroup { get; set; }
-    public string? EffectCode { get; set; }
-    public decimal ValuePerRank { get; set; }
-    public List<string> Prerequisites { get; set; } = [];
-    public List<string> AnyPrerequisites { get; set; } = [];
-    public bool IsUnlocked { get; set; }
-    public bool IsMaxRank { get; set; }
-    public bool ArePrerequisitesMet { get; set; }
-    public bool CanUnlock { get; set; }
 }
 
 public class LearnedSkillResponse
@@ -51,8 +19,20 @@ public class LearnedSkillResponse
     public string EffectType { get; set; } = string.Empty;
     public int Power { get; set; }
     public int CooldownRounds { get; set; }
+    public int InitialCooldownRounds { get; set; }
+    public int Level { get; set; }
+    public int UnlockLevel { get; set; }
+    public int Level2UnlockLevel { get; set; }
+    public int Level3UnlockLevel { get; set; }
+    public bool IsShared { get; set; }
+    public string SourceProfessionCode { get; set; } = string.Empty;
     public string AutoCondition { get; set; } = "Always";
     public List<SkillEffectResponse> Effects { get; set; } = [];
+}
+
+public class SharedSkillResponse : LearnedSkillResponse
+{
+    public bool CanEquip { get; set; }
 }
 
 public class SkillEffectResponse

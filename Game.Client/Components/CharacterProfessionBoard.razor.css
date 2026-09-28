@@ -1,0 +1,29 @@
+.profession-board { padding: 1.15rem; border: 1px solid #40576b; border-radius: .9rem; background: #1a2a3b; color: #e2ebf2; }
+.profession-board__header { display: flex; justify-content: space-between; gap: 1rem; align-items: end; }
+.profession-board__eyebrow { color: #edbd74; font-size: .66rem; font-weight: 800; letter-spacing: .12em; }
+.profession-board__header h2 { margin: .15rem 0; font: 700 1.35rem Georgia, serif; }
+.profession-board__header p { max-width: 14rem; margin: 0; color: #adbfcb; font-size: .72rem; text-align: right; }
+.profession-board__notice { margin: .8rem 0; padding: .7rem; border: 1px solid #48617a; border-radius: .55rem; background: #132638; color: #b9cbd6; font-size: .72rem; line-height: 1.5; }
+.profession-board__list { display: grid; gap: .6rem; }
+.profession-board__item { display: grid; grid-template-columns: 3rem minmax(0, 1fr) auto; gap: .7rem; align-items: center; padding: .75rem; border: 1px solid #40596d; border-radius: .65rem; background: #122537; }
+.profession-board__item--active { border-color: #d7a85e; background: #292d34; }
+.profession-board__item > img { width: 3rem; height: 3rem; object-fit: contain; image-rendering: pixelated; }
+.profession-board__content { min-width: 0; }
+.profession-board__title { display: flex; align-items: center; gap: .5rem; }
+.profession-board__title h3 { margin: 0; font-size: .9rem; }
+.profession-board__title span { padding: .15rem .35rem; border-radius: .25rem; background: #d7a85e33; color: #f4d498; font-size: .62rem; }
+.profession-board__content p { margin: .25rem 0 .5rem; color: #adbfcb; font-size: .68rem; }
+.profession-board__level { display: flex; justify-content: space-between; gap: .5rem; color: #adbfcb; font-size: .64rem; }
+.profession-board__level strong { color: #f3d385; }
+.profession-board__content progress { width: 100%; height: .35rem; accent-color: #d9aa60; }
+.profession-board__content > small { display: block; color: #85d3ba; font-size: .62rem; }
+.profession-board__item > button { min-height: 44px; padding: .4rem .8rem; border: 1px solid #b99258; border-radius: .45rem; background: #3b3229; color: #f4d498; cursor: pointer; }
+.profession-board__item > button:disabled { opacity: .45; cursor: not-allowed; }
+.profession-board__error { color: #efa2a9; font-size: .8rem; }
+@container game-shell (max-width: 430px) {
+    .profession-board { padding: .75rem; }
+    .profession-board__header p { display: none; }
+    .profession-board__item { grid-template-columns: 2.3rem minmax(0, 1fr); gap: .5rem; }
+    .profession-board__item > img { width: 2.3rem; height: 2.3rem; }
+    .profession-board__item > button { grid-column: 2; justify-self: end; }
+}

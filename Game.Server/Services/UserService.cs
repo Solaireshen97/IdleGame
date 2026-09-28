@@ -267,6 +267,11 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         {
             await dbContext.SaveChangesAsync();
             AddStartingSkills(character);
+            dbContext.CharacterCombatProfessions.Add(new CharacterCombatProfession
+            {
+                CharacterId = character.Id, ProfessionCode = character.ProfessionCode,
+                Level = character.Level, Experience = character.Experience
+            });
             AddStartingWeapons(character);
             if (characterCount == 0) user.ActiveCharacterId = character.Id;
             await dbContext.SaveChangesAsync();
@@ -335,6 +340,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());
         dbContext.BattleHealingPotionStates.RemoveRange(await dbContext.BattleHealingPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
+        dbContext.CharacterCombatProfessions.RemoveRange(await dbContext.CharacterCombatProfessions.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
         dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
         dbContext.CharacterSoulImprints.RemoveRange(await dbContext.CharacterSoulImprints.Where(item => item.CharacterId == characterId).ToListAsync());
@@ -428,13 +434,13 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
     private void AddStartingSkills(Character character)
     {
-        var profession = skillCatalog.FindProfession(character.ProfessionCode)!;
-        for (var index = 0; index < profession.StartingSkills.Count; index++)
+        var available = skillCatalog.SkillsForProfessionAtLevel(character.ProfessionCode, character.Level);
+        for (var index = 0; index < available.Count; index++)
             dbContext.CharacterSkillSlots.Add(new CharacterSkillSlot
             {
                 CharacterId = character.Id,
                 SlotIndex = index + 1,
-                SkillCode = profession.StartingSkills[index],
+                SkillCode = available[index].Code,
                 AutoHpThresholdPercent = SkillRules.DefaultAutoHpThresholdPercent
             });
     }
@@ -497,8 +503,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             Attack = TalentRules.EffectiveAttack(character),
             Level = character.Level,
             Experience = character.Experience,
-            ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),
-            TalentPoints = character.TalentPoints
+            ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level)
         };
     }
 
@@ -516,7 +521,6 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             Level = character.Level,
             Experience = character.Experience,
             ExperienceToNextLevel = progressionService.GetExperienceToNextLevel(character.Level),
-            TalentPoints = character.TalentPoints,
             IsCurrent = isCurrent
         };
     }
