@@ -261,7 +261,6 @@ public partial class BattleServiceTests
     }
 
     [Theory]
-    [InlineData("sword-intercept")]
     [InlineData("acolyte-silence")]
     public async Task CustomAlwaysCannotBypassNonDamageInterruptRequirements(string skillCode)
     {

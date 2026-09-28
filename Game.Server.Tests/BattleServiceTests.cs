@@ -80,7 +80,7 @@ public partial class BattleServiceTests
         test.Character.ProfessionCode = "swordsman";
         test.Monster.Hp = test.Monster.MaxHp = 1000;
         await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "sword-parry", autoUse: true);
+        await test.AddSkillAsync(test.Character, 1, "sword-slash", autoUse: true);
 
         var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
@@ -92,7 +92,7 @@ public partial class BattleServiceTests
         var rooms = new RoomService(test.Db, users, progression, ConsumableTestFactory.Create(), skills, rewards);
 
         var before = await rooms.GetRoomDetailAsync(test.Room.Id, test.Token);
-        Assert.Equal(1, Assert.Single(Assert.Single(before!.Slots).Skills, slot => slot.SkillCode == "sword-parry")
+        Assert.Equal(1, Assert.Single(Assert.Single(before!.Slots).Skills, slot => slot.SkillCode == "sword-slash")
             .CooldownRoundsRemaining);
         var (queued, queueError) = await service.QueueSkillAsync(new QueueSkillRequest
         {
@@ -103,13 +103,13 @@ public partial class BattleServiceTests
 
         var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
         Assert.Null(firstError);
-        Assert.DoesNotContain(first!.Logs, log => log.Contains("使用 招架"));
+        Assert.DoesNotContain(first!.Logs, log => log.Contains("使用 十字军打击"));
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
         test.Room.Version++;
         await test.Db.SaveChangesAsync();
         var (second, secondError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
         Assert.Null(secondError);
-        Assert.Contains(second!.Logs, log => log.Contains("使用 招架"));
+        Assert.Contains(second!.Logs, log => log.Contains("使用 十字军打击"));
     }
 
     [Fact]

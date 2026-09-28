@@ -20,6 +20,9 @@ public partial class BattleServiceTests
     [InlineData("rogue-gouge", "basic")]
     [InlineData("rogue-gouge", "uninterruptible")]
     [InlineData("rogue-gouge", "interrupted")]
+    [InlineData("knight-rebuke", "basic")]
+    [InlineData("knight-rebuke", "uninterruptible")]
+    [InlineData("knight-rebuke", "interrupted")]
     public async Task ManualDamageInterruptSkillsDamageWithoutInterruptibleIntent(string skillCode, string intentState)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
@@ -46,6 +49,7 @@ public partial class BattleServiceTests
     [Theory]
     [InlineData("hunter-rapid-volley")]
     [InlineData("rogue-gouge")]
+    [InlineData("knight-rebuke")]
     public async Task ManualDamageInterruptSkillsStillDamageWhenIntentIsInterruptedAfterQueue(string skillCode)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
@@ -75,6 +79,10 @@ public partial class BattleServiceTests
     [InlineData("rogue-gouge", "uninterruptible", false)]
     [InlineData("rogue-gouge", "interrupted", false)]
     [InlineData("rogue-gouge", "interruptible", true)]
+    [InlineData("knight-rebuke", "basic", false)]
+    [InlineData("knight-rebuke", "uninterruptible", true)]
+    [InlineData("knight-rebuke", "interrupted", false)]
+    [InlineData("knight-rebuke", "interruptible", true)]
     public async Task AutomaticDamageInterruptSkillsStillWaitForInterruptibleIntent(string skillCode, string intentState, bool shouldCast)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
@@ -85,17 +93,15 @@ public partial class BattleServiceTests
         Assert.Null(error);
         Assert.Equal(shouldCast ? SkillCatalog.EffectsFor(skill).Count(effect => effect.Type == "Damage") : 0,
             result!.Logs.Count(log => log.Contains($"使用 {skill.Name} 攻击")));
-        Assert.Equal(shouldCast ? 1 : 0, result.Logs.Count(log => log.Contains($"使用 {skill.Name}，打断")));
-        Assert.Equal(shouldCast || intentState == "interrupted", intent.IsInterrupted);
+        Assert.Equal(shouldCast && intentState == "interruptible" ? 1 : 0,
+            result.Logs.Count(log => log.Contains($"使用 {skill.Name}，打断")));
+        Assert.Equal(shouldCast && intentState == "interruptible" || intentState == "interrupted", intent.IsInterrupted);
         var cooldowns = await test.Db.BattleSkillCooldowns.ToListAsync();
         if (shouldCast) Assert.Equal(skillCode, Assert.Single(cooldowns).SkillCode);
         else Assert.Empty(cooldowns);
     }
 
     [Theory]
-    [InlineData("sword-intercept", "basic")]
-    [InlineData("sword-intercept", "uninterruptible")]
-    [InlineData("sword-intercept", "interrupted")]
     [InlineData("acolyte-silence", "basic")]
     [InlineData("acolyte-silence", "uninterruptible")]
     [InlineData("acolyte-silence", "interrupted")]

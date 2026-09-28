@@ -11,43 +11,48 @@ namespace Game.Server.Tests;
 public partial class BattleServiceTests
 {
     [Fact]
-    public async Task BacklineSelfDefenceDoesNotStealOrStrengthenFrontParry()
+    public async Task FaithBarrierProtectsKnightMoreThanOtherAllyAgainstAreaAttack()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60, characterAttack: 1, monsterAttack: 20);
         test.Character.ProfessionCode = "swordsman";
-        var mage = await test.AddSlotAsync(2, "Mage", hp: 60, attack: 1);
-        mage.ProfessionCode = "mage";
+        test.Character.Level = 3;
+        var ally = await test.AddSlotAsync(2, "Ally", hp: 60, attack: 1);
         test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Monster.CombatProfileCode = "balance-area-profile";
         await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "sword-parry", autoUse: true);
-        await test.AddSkillAsync(mage, 1, "mage-frost-ward", autoUse: true);
-        var (service, _) = CreateProfessionBalanceService(test);
-
-        var (_, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Equal(47, test.Character.Hp);
-        Assert.Equal(60, mage.Hp);
-    }
-
-    [Theory]
-    [InlineData(100, 50, true)]
-    [InlineData(50, 100, false)]
-    public async Task RearSwordsmanAutomaticParryChecksItsOwnHealth(
-        int frontHp, int swordsmanHp, bool shouldParry)
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: frontHp, characterAttack: 1, monsterAttack: 1);
-        var swordsman = await test.AddSlotAsync(2, "RearSwordsman", hp: swordsmanHp, attack: 1);
-        swordsman.ProfessionCode = "swordsman";
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(swordsman, 1, "sword-parry", autoUse: true);
+        await test.AddSkillAsync(test.Character, 1, "knight-faith-barrier", autoUse: true);
         var (service, _) = CreateProfessionBalanceService(test);
 
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(shouldParry, result!.Logs.Any(log => log.Contains("RearSwordsman 使用 招架")));
+        Assert.Equal(48, test.Character.Hp); // 20 damage reduced by 40%, not 40% plus the party's 10%.
+        Assert.Equal(42, ally.Hp); // 20 damage reduced by 10%.
+        Assert.Equal(2, result!.Logs.Count(log => log.Contains("使用 信仰壁垒，守护")));
+    }
+
+    [Theory]
+    [InlineData(100, 50)]
+    [InlineData(50, 100)]
+    public async Task RearKnightAutomaticBarrierProtectsBothPositionsRegardlessOfHealth(
+        int frontHp, int knightHp)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: frontHp, characterAttack: 1, monsterAttack: 20);
+        var knight = await test.AddSlotAsync(2, "RearKnight", hp: knightHp, attack: 1);
+        knight.ProfessionCode = "swordsman";
+        knight.Level = 3;
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        test.Monster.CombatProfileCode = "balance-area-profile";
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(knight, 1, "knight-faith-barrier", autoUse: true);
+        var (service, _) = CreateProfessionBalanceService(test);
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Equal(frontHp - 18, test.Character.Hp);
+        Assert.Equal(knightHp - 12, knight.Hp);
+        Assert.Equal(2, result!.Logs.Count(log => log.Contains("RearKnight 使用 信仰壁垒，守护")));
     }
 
     [Theory]
