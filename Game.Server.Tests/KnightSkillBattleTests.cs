@@ -77,4 +77,24 @@ public partial class BattleServiceTests
         Assert.Single(second!.Logs, log => log.Contains("受到 圣焰 造成的 4 点伤害"));
         Assert.Equal(2, second.Logs.Count(log => log.Contains("受到 圣佑回春 治疗，恢复 4 点生命")));
     }
+
+    [Fact]
+    public async Task HolyAuraHealingTicksWhenThePartyDefeatsTheMonsterThisRound()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 100, monsterAttack: 1);
+        await test.EnableAutoForCharacterAsync(test.Character);
+        test.Monster.Hp = 1;
+        test.Room.RoundNumber = 3;
+        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
+        await monsterCombat.ApplyStatusAsync(test.Room, "Character", test.Character.Id,
+            "knight-holy-renew", 3, [], test.Character.Name, perTickValue: 4);
+        test.Room.RoundNumber = 4;
+        await test.Db.SaveChangesAsync();
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        Assert.Contains(result!.Logs, log => log.Contains("受到 圣佑回春 治疗，恢复 4 点生命"));
+        Assert.Equal(54, test.Character.Hp);
+    }
 }

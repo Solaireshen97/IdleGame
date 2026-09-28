@@ -20,6 +20,6 @@ public sealed class AddBattleStatusPerTickValue : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropColumn(name: "PerTickValue", table: "BattleStatusEffects");
+        migrationBuilder.Sql("ALTER TABLE BattleStatusEffects DROP COLUMN PerTickValue;");
     }
 }

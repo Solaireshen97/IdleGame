@@ -78,8 +78,8 @@ public sealed class SkillProgressionProductionTests
         Assert.Equal(50, Effect(rank1["sword-slash"], "Damage").AttackPowerPercent);
         Assert.Equal(60, Effect(rank2["sword-slash"], "Damage").AttackPowerPercent);
         Assert.Equal(15, Effect(rank3["sword-slash"], "Guard").Power);
-        Assert.Equal(10, Effect(rank1["knight-faith-barrier"], "Guard", "AllAlive").Power);
-        Assert.Equal(15, Effect(rank2["knight-faith-barrier"], "Guard", "AllAlive").Power);
+        Assert.Equal(10, Effect(rank1["knight-faith-barrier"], "Guard", "AllOtherAlive").Power);
+        Assert.Equal(15, Effect(rank2["knight-faith-barrier"], "Guard", "AllOtherAlive").Power);
         Assert.Equal(4, rank3["knight-faith-barrier"].CooldownRounds);
         Assert.Equal(30, Effect(rank1["knight-rebuke"], "Damage").AttackPowerPercent);
         Assert.Equal(40, Effect(rank2["knight-rebuke"], "Damage").AttackPowerPercent);

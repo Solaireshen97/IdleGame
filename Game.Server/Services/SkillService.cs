@@ -204,6 +204,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             Effects = SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
             {
                 Type = effect.Type, Target = effect.Target, Power = effect.Power,
+                AttackPowerPercent = effect.AttackPowerPercent, HealMaxHpPercent = effect.HealMaxHpPercent,
                 StatusCode = effect.StatusCode, DurationRounds = effect.DurationRounds
             }).ToList()
         };

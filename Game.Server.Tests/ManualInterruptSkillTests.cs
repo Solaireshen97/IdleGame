@@ -79,7 +79,7 @@ public partial class BattleServiceTests
     [InlineData("rogue-gouge", "uninterruptible", false)]
     [InlineData("rogue-gouge", "interrupted", false)]
     [InlineData("rogue-gouge", "interruptible", true)]
-    [InlineData("knight-rebuke", "basic", false)]
+    [InlineData("knight-rebuke", "basic", true)]
     [InlineData("knight-rebuke", "uninterruptible", true)]
     [InlineData("knight-rebuke", "interrupted", false)]
     [InlineData("knight-rebuke", "interruptible", true)]

@@ -16,17 +16,18 @@ def main() -> None:
     subjects = json.loads(SUBJECTS.read_text(encoding="utf-8"))
     abilities = {item["Code"]: item for item in config["Skills"]["Abilities"]}
     planned = {item["code"]: item for item in subjects}
-    if abilities.keys() != planned.keys():
-        raise ValueError(f"missing={abilities.keys() - planned.keys()}, extra={planned.keys() - abilities.keys()}")
+    missing = abilities.keys() - planned.keys()
+    if missing:
+        raise ValueError(f"missing={missing}")
 
     entries = []
-    for item in subjects:
-        ability = abilities[item["code"]]
+    for ability in config["Skills"]["Abilities"]:
+        item = planned[ability["Code"]]
         entries.append({
-            "code": item["code"],
+            "code": ability["Code"],
             "name": ability["Name"],
             "profession": ability["ProfessionCode"],
-            "file": f"{item['code']}.png",
+            "file": item.get("file", f"{item['code']}.png"),
             "subject": item["subject"],
             "palette": item["palette"],
         })
@@ -39,15 +40,15 @@ def main() -> None:
         "",
         "public static class SkillArt",
         "{",
-        "    private static readonly HashSet<string> Codes = new(StringComparer.Ordinal)",
+        "    private static readonly Dictionary<string, string> PathsByCode = new(StringComparer.Ordinal)",
         "    {",
     ]
-    lines.extend(f'        "{item["code"]}",' for item in entries)
+    lines.extend(f'        ["{item["code"]}"] = "/art/skills/{item["file"]}",' for item in entries)
     lines.extend([
         "    };",
         "",
-        "    public static string? ForCode(string? code) => code is not null && Codes.Contains(code)",
-        "        ? $\"/art/skills/{code}.png\" : null;",
+        "    public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)",
+        "        ? path : null;",
         "}",
     ])
     SERVICE.write_text("\n".join(lines) + "\n", encoding="utf-8")

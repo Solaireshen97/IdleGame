@@ -1593,21 +1593,24 @@ else
         var target = canChooseTarget && SkillTargetRules.UsesChosenTarget(effect.Type, effect.Target) ? "本次所选队友" : effect.Target switch
         {
             "Self" => "自身",
-            "LowestHpAlly" => "生命值最低的队友",
-            "AllAllies" => "全体队友",
-            "FrontAlly" => "前排队友",
+            "LowestHpAlly" or "LowestHpAllyFixed" => "生命值最低的队友",
+            "AllAllies" or "AllAlive" => "全体存活队友",
+            "AllOtherAlive" => "其他存活队友",
+            "FrontAlly" or "FrontAllyFixed" => "前排队友",
             "Monster" => "敌人",
             _ => "目标"
         };
         return effect.Type switch
         {
-            "Damage" => $"对{target}造成 {effect.Power}% 威力伤害",
-            "Heal" => $"为{target}恢复生命值",
+            "Damage" => $"对{target}造成 {effect.AttackPowerPercent:0.##}% 攻击伤害{(effect.Power > 0 ? $"，另加 {effect.Power} 点威力" : "")}",
+            "Heal" => $"为{target}恢复{(effect.Power > 0 ? $"{effect.Power} 点" : "")}{(effect.Power > 0 && effect.HealMaxHpPercent > 0 ? " + " : "")}{(effect.HealMaxHpPercent > 0 ? $"目标最大生命值的 {effect.HealMaxHpPercent:0.##}%" : "")}生命值",
             "Guard" => $"使{target}在本回合获得 {effect.Power}% 伤害减免",
             "Cleanse" => $"净化{target}的负面状态",
             "Dispel" => $"驱散{target}的增益状态",
             "Interrupt" => "打断敌人当前可打断技能",
-            "ApplyStatus" => $"对{target}施加{GetStatusName(effect.StatusCode)}，持续 {effect.DurationRounds} 回合",
+            "ApplyStatus" => $"对{target}施加{GetStatusName(effect.StatusCode)}，持续 {effect.DurationRounds} 回合" +
+                (effect.AttackPowerPercent > 0 ? $"，每回合造成施放时攻击力 {effect.AttackPowerPercent:0.##}% 的伤害" :
+                    effect.HealMaxHpPercent > 0 ? $"，每回合恢复目标最大生命值的 {effect.HealMaxHpPercent:0.##}%" : ""),
             _ => $"对{target}产生技能效果"
         };
     }
@@ -1619,6 +1622,8 @@ else
         "attack-up" => "攻击提升",
         "defense-up" => "防御提升",
         "regen" => "持续恢复",
+        "knight-holy-burn" => "圣焰",
+        "knight-holy-renew" => "圣佑回春",
         _ => "状态效果"
     };
 

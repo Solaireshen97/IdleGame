@@ -3,44 +3,35 @@ namespace Game.Client.Services;
 
 public static class SkillArt
 {
-    private static readonly HashSet<string> Codes = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, string> PathsByCode = new(StringComparer.Ordinal)
     {
-        "sword-slash",
-        "sword-parry",
-        "sword-double-slash",
-        "sword-intercept",
-        "acolyte-holy-bolt",
-        "acolyte-heal",
-        "acolyte-silence",
-        "acolyte-purify",
-        "acolyte-radiant-flare",
-        "knight-guard",
-        "warrior-fury",
-        "priest-group-heal",
-        "mage-arcane-bolt",
-        "mage-frost-ward",
-        "mage-arcane-barrage",
-        "mage-spellbreak",
-        "mage-arcane-suppression",
-        "hunter-quick-shot",
-        "hunter-field-mend",
-        "hunter-marked-shot",
-        "hunter-venom-arrow",
-        "hunter-rapid-volley",
-        "rogue-shadow-strike",
-        "rogue-evasion",
-        "rogue-blade-flurry",
-        "rogue-poisoned-blade",
-        "rogue-gouge",
-        "inquisitor-condemn",
-        "elementalist-pyroblast",
-        "arcanist-overcharge",
-        "marksman-sniper-shot",
-        "beastmaster-coordinated-assault",
-        "assassin-deathblow",
-        "trickster-smoke-bomb",
+        ["sword-slash"] = "/art/skills/sword-slash.png",
+        ["knight-faith-barrier"] = "/art/skills/knight-guard.png",
+        ["knight-rebuke"] = "/art/skills/sword-intercept.png",
+        ["knight-invigorate"] = "/art/skills/priest-group-heal.png",
+        ["knight-holy-aura"] = "/art/skills/acolyte-radiant-flare.png",
+        ["acolyte-holy-bolt"] = "/art/skills/acolyte-holy-bolt.png",
+        ["acolyte-heal"] = "/art/skills/acolyte-heal.png",
+        ["acolyte-silence"] = "/art/skills/acolyte-silence.png",
+        ["acolyte-purify"] = "/art/skills/acolyte-purify.png",
+        ["acolyte-radiant-flare"] = "/art/skills/acolyte-radiant-flare.png",
+        ["mage-arcane-bolt"] = "/art/skills/mage-arcane-bolt.png",
+        ["mage-frost-ward"] = "/art/skills/mage-frost-ward.png",
+        ["mage-arcane-barrage"] = "/art/skills/mage-arcane-barrage.png",
+        ["mage-spellbreak"] = "/art/skills/mage-spellbreak.png",
+        ["mage-arcane-suppression"] = "/art/skills/mage-arcane-suppression.png",
+        ["hunter-quick-shot"] = "/art/skills/hunter-quick-shot.png",
+        ["hunter-field-mend"] = "/art/skills/hunter-field-mend.png",
+        ["hunter-marked-shot"] = "/art/skills/hunter-marked-shot.png",
+        ["hunter-venom-arrow"] = "/art/skills/hunter-venom-arrow.png",
+        ["hunter-rapid-volley"] = "/art/skills/hunter-rapid-volley.png",
+        ["rogue-shadow-strike"] = "/art/skills/rogue-shadow-strike.png",
+        ["rogue-evasion"] = "/art/skills/rogue-evasion.png",
+        ["rogue-blade-flurry"] = "/art/skills/rogue-blade-flurry.png",
+        ["rogue-poisoned-blade"] = "/art/skills/rogue-poisoned-blade.png",
+        ["rogue-gouge"] = "/art/skills/rogue-gouge.png",
     };
 
-    public static string? ForCode(string? code) => code is not null && Codes.Contains(code)
-        ? $"/art/skills/{code}.png" : null;
+    public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)
+        ? path : null;
 }

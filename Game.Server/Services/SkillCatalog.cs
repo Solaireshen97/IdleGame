@@ -34,7 +34,7 @@ public sealed class SkillCatalog
                 hasConditionalDamage != (skill.RequiredTargetStatusCode is not null || skill.TargetHpBelowPercent is not null) ||
                 hasConditionalDamage && !hasDamage ||
                 skill.RequiredTargetStatusCode is not null && monsterCombatCatalog is not null && monsterCombatCatalog.FindStatus(skill.RequiredTargetStatusCode) is null ||
-                AutoConditionFor(skill) is not ("Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent") ||
+                AutoConditionFor(skill) is not ("Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent" or "PreferInterrupt") ||
                 skill.CooldownRounds < 0 || skill.InitialCooldownRounds < 0 || !_skills.TryAdd(skill.Code, skill))
                 throw new InvalidOperationException($"Invalid skill configuration: {skill.Code}");
         }
@@ -164,7 +164,7 @@ public sealed class SkillCatalog
             resolved.AttackPowerPercent is >= 0 and <= 1000 && resolved.HealMaxHpPercent is >= 0 and <= 100 &&
             resolved.ConditionalDamageBonusPercent is >= 0 and <= 200 &&
             resolved.TargetHpBelowPercent is null or >= 1 and <= 100 &&
-            AutoConditionFor(resolved) is "Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent" &&
+            AutoConditionFor(resolved) is "Always" or "LowestHpBelowThreshold" or "AllyHasDebuff" or "MonsterHasBuff" or "InterruptibleIntent" or "PreferInterrupt" &&
             (variant.Effects is null || variant.Effects.Count > 0 && variant.Effects.All(IsValidEffect));
     }
 
@@ -181,8 +181,8 @@ public sealed class SkillCatalog
     {
         if (effect.Type is not ("Damage" or "Heal" or "Guard" or "Cleanse" or "Dispel" or "Interrupt" or "ApplyStatus" or "CooldownReduction")) return false;
         var validTarget = effect.Type switch { "Damage" or "Dispel" or "Interrupt" => effect.Target == "Monster",
-            "Heal" => effect.Target is "LowestHpAlly" or "AllAlive" or "Self", "Guard" => effect.Target is "FrontAlly" or "Self",
-            "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self", "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly",
+            "Heal" => effect.Target is "LowestHpAlly" or "LowestHpAllyFixed" or "AllAlive" or "Self", "Guard" => effect.Target is "FrontAlly" or "FrontAllyFixed" or "Self" or "AllAlive" or "AllOtherAlive",
+            "Cleanse" => effect.Target is "FirstDebuffedAlly" or "Self", "ApplyStatus" => effect.Target is "Monster" or "Self" or "FrontAlly" or "AllAlive",
             "CooldownReduction" => effect.Target == "Self", _ => false };
         if (!validTarget || effect.Power < 0 || effect.AttackPowerPercent is < 0 or > 1000 || effect.HealMaxHpPercent is < 0 or > 100) return false;
         if (effect.Type == "Damage" && effect.Power == 0 && effect.AttackPowerPercent == 0) return false;

@@ -550,6 +550,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         var monsterDefeated = monster.Hp <= 0;
         if (monsterDefeated)
         {
+            // A wave-ending player action still completes this combat round for healing auras.
+            if (monsterCombatService is not null)
+                await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
+                    operationBonuses, healingOnly: true);
             await ApplyVictoryCooldownTalentAsync(room, characterIds, logs);
             var participants = slots.Where(slot => slot.Slot.UserId.HasValue)
                 .Select(slot => new RewardParticipant(slot.Slot.UserId!.Value, slot.Character)).ToList();
@@ -865,6 +869,8 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             var healingOccurred = false;
             var holyHealEchoChecked = false;
             var holyHealEcho = 0m;
+            var lowestAllyAtCast = skill.Code == "knight-invigorate" ? FindLowestHpTarget(aliveSlots) : null;
+            var invigoratedTargets = new HashSet<int>();
             var holyDamageEcho = skill.Code == "acolyte-holy-bolt" && await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", false) ? 20m : 0m;
             var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
                 TalentRules.EffectiveMaxHp(participant.Character),
@@ -940,9 +946,12 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     }
                     case "Heal":
                     {
-                        var targets = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId);
+                        var targets = effect.Target == "LowestHpAllyFixed" && lowestAllyAtCast is not null
+                            ? new List<SlotCharacter> { lowestAllyAtCast }
+                            : ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId);
                         foreach (var target in targets)
                         {
+                            if (skill.Code == "knight-invigorate" && !invigoratedTargets.Add(target.Character.Id)) continue;
                             var maxHp = TalentRules.EffectiveMaxHp(target.Character);
                             var hasAfterglow = monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-afterglow") > 0;
                             if (target.Character.Hp >= maxHp && !hasAfterglow) continue;
@@ -976,16 +985,16 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     }
                     case "Guard":
                     {
-                        var target = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId).FirstOrDefault();
-                        if (target is null) break;
-                        var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
-                        power = Math.Min(BattleRules.MaxGuardDamageReductionPercent, power);
-                        // Each ally owns its protection; same-target guards replace only weaker protection.
-                        // This keeps self-defence from moving the front line's guard to a different ally.
-                        if (guardsByCharacter.GetValueOrDefault(target.Character.Id).ReductionPercent >= power) break;
-                        guardsByCharacter[target.Character.Id] = new CharacterRoundDefense(power, participant.Character.Id);
-                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {target.Slot.SlotIndex}号位 {target.Character.Name}。");
-                        applied = true;
+                        foreach (var target in ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId))
+                        {
+                            var power = skill.Code == "sword-parry" && purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("sword-guard-stance") > 0 ? 50 : effect.Power;
+                            power = Math.Min(BattleRules.MaxGuardDamageReductionPercent, power);
+                            // Stronger same-round protection wins; the group effect cannot add to the self effect.
+                            if (guardsByCharacter.GetValueOrDefault(target.Character.Id).ReductionPercent >= power) continue;
+                            guardsByCharacter[target.Character.Id] = new CharacterRoundDefense(power, participant.Character.Id);
+                            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {target.Slot.SlotIndex}号位 {target.Character.Name}。");
+                            applied = true;
+                        }
                         break;
                     }
                     case "Cleanse" when monsterCombatService is not null:
@@ -1022,15 +1031,35 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         break;
                     case "ApplyStatus" when monsterCombatService is not null && effect.StatusCode is not null:
                     {
-                        var targetType = effect.Target == "Monster" ? "Monster" : "Character";
-                        var allyTarget = effect.Target == "Monster" ? null :
-                            ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId).FirstOrDefault();
-                        if (effect.Target != "Monster" && allyTarget is null) break;
-                        var targetId = effect.Target == "Monster" ? monster.Id : allyTarget!.Character.Id;
-                        var targetLabel = effect.Target == "Monster" ? monster.Name :
-                            $"{aliveSlots.Single(entry => entry.Character.Id == targetId).Slot.SlotIndex}号位 {aliveSlots.Single(entry => entry.Character.Id == targetId).Character.Name}";
-                        applied |= await monsterCombatService.ApplyStatusAsync(room, targetType, targetId, effect.StatusCode,
-                            effect.DurationRounds, logs, targetLabel);
+                        if (effect.Target == "Monster")
+                        {
+                            int? perTickValue = null;
+                            if (effect.StatusCode == "knight-holy-burn")
+                            {
+                                var statusAttack = await monsterCombatService.GetModifierAsync(room, "Character",
+                                    participant.Character.Id, "AttackPercent");
+                                var attackBonus = WeaponCombatRules.AttackBonusPercent(participant.Character, room.RoundNumber) +
+                                    statusAttack + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent;
+                                var snapshottedAttack = TalentRules.EffectiveAttack(participant.Character) *
+                                    Math.Max(0m, 1m + attackBonus / 100m);
+                                perTickValue = Math.Max(1, (int)Math.Min(int.MaxValue,
+                                    decimal.Floor(snapshottedAttack * effect.AttackPowerPercent / 100m)));
+                            }
+                            applied |= await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id,
+                                effect.StatusCode, effect.DurationRounds, logs, monster.Name, perTickValue);
+                        }
+                        else
+                        {
+                            foreach (var allyTarget in ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId))
+                            {
+                                int? perTickValue = effect.StatusCode == "knight-holy-renew"
+                                    ? Math.Max(1, (int)decimal.Floor(TalentRules.EffectiveMaxHp(allyTarget.Character) * effect.HealMaxHpPercent / 100m))
+                                    : null;
+                                var targetLabel = $"{allyTarget.Slot.SlotIndex}号位 {allyTarget.Character.Name}";
+                                applied |= await monsterCombatService.ApplyStatusAsync(room, "Character", allyTarget.Character.Id,
+                                    effect.StatusCode, effect.DurationRounds, logs, targetLabel, perTickValue);
+                            }
+                        }
                         break;
                     }
                     case "CooldownReduction":
@@ -1204,11 +1233,13 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         if (chosenTargetId.HasValue && SkillTargetRules.UsesChosenTarget(effect.Type, effect.Target))
             return alive.Where(entry => entry.Character.Id == chosenTargetId).ToList();
         if (effect.Target is "AllAlive" or "FirstDebuffedAlly") return alive;
+        if (effect.Target == "AllOtherAlive") return alive.Where(entry => entry.Character.Id != participant.Character.Id).ToList();
         var target = effect.Target switch
         {
             "Self" => participant.Character.Hp > 0 ? participant : null,
             "LowestHpAlly" => FindLowestHpTarget(alive),
-            "FrontAlly" => alive.FirstOrDefault(),
+            "LowestHpAllyFixed" => FindLowestHpTarget(alive),
+            "FrontAlly" or "FrontAllyFixed" => alive.FirstOrDefault(),
             _ => null
         };
         return target is null ? [] : [target];
@@ -1240,6 +1271,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 await monsterCombatService.HasRemovableStatusAsync(room, "Monster", [monster.Id], true),
             "InterruptibleIntent" => monsterCombatService is not null &&
                 await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster),
+            "PreferInterrupt" => monsterCombatService is null ||
+                !monsterCombatService.HasAnyInterruptibleSkill(monster) ||
+                await monsterCombatService.CanInterruptCurrentIntentAsync(room, monster),
             _ => false
         };
     }
@@ -1254,7 +1288,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         var effects = SkillCatalog.EffectsFor(skill);
         if (effects.Any(effect => effect.Type == "Guard" && effect.Target == "Self")) return participant;
         if (effects.Any(effect => effect.Type == "Guard")) return alive.FirstOrDefault();
-        if (effects.Any(effect => effect.Type == "Heal" && effect.Target == "Self")) return participant;
+        if (effects.Any(effect => effect.Type == "Heal" && effect.Target == "Self"))
+            return effects.Any(effect => effect.Type == "Heal" && effect.Target == "LowestHpAllyFixed")
+                ? FindLowestHpTarget(alive) : participant;
         return FindLowestHpTarget(alive);
     }
 

@@ -20,6 +20,30 @@
     "palette": "steel blue, red-orange and ivory"
   },
   {
+    "code": "knight-faith-barrier",
+    "file": "knight-guard.png",
+    "subject": "a shining knight shield blocking a powerful attack",
+    "palette": "steel blue, ivory and warm gold"
+  },
+  {
+    "code": "knight-rebuke",
+    "file": "sword-intercept.png",
+    "subject": "a sword cutting through an incoming attack",
+    "palette": "steel blue, red-orange and ivory"
+  },
+  {
+    "code": "knight-invigorate",
+    "file": "priest-group-heal.png",
+    "subject": "a warm healing radiance shared with allies",
+    "palette": "warm gold, ivory and emerald"
+  },
+  {
+    "code": "knight-holy-aura",
+    "file": "acolyte-radiant-flare.png",
+    "subject": "a bright holy aura radiating from the center",
+    "palette": "white, warm gold and orange"
+  },
+  {
     "code": "acolyte-holy-bolt",
     "subject": "a compact golden holy-light orb flying forward with a pointed white-gold comet tail and four radiant rays",
     "palette": "warm gold, ivory and pale cyan"

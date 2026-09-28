@@ -774,6 +774,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                             Effects = skill is null ? [] : SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
                             {
                                 Type = effect.Type, Target = effect.Target, Power = effect.Power,
+                                AttackPowerPercent = effect.AttackPowerPercent, HealMaxHpPercent = effect.HealMaxHpPercent,
                                 StatusCode = effect.StatusCode, DurationRounds = effect.DurationRounds
                             }).ToList(),
                             InitialCooldownRounds = skill?.InitialCooldownRounds ?? 0,

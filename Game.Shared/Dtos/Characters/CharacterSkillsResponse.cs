@@ -40,6 +40,8 @@ public class SkillEffectResponse
     public string Type { get; set; } = string.Empty;
     public string Target { get; set; } = string.Empty;
     public int Power { get; set; }
+    public decimal AttackPowerPercent { get; set; }
+    public decimal HealMaxHpPercent { get; set; }
     public string? StatusCode { get; set; }
     public int DurationRounds { get; set; }
 }

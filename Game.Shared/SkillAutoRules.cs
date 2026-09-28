@@ -5,7 +5,7 @@ public static class SkillAutoRules
     public static IReadOnlyList<string> Conditions { get; } = Array.AsReadOnly(new[]
     {
         "Always", "SelfHpBelowThreshold", "AllyHpBelowThreshold", "FrontAllyHpBelowThreshold",
-        "MonsterHpBelowThreshold", "AllyHasDebuff", "MonsterHasBuff", "InterruptibleIntent"
+        "MonsterHpBelowThreshold", "AllyHasDebuff", "MonsterHasBuff", "InterruptibleIntent", "PreferInterrupt"
     });
 
     public static string? Normalize(string? condition) => string.IsNullOrWhiteSpace(condition) ? null : condition.Trim();
@@ -26,6 +26,7 @@ public static class SkillAutoRules
         "AllyHasDebuff" => "队友有可净化减益",
         "MonsterHasBuff" => "怪物有可驱散增益",
         "InterruptibleIntent" => "怪物正在准备可打断技能",
+        "PreferInterrupt" => "有可打断技能时留给打断，否则就绪即用",
         "LowestHpBelowThreshold" => "技能目标血量 ≤ 阈值",
         _ => "技能默认"
     };

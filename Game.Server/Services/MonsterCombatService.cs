@@ -81,9 +81,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                catalog.FindSkill(intent.SkillCode)?.IsInterruptible == true;
     }
 
-    public bool HasAnyInterruptibleSkill(Monster monster) =>
-        catalog.FindProfile(monster.CombatProfileCode)?.Skills.Any(entry =>
-            catalog.FindSkill(entry.Code)?.IsInterruptible == true) == true;
+    public bool HasAnyInterruptibleSkill(Monster monster)
+    {
+        var profile = catalog.FindProfile(monster.CombatProfileCode);
+        return profile?.Skills.Any(entry => catalog.FindSkill(entry.Code) is { IsInterruptible: true } skill &&
+            (profile.SkillUseChancePercent > 0 || skill.ForcedPriority > 0)) == true;
+    }
 
     public async Task<bool> InterruptCurrentIntentAsync(Room room, Monster monster)
     {
@@ -244,7 +247,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     public async Task ResolveEndOfRoundAsync(Room room, Monster monster,
         IReadOnlyList<MonsterCombatParticipant> participants, List<string> logs,
-        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null)
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null,
+        bool healingOnly = false)
     {
         var effects = await dbContext.BattleStatusEffects.Where(effect =>
             effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
@@ -253,6 +257,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                      effect.ExpiresAfterRound >= room.RoundNumber))
         {
             var definition = catalog.FindStatus(effect.EffectCode);
+            if (healingOnly && definition?.EffectType != "HealOverTime") continue;
             if (definition?.EffectType == "HealOverTime")
             {
                 if (effect.TargetType != "Character") continue;
