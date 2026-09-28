@@ -20,12 +20,12 @@
     }
     else
     {
-        <p class="profession-board__notice">职业切换免费；战斗或其他活动进行中不能切换。满 30 级职业的共享技能可供同角色其他职业使用。</p>
+        <p class="profession-board__notice">可在活动外免费切换职业。职业满 30 级后，为该角色解锁一个共享技能。</p>
         <div class="profession-board__list">
             @foreach (var profession in _progress.Professions)
             {
                 <article class="profession-board__item @(profession.IsActive ? "profession-board__item--active" : null)" @key="profession.Code">
-                    <img src="@ProfessionArt.ForCode(profession.Code)" alt="" />
+                    <img src="@ProfessionArt.ForCode(profession.Code)" alt="" width="52" height="52" loading="lazy" />
                     <div class="profession-board__content">
                         <div class="profession-board__title"><h3>@profession.Name</h3>@if (profession.IsActive) { <span>当前职业</span> }</div>
                         <p>@profession.Description</p>
