@@ -9,7 +9,6 @@ internal static class ProgressionTestFactory
     public static ProgressionService Create() => new(Options.Create(new ProgressionOptions
     {
         MaximumLevel = 10,
-        ExperienceToNextLevel = [20, 30, 40, 50, 60, 70, 80, 90, 100],
-        ExperiencePercentByLevelDifference = [100, 100, 100, 100, 100, 75, 40, 15, 0]
+        ExperienceToNextLevel = [20, 30, 40, 50, 60, 70, 80, 90, 100]
     }));
 }

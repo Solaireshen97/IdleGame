@@ -176,7 +176,7 @@
                         <label><input type="checkbox" @bind="_isPublic" disabled="@IsCreating" /><span><strong>开放房间</strong><small>允许其他玩家加入</small></span></label>
                     </div>
                     <p>循环固定所选难度，战败后停止。</p>
-                    @if (Character is { } settingsCharacter) { <p>生命 @settingsCharacter.Hp / @settingsCharacter.MaxHp · 攻击 @settingsCharacter.Attack · 本副本经验 @CurrentDungeon.ExperiencePercent%</p> }
+                    @if (Character is { } settingsCharacter) { <p>生命 @settingsCharacter.Hp / @settingsCharacter.MaxHp · 攻击 @settingsCharacter.Attack</p> }
                 </div>
             }
             @if (_depthError is not null)

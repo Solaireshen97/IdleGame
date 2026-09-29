@@ -683,7 +683,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task VictoryExperienceUsesDungeonLevelDifferenceAndPersistsAdjustedReward()
+    public async Task VictoryExperiencePersistsFullReward()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         test.Character.Level = 3;
@@ -701,7 +701,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task VictoryExperienceIsRemovedWhenDungeonIsEightLevelsBelowCharacter()
+    public async Task OldDungeonStillGrantsExperienceBeforeLevelCap()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100);
         test.Character.Level = 9;
@@ -711,11 +711,11 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Equal(RoomStatus.BattleOver, victory!.RoomStatus);
-        Assert.Equal(0, test.Character.Experience);
-        Assert.DoesNotContain(victory.Logs, log => log.Contains("点经验值"));
-        Assert.Empty(await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").ToListAsync());
+        Assert.Equal(10, test.Character.Experience);
+        Assert.Contains(victory.Logs, log => log.Contains("获得 10 点经验值"));
+        Assert.Equal(10, await test.Db.RewardEntries.Where(entry => entry.Kind == "Experience").SumAsync(entry => entry.Quantity));
         var detail = await test.GetRoomDetailAsync();
-        Assert.Equal(0, detail!.Rewards!.Experience);
+        Assert.Equal(10, detail!.Rewards!.Experience);
     }
 
     [Fact]

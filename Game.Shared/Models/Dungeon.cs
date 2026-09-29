@@ -13,9 +13,6 @@ public class Dungeon
     public string PartyScalingProfileCode { get; set; } = "fixed";
     public string Description { get; set; } = string.Empty;
     public int MinimumLevel { get; set; } = 1;
-    // Legacy persisted value: experience reference only. Combat admission uses account progress.
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public int ExperienceReferenceLevel => MinimumLevel;
     public int RecommendedLevel { get; set; } = 1;
     public bool IsVisible { get; set; } = true;
     public string MonsterName { get; set; } = string.Empty;

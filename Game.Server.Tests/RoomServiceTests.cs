@@ -265,26 +265,11 @@ public partial class RoomServiceTests
 
         Assert.Equal(30, dungeons.Count);
         Assert.True(firstHunt.CanEnter);
-        Assert.Equal(100, firstHunt.ExperiencePercent);
         Assert.True(mine.CanEnter);
         Assert.Equal(10, mine.RecommendedLevel);
         Assert.Null(mine.LockReason);
         Assert.NotNull(room);
         Assert.Null(error);
-    }
-
-    [Fact]
-    public async Task DungeonList_ExposesExperienceReductionForLowerLevelContent()
-    {
-        await using var test = await RoomTestContext.CreateAsync();
-        await DbInitializer.EnsureDefaultDungeonsAsync(test.Db);
-        test.ActiveCharacter.Level = 3;
-        await test.Db.SaveChangesAsync();
-
-        var dungeons = await test.Service.GetDungeonsAsync(test.Token);
-
-        Assert.Equal(100, dungeons.Single(dungeon => dungeon.Code == "northshire-wolves").ExperiencePercent);
-        Assert.Equal(100, dungeons.Single(dungeon => dungeon.Code == "stone-tusk-boars").ExperiencePercent);
     }
 
     [Fact]

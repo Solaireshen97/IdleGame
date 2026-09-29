@@ -63,8 +63,7 @@ public sealed class CombatProfessionServiceTests
         }));
         var progression = new ProgressionService(Options.Create(new ProgressionOptions
         {
-            MaximumLevel = 30, ExperienceToNextLevel = Enumerable.Repeat(10, 29).ToList(),
-            ExperiencePercentByLevelDifference = [100]
+            MaximumLevel = 30, ExperienceToNextLevel = Enumerable.Repeat(10, 29).ToList()
         }));
         var service = new CombatProfessionService(db, new UserService(db, progression, skills), skills, progression);
         var weaponCount = await db.CharacterWeapons.CountAsync();

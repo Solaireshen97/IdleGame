@@ -16,10 +16,9 @@ public class ProgressionServiceTests
 
         Assert.Equal(30, settings.MaximumLevel);
         Assert.Equal(29, settings.ExperienceToNextLevel.Count);
-        Assert.Equal([60, 120, 220, 350, 500, 700, 1000, 1400, 1900], settings.ExperienceToNextLevel.Take(9));
-        Assert.Equal(30900, settings.ExperienceToNextLevel[^1]);
-        Assert.Equal(282250, settings.ExperienceToNextLevel.Sum());
-        Assert.Equal([100, 100, 100, 100, 100, 75, 40, 15, 0], settings.ExperiencePercentByLevelDifference);
+        Assert.Equal(Enumerable.Range(0, 29).Select(index => 50 + index * 25),
+            settings.ExperienceToNextLevel);
+        Assert.Equal(11_600, settings.ExperienceToNextLevel.Sum());
     }
 
     [Fact]
@@ -44,10 +43,11 @@ public class ProgressionServiceTests
         var progression = new ProgressionService(Options.Create(ProductionSettings()));
         var character = new Character { Level = 1 };
 
-        progression.AwardExperience(character, 300_000);
+        var toCap = progression.AwardExperience(character, 11_600);
         var afterCap = progression.AwardExperience(character, 10);
 
         Assert.Equal(30, character.Level);
+        Assert.Equal(29, toCap.LevelsGained);
         Assert.Equal(0, character.TalentPoints);
         Assert.Equal(0, character.Experience);
         Assert.Null(progression.GetExperienceToNextLevel(character.Level));
@@ -56,21 +56,15 @@ public class ProgressionServiceTests
     }
 
     [Theory]
-    [InlineData(5, 5, 100)]
-    [InlineData(6, 5, 100)]
-    [InlineData(7, 5, 100)]
-    [InlineData(8, 5, 100)]
-    [InlineData(9, 5, 100)]
-    [InlineData(10, 5, 0)]
-    [InlineData(6, 1, 75)]
-    [InlineData(7, 1, 40)]
-    [InlineData(8, 1, 15)]
-    [InlineData(9, 1, 0)]
-    public void ApplyDungeonExperienceModifier_UsesConfiguredLevelDifference(int characterLevel, int dungeonLevel, int expected)
+    [InlineData(1, 100)]
+    [InlineData(10, 100)]
+    [InlineData(29, 100)]
+    [InlineData(30, 0)]
+    public void DungeonExperienceOnlyStopsAtTheLevelCap(int characterLevel, int expected)
     {
-        var progression = ProgressionTestFactory.Create();
+        var progression = new ProgressionService(Options.Create(ProductionSettings()));
 
-        var adjusted = progression.ApplyDungeonExperienceModifier(100, characterLevel, dungeonLevel);
+        var adjusted = progression.GetAwardableExperience(100, characterLevel);
 
         Assert.Equal(expected, adjusted);
     }

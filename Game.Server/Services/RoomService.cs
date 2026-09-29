@@ -87,7 +87,6 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 PartyHpPercentages = _partyScaling.Catalog.GetHpPercentages(dungeon.PartyScalingProfileCode).ToList(),
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
-                ExperiencePercent = progressionService.ApplyDungeonExperienceModifier(100, currentLevel, dungeon.ExperienceReferenceLevel),
                 CanEnter = canEnter && unlocked > 0,
                 LockReason = !canEnter ? "请先选择角色" : unlocked == 0 ? "账号需先通关本地区普通副本" : null,
                 MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,

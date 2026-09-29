@@ -28,7 +28,6 @@ public class DungeonSummaryResponse
     public int MinimumLevel { get; set; }
     public int RecommendedLevel { get; set; }
     public int CurrentCharacterLevel { get; set; }
-    public int ExperiencePercent { get; set; }
     public bool CanEnter { get; set; }
     public string? LockReason { get; set; }
     public string MonsterName { get; set; } = string.Empty;
