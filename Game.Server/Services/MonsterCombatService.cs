@@ -385,6 +385,77 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         .Select(effect => HunterStatusPower(effect.EffectCode, HunterCoordinatedPrefix))
         .DefaultIfEmpty(0).Max();
 
+    private const string AcolyteNextHealCode = "acolyte-next-heal";
+    private const string AcolyteNextDamageCode = "acolyte-next-damage";
+    private const string AcolyteRevelationCode = "acolyte-revelation";
+
+    public async Task<bool> HasAcolyteEnhancementAsync(Room room, int characterId, bool forHealing,
+        bool includeRevelation = true)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var ordinaryCode = forHealing ? AcolyteNextHealCode : AcolyteNextDamageCode;
+        return effects.Any(effect => effect.EffectCode == ordinaryCode) || includeRevelation &&
+            effects.Any(effect => effect.EffectCode == AcolyteRevelationCode && effect.Stacks > 0);
+    }
+
+    public async Task ConsumeAcolyteEnhancementAsync(Room room, int characterId, bool forHealing,
+        bool includeRevelation = true)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var ordinaryCode = forHealing ? AcolyteNextHealCode : AcolyteNextDamageCode;
+        foreach (var ordinary in effects.Where(effect => effect.EffectCode == ordinaryCode))
+            dbContext.BattleStatusEffects.Remove(ordinary);
+        if (includeRevelation) ConsumeAcolyteRevelation(effects);
+    }
+
+    public async Task ConsumeAcolyteRevelationAsync(Room room, int characterId) =>
+        ConsumeAcolyteRevelation(await GetActiveEffectsAsync(room, "Character", [characterId]));
+
+    private void ConsumeAcolyteRevelation(IReadOnlyList<BattleStatusEffect> effects)
+    {
+        var revelation = effects.FirstOrDefault(effect => effect.EffectCode == AcolyteRevelationCode);
+        if (revelation is null) return;
+        revelation.Stacks--;
+        if (revelation.Stacks <= 0) dbContext.BattleStatusEffects.Remove(revelation);
+    }
+
+    public async Task GrantAcolyteEnhancementAsync(Room room, int characterId, bool forHealing)
+    {
+        await SetPersistentAcolyteStatusAsync(room, characterId,
+            forHealing ? AcolyteNextHealCode : AcolyteNextDamageCode, 1);
+    }
+
+    public async Task SetAcolyteRevelationAsync(Room room, int characterId, int charges)
+    {
+        if (charges is < 1 or > 3) throw new ArgumentOutOfRangeException(nameof(charges));
+        await SetPersistentAcolyteStatusAsync(room, characterId, AcolyteRevelationCode, charges);
+    }
+
+    private async Task SetPersistentAcolyteStatusAsync(Room room, int characterId, string code, int stacks)
+    {
+        if (catalog.FindStatus(code) is null) throw new InvalidOperationException($"Missing acolyte status: {code}");
+        var status = dbContext.BattleStatusEffects.Local.FirstOrDefault(effect => effect.RoomId == room.Id &&
+            effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+            effect.TargetId == characterId && effect.EffectCode == code);
+        status ??= await dbContext.BattleStatusEffects.SingleOrDefaultAsync(effect => effect.RoomId == room.Id &&
+            effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+            effect.TargetId == characterId && effect.EffectCode == code);
+        if (status is not null && dbContext.Entry(status).State == EntityState.Deleted)
+            dbContext.Entry(status).State = EntityState.Modified;
+        if (status is null)
+        {
+            status = new BattleStatusEffect
+            {
+                RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
+                TargetId = characterId, EffectCode = code
+            };
+            dbContext.BattleStatusEffects.Add(status);
+        }
+        status.AppliedRound = room.RoundNumber;
+        status.ExpiresAfterRound = int.MaxValue;
+        status.Stacks = stacks;
+    }
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -415,7 +486,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             catalog.FindStatus(effect.EffectCode) is not null).Select(effect =>
         {
             var definition = catalog.FindStatus(effect.EffectCode);
-            var persistent = effect.EffectCode is "rogue-shadow-charge" or "mage-disorder" ||
+            var persistent = effect.EffectCode is "rogue-shadow-charge" or "mage-disorder" or
+                AcolyteNextHealCode or AcolyteNextDamageCode or AcolyteRevelationCode ||
                 effect.EffectCode.StartsWith("mage-skill-disruption-", StringComparison.Ordinal);
             return new BattleStatusEffectResponse
             {

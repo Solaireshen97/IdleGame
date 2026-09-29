@@ -54,9 +54,10 @@
     "palette": "emerald green, ivory and warm gold"
   },
   {
-    "code": "acolyte-silence",
-    "subject": "a small golden ritual bell tightly sealed by crossing violet bands, with its clapper visibly bound",
-    "palette": "deep violet, muted gold and ivory"
+    "code": "acolyte-group-heal",
+    "file": "priest-group-heal.png",
+    "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
+    "palette": "emerald green, ivory, pale cyan and warm gold"
   },
   {
     "code": "acolyte-purify",
@@ -64,8 +65,9 @@
     "palette": "aqua blue, ivory, warm gold and a touch of violet"
   },
   {
-    "code": "acolyte-radiant-flare",
-    "subject": "a fierce white-gold sunburst with a brilliant central eye-shaped flare and sharp radiant rays",
+    "code": "acolyte-revelation",
+    "file": "acolyte-radiant-flare.png",
+    "subject": "a white-gold holy judgment striking a dark target with a brilliant radiant burst",
     "palette": "white, warm gold and orange"
   },
   {

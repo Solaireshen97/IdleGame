@@ -954,6 +954,19 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             var nativeHunter = monsterCombatService is not null &&
                 string.Equals(participant.Character.ProfessionCode, "hunter", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(skill.ProfessionCode, "hunter", StringComparison.OrdinalIgnoreCase);
+            var nativeAcolyte = monsterCombatService is not null &&
+                string.Equals(participant.Character.ProfessionCode, "acolyte", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(skill.ProfessionCode, "acolyte", StringComparison.OrdinalIgnoreCase);
+            var acolyteRank = nativeAcolyte ? SkillCatalog.RankFor(skill, participant.Character.Level) : 0;
+            var acolyteDamageEnhanced = nativeAcolyte &&
+                await monsterCombatService!.HasAcolyteEnhancementAsync(room, participant.Character.Id,
+                    forHealing: false, includeRevelation: skill.Code != "acolyte-revelation");
+            var acolyteHealEnhanced = nativeAcolyte &&
+                await monsterCombatService!.HasAcolyteEnhancementAsync(room, participant.Character.Id,
+                    forHealing: true);
+            var acolyteCleanseRevelation = nativeAcolyte && skill.Code == "acolyte-purify" &&
+                await monsterCombatService!.GetStatusStacksAsync(room, "Character", participant.Character.Id,
+                    "acolyte-revelation") > 0;
             var hunterRank = nativeHunter ? SkillCatalog.RankFor(skill, participant.Character.Level) : 0;
             var hunterConsumesMark = skill.Code is "hunter-precision-shot" or "hunter-expose-shot" or "hunter-hunting-signal";
             var hunterMarked = nativeHunter && hunterConsumesMark &&
@@ -961,11 +974,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             if (slashCharges > 0)
                 logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的斩击消耗 {slashCharges} 层影之蓄势，伤害提高 {slashCharges * 20}%。");
             var healingOccurred = false;
-            var holyHealEchoChecked = false;
-            var holyHealEcho = 0m;
+            var cleansingOccurred = false;
             var lowestAllyAtCast = skill.Code == "knight-invigorate" ? FindLowestHpTarget(aliveSlots) : null;
             var invigoratedTargets = new HashSet<int>();
-            var holyDamageEcho = skill.Code == "acolyte-holy-bolt" && await ConsumeTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", false) ? 20m : 0m;
             var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
                 TalentRules.EffectiveMaxHp(participant.Character),
                 participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
@@ -1010,13 +1021,14 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
                         ElementPercent: WeaponCombatRules.ElementAttackPercent(element, monster.Element, participant.Character.CombatWeaponElementAdvantagePercent),
                         ReductionPercent: monsterReduction,
-                        SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho + conditionalDamageBonus +
-                            (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
+                        SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + conditionalDamageBonus,
                         ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent),
                     damageEffect.AttackPowerPercent + (skill.Code == "hunter-precision-shot" && hunterMarked
                         ? hunterRank == 3 ? 40 : hunterRank == 2 ? 35 : 30 : 0));
                 if (skill.Code == "rogue-execution-slash" && slashCharges > 0)
                     damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * (1m + slashCharges * .20m)));
+                if (acolyteDamageEnhanced)
+                    damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * 1.15m));
                 if (monsterCombatService is not null)
                     damage = await monsterCombatService.AmplifyHunterDamageAsync(room, monster.Id, damage);
                 var actualDamage = Math.Min(monster.Hp, damage);
@@ -1058,21 +1070,13 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         {
                             if (skill.Code == "knight-invigorate" && !invigoratedTargets.Add(target.Character.Id)) continue;
                             var maxHp = TalentRules.EffectiveMaxHp(target.Character);
-                            var hasAfterglow = monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-afterglow") > 0;
-                            if (target.Character.Hp >= maxHp && !hasAfterglow) continue;
-                            var wasBelowHalf = (long)target.Character.Hp * 2 < maxHp;
+                            if (target.Character.Hp >= maxHp) continue;
                             var missing = Math.Max(0, maxHp - target.Character.Hp);
-                            // Cleansing and overheal-only protection are not actual healing and must
-                            // neither consume the stored healing echo nor prime the damage echo.
-                            if (missing > 0 && !holyHealEchoChecked)
-                            {
-                                holyHealEcho = await ConsumeTalentStateAsync(room, participant.Character.Id,
-                                    "talent-holy-heal", false) ? 10m : 0m;
-                                holyHealEchoChecked = true;
-                            }
-                            var bonus = participant.Character.TalentHealingDonePercent + target.Character.TalentHealingReceivedPercent + holyHealEcho +
-                                (skill.Code == "acolyte-heal" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-heal-training") * 4 ?? 0 : 0);
+                            var bonus = participant.Character.TalentHealingDonePercent +
+                                target.Character.TalentHealingReceivedPercent;
                             var raw = (int)decimal.Floor(RecoveryCalculator.Calculate(maxHp, effect.Power, effect.HealMaxHpPercent) * (1 + bonus / 100m));
+                            if (acolyteHealEnhanced)
+                                raw = (int)Math.Min(int.MaxValue, decimal.Floor(raw * 1.20m));
                             var healed = Math.Min(raw, missing);
                             target.Character.Hp += healed;
                             if (healed > 0)
@@ -1081,10 +1085,6 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                                 healingOccurred = true;
                                 applied = true;
                             }
-                            if (monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-mercy") > 0 && wasBelowHalf && healed > 0)
-                                await monsterCombatService.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
-                            if (hasAfterglow && raw > missing)
-                                applied |= await monsterCombatService!.ApplyStatusAsync(room, "Character", target.Character.Id, "mercy-ward", 1, logs, $"{target.Slot.SlotIndex}号位 {target.Character.Name}");
                         }
                         break;
                     }
@@ -1106,11 +1106,34 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     {
                         var targetIds = ResolveSkillAllyTargets(effect, participant, aliveSlots, chosenTargetId)
                             .Select(entry => entry.Character.Id).ToArray();
+                        if (nativeAcolyte && acolyteRank >= 2 && chosenTargetId is null)
+                            targetIds = targetIds.Where(id => id != participant.Character.Id)
+                                .Concat(targetIds.Where(id => id == participant.Character.Id)).ToArray();
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Character", targetIds, false);
-                        if (removed is null) break;
-                        var target = aliveSlots.Single(entry => entry.Character.Id == removed.TargetId);
-                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {removed.Name}。");
-                        applied = true;
+                        void LogCleanse(RemovedBattleStatus cleared)
+                        {
+                            var target = aliveSlots.Single(entry => entry.Character.Id == cleared.TargetId);
+                            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {cleared.Name}。");
+                            cleansingOccurred = true;
+                            applied = true;
+                        }
+                        if (removed is not null) LogCleanse(removed);
+                        if (nativeAcolyte && skill.Code == "acolyte-purify")
+                        {
+                            var chosenOrAutoTargetId = chosenTargetId ?? removed?.TargetId;
+                            if (acolyteRank >= 2 && chosenOrAutoTargetId != participant.Character.Id)
+                            {
+                                var selfRemoved = await monsterCombatService.RemoveFirstStatusAsync(room,
+                                    "Character", [participant.Character.Id], false);
+                                if (selfRemoved is not null) LogCleanse(selfRemoved);
+                            }
+                            if (acolyteCleanseRevelation && chosenOrAutoTargetId is int bonusTargetId)
+                            {
+                                var bonusRemoved = await monsterCombatService.RemoveFirstStatusAsync(room,
+                                    "Character", [bonusTargetId], false);
+                                if (bonusRemoved is not null) LogCleanse(bonusRemoved);
+                            }
+                        }
                         break;
                     }
                     case "Dispel" when monsterCombatService is not null:
@@ -1253,6 +1276,47 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 }
             }
             if (!applied) return false;
+            if (nativeAcolyte && monsterCombatService is not null)
+            {
+                var acolyteLabel = $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}";
+                if (totalDamage > 0)
+                {
+                    if (acolyteDamageEnhanced)
+                    {
+                        await monsterCombatService.ConsumeAcolyteEnhancementAsync(room,
+                            participant.Character.Id, forHealing: false,
+                            includeRevelation: skill.Code != "acolyte-revelation");
+                        logs.Add($"{acolyteLabel} 的辉光使 {skill.Name} 伤害提高 15%。");
+                    }
+                    await monsterCombatService.GrantAcolyteEnhancementAsync(room,
+                        participant.Character.Id, forHealing: true);
+                }
+                if (skill.Code == "acolyte-revelation")
+                {
+                    await monsterCombatService.SetAcolyteRevelationAsync(room,
+                        participant.Character.Id, acolyteRank);
+                    logs.Add($"{acolyteLabel} 的神启使接下来 {acolyteRank} 次本职技能固定获得强化。");
+                }
+                if (healingOccurred)
+                {
+                    if (acolyteHealEnhanced)
+                    {
+                        await monsterCombatService.ConsumeAcolyteEnhancementAsync(room,
+                            participant.Character.Id, forHealing: true);
+                        logs.Add($"{acolyteLabel} 的恩泽使 {skill.Name} 治疗提高 20%。");
+                    }
+                    await monsterCombatService.GrantAcolyteEnhancementAsync(room,
+                        participant.Character.Id, forHealing: false);
+                }
+                if (cleansingOccurred)
+                {
+                    if (acolyteCleanseRevelation)
+                        await monsterCombatService.ConsumeAcolyteRevelationAsync(room,
+                            participant.Character.Id);
+                    await monsterCombatService.GrantAcolyteEnhancementAsync(room,
+                        participant.Character.Id, forHealing: false);
+                }
+            }
             if (skill.Code == "rogue-shadow-strike" && monsterCombatService is not null)
                 await monsterCombatService.AddShadowChargeAsync(room, participant.Character.Id, logs,
                     $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
@@ -1278,23 +1342,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 从猛攻中恢复 {healed} 点生命值。");
                     }
                 }
-                if (ranks.GetValueOrDefault("acolyte-echo") > 0)
-                    await SetTalentStateAsync(room, participant.Character.Id, "talent-holy-heal", 3);
-                if (skill.Code == "acolyte-holy-bolt" && monsterCombatService is not null && ranks.GetValueOrDefault("acolyte-judgment") > 0 && monster.Hp > 0)
-                    await monsterCombatService.ApplyStatusAsync(room, "Monster", monster.Id, "holy-vulnerability", 1, logs, monster.Name);
-                if (skill.Code == "acolyte-holy-bolt" && ranks.GetValueOrDefault("acolyte-light-return") > 0)
-                {
-                    var target = FindLowestHpTarget(aliveSlots);
-                    if (target is not null)
-                    {
-                        var maxHp = TalentRules.EffectiveMaxHp(target.Character);
-                        var healed = Math.Min((int)decimal.Floor(totalDamage * .15m), maxHp - target.Character.Hp);
-                        if (healed > 0) { target.Character.Hp += healed; logs.Add($"圣光回流为 {target.Slot.SlotIndex}号位 {target.Character.Name} 恢复 {healed} 点生命值。"); }
-                    }
-                }
             }
-            if (healingOccurred && ranks.GetValueOrDefault("acolyte-echo") > 0)
-                await SetTalentStateAsync(room, participant.Character.Id, "talent-holy-damage", 3);
             if (cooldown is null)
             {
                 cooldown = new BattleSkillCooldown { RoomId = room.Id, CharacterId = participant.Character.Id, SkillCode = skill.Code };
@@ -1362,6 +1410,11 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         .Select(entry => entry.Character.Id).ToArray();
                     if (await monsterCombatService.HasRemovableStatusAsync(room, "Character", cleanseTargets, false))
                         return true;
+                    if (skill.Code == "acolyte-purify" &&
+                        string.Equals(participant.Character.ProfessionCode, "acolyte", StringComparison.OrdinalIgnoreCase) &&
+                        SkillCatalog.RankFor(skill, participant.Character.Level) >= 2 &&
+                        await monsterCombatService.HasRemovableStatusAsync(room, "Character",
+                            [participant.Character.Id], false)) return true;
                     break;
                 case "Dispel" when monsterCombatService is not null:
                     if (await monsterCombatService.HasRemovableStatusAsync(room, "Monster", [monster.Id], true))

@@ -85,25 +85,6 @@ public partial class BattleServiceTests
         else Assert.Empty(cooldowns);
     }
 
-    [Theory]
-    [InlineData("acolyte-silence", "basic")]
-    [InlineData("acolyte-silence", "uninterruptible")]
-    [InlineData("acolyte-silence", "interrupted")]
-    public async Task NonDamageInterruptSkillsStillRequireInterruptibleIntent(string skillCode, string intentState)
-    {
-        await using var test = await BattleTestContext.CreateAsync();
-        var (service, _, skill, _) = await PrepareInterruptSkillAsync(test, skillCode, intentState);
-        Assert.True(SkillRules.RequiresInterruptibleTarget(SkillCatalog.EffectsFor(skill).Select(effect => effect.Type)));
-
-        var (queued, error) = await service.QueueSkillAsync(new QueueSkillRequest
-            { RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillSlotIndex = 1, IsQueued = true }, test.Token);
-
-        Assert.False(queued);
-        Assert.Equal("NoValidSkillTarget", error);
-        Assert.Equal(0, (await test.Db.RoomSlots.SingleAsync()).PendingSkillSlotMask);
-        Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
-    }
-
     private static async Task<(BattleService Service, MonsterCombatService MonsterCombat, CombatSkillOptions Skill, MonsterIntent Intent)>
         PrepareInterruptSkillAsync(BattleTestContext test, string skillCode, string intentState, bool autoUse = false)
     {

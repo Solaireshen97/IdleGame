@@ -259,22 +259,6 @@ public partial class BattleServiceTests
         Assert.Equal(skillCode, Assert.Single(await test.Db.BattleSkillCooldowns.ToListAsync()).SkillCode);
     }
 
-    [Theory]
-    [InlineData("acolyte-silence")]
-    public async Task CustomAlwaysCannotBypassNonDamageInterruptRequirements(string skillCode)
-    {
-        await using var test = await BattleTestContext.CreateAsync();
-        var (service, _, skill, _) = await PrepareInterruptSkillAsync(test, skillCode, "basic", autoUse: true);
-        (await test.Db.CharacterSkillSlots.SingleAsync()).AutoConditionOverride = "Always";
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.DoesNotContain(result!.Logs, log => log.Contains($"使用 {skill.Name}"));
-        Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
-    }
-
     private static SkillService MakeSkillSettingsService(GameDbContext db)
     {
         var catalog = SkillTestFactory.Create();

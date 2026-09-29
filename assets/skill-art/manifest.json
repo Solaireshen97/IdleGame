@@ -49,19 +49,11 @@
   },
   {
     "code": "acolyte-heal",
-    "name": "治疗术",
+    "name": "治愈祷言",
     "profession": "acolyte",
     "file": "acolyte-heal.png",
     "subject": "a luminous emerald heart cupped by two small ivory-gold rays, with a bright healing sparkle",
     "palette": "emerald green, ivory and warm gold"
-  },
-  {
-    "code": "acolyte-silence",
-    "name": "沉默祷言",
-    "profession": "acolyte",
-    "file": "acolyte-silence.png",
-    "subject": "a small golden ritual bell tightly sealed by crossing violet bands, with its clapper visibly bound",
-    "palette": "deep violet, muted gold and ivory"
   },
   {
     "code": "acolyte-purify",
@@ -72,11 +64,19 @@
     "palette": "aqua blue, ivory, warm gold and a touch of violet"
   },
   {
-    "code": "acolyte-radiant-flare",
-    "name": "灼目圣光",
+    "code": "acolyte-group-heal",
+    "name": "群体祷言",
+    "profession": "acolyte",
+    "file": "priest-group-heal.png",
+    "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
+    "palette": "emerald green, ivory, pale cyan and warm gold"
+  },
+  {
+    "code": "acolyte-revelation",
+    "name": "神启裁决",
     "profession": "acolyte",
     "file": "acolyte-radiant-flare.png",
-    "subject": "a fierce white-gold sunburst with a brilliant central eye-shaped flare and sharp radiant rays",
+    "subject": "a white-gold holy judgment striking a dark target with a brilliant radiant burst",
     "palette": "white, warm gold and orange"
   },
   {

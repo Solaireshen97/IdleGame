@@ -2538,54 +2538,6 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task AcolyteSilenceInterruptsNowAndTheNextInterruptibleIntent()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, monsterDefense: 99);
-        test.Character.ProfessionCode = "acolyte";
-        test.Character.Level = 10;
-        test.Monster.CombatProfileCode = "rapid-slime";
-        test.Monster.Hp = test.Monster.MaxHp = 500;
-        test.Db.CharacterSkillTalents.AddRange(
-            new CharacterSkillTalent { CharacterId = test.Character.Id, NodeCode = "acolyte-echo", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = test.Character.Id, NodeCode = "acolyte-silence-talent", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "acolyte-silence", autoUse: true);
-
-        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
-        var monsterOptions = config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
-        monsterOptions.Skills.Add(new MonsterSkillOptions
-            { Code = "rapid", Name = "迅捷喷射", Description = "每回合攻击。", DamagePowerPercent = 120 });
-        monsterOptions.Profiles["rapid-slime"] = new MonsterCombatProfileOptions
-            { SkillUseChancePercent = 100, Skills = [new MonsterProfileSkillOptions { Code = "rapid" }] };
-        var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
-        var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = CreateImmediateProductionSkills(config, monsterCatalog);
-        var progression = ProgressionTestFactory.Create();
-        var rewards = RewardTestFactory.CreateService(test.Db, progression);
-        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
-            ConsumableTestFactory.Create(), skills, rewards,
-            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
-        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
-        await test.Db.SaveChangesAsync();
-
-        var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-        Assert.Null(firstError);
-        Assert.Contains(first!.Logs, log => log.Contains("沉默祷言") && log.Contains("打断"));
-        Assert.Equal("acolyte-silence", (await test.Db.BattleStatusEffects.SingleAsync()).EffectCode);
-        Assert.True((await test.Db.MonsterIntents.SingleAsync()).IsInterrupted);
-
-        test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
-        test.Room.Version++;
-        await test.Db.SaveChangesAsync();
-        var (second, secondError) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-        Assert.Null(secondError);
-        Assert.Contains(second!.Logs, log => log.Contains("沉默影响"));
-        Assert.Equal(100, test.Character.Hp);
-        Assert.Empty(await test.Db.BattleStatusEffects.Where(effect => effect.EffectCode == "acolyte-silence").ToListAsync());
-    }
-
-    [Fact]
     public async Task AutomaticPurifyRemovesAllyDebuffBeforeEndOfRound()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, characterDefense: 2);

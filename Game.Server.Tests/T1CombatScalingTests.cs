@@ -47,7 +47,7 @@ public sealed class T1CombatScalingTests
         await connection.OpenAsync();
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        var character = new Character { Id = 1, UserId = 1, Name = "测试祭司", ProfessionCode = "acolyte",
+        var character = new Character { Id = 1, UserId = 1, Name = "测试祭司", ProfessionCode = "acolyte", Level = 3,
             Attack = 100, Hp = 100, MaxHp = 500, WeaponHealthBonusPercent = 20,
             WeaponAttackBonusPercent = 20, WeaponSkillDamagePercent = 50 };
         db.AddRange(new User { Id = 1, UserName = "scaling-test", PasswordHash = "x", ActiveCharacterId = 1 }, character,
@@ -77,8 +77,8 @@ public sealed class T1CombatScalingTests
         var battle = new BattleService(db, users, potions, skills, RewardTestFactory.CreateService(db, progression));
         var (result, error) = await battle.StartPreparationAsync(1, "test");
         Assert.Null(error);
-        Assert.Equal(9693, result!.MonsterHp); // 120 normal + 187 skill
-        Assert.Equal(243, character.Hp); // 100 + 76 heal + 68 potion - 1 incoming
+        Assert.Equal(9799, result!.MonsterHp); // 120 normal + 81 skill
+        Assert.Equal(239, character.Hp); // 100 + 72 heal + 68 potion - 1 incoming
         Assert.Equal(1, (await db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(2, await db.BattleSkillCooldowns.CountAsync());
         Assert.Single(await db.BattleConsumableCooldowns.ToListAsync());
