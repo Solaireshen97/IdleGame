@@ -149,7 +149,7 @@ public sealed class SkillProgressionProductionTests
         Assert.Null((await test.Service.SetSlotAsync("token", 1, 1,
             new SetSkillSlotRequest { SkillCode = "knight-rebuke" })).Error);
         Assert.Equal("SharedSkillLimitReached", (await test.Service.SetSlotAsync("token", 1, 2,
-            new SetSkillSlotRequest { SkillCode = "hunter-rapid-volley" })).Error);
+            new SetSkillSlotRequest { SkillCode = "hunter-expose-shot" })).Error);
         Assert.Contains((await test.Service.GetAsync("token", 1)).Response!.Slots,
             slot => slot.SkillCode == "knight-rebuke");
     }

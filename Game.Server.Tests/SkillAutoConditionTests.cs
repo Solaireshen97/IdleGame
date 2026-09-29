@@ -244,7 +244,7 @@ public partial class BattleServiceTests
     }
 
     [Theory]
-    [InlineData("hunter-rapid-volley")]
+    [InlineData("knight-rebuke")]
     public async Task CustomAlwaysAllowsDamageInterruptAutoWithoutInterruptibleIntent(string skillCode)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);

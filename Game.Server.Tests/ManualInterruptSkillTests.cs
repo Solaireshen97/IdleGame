@@ -14,9 +14,6 @@ namespace Game.Server.Tests;
 public partial class BattleServiceTests
 {
     [Theory]
-    [InlineData("hunter-rapid-volley", "basic")]
-    [InlineData("hunter-rapid-volley", "uninterruptible")]
-    [InlineData("hunter-rapid-volley", "interrupted")]
     [InlineData("knight-rebuke", "basic")]
     [InlineData("knight-rebuke", "uninterruptible")]
     [InlineData("knight-rebuke", "interrupted")]
@@ -44,7 +41,6 @@ public partial class BattleServiceTests
     }
 
     [Theory]
-    [InlineData("hunter-rapid-volley")]
     [InlineData("knight-rebuke")]
     public async Task ManualDamageInterruptSkillsStillDamageWhenIntentIsInterruptedAfterQueue(string skillCode)
     {
@@ -67,10 +63,6 @@ public partial class BattleServiceTests
     }
 
     [Theory]
-    [InlineData("hunter-rapid-volley", "basic", false)]
-    [InlineData("hunter-rapid-volley", "uninterruptible", false)]
-    [InlineData("hunter-rapid-volley", "interrupted", false)]
-    [InlineData("hunter-rapid-volley", "interruptible", true)]
     [InlineData("knight-rebuke", "basic", true)]
     [InlineData("knight-rebuke", "uninterruptible", true)]
     [InlineData("knight-rebuke", "interrupted", false)]

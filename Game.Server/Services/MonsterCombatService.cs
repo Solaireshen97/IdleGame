@@ -256,6 +256,135 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         return int.TryParse(marker.EffectCode.AsSpan("mage-skill-disruption-".Length), out var value) ? value : 0;
     }
 
+    private const string HunterMarkCode = "hunter-prey-mark";
+    private const string HunterVulnerabilityPrefix = "hunter-vulnerability-";
+    private const string HunterCoordinatedPrefix = "hunter-coordinated-";
+    private const string HunterEagleEyePrefix = "hunter-eagle-eye-";
+
+    private static int HunterStatusPower(string code, string prefix)
+    {
+        if (!code.StartsWith(prefix, StringComparison.Ordinal)) return 0;
+        var suffix = code.AsSpan(prefix.Length);
+        var separator = suffix.IndexOf('-');
+        if (separator >= 0) suffix = suffix[..separator];
+        return int.TryParse(suffix, out var power) ? power : 0;
+    }
+
+    public async Task<bool> HasHunterMarkAsync(Room room, int characterId, int monsterId) =>
+        (await GetActiveEffectsAsync(room, "Character", [characterId])).Any(effect =>
+            effect.EffectCode == HunterMarkCode && effect.PerTickValue == monsterId);
+
+    public async Task ApplyHunterMarkAsync(Room room, int characterId, int monsterId, int durationRounds,
+        List<string> logs, string characterName)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var mark = effects.FirstOrDefault(effect => effect.EffectCode == HunterMarkCode);
+        if (mark is null)
+        {
+            mark = dbContext.BattleStatusEffects.Local.FirstOrDefault(effect =>
+                effect.RoomId == room.Id && effect.RunSequence == room.RunSequence &&
+                effect.TargetType == "Character" && effect.TargetId == characterId &&
+                effect.EffectCode == HunterMarkCode && dbContext.Entry(effect).State == EntityState.Deleted);
+            if (mark is not null) dbContext.Entry(mark).State = EntityState.Modified;
+        }
+        if (mark is null)
+        {
+            mark = new BattleStatusEffect
+            {
+                RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
+                TargetId = characterId, EffectCode = HunterMarkCode
+            };
+            dbContext.BattleStatusEffects.Add(mark);
+        }
+        mark.PerTickValue = monsterId;
+        mark.AppliedRound = room.RoundNumber;
+        mark.ExpiresAfterRound = checked(room.RoundNumber + durationRounds);
+        mark.Stacks = 1;
+        logs.Add($"{characterName} 标记了当前猎物，持续 {durationRounds + 1} 回合。");
+    }
+
+    public async Task ApplyHunterEagleEyeAsync(Room room, int characterId, string statusCode,
+        int durationRounds, List<string> logs, string characterName)
+    {
+        var charges = HunterStatusPower(statusCode, HunterEagleEyePrefix);
+        if (charges is < 1 or > 2) throw new ArgumentOutOfRangeException(nameof(statusCode));
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        foreach (var old in effects.Where(effect => effect.EffectCode.StartsWith(HunterEagleEyePrefix, StringComparison.Ordinal) &&
+                     effect.EffectCode != statusCode))
+            dbContext.BattleStatusEffects.Remove(old);
+        await ApplyStatusAsync(room, "Character", characterId, statusCode, durationRounds, logs, characterName);
+        var renewed = (await GetActiveEffectsAsync(room, "Character", [characterId]))
+            .First(effect => effect.EffectCode == statusCode);
+        renewed.Stacks = charges;
+    }
+
+    public async Task<bool> ConsumeHunterMarkAsync(Room room, int characterId, int monsterId,
+        List<string> logs, string characterName)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var mark = effects.FirstOrDefault(effect => effect.EffectCode == HunterMarkCode &&
+            effect.PerTickValue == monsterId);
+        if (mark is null) return false;
+        var eagleEye = effects.FirstOrDefault(effect =>
+            effect.EffectCode.StartsWith(HunterEagleEyePrefix, StringComparison.Ordinal));
+        if (eagleEye is not null && eagleEye.Stacks > 0)
+        {
+            eagleEye.Stacks--;
+            if (eagleEye.Stacks == 0) dbContext.BattleStatusEffects.Remove(eagleEye);
+            logs.Add($"{characterName} 借助鹰眼时刻保留了猎物标记。");
+            return true;
+        }
+        dbContext.BattleStatusEffects.Remove(mark);
+        logs.Add($"{characterName} 消耗了猎物标记。");
+        return true;
+    }
+
+    public async Task ApplyHunterVulnerabilityAsync(Room room, int monsterId, string statusCode,
+        int durationRounds, List<string> logs, string monsterName)
+    {
+        var incoming = HunterStatusPower(statusCode, HunterVulnerabilityPrefix);
+        if (incoming <= 0) throw new ArgumentOutOfRangeException(nameof(statusCode));
+        var effects = await GetActiveEffectsAsync(room, "Monster", [monsterId]);
+        var current = effects.Where(effect => effect.EffectCode.StartsWith(HunterVulnerabilityPrefix, StringComparison.Ordinal))
+            .ToList();
+        if (current.Any(effect => HunterStatusPower(effect.EffectCode, HunterVulnerabilityPrefix) > incoming)) return;
+        foreach (var old in current.Where(effect => effect.EffectCode != statusCode))
+            dbContext.BattleStatusEffects.Remove(old);
+        await ApplyStatusAsync(room, "Monster", monsterId, statusCode, durationRounds, logs, monsterName);
+    }
+
+    public async Task<int> GetHunterVulnerabilityPercentAsync(Room room, int monsterId) =>
+        (await GetActiveEffectsAsync(room, "Monster", [monsterId]))
+        .Select(effect => HunterStatusPower(effect.EffectCode, HunterVulnerabilityPrefix))
+        .DefaultIfEmpty(0).Max();
+
+    public async Task<int> AmplifyHunterDamageAsync(Room room, int monsterId, int damage)
+    {
+        if (damage <= 0) return damage;
+        var vulnerability = await GetHunterVulnerabilityPercentAsync(room, monsterId);
+        return vulnerability == 0 ? damage : (int)Math.Min(int.MaxValue,
+            decimal.Floor(damage * (1m + vulnerability / 100m)));
+    }
+
+    public async Task ApplyHunterCoordinatedAsync(Room room, int characterId, string statusCode,
+        int durationRounds, List<string> logs, string characterName)
+    {
+        var incoming = HunterStatusPower(statusCode, HunterCoordinatedPrefix);
+        if (incoming <= 0) throw new ArgumentOutOfRangeException(nameof(statusCode));
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var current = effects.Where(effect => effect.EffectCode.StartsWith(HunterCoordinatedPrefix, StringComparison.Ordinal))
+            .ToList();
+        if (current.Any(effect => HunterStatusPower(effect.EffectCode, HunterCoordinatedPrefix) > incoming)) return;
+        foreach (var old in current.Where(effect => effect.EffectCode != statusCode))
+            dbContext.BattleStatusEffects.Remove(old);
+        await ApplyStatusAsync(room, "Character", characterId, statusCode, durationRounds, logs, characterName);
+    }
+
+    public async Task<int> GetHunterCoordinatedPercentAsync(Room room, int characterId) =>
+        (await GetActiveEffectsAsync(room, "Character", [characterId]))
+        .Select(effect => HunterStatusPower(effect.EffectCode, HunterCoordinatedPrefix))
+        .DefaultIfEmpty(0).Max();
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -282,7 +411,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var effects = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
             effect.RunSequence == room.RunSequence && effect.TargetType == targetType && effect.TargetId == targetId &&
             effect.ExpiresAfterRound >= room.RoundNumber).OrderBy(effect => effect.Id).ToListAsync();
-        var responses = effects.Where(effect => effect.EffectCode != "mage-disorder" &&
+        var responses = effects.Where(effect => effect.EffectCode is not ("mage-disorder" or HunterMarkCode) &&
             catalog.FindStatus(effect.EffectCode) is not null).Select(effect =>
         {
             var definition = catalog.FindStatus(effect.EffectCode);
@@ -315,8 +444,20 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                      effect.ExpiresAfterRound >= room.RoundNumber &&
                      dbContext.Entry(effect).State != EntityState.Deleted))
             if (!disorder.Contains(local)) disorder.Add(local);
-        if (disorder.Count == 0) return responses;
-        var casterIds = disorder.Select(effect => effect.TargetId).Distinct().ToList();
+        var marks = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
+            effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+            effect.EffectCode == HunterMarkCode && effect.PerTickValue == targetId &&
+            effect.ExpiresAfterRound >= room.RoundNumber).ToListAsync();
+        marks.RemoveAll(effect => dbContext.Entry(effect).State == EntityState.Deleted);
+        foreach (var local in dbContext.BattleStatusEffects.Local.Where(effect => effect.RoomId == room.Id &&
+                     effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+                     effect.EffectCode == HunterMarkCode && effect.PerTickValue == targetId &&
+                     effect.ExpiresAfterRound >= room.RoundNumber &&
+                     dbContext.Entry(effect).State != EntityState.Deleted))
+            if (!marks.Contains(local)) marks.Add(local);
+        var casterIds = disorder.Select(effect => effect.TargetId).Concat(marks.Select(effect => effect.TargetId))
+            .Distinct().ToList();
+        if (casterIds.Count == 0) return responses;
         var casterNames = await dbContext.Characters.Where(character => casterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id, character => character.Name);
         responses.AddRange(disorder.OrderBy(effect => effect.TargetId).Select(effect => new BattleStatusEffectResponse
@@ -329,6 +470,17 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             Stacks = effect.Stacks,
             RemainingRounds = 0,
             ExpiresWithRun = true
+        }));
+        responses.AddRange(marks.OrderBy(effect => effect.TargetId).Select(effect => new BattleStatusEffectResponse
+        {
+            Code = HunterMarkCode,
+            Name = $"猎物标记（{casterNames.GetValueOrDefault(effect.TargetId, "猎人")}）",
+            Description = "该猎人可以消耗标记强化精准射击、破绽射击或协猎信号。",
+            IsPositive = false,
+            CanDispel = false,
+            Stacks = 1,
+            RemainingRounds = Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1),
+            ExpiresWithRun = false
         }));
         return responses;
     }
@@ -463,6 +615,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             }
             else if (effect.TargetType == "Monster" && effect.TargetId == monster.Id && monster.Hp > 0)
             {
+                damage = await AmplifyHunterDamageAsync(room, monster.Id, damage);
                 monster.Hp = Math.Max(0, monster.Hp - damage);
                 logs.Add($"{monster.Name} 受到 {definition.Name} 造成的 {damage} 点伤害。");
             }
@@ -493,6 +646,13 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         dbContext.BattleStatusEffects.RemoveRange(dbContext.BattleStatusEffects.Local.Where(entry =>
             entry.RoomId == roomId && entry.TargetType == "Character" &&
             entry.EffectCode == "mage-disorder" && entry.PerTickValue == monsterId &&
+            dbContext.Entry(entry).State != EntityState.Deleted).ToList());
+        dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects
+            .Where(entry => entry.RoomId == roomId && entry.TargetType == "Character" &&
+                entry.EffectCode == HunterMarkCode && entry.PerTickValue == monsterId).ToListAsync());
+        dbContext.BattleStatusEffects.RemoveRange(dbContext.BattleStatusEffects.Local.Where(entry =>
+            entry.RoomId == roomId && entry.TargetType == "Character" &&
+            entry.EffectCode == HunterMarkCode && entry.PerTickValue == monsterId &&
             dbContext.Entry(entry).State != EntityState.Deleted).ToList());
     }
 
@@ -640,6 +800,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                     factors: new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(target.Character, room.RoundNumber) +
                         potion.AttackPercent,
                         ConsumablePercent: potion.FinalDamagePercent), attackPowerPercent: counterPower);
+                counter = await AmplifyHunterDamageAsync(room, monster.Id, counter);
                 monster.Hp = Math.Max(0, monster.Hp - counter);
                 logs.Add($"{target.Slot.SlotIndex}号位 {target.Character.Name} 招架后反击 {monster.Name}，造成 {counter} 点伤害。");
             }

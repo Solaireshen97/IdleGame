@@ -120,44 +120,44 @@
     "palette": "indigo, violet and muted gold"
   },
   {
-    "code": "hunter-quick-shot",
-    "name": "快速射击",
-    "profession": "hunter",
-    "file": "hunter-quick-shot.png",
-    "subject": "a compact drawn hunting bow releasing a single fast amber arrow",
-    "palette": "forest green, amber and dark brown"
-  },
-  {
-    "code": "hunter-field-mend",
-    "name": "野外包扎",
-    "profession": "hunter",
-    "file": "hunter-field-mend.png",
-    "subject": "a rolled leather field bandage wrapped with two fresh healing leaves",
-    "palette": "leaf green, warm ivory and leather brown"
-  },
-  {
-    "code": "hunter-marked-shot",
-    "name": "标记射击",
+    "code": "hunter-tracking-shot",
+    "name": "追踪射击",
     "profession": "hunter",
     "file": "hunter-marked-shot.png",
     "subject": "a feathered arrow striking a red crossed target mark with one impact spark",
     "palette": "forest green, scarlet and amber"
   },
   {
-    "code": "hunter-venom-arrow",
-    "name": "毒箭",
+    "code": "hunter-precision-shot",
+    "name": "精准射击",
     "profession": "hunter",
-    "file": "hunter-venom-arrow.png",
-    "subject": "a sharp arrowhead coated with dripping emerald venom",
-    "palette": "poison green, dark steel and leather brown"
+    "file": "hunter-quick-shot.png",
+    "subject": "a compact drawn hunting bow releasing a single fast amber arrow",
+    "palette": "forest green, amber and dark brown"
   },
   {
-    "code": "hunter-rapid-volley",
-    "name": "连珠箭",
+    "code": "hunter-expose-shot",
+    "name": "破绽射击",
     "profession": "hunter",
-    "file": "hunter-rapid-volley.png",
-    "subject": "three feathered arrows in a tight diagonal volley with gold speed streaks",
-    "palette": "amber, forest green and steel blue"
+    "file": "hunter-venom-arrow.png",
+    "subject": "a sharp arrowhead piercing a monster's weak point",
+    "palette": "forest green, dark steel and amber"
+  },
+  {
+    "code": "hunter-hunting-signal",
+    "name": "协猎信号",
+    "profession": "hunter",
+    "file": "beastmaster-coordinated-assault.png",
+    "subject": "a hunting signal calling allies to strike together",
+    "palette": "forest green, amber and warm gold"
+  },
+  {
+    "code": "hunter-eagle-eye",
+    "name": "鹰眼时刻",
+    "profession": "hunter",
+    "file": "marksman-sniper-shot.png",
+    "subject": "a focused hunter eye sighting through a bow toward a distant target",
+    "palette": "forest green, pale gold and steel blue"
   },
   {
     "code": "rogue-shadow-strike",

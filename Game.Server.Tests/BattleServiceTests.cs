@@ -2697,68 +2697,6 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task HunterRelentlessTalentAppliesTwoPoisonStacksWithVenomArrow()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
-        test.Character.ProfessionCode = "hunter";
-        test.Character.Level = 10;
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        test.Db.CharacterSkillTalents.AddRange(
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "hunter-steady-hand", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "hunter-venom-talent", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "hunter-relentless", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "hunter-venom-arrow", autoUse: true);
-        var (service, _) = CreateProductionSoulBattleService(test);
-
-        var (_, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        var poison = await test.Db.BattleStatusEffects.SingleAsync(effect => effect.EffectCode == "poison");
-        Assert.Equal(2, poison.Stacks);
-    }
-
-    [Fact]
-    public async Task PredatorIncreasesSkillDamageAgainstAHuntersMarkedTarget()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
-        test.Character.ProfessionCode = "hunter";
-        test.Character.Level = 10;
-        test.Monster.Hp = test.Monster.MaxHp = 500;
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
-            { CharacterId = 1, NodeCode = "hunter-predator", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "hunter-quick-shot", autoUse: true);
-        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
-        await monsterCombat.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id, "hunters-mark", 2, [], test.Monster.Name);
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("快速射击 攻击") && log.Contains("造成 30 点伤害"));
-    }
-
-    [Fact]
-    public async Task HardenedHunterGainsResilienceAfterFieldMend()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = "hunter";
-        test.Character.Level = 10;
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
-            { CharacterId = 1, NodeCode = "hunter-hardened", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "hunter-field-mend", autoUse: true, threshold: 70);
-        var (service, _) = CreateProductionSoulBattleService(test);
-
-        var (result, error) = await service.StartPreparationAsync(1, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("获得 荒野韧性"));
-        Assert.Contains(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "hunter-resilience");
-    }
-
-    [Fact]
     public async Task RelentlessRogueAddsAnExtraBladeFlurryHit()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);

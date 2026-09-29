@@ -53,8 +53,8 @@ public partial class BattleServiceTests
     public async Task AutoDamageInterruptRechecksAfterEarlierManualInterrupt(string? condition, bool shouldCast)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
-        var (service, _, skill, intent) = await PrepareInterruptSkillAsync(test, "hunter-rapid-volley", "interruptible");
-        var second = await test.AddSlotAsync(2, "SecondHunter", attack: 1);
+        var (service, _, skill, intent) = await PrepareInterruptSkillAsync(test, "knight-rebuke", "interruptible");
+        var second = await test.AddSlotAsync(2, "SecondKnight", attack: 1);
         second.ProfessionCode = test.Character.ProfessionCode;
         second.Level = test.Character.Level;
         foreach (var node in await test.Db.CharacterSkillTalents.Where(node => node.CharacterId == test.Character.Id).ToListAsync())
@@ -77,7 +77,7 @@ public partial class BattleServiceTests
         Assert.Null(error);
         Assert.True(intent.IsInterrupted);
         Assert.Single(result!.Logs.Where(log => log.Contains($"使用 {skill.Name}，打断")));
-        Assert.Equal(shouldCast, result.Logs.Any(log => log.Contains($"2号位 SecondHunter 使用 {skill.Name} 攻击")));
+        Assert.Equal(shouldCast, result.Logs.Any(log => log.Contains($"2号位 SecondKnight 使用 {skill.Name} 攻击")));
         Assert.Equal(shouldCast, await test.Db.BattleSkillCooldowns.AnyAsync(cooldown => cooldown.CharacterId == second.Id));
     }
 
