@@ -1096,7 +1096,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                             power = Math.Min(BattleRules.MaxGuardDamageReductionPercent, power);
                             // Stronger same-round protection wins; the group effect cannot add to the self effect.
                             if (guardsByCharacter.GetValueOrDefault(target.Character.Id).ReductionPercent >= power) continue;
-                            guardsByCharacter[target.Character.Id] = new CharacterRoundDefense(power, participant.Character.Id);
+                            guardsByCharacter[target.Character.Id] = new CharacterRoundDefense(power,
+                                participant.Character.Id,
+                                skill.Code is "sword-slash" or "knight-faith-barrier");
                             logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，守护 {target.Slot.SlotIndex}号位 {target.Character.Name}。");
                             applied = true;
                         }

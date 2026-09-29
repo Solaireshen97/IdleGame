@@ -169,6 +169,7 @@ public static partial class BattleFeedbackPlanner
     {
         if (action.StartsWith("普通攻击", StringComparison.Ordinal)) return "普通攻击";
         if (action.StartsWith("二连击", StringComparison.Ordinal)) return "二连击";
+        if (action.StartsWith("守护反击", StringComparison.Ordinal)) return "守护反击";
         if (action.StartsWith("招架后反击", StringComparison.Ordinal)) return "招架反击";
         var skill = SkillName().Match(action);
         if (skill.Success) return skill.Groups[1].Value;

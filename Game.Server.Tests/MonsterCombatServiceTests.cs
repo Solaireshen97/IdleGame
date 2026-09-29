@@ -10,6 +10,64 @@ namespace Game.Server.Tests;
 public class MonsterCombatServiceTests
 {
     [Fact]
+    public async Task AreaAttackOnTwoProtectedAlliesTriggersOneKnightCounterAfterBothHits()
+    {
+        await using var test = await Context.CreateAsync("toxic-slime");
+        test.Character.ProfessionCode = "swordsman";
+        test.Character.Attack = 100;
+        test.Monster.Hp = test.Monster.MaxHp = 20;
+        var ally = new Character { Id = 2, UserId = 1, Name = "Ally", Hp = 100, MaxHp = 100, Attack = 10 };
+        var allySlot = new RoomSlot { Id = 2, RoomId = test.Room.Id, SlotIndex = 2, CharacterId = ally.Id, UserId = 1 };
+        test.Db.AddRange(ally, allySlot);
+        await test.Db.SaveChangesAsync();
+        var participants = new List<MonsterCombatParticipant>
+        {
+            new(test.Slot, test.Character), new(allySlot, ally)
+        };
+        var defense = new PlayerRoundDefense(0, null, GuardsByCharacter:
+            new Dictionary<int, CharacterRoundDefense>
+            {
+                [test.Character.Id] = new(40, test.Character.Id, true),
+                [ally.Id] = new(10, test.Character.Id, true)
+            });
+        var logs = new List<string>();
+
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster, participants,
+            new Dictionary<int, ElementType>(), defense, logs);
+        await test.Db.SaveChangesAsync();
+
+        Assert.Contains(logs, log => log.Contains("攻击 1号位 Knight"));
+        Assert.Contains(logs, log => log.Contains("攻击 2号位 Ally"));
+        Assert.Single(logs, log => log.Contains("守护反击"));
+        Assert.Equal(0, test.Monster.Hp);
+        Assert.Equal(2, await test.Db.BattleStatusEffects.CountAsync(effect => effect.EffectCode == "poison"));
+        Assert.True(logs.FindIndex(log => log.Contains("守护反击")) >
+            logs.FindIndex(log => log.Contains("攻击 2号位 Ally")));
+    }
+
+    [Fact]
+    public async Task InterruptedMonsterIntentDoesNotTriggerKnightCounter()
+    {
+        await using var test = await Context.CreateAsync("acid-slime");
+        test.Character.ProfessionCode = "swordsman";
+        var intent = await test.Service.EnsureIntentAsync(test.Room, test.Monster);
+        intent.IsInterrupted = true;
+        var defense = new PlayerRoundDefense(0, null, GuardsByCharacter:
+            new Dictionary<int, CharacterRoundDefense>
+            {
+                [test.Character.Id] = new(40, test.Character.Id, true)
+            });
+        var logs = new List<string>();
+
+        await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), defense, logs);
+
+        Assert.Contains(logs, log => log.Contains("已被打断"));
+        Assert.DoesNotContain(logs, log => log.Contains("守护反击"));
+        Assert.Equal(test.Monster.MaxHp, test.Monster.Hp);
+    }
+
+    [Fact]
     public async Task PlannedIntentIsPersistedAndDoesNotReroll()
     {
         await using var test = await Context.CreateAsync("acid-slime");

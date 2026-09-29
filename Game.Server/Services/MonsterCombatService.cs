@@ -563,6 +563,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         PlayerRoundDefense defense, List<string> logs,
         IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null)
     {
+        var knightCounterattackers = new HashSet<int>();
         var intent = await EnsureIntentAsync(room, monster);
         dbContext.MonsterIntents.Remove(intent);
         var skill = intent.ActionType == "Skill" ? catalog.FindSkill(intent.SkillCode) : null;
@@ -586,7 +587,9 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 return;
             }
             await DealDamageAsync(room, monster, target, 100, mainWeaponElements, defense, logs, null,
-                operationBonuses, false);
+                operationBonuses, false, knightCounterattackers: knightCounterattackers);
+            await ResolveKnightCounterattacksAsync(room, monster, participants, mainWeaponElements,
+                knightCounterattackers, logs, operationBonuses);
             return;
         }
 
@@ -612,7 +615,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             foreach (var target in targets)
                 await DealDamageAsync(room, monster, target, skill.DamagePowerPercent,
                     mainWeaponElements, defense, logs, skill.Name, operationBonuses,
-                    skill.TargetType == "AllAlive", mageSkillReduction);
+                    skill.TargetType == "AllAlive", mageSkillReduction, knightCounterattackers);
         }
         foreach (var application in skill.Statuses)
         {
@@ -625,6 +628,47 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         }
 
         await StartCooldownAsync(room, monster, skill);
+        await ResolveKnightCounterattacksAsync(room, monster, participants, mainWeaponElements,
+            knightCounterattackers, logs, operationBonuses);
+    }
+
+    private async Task ResolveKnightCounterattacksAsync(Room room, Monster monster,
+        IReadOnlyList<MonsterCombatParticipant> participants,
+        IReadOnlyDictionary<int, ElementType> mainWeaponElements,
+        IReadOnlySet<int> knightCounterattackers, List<string> logs,
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses)
+    {
+        foreach (var knight in participants.OrderBy(entry => entry.Slot.SlotIndex))
+        {
+            if (monster.Hp <= 0) break;
+            if (!knightCounterattackers.Contains(knight.Character.Id) || knight.Character.Hp <= 0 ||
+                !string.Equals(knight.Character.ProfessionCode, "swordsman", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var potion = operationBonuses?.GetValueOrDefault(knight.Character.Id) ?? default;
+            var attackModifier = await GetModifierAsync(room, "Character", knight.Character.Id, "AttackPercent");
+            var monsterReduction = await GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
+            var element = mainWeaponElements.TryGetValue(knight.Character.Id, out var mainElement)
+                ? mainElement : (ElementType?)null;
+            var healthPercent = WeaponCombatRules.HealthDamagePercent(knight.Character.Hp,
+                TalentRules.EffectiveMaxHp(knight.Character),
+                knight.Character.WeaponStaminaPercent + knight.Character.TemporaryWeaponStaminaPercent,
+                knight.Character.WeaponEnmityPercent + knight.Character.TemporaryWeaponEnmityPercent);
+            var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(knight.Character), monster.Defense,
+                factors: new DamageFactors(
+                    AttackPercent: WeaponCombatRules.AttackBonusPercent(knight.Character, room.RoundNumber) +
+                        attackModifier + potion.AttackPercent,
+                    HealthPercent: healthPercent,
+                    ElementPercent: WeaponCombatRules.ElementAttackPercent(element, monster.Element,
+                        knight.Character.CombatWeaponElementAdvantagePercent),
+                    ReductionPercent: monsterReduction,
+                    SkillDamagePercent: knight.Character.WeaponSkillDamagePercent +
+                        knight.Character.TemporaryWeaponSkillDamagePercent + knight.Character.TalentSkillDamagePercent,
+                    ConsumablePercent: potion.FinalDamagePercent),
+                attackPowerPercent: 30);
+            damage = await AmplifyHunterDamageAsync(room, monster.Id, damage);
+            monster.Hp = Math.Max(0, monster.Hp - damage);
+            logs.Add($"{knight.Slot.SlotIndex}号位 {knight.Character.Name} 守护反击 {monster.Name}，造成 {damage} 点伤害。");
+        }
     }
 
     private async Task StartCooldownAsync(Room room, Monster monster, MonsterSkillOptions skill)
@@ -840,7 +884,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         int powerPercent, IReadOnlyDictionary<int, ElementType> mainWeaponElements,
         PlayerRoundDefense defense, List<string> logs, string? skillName,
         IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses, bool isAreaAttack,
-        int mageSkillReductionPercent = 0)
+        int mageSkillReductionPercent = 0, ISet<int>? knightCounterattackers = null)
     {
         var talents = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == target.Character.Id &&
             (node.NodeCode == "sword-guard-stance" || node.NodeCode == "sword-counteroffense"))
@@ -863,6 +907,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         logs.Add(skillName is null
             ? $"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。"
             : $"{monster.Name} 使用 {skillName} 攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damage} 点伤害。");
+        if (guard.KnightCounterEligible && guard.SourceCharacterId is int knightId)
+            knightCounterattackers?.Add(knightId);
         if (monster.Hp > 0 && guard.ReductionPercent > 0 && guard.SourceCharacterId == target.Character.Id)
         {
             if (talents.Contains("sword-guard-stance", StringComparer.OrdinalIgnoreCase))
@@ -913,7 +959,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 }
 
 public sealed record MonsterCombatParticipant(RoomSlot Slot, Character Character);
-public readonly record struct CharacterRoundDefense(int ReductionPercent, int? SourceCharacterId = null);
+public readonly record struct CharacterRoundDefense(int ReductionPercent, int? SourceCharacterId = null,
+    bool KnightCounterEligible = false);
 public readonly record struct PlayerRoundDefense(int ReductionPercent, int? TargetCharacterId, int? SourceCharacterId = null,
     IReadOnlyDictionary<int, CharacterRoundDefense>? GuardsByCharacter = null)
 {

@@ -29,6 +29,7 @@ public partial class BattleServiceTests
         Assert.Equal(48, test.Character.Hp); // 20 damage reduced by 40%, not 40% plus the party's 10%.
         Assert.Equal(42, ally.Hp); // 20 damage reduced by 10%.
         Assert.Equal(2, result!.Logs.Count(log => log.Contains("使用 信仰壁垒，守护")));
+        Assert.Single(result.Logs, log => log.Contains("Knight 守护反击"));
     }
 
     [Theory]
@@ -53,6 +54,7 @@ public partial class BattleServiceTests
         Assert.Equal(frontHp - 18, test.Character.Hp);
         Assert.Equal(knightHp - 12, knight.Hp);
         Assert.Equal(2, result!.Logs.Count(log => log.Contains("RearKnight 使用 信仰壁垒，守护")));
+        Assert.Single(result.Logs, log => log.Contains("RearKnight 守护反击"));
     }
 
     [Theory]

@@ -5,6 +5,29 @@ namespace Game.Server.Tests;
 
 public partial class BattleServiceTests
 {
+    [Theory]
+    [InlineData("sword-slash", 1)]
+    [InlineData("knight-faith-barrier", 3)]
+    public async Task KnightGuardSkillCounterattacksAfterTheMonsterHits(string skillCode, int level)
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 20);
+        test.Character.ProfessionCode = "swordsman";
+        test.Character.Level = level;
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, skillCode, autoUse: true);
+        var (service, _) = CreateProductionSoulBattleService(test);
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+
+        Assert.Null(error);
+        var attackIndex = result!.Logs.FindIndex(log => log.Contains("Slime 普通攻击 1号位 Knight"));
+        var counterIndex = result.Logs.FindIndex(log => log.Contains("Knight 守护反击 Slime"));
+        Assert.True(attackIndex >= 0);
+        Assert.True(counterIndex > attackIndex);
+        Assert.Single(result.Logs, log => log.Contains("守护反击"));
+    }
+
     [Fact]
     public async Task InvigorateHealsSoloKnightOnlyOnceWhenKnightIsAlsoLowestHealthAlly()
     {
