@@ -47,6 +47,9 @@ public partial class BattleServiceTests
         Assert.Equal(new[] { 3, 3, 4 }, new[] { 10, 20, 30 }
             .Select(level => SkillCatalog.EffectsFor(catalog.SkillsForProfessionAtLevel("rogue", level)
                 .Single(skill => skill.Code == "rogue-blade-flurry")).Count(effect => effect.Type == "Damage")));
+        Assert.Equal(new[] { 80m, 90m, 100m }, new[] { 3, 14, 24 }
+            .Select(level => SkillCatalog.EffectsFor(catalog.SkillsForProfessionAtLevel("rogue", level)
+                .Single(skill => skill.Code == "rogue-execution-slash")).Single(effect => effect.Type == "Damage").AttackPowerPercent));
         var recipient = new Character { ProfessionCode = "mage", Level = 10 };
         var shared = catalog.ResolveSkillForLevel(recipient, "rogue-adrenaline",
             new Dictionary<string, int> { ["rogue"] = 30 })!;
@@ -108,7 +111,31 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("斩击消耗 3 层") && log.Contains("提高 60%"));
-        Assert.Contains(result.Logs, log => log.Contains("使用 斩击 攻击 Slime，造成 176 点伤害"));
+        Assert.Contains(result.Logs, log => log.Contains("使用 斩击 攻击 Slime，造成 160 点伤害"));
+    }
+
+    [Fact]
+    public async Task PoisonAndNativeAdrenalineCompleteSlashInSkillSlotOrder()
+    {
+        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1);
+        test.Character.ProfessionCode = "rogue";
+        test.Character.Level = 30;
+        test.Monster.Hp = test.Monster.MaxHp = 1000;
+        await test.Db.SaveChangesAsync();
+        await test.AddSkillAsync(test.Character, 1, "rogue-shadow-strike", autoUse: true);
+        await test.AddSkillAsync(test.Character, 2, "rogue-poisoned-blade", autoUse: true);
+        await test.AddSkillAsync(test.Character, 3, "rogue-adrenaline", autoUse: true);
+        await test.AddSkillAsync(test.Character, 4, "rogue-execution-slash", autoUse: true);
+        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
+
+        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
+        Assert.Null(error);
+        Assert.Contains(result!.Logs, log => log.Contains("获得 影之蓄势（1 层）"));
+        Assert.Contains(result.Logs, log => log.Contains("获得 影之蓄势（2 层）"));
+        Assert.Contains(result.Logs, log => log.Contains("获得 影之蓄势（3 层）"));
+        Assert.Contains(result.Logs, log => log.Contains("斩击消耗 3 层影之蓄势"));
+        Assert.Equal(0, await monsterCombat.GetStatusStacksAsync(test.Room, "Character", test.Character.Id,
+            "rogue-shadow-charge"));
     }
 
     [Theory]
@@ -203,6 +230,8 @@ public partial class BattleServiceTests
         var poison = await test.Db.BattleStatusEffects.SingleAsync(effect => effect.EffectCode == "rogue-poison");
         Assert.Equal(6, poison.PerTickValue);
         Assert.Equal(3, poison.ExpiresAfterRound - poison.AppliedRound);
+        Assert.Equal(1, await test.Db.BattleStatusEffects.Where(effect => effect.EffectCode == "rogue-shadow-charge")
+            .Select(effect => effect.Stacks).SingleAsync());
         test.Db.CharacterSkillSlots.Remove(await test.Db.CharacterSkillSlots.SingleAsync());
         test.Character.Attack = 100;
         await test.Db.SaveChangesAsync();
@@ -265,6 +294,8 @@ public partial class BattleServiceTests
         Assert.Single(cast!.Logs, log => log.Contains("二连击"));
         Assert.Equal(30, await monsterCombat.GetModifierAsync(test.Room, "Character", test.Character.Id,
             "DoubleAttackChancePercent"));
+        Assert.Equal(1, await monsterCombat.GetStatusStacksAsync(test.Room, "Character", test.Character.Id,
+            "rogue-shadow-charge"));
         Assert.Single(await test.Db.BattleStatusEffects.Where(effect => effect.EffectCode.StartsWith("rogue-adrenaline-")).ToListAsync());
 
         test.Room.NextRoundAvailableAtUtc = DateTime.UtcNow.AddSeconds(-1);
@@ -299,6 +330,8 @@ public partial class BattleServiceTests
         Assert.Equal(30, await monsterCombat.GetModifierAsync(test.Room, "Character", test.Character.Id,
             "DoubleAttackChancePercent"));
         Assert.Equal("rogue-adrenaline-3", Assert.Single(await test.Db.BattleStatusEffects.ToListAsync()).EffectCode);
+        Assert.Equal(0, await monsterCombat.GetStatusStacksAsync(test.Room, "Character", test.Character.Id,
+            "rogue-shadow-charge"));
         Assert.Equal(7, (await test.Db.BattleSkillCooldowns.SingleAsync()).ReadyAtRound);
     }
 

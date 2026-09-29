@@ -1317,7 +1317,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         participant.Character.Id, forHealing: false);
                 }
             }
-            if (skill.Code == "rogue-shadow-strike" && monsterCombatService is not null)
+            if (monsterCombatService is not null &&
+                string.Equals(participant.Character.ProfessionCode, "rogue", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(skill.ProfessionCode, "rogue", StringComparison.OrdinalIgnoreCase) &&
+                (skill.Code is "rogue-shadow-strike" or "rogue-poisoned-blade" or "rogue-adrenaline"))
                 await monsterCombatService.AddShadowChargeAsync(room, participant.Character.Id, logs,
                     $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
             if (monsterCombatService is not null &&
