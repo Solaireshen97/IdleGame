@@ -829,6 +829,78 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         IReadOnlyCollection<int> autoCharacterIds, List<string> logs)
     {
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
+        var mageEchoTriggeredCharacters = new HashSet<int>();
+
+        async Task TryMageEchoAsync(SlotCharacter participant)
+        {
+            if (monsterCombatService is null || monster.Hp <= 0 ||
+                !mageEchoTriggeredCharacters.Add(participant.Character.Id)) return;
+            if (await monsterCombatService.GetMageDisorderStacksAsync(room, participant.Character.Id, monster.Id) < 3)
+            {
+                mageEchoTriggeredCharacters.Remove(participant.Character.Id);
+                return;
+            }
+            await monsterCombatService.ConsumeMageDisorderAsync(room, participant.Character.Id, monster.Id);
+            var domainRank = await monsterCombatService.GetMageDomainRankAsync(room, participant.Character.Id);
+            var power = domainRank > 0 ? 50 : 30;
+            var element = mainWeaponElements.TryGetValue(participant.Character.Id, out var mainElement)
+                ? mainElement : (ElementType?)null;
+            var attackModifier = await monsterCombatService.GetModifierAsync(room, "Character", participant.Character.Id, "AttackPercent");
+            var monsterReduction = await monsterCombatService.GetModifierAsync(room, "Monster", monster.Id, "ReductionPercent");
+            var healthPercent = WeaponCombatRules.HealthDamagePercent(participant.Character.Hp,
+                TalentRules.EffectiveMaxHp(participant.Character),
+                participant.Character.WeaponStaminaPercent + participant.Character.TemporaryWeaponStaminaPercent,
+                participant.Character.WeaponEnmityPercent + participant.Character.TemporaryWeaponEnmityPercent);
+            var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(participant.Character), monster.Defense,
+                factors: new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(participant.Character, room.RoundNumber) +
+                    attackModifier + operationBonuses.GetValueOrDefault(participant.Character.Id).AttackPercent,
+                    HealthPercent: healthPercent,
+                    ElementPercent: WeaponCombatRules.ElementAttackPercent(element, monster.Element,
+                        participant.Character.CombatWeaponElementAdvantagePercent),
+                    ReductionPercent: monsterReduction,
+                    SkillDamagePercent: participant.Character.WeaponSkillDamagePercent +
+                        participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent,
+                    ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent),
+                attackPowerPercent: power);
+            monster.Hp = Math.Max(0, monster.Hp - damage);
+            logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 触发失序回响，对 {monster.Name} 造成 {damage} 点伤害。");
+            if (monster.Hp > 0)
+                await monsterCombatService.ApplyMageSkillDisruptionAsync(room, monster.Id,
+                    domainRank == 3 ? 25 : domainRank == 2 ? 20 : 15, logs, monster.Name);
+        }
+
+        async Task AddMageDisorderAndEchoAsync(SlotCharacter participant)
+        {
+            if (monsterCombatService is null || monster.Hp <= 0) return;
+            await monsterCombatService.AddMageDisorderAsync(room, participant.Character.Id, monster.Id,
+                logs, $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
+            await TryMageEchoAsync(participant);
+        }
+
+        if (monsterCombatService is not null)
+        {
+            foreach (var participant in aliveSlots.Where(entry =>
+                         string.Equals(entry.Character.ProfessionCode, "mage", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (monster.Hp <= 0) break;
+                var continuousDispel = await dbContext.BattleStatusEffects.AnyAsync(effect =>
+                    effect.RoomId == room.Id && effect.RunSequence == room.RunSequence &&
+                    effect.TargetType == "Character" && effect.TargetId == participant.Character.Id &&
+                    effect.EffectCode == "mage-spellbreak-continuous" &&
+                    effect.AppliedRound < room.RoundNumber && effect.ExpiresAfterRound >= room.RoundNumber);
+                if (continuousDispel)
+                {
+                    var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Monster", [monster.Id], true);
+                    if (removed is not null)
+                        logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的法术反制持续驱散了 {monster.Name} 的 {removed.Name}。");
+                }
+                if (await monsterCombatService.GetMageDomainRankAsync(room, participant.Character.Id) > 0)
+                    await AddMageDisorderAndEchoAsync(participant);
+                else
+                    await TryMageEchoAsync(participant);
+            }
+        }
+        if (monster.Hp <= 0) return default;
         var equipment = await dbContext.CharacterSkillSlots
             .Where(slot => characterIds.Contains(slot.CharacterId) && slot.SkillCode != null)
             .OrderBy(slot => slot.SlotIndex).ToListAsync();
@@ -851,6 +923,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
 
         async Task<bool> TryUseAsync(SlotCharacter participant, CharacterSkillSlot slot, bool automatic)
         {
+            if (monster.Hp <= 0) return false;
             var levels = professionLevels.GetValueOrDefault(participant.Character.Id) ??
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var skill = skillCatalog.ResolveSkillForLevel(participant.Character, slot.SkillCode, levels);
@@ -1033,8 +1106,6 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         var removed = await monsterCombatService.RemoveFirstStatusAsync(room, "Monster", [monster.Id], true);
                         if (removed is null) break;
                         logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 使用 {skill.Name}，驱散了 {monster.Name} 的 {removed.Name}。");
-                        if (skill.Code == "mage-spellbreak" && ranks.GetValueOrDefault("mage-stable-channeling") > 0)
-                            ReduceDamageSkillCooldowns(1, "稳定引导");
                         applied = true;
                         break;
                     }
@@ -1054,8 +1125,18 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         if (effect.Target == "Monster")
                         {
                             if (monster.Hp <= 0) break;
+                            if (effect.StatusCode.StartsWith("mage-chill-", StringComparison.Ordinal))
+                            {
+                                var incomingPower = effect.StatusCode == "mage-chill-3" ? 15 : 10;
+                                if (incomingPower < 15 &&
+                                    await monsterCombatService.HasStatusAsync(room, "Monster", monster.Id, "mage-chill-3"))
+                                    break;
+                                foreach (var chillCode in new[] { "mage-chill-1", "mage-chill-2", "mage-chill-3" })
+                                    if (chillCode != effect.StatusCode)
+                                        await monsterCombatService.RemoveStatusAsync(room, "Monster", monster.Id, chillCode);
+                            }
                             int? perTickValue = null;
-                            if (effect.StatusCode is "knight-holy-burn" or "rogue-poison")
+                            if (effect.StatusCode is "knight-holy-burn" or "rogue-poison" or "mage-scorch-dot")
                             {
                                 var statusAttack = await monsterCombatService.GetModifierAsync(room, "Character",
                                     participant.Character.Id, "AttackPercent");
@@ -1083,6 +1164,12 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                                         if (adrenalineCode != effect.StatusCode)
                                             await monsterCombatService.RemoveStatusAsync(room, "Character", allyTarget.Character.Id, adrenalineCode);
                                 }
+                                if (effect.StatusCode.StartsWith("mage-domain-", StringComparison.Ordinal))
+                                {
+                                    foreach (var domainCode in new[] { "mage-domain-1", "mage-domain-2", "mage-domain-3" })
+                                        if (domainCode != effect.StatusCode)
+                                            await monsterCombatService.RemoveStatusAsync(room, "Character", allyTarget.Character.Id, domainCode);
+                                }
                                 applied |= await monsterCombatService.ApplyStatusAsync(room, "Character", allyTarget.Character.Id,
                                     effect.StatusCode, effect.DurationRounds, logs, targetLabel, perTickValue);
                             }
@@ -1093,12 +1180,6 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         applied |= ReduceDamageSkillCooldowns(effect.Power, skill.Name) > 0;
                         break;
                 }
-            }
-            if (monster.Hp > 0 && skill.Code == "mage-arcane-barrage" && ranks.GetValueOrDefault("mage-arcane-mastery") > 0)
-            {
-                totalDamage += await DealSkillDamageAsync(new CombatSkillEffectOptions
-                    { Type = "Damage", Target = "Monster", Power = 1, AttackPowerPercent = 40 }, "奥术掌握追加飞弹");
-                applied = true;
             }
             if (monster.Hp > 0 && skill.Code == "rogue-blade-flurry" && ranks.GetValueOrDefault("rogue-relentless-assault") > 0)
             {
@@ -1135,6 +1216,14 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             if (skill.Code == "rogue-shadow-strike" && monsterCombatService is not null)
                 await monsterCombatService.AddShadowChargeAsync(room, participant.Character.Id, logs,
                     $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
+            if (monsterCombatService is not null &&
+                string.Equals(participant.Character.ProfessionCode, "mage", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(skill.ProfessionCode, "mage", StringComparison.OrdinalIgnoreCase))
+            {
+                await AddMageDisorderAndEchoAsync(participant);
+                if (skill.Code == "mage-arcane-domain")
+                    await AddMageDisorderAndEchoAsync(participant);
+            }
             if (totalDamage > 0)
             {
                 if (ranks.GetValueOrDefault("sword-rhythm") > 0)
@@ -1309,7 +1398,6 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
     }
 
     private static bool HasSelfCleanseTalent(CombatSkillOptions skill, IReadOnlyDictionary<string, int> ranks) =>
-        skill.Code == "mage-frost-ward" && ranks.GetValueOrDefault("mage-frozen-heart") > 0 ||
         skill.Code == "rogue-evasion" && ranks.GetValueOrDefault("rogue-escape-artist") > 0;
 
     private static SlotCharacter? GetHpConditionTarget(CombatSkillOptions skill, SlotCharacter participant,

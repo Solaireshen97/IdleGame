@@ -204,7 +204,7 @@ public partial class BattleServiceTests
 
     [Theory]
     [InlineData("hunter", "hunter-field-mend")]
-    [InlineData("mage", "mage-frost-ward")]
+    [InlineData("mage", "mage-frost-bolt")]
     [InlineData("swordsman", "sword-slash")]
     public async Task FixedScopeSkillsRejectManualAllyOverride(string profession, string code)
     {

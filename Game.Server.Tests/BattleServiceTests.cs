@@ -2697,30 +2697,6 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task ArcaneMasteryAddsAFourthIndependentlyResolvedBarrageHit()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
-        test.Character.ProfessionCode = "mage";
-        test.Character.Level = 10;
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        test.Db.CharacterSkillTalents.AddRange(
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-arcane-insight", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-arcane-training", PointsSpent = 2 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-barrage-talent", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-precision", PointsSpent = 2 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-arcane-mastery", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "mage-arcane-barrage", autoUse: true);
-        var (service, _) = CreateProductionSoulBattleService(test);
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Equal(3, result!.Logs.Count(log => log.Contains("使用 奥术弹幕 攻击")));
-        Assert.Single(result.Logs, log => log.Contains("奥术掌握追加飞弹"));
-    }
-
-    [Fact]
     public async Task HunterRelentlessTalentAppliesTwoPoisonStacksWithVenomArrow()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 10, monsterAttack: 1, monsterDefense: 0);
@@ -2740,54 +2716,6 @@ public partial class BattleServiceTests
         Assert.Null(error);
         var poison = await test.Db.BattleStatusEffects.SingleAsync(effect => effect.EffectCode == "poison");
         Assert.Equal(2, poison.Stacks);
-    }
-
-    [Theory]
-    [InlineData("mage", "mage-frost-ward", "mage-frozen-heart")]
-    public async Task DefensiveCapstonesCleanseOneSelfDebuff(string profession, string skillCode, string talentCode)
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = profession;
-        test.Character.Level = 10;
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent
-            { CharacterId = 1, NodeCode = talentCode, PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, skillCode, autoUse: true, threshold: 70);
-        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
-        await monsterCombat.ApplyStatusAsync(test.Room, "Character", 1, "poison", 2, [], test.Character.Name);
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("借助") && log.Contains("移除了 中毒"));
-        Assert.DoesNotContain(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "poison");
-    }
-
-    [Fact]
-    public async Task StableChannelingReducesDamageCooldownAfterSpellbreakDispelsABuff()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = "mage";
-        test.Character.Level = 10;
-        test.Db.CharacterSkillTalents.AddRange(
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-flow", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-spellbreak-talent", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "mage-stable-channeling", PointsSpent = 1 });
-        test.Db.BattleSkillCooldowns.Add(new BattleSkillCooldown
-            { RoomId = 1, CharacterId = 1, SkillCode = "mage-arcane-bolt", ReadyAtRound = 5 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "mage-spellbreak", autoUse: true);
-        var (service, monsterCombat) = CreateProductionSoulBattleService(test);
-        await monsterCombat.ApplyStatusAsync(test.Room, "Monster", test.Monster.Id, "slime-shell", 2, [], test.Monster.Name);
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("法术反制") && log.Contains("驱散了"));
-        Assert.Contains(result.Logs, log => log.Contains("稳定引导") && log.Contains("冷却缩短 1 回合"));
-        Assert.Equal(4, (await test.Db.BattleSkillCooldowns.SingleAsync(entry => entry.SkillCode == "mage-arcane-bolt")).ReadyAtRound);
     }
 
     [Fact]

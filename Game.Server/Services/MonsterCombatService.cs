@@ -164,6 +164,98 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         return true;
     }
 
+    public async Task<int> GetMageDisorderStacksAsync(Room room, int characterId, int monsterId)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        return effects.FirstOrDefault(effect => effect.EffectCode == "mage-disorder" &&
+            effect.PerTickValue == monsterId)?.Stacks ?? 0;
+    }
+
+    public async Task<int> AddMageDisorderAsync(Room room, int characterId, int monsterId,
+        List<string> logs, string characterName)
+    {
+        var definition = catalog.FindStatus("mage-disorder");
+        if (definition is null) return 0;
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var disorder = effects.FirstOrDefault(effect => effect.EffectCode == "mage-disorder");
+        if (disorder is not null && disorder.PerTickValue != monsterId)
+        {
+            dbContext.BattleStatusEffects.Remove(disorder);
+            disorder = null;
+        }
+        if (disorder is null)
+        {
+            disorder = dbContext.BattleStatusEffects.Local.FirstOrDefault(effect =>
+                effect.RoomId == room.Id && effect.RunSequence == room.RunSequence &&
+                effect.TargetType == "Character" && effect.TargetId == characterId &&
+                effect.EffectCode == "mage-disorder" && dbContext.Entry(effect).State == EntityState.Deleted);
+            if (disorder is not null)
+            {
+                dbContext.Entry(disorder).State = EntityState.Modified;
+                disorder.Stacks = 0;
+            }
+        }
+        if (disorder is null)
+        {
+            disorder = new BattleStatusEffect
+            {
+                RoomId = room.Id, RunSequence = room.RunSequence, TargetType = "Character",
+                TargetId = characterId, EffectCode = "mage-disorder", Stacks = 0
+            };
+            dbContext.BattleStatusEffects.Add(disorder);
+        }
+        disorder.PerTickValue = monsterId;
+        disorder.AppliedRound = room.RoundNumber;
+        disorder.ExpiresAfterRound = int.MaxValue;
+        disorder.Stacks = Math.Min(definition.MaxStacks, disorder.Stacks + 1);
+        logs.Add($"{characterName} 使当前怪物获得奥术失序（{disorder.Stacks} 层）。");
+        return disorder.Stacks;
+    }
+
+    public async Task<int> ConsumeMageDisorderAsync(Room room, int characterId, int monsterId)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var disorder = effects.FirstOrDefault(effect => effect.EffectCode == "mage-disorder" &&
+            effect.PerTickValue == monsterId);
+        if (disorder is null || disorder.Stacks < 3) return 0;
+        disorder.Stacks -= 3;
+        var remaining = disorder.Stacks;
+        if (remaining == 0) dbContext.BattleStatusEffects.Remove(disorder);
+        return remaining;
+    }
+
+    public async Task<int> GetMageDomainRankAsync(Room room, int characterId)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        for (var rank = 3; rank >= 1; rank--)
+            if (effects.Any(effect => effect.EffectCode == $"mage-domain-{rank}")) return rank;
+        return 0;
+    }
+
+    public async Task ApplyMageSkillDisruptionAsync(Room room, int monsterId, int percent,
+        List<string> logs, string monsterName)
+    {
+        var current = await GetActiveEffectsAsync(room, "Monster", [monsterId]);
+        var currentPower = current.Where(effect => effect.EffectCode.StartsWith("mage-skill-disruption-", StringComparison.Ordinal))
+            .Select(effect => int.TryParse(effect.EffectCode.AsSpan("mage-skill-disruption-".Length), out var value) ? value : 0)
+            .DefaultIfEmpty(0).Max();
+        if (currentPower > percent) return;
+        foreach (var effect in current.Where(effect => effect.EffectCode.StartsWith("mage-skill-disruption-", StringComparison.Ordinal)))
+            dbContext.BattleStatusEffects.Remove(effect);
+        await ApplyStatusAsync(room, "Monster", monsterId, $"mage-skill-disruption-{percent}",
+            int.MaxValue - room.RoundNumber, logs, monsterName);
+    }
+
+    private async Task<int> ConsumeMageSkillDisruptionAsync(Room room, int monsterId)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Monster", [monsterId]);
+        var marker = effects.FirstOrDefault(effect =>
+            effect.EffectCode.StartsWith("mage-skill-disruption-", StringComparison.Ordinal));
+        if (marker is null) return 0;
+        dbContext.BattleStatusEffects.Remove(marker);
+        return int.TryParse(marker.EffectCode.AsSpan("mage-skill-disruption-".Length), out var value) ? value : 0;
+    }
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -190,9 +282,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var effects = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
             effect.RunSequence == room.RunSequence && effect.TargetType == targetType && effect.TargetId == targetId &&
             effect.ExpiresAfterRound >= room.RoundNumber).OrderBy(effect => effect.Id).ToListAsync();
-        return effects.Where(effect => catalog.FindStatus(effect.EffectCode) is not null).Select(effect =>
+        var responses = effects.Where(effect => effect.EffectCode != "mage-disorder" &&
+            catalog.FindStatus(effect.EffectCode) is not null).Select(effect =>
         {
             var definition = catalog.FindStatus(effect.EffectCode);
+            var persistent = effect.EffectCode is "rogue-shadow-charge" or "mage-disorder" ||
+                effect.EffectCode.StartsWith("mage-skill-disruption-", StringComparison.Ordinal);
             return new BattleStatusEffectResponse
             {
                 Code = effect.EffectCode,
@@ -201,10 +296,41 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 IsPositive = definition?.IsPositive ?? false,
                 CanDispel = definition?.IsDispellable ?? false,
                 Stacks = effect.Stacks,
-                RemainingRounds = effect.EffectCode == "rogue-shadow-charge" ? 0 : Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1),
-                ExpiresWithRun = effect.EffectCode == "rogue-shadow-charge"
+                RemainingRounds = persistent ? 0 : Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1),
+                ExpiresWithRun = persistent
             };
         }).ToList();
+        if (targetType != "Monster") return responses;
+
+        // Disorder is keyed by its caster so several mages cannot consume each other's stacks.
+        // Present those caster-owned counters on the monster, where players expect to see them.
+        var disorder = await dbContext.BattleStatusEffects.Where(effect => effect.RoomId == room.Id &&
+            effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+            effect.EffectCode == "mage-disorder" && effect.PerTickValue == targetId &&
+            effect.ExpiresAfterRound >= room.RoundNumber).ToListAsync();
+        disorder.RemoveAll(effect => dbContext.Entry(effect).State == EntityState.Deleted);
+        foreach (var local in dbContext.BattleStatusEffects.Local.Where(effect => effect.RoomId == room.Id &&
+                     effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+                     effect.EffectCode == "mage-disorder" && effect.PerTickValue == targetId &&
+                     effect.ExpiresAfterRound >= room.RoundNumber &&
+                     dbContext.Entry(effect).State != EntityState.Deleted))
+            if (!disorder.Contains(local)) disorder.Add(local);
+        if (disorder.Count == 0) return responses;
+        var casterIds = disorder.Select(effect => effect.TargetId).Distinct().ToList();
+        var casterNames = await dbContext.Characters.Where(character => casterIds.Contains(character.Id))
+            .ToDictionaryAsync(character => character.Id, character => character.Name);
+        responses.AddRange(disorder.OrderBy(effect => effect.TargetId).Select(effect => new BattleStatusEffectResponse
+        {
+            Code = "mage-disorder",
+            Name = $"失序（{casterNames.GetValueOrDefault(effect.TargetId, "法师")}）",
+            Description = "该法师每积累 3 层失序就触发一次回响；当前怪物死亡时清空。",
+            IsPositive = false,
+            CanDispel = false,
+            Stacks = effect.Stacks,
+            RemainingRounds = 0,
+            ExpiresWithRun = true
+        }));
+        return responses;
     }
 
     public async Task ExecuteIntentAsync(Room room, Monster monster,
@@ -253,12 +379,16 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         }
 
         logs.Add($"{monster.Name} 使用 {skill.Name}。");
+        var mageSkillReduction = skill.DamagePowerPercent > 0 && targets.Count > 0
+            ? await ConsumeMageSkillDisruptionAsync(room, monster.Id) : 0;
+        if (mageSkillReduction > 0)
+            logs.Add($"{monster.Name} 的 {skill.Name} 受到奥术扰乱，直接伤害降低 {mageSkillReduction}%。");
         if (skill.DamagePowerPercent > 0)
         {
             foreach (var target in targets)
                 await DealDamageAsync(room, monster, target, skill.DamagePowerPercent,
                     mainWeaponElements, defense, logs, skill.Name, operationBonuses,
-                    skill.TargetType == "AllAlive");
+                    skill.TargetType == "AllAlive", mageSkillReduction);
         }
         foreach (var application in skill.Statuses)
         {
@@ -354,6 +484,16 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             .Where(entry => entry.RoomId == roomId && entry.MonsterId == monsterId).ToListAsync());
         dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects
             .Where(entry => entry.RoomId == roomId && entry.TargetType == "Monster" && entry.TargetId == monsterId).ToListAsync());
+        dbContext.BattleStatusEffects.RemoveRange(dbContext.BattleStatusEffects.Local.Where(entry =>
+            entry.RoomId == roomId && entry.TargetType == "Monster" && entry.TargetId == monsterId &&
+            dbContext.Entry(entry).State != EntityState.Deleted).ToList());
+        dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects
+            .Where(entry => entry.RoomId == roomId && entry.TargetType == "Character" &&
+                entry.EffectCode == "mage-disorder" && entry.PerTickValue == monsterId).ToListAsync());
+        dbContext.BattleStatusEffects.RemoveRange(dbContext.BattleStatusEffects.Local.Where(entry =>
+            entry.RoomId == roomId && entry.TargetType == "Character" &&
+            entry.EffectCode == "mage-disorder" && entry.PerTickValue == monsterId &&
+            dbContext.Entry(entry).State != EntityState.Deleted).ToList());
     }
 
     public async Task<decimal> GetModifierAsync(Room room, string targetType, int targetId, string effectType)
@@ -437,7 +577,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         {
             var currentPotency = effect.PerTickValue ??
                 Math.Max(1, (int)decimal.Floor(Math.Abs(definition.ValuePerStack) * effect.Stacks));
-            effect.PerTickValue = Math.Max(currentPotency, perTickValue.Value);
+            effect.PerTickValue = definition.Code == "mage-scorch-dot"
+                ? perTickValue.Value : Math.Max(currentPotency, perTickValue.Value);
         }
         var expiresAfterRound = checked(room.RoundNumber + application.DurationRounds);
         // A shorter poison application from an ally must not cut an existing extended
@@ -466,7 +607,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     private async Task DealDamageAsync(Room room, Monster monster, MonsterCombatParticipant target,
         int powerPercent, IReadOnlyDictionary<int, ElementType> mainWeaponElements,
         PlayerRoundDefense defense, List<string> logs, string? skillName,
-        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses, bool isAreaAttack)
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses, bool isAreaAttack,
+        int mageSkillReductionPercent = 0)
     {
         var talents = await dbContext.CharacterSkillTalents.Where(node => node.CharacterId == target.Character.Id &&
             (node.NodeCode == "sword-guard-stance" || node.NodeCode == "sword-counteroffense"))
@@ -477,7 +619,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var guard = defense.ForCharacter(target.Character.Id);
         var potion = operationBonuses?.GetValueOrDefault(target.Character.Id) ?? default;
         var element = mainWeaponElements.TryGetValue(target.Character.Id, out var mainElement) ? mainElement : (ElementType?)null;
-        var scaledAttack = Math.Max(1, (int)decimal.Floor(monster.Attack * powerPercent / 100m));
+        var scaledAttack = Math.Max(1, (int)decimal.Floor(monster.Attack * powerPercent / 100m *
+            (1m - mageSkillReductionPercent / 100m)));
         var damage = DamageCalculator.Calculate(scaledAttack, 0,
             factors: new DamageFactors(AttackPercent: attackPercent,
                 ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),

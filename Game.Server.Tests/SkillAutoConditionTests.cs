@@ -275,29 +275,6 @@ public partial class BattleServiceTests
         Assert.Empty(await test.Db.BattleSkillCooldowns.ToListAsync());
     }
 
-    [Theory]
-    [InlineData("mage", "mage-frost-ward", "mage-frozen-heart", false)]
-    [InlineData("mage", "mage-frost-ward", "mage-frozen-heart", true)]
-    public async Task CustomHealthConditionDoesNotAddTheDefaultSelfCleanseTrigger(string profession, string skillCode, string talent, bool custom)
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
-        test.Character.ProfessionCode = profession;
-        test.Character.Level = 10;
-        test.Monster.Hp = test.Monster.MaxHp = 1000;
-        test.Db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = 1, NodeCode = talent, PointsSpent = 1 });
-        await test.AddSkillAsync(test.Character, 1, skillCode, autoUse: true, threshold: 70);
-        if (custom) (await test.Db.CharacterSkillSlots.SingleAsync()).AutoConditionOverride = "SelfHpBelowThreshold";
-        var (service, monsters) = CreateProductionSoulBattleService(test);
-        await monsters.ApplyStatusAsync(test.Room, "Character", 1, "poison", 2, [], "Knight");
-        await test.Db.SaveChangesAsync();
-
-        var (_, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Equal(custom ? 0 : 1, await test.Db.BattleSkillCooldowns.CountAsync());
-        Assert.Equal(custom, await test.Db.BattleStatusEffects.AnyAsync(effect => effect.TargetType == "Character" && effect.TargetId == 1));
-    }
-
     private static SkillService MakeSkillSettingsService(GameDbContext db)
     {
         var catalog = SkillTestFactory.Create();

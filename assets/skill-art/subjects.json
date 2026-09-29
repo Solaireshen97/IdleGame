@@ -84,10 +84,10 @@
     "palette": "emerald green, ivory, pale cyan and warm gold"
   },
   {"code":"mage-arcane-bolt","subject":"one luminous violet arcane dart with a pointed gold rune trail","palette":"violet, cobalt blue and warm gold"},
-  {"code":"mage-frost-ward","subject":"a faceted icy blue shield bearing a crisp white snowflake","palette":"ice blue, pale cyan and ivory"},
-  {"code":"mage-arcane-barrage","subject":"three violet mana bolts fanning outward with tiny gold sparks","palette":"violet, indigo and warm gold"},
+  {"code":"mage-frost-bolt","file":"mage-frost-ward.png","subject":"a sharp icy blue frost bolt with a white snowflake trail","palette":"ice blue, pale cyan and ivory"},
+  {"code":"mage-scorch","file":"elementalist-pyroblast.png","subject":"a compact orange flame burning a marked target","palette":"orange, ember red and warm gold"},
   {"code":"mage-spellbreak","subject":"a fractured violet spell rune pierced by a blue crystal shard","palette":"violet, crystal blue and ivory"},
-  {"code":"mage-arcane-suppression","subject":"a glowing angular rune seal pressing down a dim violet mana orb","palette":"indigo, violet and muted gold"},
+  {"code":"mage-arcane-domain","file":"mage-arcane-suppression.png","subject":"a glowing violet arcane circle radiating sustained energy","palette":"indigo, violet and muted gold"},
   {"code":"hunter-quick-shot","subject":"a compact drawn hunting bow releasing a single fast amber arrow","palette":"forest green, amber and dark brown"},
   {"code":"hunter-field-mend","subject":"a rolled leather field bandage wrapped with two fresh healing leaves","palette":"leaf green, warm ivory and leather brown"},
   {"code":"hunter-marked-shot","subject":"a feathered arrow striking a red crossed target mark with one impact spark","palette":"forest green, scarlet and amber"},

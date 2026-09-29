@@ -88,20 +88,20 @@
     "palette": "violet, cobalt blue and warm gold"
   },
   {
-    "code": "mage-frost-ward",
-    "name": "寒霜护体",
+    "code": "mage-frost-bolt",
+    "name": "寒冰箭",
     "profession": "mage",
     "file": "mage-frost-ward.png",
-    "subject": "a faceted icy blue shield bearing a crisp white snowflake",
+    "subject": "a sharp icy blue frost bolt with a white snowflake trail",
     "palette": "ice blue, pale cyan and ivory"
   },
   {
-    "code": "mage-arcane-barrage",
-    "name": "奥术弹幕",
+    "code": "mage-scorch",
+    "name": "灼烧",
     "profession": "mage",
-    "file": "mage-arcane-barrage.png",
-    "subject": "three violet mana bolts fanning outward with tiny gold sparks",
-    "palette": "violet, indigo and warm gold"
+    "file": "elementalist-pyroblast.png",
+    "subject": "a compact orange flame burning a marked target",
+    "palette": "orange, ember red and warm gold"
   },
   {
     "code": "mage-spellbreak",
@@ -112,11 +112,11 @@
     "palette": "violet, crystal blue and ivory"
   },
   {
-    "code": "mage-arcane-suppression",
-    "name": "奥术压制",
+    "code": "mage-arcane-domain",
+    "name": "奥术领域",
     "profession": "mage",
     "file": "mage-arcane-suppression.png",
-    "subject": "a glowing angular rune seal pressing down a dim violet mana orb",
+    "subject": "a glowing violet arcane circle radiating sustained energy",
     "palette": "indigo, violet and muted gold"
   },
   {

@@ -1195,6 +1195,8 @@ else
     }
 
     private static string GetStatusEffectDuration(BattleStatusEffectResponse effect) =>
+        effect.Code == "mage-disorder" ? "当前怪物存活期间" :
+        effect.Code.StartsWith("mage-skill-disruption-", StringComparison.Ordinal) ? "至下次伤害技能" :
         effect.ExpiresWithRun ? "本场持续" : $"剩余 {effect.RemainingRounds} 回合";
 
     private IEnumerable<CharacterSummaryResponse> GetFormationCharacters(RoomSlotResponse target) =>
