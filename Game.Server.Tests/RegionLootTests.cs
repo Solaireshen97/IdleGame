@@ -43,7 +43,7 @@ public sealed class RegionLootTests
                     Assert.Empty(drops);
                     continue;
                 }
-                Assert.InRange(drops.Count, 2, 3);
+                Assert.InRange(drops.Count, dungeon.DungeonKind == "Hunt" && dungeon.RecommendedLevel == 1 ? 1 : 2, 3);
                 Assert.Equal(drops.Count, drops.Select(drop => drop.Code).Distinct().Count());
                 Assert.All(drops, drop =>
                 {
@@ -51,7 +51,8 @@ public sealed class RegionLootTests
                     Assert.Equal(1, drop.Quantity);
                     Assert.InRange(drop.ChancePercent, 1m, 10m);
                 });
-                Assert.True(drops[0].ChancePercent > drops.Skip(1).Max(drop => drop.ChancePercent));
+                if (drops.Count > 1)
+                    Assert.True(drops[0].ChancePercent > drops.Skip(1).Max(drop => drop.ChancePercent));
                 if (dungeon.DungeonKind == "Elite")
                     Assert.Equal(new[] { 3m, 2m }, drops.Select(drop => drop.ChancePercent));
                 if (dungeon.Code == region.FeaturedDungeonCode && monster.IsBoss)
@@ -70,7 +71,8 @@ public sealed class RegionLootTests
         for (var index = 0; index < hunts.Count; index++)
         {
             var drops = rewards.MonsterKills[hunts[index].Code].Drops.Where(drop => drop.Kind == "Weapon").ToList();
-            var expected = index == 0 ? new[] { 3m, 1m } : index == 1 ? new[] { 6m, 2m } : new[] { 10m, 4m, 2m };
+            var expected = index == 0 ? new[] { 5m } : index == 1
+                ? new[] { 5m, 2m } : new[] { 5m, 2m, 1m };
             Assert.Equal(expected, drops.Select(drop => drop.ChancePercent));
             Assert.True(huntFingerprints.Add(string.Join(";", drops.OrderBy(drop => drop.Code)
                 .Select(drop => $"{drop.Code}:{drop.ChancePercent}"))));
@@ -80,14 +82,14 @@ public sealed class RegionLootTests
                 Assert.All(weapons.FindItem(drop.Code)!.Skills, skill => Assert.Equal(1, skill.Level));
             }
         }
-        Assert.Equal(4, reachable.Count);
+        Assert.InRange(reachable.Count, 3, 4);
     }
 
     [Theory]
-    [InlineData(0.02, 1)]
-    [InlineData(0.005, 2)]
-    [InlineData(0.04, 0)]
-    public void MultipleWeaponDropsAreRolledIndependentlyAndPreviewMatchesTheTutorialTarget(double roll, int count)
+    [InlineData(0.02)]
+    [InlineData(0.005)]
+    [InlineData(0.04)]
+    public void FirstHuntWeaponDropAndPreviewMatchTheTutorialTarget(double roll)
     {
         var config = Configuration();
         IOptions<T> Bind<T>(string section) where T : class, new() => Options.Create(config.GetSection(section).Get<T>()!);
@@ -98,13 +100,14 @@ public sealed class RegionLootTests
             new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName)), new FixedRandom(roll));
         const string hunt = "durotar-valley-boar";
         var preview = rewards.GetDropPreview(hunt, false).Where(drop => drop.Kind == "Weapon").ToList();
-        Assert.Equal(new[] { "t1-candle-staff", "t1-burning-blade-hatchet" }, preview.Select(drop => drop.Code));
-        Assert.Equal(new[] { 3m, 1m }, preview.Select(drop => drop.ChancePercent));
+        Assert.Equal(new[] { "t1-candle-staff" }, preview.Select(drop => drop.Code));
+        Assert.Equal(new[] { 5m }, preview.Select(drop => drop.ChancePercent));
         Assert.Equal(preview[0].Code, rewards.FirstHuntWeapon(hunt)!.Code);
+        Assert.Null(rewards.FirstHuntWeapon("durotar-red-scorpion"));
         Assert.Equal(0, rewards.FirstHuntWeapon(hunt)!.QualityRank);
         var drops = rewards.Roll(hunt, false, 1, 1, "test", 1, 1).Where(entry => entry.Kind == "Weapon").ToList();
-        Assert.Equal(count, drops.Count);
-        Assert.Equal(preview.Take(count).Select(drop => drop.Code), drops.Select(drop => drop.Code));
+        Assert.Single(drops);
+        Assert.Equal(preview.Select(drop => drop.Code), drops.Select(drop => drop.Code));
         Assert.All(drops, entry =>
         {
             var snapshot = RewardCatalog.DeserializeWeapon(entry)!;

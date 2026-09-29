@@ -158,10 +158,17 @@ public sealed class RewardCatalog
 
     public WeaponRewardSnapshot? FirstHuntWeapon(string dungeonCode)
     {
-        if (!_grantFirstHuntWeapon || !_kills.TryGetValue(dungeonCode, out var bundle)) return null;
+        if (!_grantFirstHuntWeapon || !FirstHuntCodes.Contains(dungeonCode) ||
+            !_kills.TryGetValue(dungeonCode, out var bundle)) return null;
         var drop = bundle.Drops.FirstOrDefault(drop => drop.Kind == "Weapon" && drop.ChancePercent > 0);
         return drop is null ? null : _weapons.CreateRewardSnapshot(drop.Code) with { Origin = WeaponOrigin.Tutorial };
     }
+
+    private static readonly HashSet<string> FirstHuntCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "durotar-valley-boar", "dun-morogh-snow-hare", "northshire-wolves",
+        "mulgore-plainstrider-chick", "eversong-golden-lynx", "tirisfal-dusk-bat"
+    };
 }
 
 public sealed record WeaponRewardSnapshot(string Code, string Name, ElementType Element, int Attack, int MaxHp,

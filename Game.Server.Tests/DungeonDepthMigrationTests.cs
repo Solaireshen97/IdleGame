@@ -57,7 +57,8 @@ public sealed class DungeonDepthMigrationTests
             var snapshots = new Dictionary<string, (List<string> Columns, string Rows)>();
             foreach (var table in preservedTables)
             {
-                var columns = await ColumnsAsync(connection, table);
+                var columns = (await ColumnsAsync(connection, table))
+                    .Where(column => column != "StarterWeaponRewardClaimed").ToList();
                 snapshots.Add(table, (columns, await RowsAsync(connection, table, columns)));
             }
 

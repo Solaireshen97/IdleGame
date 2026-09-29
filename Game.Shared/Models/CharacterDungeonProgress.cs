@@ -8,6 +8,12 @@ public sealed class CharacterDungeonProgress
     public int Version { get; set; }
 }
 
+public sealed class CharacterFirstHuntWeaponClaim
+{
+    public int CharacterId { get; set; }
+    public int DungeonId { get; set; }
+}
+
 // The snapshot belongs to a character and attempt, not a mutable formation slot.
 public sealed class DungeonRunParticipant
 {

@@ -109,10 +109,8 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         if (production is not null)
             foreach (var characterId in characterIds)
                 await production.SettleCharacterTrackedAsync(characterId, now);
-        var userIds = entries.Select(entry => entry.UserId).Distinct().ToList();
         var characters = await dbContext.Characters.Where(character => characterIds.Contains(character.Id))
             .ToDictionaryAsync(character => character.Id);
-        var users = await dbContext.Users.Where(user => userIds.Contains(user.Id)).ToDictionaryAsync(user => user.Id);
         var stacks = (await dbContext.CharacterItemStacks.Where(stack => characterIds.Contains(stack.CharacterId)).ToListAsync())
             .Concat(dbContext.CharacterItemStacks.Local.Where(stack => characterIds.Contains(stack.CharacterId)))
             .DistinctBy(stack => (stack.CharacterId, stack.ItemCode)).ToList();
@@ -123,22 +121,27 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         if (tutorial is not null)
         {
             const string eventKey = "starter-hunt-weapon";
-            var recipients = entries.GroupBy(entry => entry.UserId)
-                .Where(group => !users[group.Key].StarterWeaponRewardClaimed)
-                .Select(group => (UserId: group.Key, CharacterId: group.Min(entry => entry.CharacterId))).ToList();
+            var claimedIds = (await dbContext.CharacterFirstHuntWeaponClaims
+                    .Where(claim => claim.DungeonId == dungeon.Id && characterIds.Contains(claim.CharacterId))
+                    .Select(claim => claim.CharacterId).ToListAsync())
+                .Concat(dbContext.CharacterFirstHuntWeaponClaims.Local
+                    .Where(claim => claim.DungeonId == dungeon.Id).Select(claim => claim.CharacterId))
+                .ToHashSet();
+            var recipients = entries.GroupBy(entry => entry.CharacterId)
+                .Where(group => !claimedIds.Contains(group.Key))
+                .Select(group => (UserId: group.First().UserId, CharacterId: group.Key)).ToList();
             if (recipients.Count > 0)
                 dbContext.RewardEvents.Add(new RewardEvent { RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey });
             foreach (var recipient in recipients)
             {
-                var user = users[recipient.UserId];
-                user.StarterWeaponRewardClaimed = true;
-                user.Version++;
+                dbContext.CharacterFirstHuntWeaponClaims.Add(new CharacterFirstHuntWeaponClaim
+                    { CharacterId = recipient.CharacterId, DungeonId = dungeon.Id });
                 var entry = new RewardEntry { RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
                     UserId = recipient.UserId, CharacterId = recipient.CharacterId, Kind = "Weapon", Code = tutorial.Code,
                     Quantity = 1, WeaponSnapshotJson = JsonSerializer.Serialize(tutorial) };
                 entries.Add(entry);
                 dbContext.RewardEntries.Add(entry);
-                logs.Add($"{characters[recipient.CharacterId].Name} 完成首次普通讨伐，获得新手武器奖励。");
+                logs.Add($"{characters[recipient.CharacterId].Name} 首次通关此地区 Lv1 讨伐，获得新手武器奖励。");
             }
         }
 

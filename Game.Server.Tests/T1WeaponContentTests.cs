@@ -29,7 +29,7 @@ public sealed class T1WeaponContentTests
     }
 
     [Fact]
-    public void EveryHuntHasTargetLootAndAllTwentyFourFieldWeaponsAreReachable()
+    public void EveryHuntHasTargetLootAndFirstHuntsOnlyDropTheirMainWeapon()
     {
         var configuration = Configuration();
         var rewards = configuration.GetSection(RewardOptions.SectionName).Get<RewardOptions>()!;
@@ -40,8 +40,8 @@ public sealed class T1WeaponContentTests
         var drops = ordinary.SelectMany(dungeon => rewards.MonsterKills[dungeon.Code].Drops
             .Where(drop => drop.Kind == "Weapon")).ToList();
         var templates = drops.Select(drop => catalog.FindItem(drop.Code)!).DistinctBy(item => item.Code).ToList();
-        Assert.Equal(24, templates.Count);
-        Assert.All(templates.GroupBy(item => item.Element), group => Assert.Equal(4, group.Count()));
+        Assert.Equal(18, templates.Count);
+        Assert.All(templates.GroupBy(item => item.Element), group => Assert.Equal(3, group.Count()));
         Assert.All(templates, item =>
         {
             Assert.Equal(1, item.ItemLevel);
@@ -50,12 +50,19 @@ public sealed class T1WeaponContentTests
         var redesigned = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "t1-candle-staff", "t1-ice-tusk-mallet", "t1-stone-edge-hatchet",
-            "t1-feather-short-staff", "t1-sentry-old-sword", "t1-dim-apprentice-staff"
+            "t1-feather-short-staff", "t1-sentry-old-sword", "t1-dim-apprentice-staff",
+            "t1-fishbone-knife", "t1-frostmane-hunting-spear",
+            "t1-burning-blade-hatchet", "t1-soot-iron-hammer",
+            "t1-boar-tusk-club", "t1-chipped-mining-pick",
+            "t1-hide-wrapped-club", "t1-sinew-shortbow",
+            "t1-dusty-prayer-mace", "t1-copper-ring-ritual-staff",
+            "t1-grave-thorn-staff", "t1-wood-hilt-ritual-dagger"
         };
         Assert.All(templates.Where(item => !redesigned.Contains(item.Code)), item =>
             Assert.Equal(40m, item.Attack + item.MaxHp / 2.5m));
         Assert.All(ordinary, dungeon => Assert.InRange(
-            rewards.MonsterKills[dungeon.Code].Drops.Count(drop => drop.Kind == "Weapon"), 2, 3));
+            rewards.MonsterKills[dungeon.Code].Drops.Count(drop => drop.Kind == "Weapon"),
+            dungeon.RecommendedLevel == 1 ? 1 : 2, 3));
     }
 
     [Fact]
@@ -324,12 +331,13 @@ public sealed class T1WeaponContentTests
         Assert.Equal("t1-wood-hilt-ritual-dagger", mapped.WeaponCode);
         Assert.Equal(ElementType.Dark, mapped.Element);
         Assert.Equal(2, mapped.EquippedSlotIndex);
-        Assert.Equal((44, 105, 25), (character.Attack, character.MaxHp, character.Hp));
-        Assert.Equal(111, TalentRules.EffectiveMaxHp(character));
+        Assert.Equal("weapon-stamina", Assert.Single(mapped.Skills).SkillCode);
+        Assert.Equal((132, 165, 25), (character.Attack, character.MaxHp, character.Hp));
+        Assert.Equal(174, TalentRules.EffectiveMaxHp(character));
         var version = rebased.Version;
         await DbInitializer.InitializeAsync(db, catalog);
         Assert.Equal(version, rebased.Version);
-        Assert.Equal(4, await db.CharacterWeaponSkills.CountAsync());
+        Assert.Equal(3, await db.CharacterWeaponSkills.CountAsync());
 
         static (string, int, int, int, int) Skill(CharacterWeapon item, int slot)
         {
@@ -348,7 +356,7 @@ public sealed class T1WeaponContentTests
         Assert.Equal("t1-wood-hilt-ritual-dagger", actual.WeaponCode);
         Assert.Equal(77, actual.CharacterId);
         Assert.Equal(ElementType.Dark, actual.Element);
-        Assert.Equal(1, actual.TemplateRevision);
+        Assert.Equal(2, actual.TemplateRevision);
         Assert.Equal(3, actual.QualityRank);
         Assert.All(actual.Skills, skill => Assert.Equal(0, skill.QualityBonusLevel));
         Assert.Equal(1, actual.Skills[0].Level);

@@ -24,6 +24,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<Dungeon> Dungeons => Set<Dungeon>();
     public DbSet<UserDungeonClear> UserDungeonClears => Set<UserDungeonClear>();
     public DbSet<CharacterDungeonProgress> CharacterDungeonProgress => Set<CharacterDungeonProgress>();
+    public DbSet<CharacterFirstHuntWeaponClaim> CharacterFirstHuntWeaponClaims => Set<CharacterFirstHuntWeaponClaim>();
     public DbSet<DungeonRunParticipant> DungeonRunParticipants => Set<DungeonRunParticipant>();
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
@@ -52,6 +53,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<CharacterCombatProfession>().ToTable(table => table.HasCheckConstraint(
             "CK_CharacterCombatProfessions_Progress", "Level BETWEEN 1 AND 30 AND Experience >= 0"));
         modelBuilder.Entity<CharacterDungeonProgress>().HasKey(item => new { item.CharacterId, item.DungeonId });
+        modelBuilder.Entity<CharacterFirstHuntWeaponClaim>().HasKey(item => new { item.CharacterId, item.DungeonId });
         modelBuilder.Entity<CharacterDungeonProgress>().Property(item => item.Version).IsConcurrencyToken();
         modelBuilder.Entity<CharacterDungeonProgress>().ToTable(table => table.HasCheckConstraint(
             "CK_CharacterDungeonProgress_Depth", "HighestDepth >= 1"));

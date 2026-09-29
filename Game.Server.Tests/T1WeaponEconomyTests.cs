@@ -282,12 +282,14 @@ public sealed class T1WeaponEconomyTests
     }
 
     [Fact]
-    public async Task TutorialWeaponIsDeterministicCommonAndClaimedOnceAcrossCharactersAndRuns()
+    public async Task FirstHuntWeaponsAreClaimedPerCharacterAndRegionWithoutDuplicateSettlement()
     {
         await using var test = await EconomyContext.CreateAsync();
         var dungeon = new Dungeon { Code = "northshire-wolves", Name = "新手讨伐", DungeonKind = "Hunt", MonsterName = "幼狼", MonsterMaxHp = 35 };
+        var water = new Dungeon { Code = "dun-morogh-snow-hare", Name = "雪境讨伐", DungeonKind = "Hunt", MonsterName = "躁兔", MonsterMaxHp = 35 };
+        var later = new Dungeon { Code = "durotar-red-scorpion", Name = "其他讨伐", DungeonKind = "Hunt", MonsterName = "烬尾蝎", MonsterMaxHp = 35 };
         var second = new Character { UserId = test.User.Id, Name = "替补", Hp = 40, MaxHp = 40, Attack = 16 };
-        test.Db.AddRange(dungeon, second);
+        test.Db.AddRange(dungeon, water, later, second);
         await test.Db.SaveChangesAsync();
         var room = new Room { DungeonId = dungeon.Id, OwnerUserId = test.User.Id, RunSequence = 1 };
         test.Db.Rooms.Add(room);
@@ -297,25 +299,40 @@ public sealed class T1WeaponEconomyTests
             new SoulImprintCatalog(test.Bind<SoulImprintOptions>(SoulImprintOptions.SectionName))),
             ProgressionTestFactory.Create());
 
-        // Two characters owned by the same account receive exactly one tutorial weapon in total.
-        for (var run = 1; run <= 2; run++)
+        async Task Complete(int sequence, Dungeon target, params Character[] participants)
         {
-            room.RunSequence = run;
-            await rewards.RecordAsync(room, dungeon.Code,
-                [new RewardParticipant(test.User.Id, test.Character), new RewardParticipant(test.User.Id, second)], "kill:1", false);
+            room.RunSequence = sequence;
+            room.DungeonId = target.Id;
+            await rewards.RecordAsync(room, target.Code,
+                participants.Select(character => new RewardParticipant(test.User.Id, character)), "kill:1", false);
             await rewards.SettleAsync(room, true, DateTime.UtcNow, []);
             await test.Db.SaveChangesAsync();
             await rewards.SettleAsync(room, true, DateTime.UtcNow, []);
             await test.Db.SaveChangesAsync();
         }
-        var tutorial = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Origin == WeaponOrigin.Tutorial);
-        Assert.Equal("t1-stone-edge-hatchet", tutorial.WeaponCode);
-        Assert.Equal(ElementType.Earth, tutorial.Element);
-        Assert.Equal(test.Character.Id, tutorial.CharacterId);
-        Assert.Equal(0, tutorial.Skills.Sum(skill => skill.QualityBonusLevel));
-        Assert.True(test.User.StarterWeaponRewardClaimed);
-        Assert.Single(await test.Db.RewardEntries.Where(entry => entry.EventKey == "starter-hunt-weapon").ToListAsync());
-        Assert.Single(await test.Db.RewardEvents.Where(entry => entry.EventKey == "starter-hunt-weapon").ToListAsync());
+        await Complete(1, dungeon, test.Character, second);
+        await Complete(2, dungeon, test.Character, second);
+        await Complete(3, water, test.Character);
+        await Complete(4, later, second);
+
+        var tutorials = await test.Db.CharacterWeapons.Include(item => item.Skills)
+            .Where(item => item.Origin == WeaponOrigin.Tutorial).ToListAsync();
+        Assert.Equal(3, tutorials.Count);
+        Assert.Equal(2, tutorials.Count(item => item.WeaponCode == "t1-stone-edge-hatchet"));
+        Assert.Single(tutorials, item => item.WeaponCode == "t1-ice-tusk-mallet" &&
+            item.CharacterId == test.Character.Id);
+        Assert.All(tutorials, item =>
+        {
+            Assert.Equal(0, item.QualityRank);
+            Assert.Single(item.Skills);
+            Assert.Equal(1, item.Skills.Single().Level);
+            Assert.Equal(test.Weapons.FindItem(item.WeaponCode)!.Skills
+                .Where(skill => skill.UnlockQualityRank == 0).Select(skill => skill.Code),
+                item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill => skill.SkillCode));
+        });
+        Assert.Equal(3, await test.Db.CharacterFirstHuntWeaponClaims.CountAsync());
+        Assert.Equal(3, await test.Db.RewardEntries.CountAsync(entry => entry.EventKey == "starter-hunt-weapon"));
+        Assert.Equal(2, await test.Db.RewardEvents.CountAsync(entry => entry.EventKey == "starter-hunt-weapon"));
     }
 
     private sealed class EconomyContext : IAsyncDisposable

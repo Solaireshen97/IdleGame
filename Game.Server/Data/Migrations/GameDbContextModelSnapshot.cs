@@ -789,7 +789,6 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("CharacterSlotLimit")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("StarterWeaponRewardClaimed").HasColumnType("INTEGER");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -893,6 +892,13 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("CharacterId", "DungeonId");
                     b.ToTable("CharacterDungeonProgress", t => t.HasCheckConstraint("CK_CharacterDungeonProgress_Depth", "HighestDepth >= 1"));
+                });
+            modelBuilder.Entity("Game.Shared.Models.CharacterFirstHuntWeaponClaim", b =>
+                {
+                    b.Property<int>("CharacterId").HasColumnType("INTEGER");
+                    b.Property<int>("DungeonId").HasColumnType("INTEGER");
+                    b.HasKey("CharacterId", "DungeonId");
+                    b.ToTable("CharacterFirstHuntWeaponClaims");
                 });
             modelBuilder.Entity("Game.Shared.Models.DungeonRunParticipant", b =>
                 {
