@@ -26,10 +26,10 @@ public static class SkillArt
         ["hunter-venom-arrow"] = "/art/skills/hunter-venom-arrow.png",
         ["hunter-rapid-volley"] = "/art/skills/hunter-rapid-volley.png",
         ["rogue-shadow-strike"] = "/art/skills/rogue-shadow-strike.png",
-        ["rogue-evasion"] = "/art/skills/rogue-evasion.png",
-        ["rogue-blade-flurry"] = "/art/skills/rogue-blade-flurry.png",
+        ["rogue-execution-slash"] = "/art/skills/rogue-gouge.png",
         ["rogue-poisoned-blade"] = "/art/skills/rogue-poisoned-blade.png",
-        ["rogue-gouge"] = "/art/skills/rogue-gouge.png",
+        ["rogue-adrenaline"] = "/art/skills/rogue-evasion.png",
+        ["rogue-blade-flurry"] = "/art/skills/rogue-blade-flurry.png",
     };
 
     public static string? ForCode(string? code) => code is not null && PathsByCode.TryGetValue(code, out var path)

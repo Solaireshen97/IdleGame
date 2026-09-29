@@ -168,8 +168,24 @@
     "palette": "near black, violet and cold silver"
   },
   {
-    "code": "rogue-evasion",
-    "name": "闪避",
+    "code": "rogue-execution-slash",
+    "name": "斩击",
+    "profession": "rogue",
+    "file": "rogue-gouge.png",
+    "subject": "a hooked short dagger making one jagged red impact spark on dark armor",
+    "palette": "scarlet, charcoal and silver"
+  },
+  {
+    "code": "rogue-poisoned-blade",
+    "name": "淬毒之刃",
+    "profession": "rogue",
+    "file": "rogue-poisoned-blade.png",
+    "subject": "a dark dagger with emerald venom along its edge and two falling drops",
+    "palette": "dark steel, emerald and muted violet"
+  },
+  {
+    "code": "rogue-adrenaline",
+    "name": "肾上腺素",
     "profession": "rogue",
     "file": "rogue-evasion.png",
     "subject": "a single dark boot sidestepping a pale blade streak with teal motion squares",
@@ -182,21 +198,5 @@
     "file": "rogue-blade-flurry.png",
     "subject": "two short crossing curved daggers surrounded by crisp crimson slash trails",
     "palette": "dark steel, crimson and ivory"
-  },
-  {
-    "code": "rogue-poisoned-blade",
-    "name": "淬毒之刃",
-    "profession": "rogue",
-    "file": "rogue-poisoned-blade.png",
-    "subject": "a dark dagger with emerald venom along its edge and two falling drops",
-    "palette": "dark steel, emerald and muted violet"
-  },
-  {
-    "code": "rogue-gouge",
-    "name": "凿击",
-    "profession": "rogue",
-    "file": "rogue-gouge.png",
-    "subject": "a hooked short dagger making one jagged red impact spark on dark armor",
-    "palette": "scarlet, charcoal and silver"
   }
 ]

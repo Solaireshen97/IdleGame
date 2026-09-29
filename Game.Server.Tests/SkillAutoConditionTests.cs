@@ -245,7 +245,6 @@ public partial class BattleServiceTests
 
     [Theory]
     [InlineData("hunter-rapid-volley")]
-    [InlineData("rogue-gouge")]
     public async Task CustomAlwaysAllowsDamageInterruptAutoWithoutInterruptibleIntent(string skillCode)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);
@@ -279,8 +278,6 @@ public partial class BattleServiceTests
     [Theory]
     [InlineData("mage", "mage-frost-ward", "mage-frozen-heart", false)]
     [InlineData("mage", "mage-frost-ward", "mage-frozen-heart", true)]
-    [InlineData("rogue", "rogue-evasion", "rogue-escape-artist", false)]
-    [InlineData("rogue", "rogue-evasion", "rogue-escape-artist", true)]
     public async Task CustomHealthConditionDoesNotAddTheDefaultSelfCleanseTrigger(string profession, string skillCode, string talent, bool custom)
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 1);

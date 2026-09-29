@@ -522,8 +522,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character),
                 entry.Character.WeaponStaminaPercent + entry.Character.TemporaryWeaponStaminaPercent,
                 entry.Character.WeaponEnmityPercent + entry.Character.TemporaryWeaponEnmityPercent);
+            var adrenalineChance = monsterCombatService is null ? 0m :
+                await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "DoubleAttackChancePercent");
             var hits = WeaponCombatRules.RollPercent(entry.Character.WeaponDoubleAttackChancePercent +
-                entry.Character.TemporaryWeaponDoubleAttackChancePercent, random) ? 2 : 1;
+                entry.Character.TemporaryWeaponDoubleAttackChancePercent + adrenalineChance, random) ? 2 : 1;
             for (var hit = 0; hit < hits && monster.Hp > 0; hit++)
             {
                 var critical = RollCritical(entry.Character);
@@ -866,6 +868,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
 
             var applied = false;
             var totalDamage = 0;
+            var slashCharges = skill.Code == "rogue-execution-slash" && monsterCombatService is not null
+                ? await monsterCombatService.ConsumeShadowChargesAsync(room, participant.Character.Id) : 0;
+            if (slashCharges > 0)
+                logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的斩击消耗 {slashCharges} 层影之蓄势，伤害提高 {slashCharges * 20}%。");
             var healingOccurred = false;
             var holyHealEchoChecked = false;
             var holyHealEcho = 0m;
@@ -926,11 +932,14 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                         SkillDamagePercent: participant.Character.WeaponSkillDamagePercent + participant.Character.TemporaryWeaponSkillDamagePercent + participant.Character.TalentSkillDamagePercent + holyDamageEcho + conditionalDamageBonus + predatorBonus +
                             (skill.Code == "acolyte-holy-bolt" ? purchasedNodes.GetValueOrDefault(participant.Character.Id)?.GetValueOrDefault("acolyte-light-training") * 4 ?? 0 : 0),
                         ConsumablePercent: operationBonuses.GetValueOrDefault(participant.Character.Id).FinalDamagePercent), damageEffect.AttackPowerPercent);
+                if (skill.Code == "rogue-execution-slash" && slashCharges > 0)
+                    damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * (1m + slashCharges * .20m)));
+                var actualDamage = Math.Min(monster.Hp, damage);
                 monster.Hp = Math.Max(0, monster.Hp - damage);
                 var action = string.Equals(sourceName, skill.Name, StringComparison.Ordinal)
                     ? $"使用 {sourceName}" : $"触发 {sourceName}";
                 logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} {action} 攻击 {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
-                return damage;
+                return skill.Code == "rogue-execution-slash" ? actualDamage : damage;
             }
 
             foreach (var effect in SkillCatalog.EffectsFor(skill))
@@ -941,6 +950,17 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     {
                         var damage = await DealSkillDamageAsync(effect, skill.Name);
                         totalDamage += damage;
+                        if (skill.Code == "rogue-execution-slash" && damage > 0 && monster.Hp > 0 &&
+                            (long)monster.Hp * 100 < (long)monster.MaxHp * 35)
+                        {
+                            var followUp = Math.Min(monster.Hp, (int)decimal.Floor(damage * .30m));
+                            if (followUp > 0)
+                            {
+                                monster.Hp -= followUp;
+                                totalDamage += followUp;
+                                logs.Add($"{participant.Slot.SlotIndex}号位 {participant.Character.Name} 的斩杀追击对 {monster.Name} 造成 {followUp} 点伤害。");
+                            }
+                        }
                         applied = true;
                         break;
                     }
@@ -1033,8 +1053,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                     {
                         if (effect.Target == "Monster")
                         {
+                            if (monster.Hp <= 0) break;
                             int? perTickValue = null;
-                            if (effect.StatusCode == "knight-holy-burn")
+                            if (effect.StatusCode is "knight-holy-burn" or "rogue-poison")
                             {
                                 var statusAttack = await monsterCombatService.GetModifierAsync(room, "Character",
                                     participant.Character.Id, "AttackPercent");
@@ -1056,6 +1077,12 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                                     ? Math.Max(1, (int)decimal.Floor(TalentRules.EffectiveMaxHp(allyTarget.Character) * effect.HealMaxHpPercent / 100m))
                                     : null;
                                 var targetLabel = $"{allyTarget.Slot.SlotIndex}号位 {allyTarget.Character.Name}";
+                                if (effect.StatusCode.StartsWith("rogue-adrenaline-", StringComparison.Ordinal))
+                                {
+                                    foreach (var adrenalineCode in new[] { "rogue-adrenaline-1", "rogue-adrenaline-2", "rogue-adrenaline-3" })
+                                        if (adrenalineCode != effect.StatusCode)
+                                            await monsterCombatService.RemoveStatusAsync(room, "Character", allyTarget.Character.Id, adrenalineCode);
+                                }
                                 applied |= await monsterCombatService.ApplyStatusAsync(room, "Character", allyTarget.Character.Id,
                                     effect.StatusCode, effect.DurationRounds, logs, targetLabel, perTickValue);
                             }
@@ -1105,6 +1132,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
                 }
             }
             if (!applied) return false;
+            if (skill.Code == "rogue-shadow-strike" && monsterCombatService is not null)
+                await monsterCombatService.AddShadowChargeAsync(room, participant.Character.Id, logs,
+                    $"{participant.Slot.SlotIndex}号位 {participant.Character.Name}");
             if (totalDamage > 0)
             {
                 if (ranks.GetValueOrDefault("sword-rhythm") > 0)

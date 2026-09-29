@@ -118,6 +118,52 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             string.Equals(effect.EffectCode, statusCode, StringComparison.OrdinalIgnoreCase))?.Stacks ?? 0;
     }
 
+    public async Task<int> ConsumeShadowChargesAsync(Room room, int characterId)
+    {
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var charge = effects.FirstOrDefault(effect => effect.EffectCode == "rogue-shadow-charge");
+        if (charge is null) return 0;
+        dbContext.BattleStatusEffects.Remove(charge);
+        return charge.Stacks;
+    }
+
+    public async Task RemoveStatusAsync(Room room, string targetType, int targetId, string statusCode)
+    {
+        var effects = await GetActiveEffectsAsync(room, targetType, [targetId]);
+        foreach (var effect in effects.Where(effect => effect.EffectCode == statusCode))
+            dbContext.BattleStatusEffects.Remove(effect);
+    }
+
+    public async Task<bool> AddShadowChargeAsync(Room room, int characterId, List<string> logs, string targetLabel)
+    {
+        var definition = catalog.FindStatus("rogue-shadow-charge");
+        if (definition is null) return false;
+        var effects = await GetActiveEffectsAsync(room, "Character", [characterId]);
+        var charge = effects.FirstOrDefault(effect => effect.EffectCode == "rogue-shadow-charge");
+        if (charge is null)
+        {
+            charge = dbContext.BattleStatusEffects.Local.FirstOrDefault(effect => effect.RoomId == room.Id &&
+                effect.RunSequence == room.RunSequence && effect.TargetType == "Character" &&
+                effect.TargetId == characterId && effect.EffectCode == "rogue-shadow-charge" &&
+                dbContext.Entry(effect).State == EntityState.Deleted);
+            if (charge is not null)
+            {
+                dbContext.Entry(charge).State = EntityState.Modified;
+                charge.Stacks = 0;
+            }
+        }
+        if (charge is null)
+        {
+            charge = new BattleStatusEffect { RoomId = room.Id, RunSequence = room.RunSequence,
+                TargetType = "Character", TargetId = characterId, EffectCode = "rogue-shadow-charge",
+                AppliedRound = room.RoundNumber, ExpiresAfterRound = int.MaxValue, Stacks = 1 };
+            dbContext.BattleStatusEffects.Add(charge);
+        }
+        else charge.Stacks = Math.Min(definition.MaxStacks, charge.Stacks + 1);
+        logs.Add($"{targetLabel} 获得 {definition.Name}（{charge.Stacks} 层）。");
+        return true;
+    }
+
     public async Task<RemovedBattleStatus?> RemoveFirstStatusAsync(Room room, string targetType,
         IReadOnlyList<int> targetIds, bool isPositive)
     {
@@ -155,7 +201,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
                 IsPositive = definition?.IsPositive ?? false,
                 CanDispel = definition?.IsDispellable ?? false,
                 Stacks = effect.Stacks,
-                RemainingRounds = Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1)
+                RemainingRounds = effect.EffectCode == "rogue-shadow-charge" ? 0 : Math.Max(0, effect.ExpiresAfterRound - room.RoundNumber + 1),
+                ExpiresWithRun = effect.EffectCode == "rogue-shadow-charge"
             };
         }).ToList();
     }

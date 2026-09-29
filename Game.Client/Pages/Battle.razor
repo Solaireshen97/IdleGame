@@ -244,7 +244,7 @@ else
                             @foreach (var effect in scene.MonsterEffects.Take(3))
                             {
                                 <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
-                                      title="@($"{effect.Name} · {effect.RemainingRounds} 回合")">@GetStatusEffectGlyph(effect)</span>
+                                      title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}")">@GetStatusEffectGlyph(effect)</span>
                             }
                             @if (scene.MonsterEffects.Count > 3)
                             {
@@ -536,7 +536,7 @@ else
                                     {
                                         <li class="status-detail status-detail--negative">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -595,7 +595,7 @@ else
                                     {
                                         <li class="status-detail status-detail--positive">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -610,7 +610,7 @@ else
                                     {
                                         <li class="status-detail status-detail--negative">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>剩余 @effect.RemainingRounds 回合 · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -1608,6 +1608,10 @@ else
             "Cleanse" => $"净化{target}的负面状态",
             "Dispel" => $"驱散{target}的增益状态",
             "Interrupt" => "打断敌人当前可打断技能",
+            "ApplyStatus" when effect.StatusCode is "rogue-adrenaline-1" or "rogue-adrenaline-2" or "rogue-adrenaline-3" =>
+                $"本回合和下一回合，普通攻击二连击概率 +{(effect.StatusCode switch { "rogue-adrenaline-1" => 20, "rogue-adrenaline-2" => 25, _ => 30 })} 个百分点",
+            "ApplyStatus" when effect.StatusCode == "rogue-poison" =>
+                $"使{target}中毒，未来 {effect.DurationRounds} 回合每回合受到施放时攻击力 {effect.AttackPowerPercent:0.##}% 的伤害",
             "ApplyStatus" => $"对{target}施加{GetStatusName(effect.StatusCode)}，持续 {effect.DurationRounds} 回合" +
                 (effect.AttackPowerPercent > 0 ? $"，每回合造成施放时攻击力 {effect.AttackPowerPercent:0.##}% 的伤害" :
                     effect.HealMaxHpPercent > 0 ? $"，每回合恢复目标最大生命值的 {effect.HealMaxHpPercent:0.##}%" : ""),
@@ -1624,6 +1628,9 @@ else
         "regen" => "持续恢复",
         "knight-holy-burn" => "圣焰",
         "knight-holy-renew" => "圣佑回春",
+        "rogue-shadow-charge" => "影袭蓄势",
+        "rogue-poison" => "淬毒",
+        "rogue-adrenaline-1" or "rogue-adrenaline-2" or "rogue-adrenaline-3" => "肾上腺素",
         _ => "状态效果"
     };
 

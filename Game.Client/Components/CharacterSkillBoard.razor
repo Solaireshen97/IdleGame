@@ -120,7 +120,7 @@
                             <button type="button" class="skill-board__learned-equip" aria-label="@($"将共享技能 {skill.Name} 装备至槽位 {_selectedSlotIndex}")"
                                     disabled="@(_isSaving || !skill.CanEquip || (occupiedByOtherShared && equippedSlot is null))" @onclick="() => ChooseSkillAsync(skill.Code)">
                                 <span class="skill-board__icon skill-board__icon--@GetEffectTone(skill)" aria-hidden="true"><img src="@SkillArt.ForCode(skill.Code)" alt="" loading="lazy" /></span>
-                                <span class="skill-board__learned-copy"><strong>@skill.Name · Lv @skill.Level</strong><small>@skill.Description</small></span>
+                                <span class="skill-board__learned-copy"><strong>@skill.Name · 固定效果</strong><small>@skill.Description</small></span>
                             </button>
                             <div class="skill-board__learned-footer">
                                 <span class="skill-board__learned-meta">初始 @skill.InitialCooldownRounds · 常规 @skill.CooldownRounds 回合 · @(!skill.CanEquip ? "当前职业需达到 10 级" : occupiedByOtherShared && equippedSlot is null ? "先卸下其他共享技能" : equippedSlot is null ? "点击装备" : $"槽位 {equippedSlot.SlotIndex}")</span>
@@ -147,7 +147,7 @@
                     <div class="skill-board__detail-body">
                         <p id="skill-detail-description" class="skill-board__detail-description">@detailSkill.Description</p>
                         <dl class="skill-board__detail-facts">
-                            <div><dt>技能等级</dt><dd>Lv @detailSkill.Level</dd></div>
+                            <div><dt>@(detailSkill.IsShared ? "共享版本" : "技能等级")</dt><dd>@(detailSkill.IsShared ? "固定效果" : $"Lv {detailSkill.Level}")</dd></div>
                             <div><dt>初始冷却</dt><dd>@detailSkill.InitialCooldownRounds 回合</dd></div>
                             <div><dt>常规冷却</dt><dd>@detailSkill.CooldownRounds 回合</dd></div>
                             <div><dt>技能来源</dt><dd>@(detailSkill.IsShared ? "其他职业共享" : "当前职业")</dd></div>

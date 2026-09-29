@@ -2744,7 +2744,6 @@ public partial class BattleServiceTests
 
     [Theory]
     [InlineData("mage", "mage-frost-ward", "mage-frozen-heart")]
-    [InlineData("rogue", "rogue-evasion", "rogue-escape-artist")]
     public async Task DefensiveCapstonesCleanseOneSelfDebuff(string profession, string skillCode, string talentCode)
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
@@ -2813,48 +2812,6 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task OpportunistExposesTheMonsterAfterGougeInterruptsItsIntent()
-    {
-        await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 10, monsterDefense: 99);
-        test.Character.ProfessionCode = "rogue";
-        test.Character.Level = 10;
-        test.Monster.CombatProfileCode = "rapid-slime";
-        test.Monster.Hp = test.Monster.MaxHp = 500;
-        test.Db.CharacterSkillTalents.AddRange(
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "rogue-light-fingers", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "rogue-poison-talent", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "rogue-gouge-talent", PointsSpent = 1 },
-            new CharacterSkillTalent { CharacterId = 1, NodeCode = "rogue-opportunist", PointsSpent = 1 });
-        await test.Db.SaveChangesAsync();
-        await test.AddSkillAsync(test.Character, 1, "rogue-gouge", autoUse: true);
-
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
-        var monsterOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
-        monsterOptions.Skills.Add(new MonsterSkillOptions
-            { Code = "rapid", Name = "迅捷喷射", Description = "每回合攻击。", DamagePowerPercent = 120 });
-        monsterOptions.Profiles["rapid-slime"] = new MonsterCombatProfileOptions
-            { SkillUseChancePercent = 100, Skills = [new MonsterProfileSkillOptions { Code = "rapid" }] };
-        var monsterCatalog = new MonsterCombatCatalog(Options.Create(monsterOptions));
-        var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);
-        var skills = CreateImmediateProductionSkills(configuration, monsterCatalog);
-        var progression = ProgressionTestFactory.Create();
-        var rewards = RewardTestFactory.CreateService(test.Db, progression);
-        var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
-            ConsumableTestFactory.Create(), skills, rewards,
-            new DungeonRunService(test.Db, rewards, monsterCombat), monsterCombat);
-        await monsterCombat.EnsureIntentAsync(test.Room, test.Monster);
-        await test.Db.SaveChangesAsync();
-
-        var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
-
-        Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("凿击") && log.Contains("打断了"));
-        Assert.Contains(result.Logs, log => log.Contains("获得 破绽"));
-        Assert.Contains(await test.Db.BattleStatusEffects.ToListAsync(), effect => effect.EffectCode == "rogue-opening");
-    }
-
-    [Fact]
     public async Task HardenedHunterGainsResilienceAfterFieldMend()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 50, characterAttack: 1, monsterAttack: 1);
@@ -2874,7 +2831,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task RelentlessRogueAddsAThirdBladeFlurryHit()
+    public async Task RelentlessRogueAddsAnExtraBladeFlurryHit()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 20, monsterAttack: 1, monsterDefense: 0);
         test.Character.ProfessionCode = "rogue";
@@ -2892,7 +2849,7 @@ public partial class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(error);
-        Assert.Equal(2, result!.Logs.Count(log => log.Contains("使用 刀锋乱舞 攻击")));
+        Assert.Equal(3, result!.Logs.Count(log => log.Contains("使用 刀锋乱舞 攻击")));
         Assert.Single(result.Logs, log => log.Contains("夺命连攻追加攻击"));
     }
 

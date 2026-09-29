@@ -17,9 +17,6 @@ public partial class BattleServiceTests
     [InlineData("hunter-rapid-volley", "basic")]
     [InlineData("hunter-rapid-volley", "uninterruptible")]
     [InlineData("hunter-rapid-volley", "interrupted")]
-    [InlineData("rogue-gouge", "basic")]
-    [InlineData("rogue-gouge", "uninterruptible")]
-    [InlineData("rogue-gouge", "interrupted")]
     [InlineData("knight-rebuke", "basic")]
     [InlineData("knight-rebuke", "uninterruptible")]
     [InlineData("knight-rebuke", "interrupted")]
@@ -48,7 +45,6 @@ public partial class BattleServiceTests
 
     [Theory]
     [InlineData("hunter-rapid-volley")]
-    [InlineData("rogue-gouge")]
     [InlineData("knight-rebuke")]
     public async Task ManualDamageInterruptSkillsStillDamageWhenIntentIsInterruptedAfterQueue(string skillCode)
     {
@@ -75,10 +71,6 @@ public partial class BattleServiceTests
     [InlineData("hunter-rapid-volley", "uninterruptible", false)]
     [InlineData("hunter-rapid-volley", "interrupted", false)]
     [InlineData("hunter-rapid-volley", "interruptible", true)]
-    [InlineData("rogue-gouge", "basic", false)]
-    [InlineData("rogue-gouge", "uninterruptible", false)]
-    [InlineData("rogue-gouge", "interrupted", false)]
-    [InlineData("rogue-gouge", "interruptible", true)]
     [InlineData("knight-rebuke", "basic", true)]
     [InlineData("knight-rebuke", "uninterruptible", true)]
     [InlineData("knight-rebuke", "interrupted", false)]
