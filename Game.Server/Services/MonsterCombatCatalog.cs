@@ -1,38 +1,33 @@
 using Game.Server.Configuration;
+using System.Collections.Immutable;
 using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
 public sealed class MonsterCombatCatalog
 {
-    private readonly Dictionary<string, BattleStatusOptions> _statuses = new(StringComparer.OrdinalIgnoreCase);
+    public BattleStatusCatalog Statuses { get; }
     private readonly Dictionary<string, MonsterSkillOptions> _skills = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MonsterCombatProfileOptions> _profiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MonsterSkillDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MonsterCombatProfile> _compiledProfiles = new(StringComparer.OrdinalIgnoreCase);
 
-    public MonsterCombatCatalog(IOptions<MonsterCombatOptions> options)
+    public MonsterCombatCatalog(IOptions<MonsterCombatOptions> options, BattleStatusCatalog? statuses = null)
     {
-        foreach (var status in options.Value.StatusEffects)
-        {
-            if (string.IsNullOrWhiteSpace(status.Code) || string.IsNullOrWhiteSpace(status.Name) ||
-                string.IsNullOrWhiteSpace(status.Description) ||
-                status.EffectType is not ("None" or "AttackPercent" or "ReductionPercent" or "DoubleAttackChancePercent" or "DamageOverTime" or "HealOverTime" or "SilenceNextIntent") ||
-                status.ValuePerStack == 0 && status.EffectType is not ("None" or "DamageOverTime" or "HealOverTime") ||
-                status.MaxStacks is < 1 or > 10 ||
-                status.Stacking is not ("RefreshDuration" or "AddStack" or "ReplaceIfStronger") ||
-                !_statuses.TryAdd(status.Code, status))
-                throw new InvalidOperationException($"Invalid battle status configuration: {status.Code}");
-        }
+        Statuses = statuses ?? new BattleStatusCatalog(options);
 
         foreach (var skill in options.Value.Skills)
         {
             if (string.IsNullOrWhiteSpace(skill.Code) || string.IsNullOrWhiteSpace(skill.Name) ||
                 string.IsNullOrWhiteSpace(skill.Description) || skill.TargetType is not ("Self" or "Front" or "AllAlive") ||
-                skill.DamagePowerPercent < 0 || skill.CooldownRounds < 0 ||
+                skill.DamagePowerPercent < 0 || skill.CooldownRounds < 0 || skill.InitialCooldownRounds < 0 ||
                 skill.SelfHpBelowPercent is < 1 or > 100 ||
                 skill.RoomRoundAtLeast is < 1 or > 250 || skill.ForcedPriority is < 0 or > 100 ||
                 skill.DangerLevel is not ("Normal" or "Dangerous" or "Deadly") ||
-                skill.DamagePowerPercent == 0 && skill.Statuses.Count == 0 ||
-                skill.Statuses.Any(status => status.DurationRounds <= 0 || !_statuses.ContainsKey(status.StatusCode)) ||
+                (skill.Effects is null ? skill.DamagePowerPercent == 0 && skill.Statuses.Count == 0 :
+                    skill.DamagePowerPercent != 0 || skill.Statuses.Count != 0 || skill.Effects.Count == 0 ||
+                    skill.Effects.Any(effect => !ValidEffect(effect, skill.TargetType))) ||
+                skill.Statuses.Any(status => status.DurationRounds <= 0 || Statuses.Find(status.StatusCode) is null) ||
                 !_skills.TryAdd(skill.Code, skill))
                 throw new InvalidOperationException($"Invalid monster skill configuration: {skill.Code}");
         }
@@ -78,6 +73,28 @@ public sealed class MonsterCombatCatalog
                     throw new InvalidOperationException($"Reserved depth profile code: {code}");
             }
         }
+        foreach (var skill in _skills.Values)
+            _definitions.Add(skill.Code, MonsterSkillDefinition.Compile(skill));
+        foreach (var (code, profile) in _profiles)
+            _compiledProfiles.Add(code, new(profile.SkillUseChancePercent,
+                profile.Skills.Select(skill => new MonsterProfileSkill(skill.Code, skill.Weight)).ToImmutableArray()));
+    }
+
+    private bool ValidEffect(CombatSkillEffectOptions effect, string intentTarget)
+    {
+        if (effect.Target is not ("Self" or "Front" or "AllAlive") ||
+            effect.Target != "Self" && effect.Target != intentTarget || effect.Power < 0 ||
+            effect.AttackPowerPercent is < 0 or > 1000 || effect.HealMaxHpPercent is < 0 or > 100) return false;
+        return effect.Type switch
+        {
+            "Damage" => effect.Target != "Self" && (effect.Power > 0 || effect.AttackPowerPercent > 0),
+            "Heal" => effect.Target == "Self" && (effect.Power > 0 || effect.HealMaxHpPercent > 0),
+            "Guard" => effect.Target == "Self" && effect.Power is > 0 and <= 100,
+            "Cleanse" => effect.Target == "Self",
+            "Dispel" => effect.Target != "Self",
+            "ApplyStatus" => effect.DurationRounds > 0 && Statuses.Find(effect.StatusCode) is not null,
+            _ => false
+        };
     }
 
     public string ResolveDepthProfile(string baseProfileCode, int depth) => depth <= 1
@@ -88,8 +105,13 @@ public sealed class MonsterCombatCatalog
 
     private static string DepthProfileCode(string baseProfileCode, int depth) => $"{baseProfileCode}:depth-lv{depth}";
 
-    public BattleStatusOptions? FindStatus(string? code) =>
-        code is not null && _statuses.TryGetValue(code, out var status) ? status : null;
+    public BattleStatusDefinition? FindStatus(string? code) => Statuses.Find(code);
+
+    public MonsterSkillDefinition? ResolveSkill(string? code) =>
+        code is not null && _definitions.TryGetValue(code, out var skill) ? skill : null;
+
+    public MonsterCombatProfile? ResolveProfile(string? code) =>
+        code is not null && _compiledProfiles.TryGetValue(code, out var profile) ? profile : null;
 
     public MonsterSkillOptions? FindSkill(string? code) =>
         code is not null && _skills.TryGetValue(code, out var skill) ? skill : null;

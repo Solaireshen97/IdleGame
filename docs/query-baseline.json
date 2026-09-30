@@ -1,0 +1,170 @@
+{
+  "recordedOn": "2026-09-30",
+  "entryPoint": "RoomService.GetRoomDetailAsync",
+  "command": "dotnet test Game.Server.Tests/Game.Server.Tests.csproj --filter \"FullyQualifiedName~RoomDetailQueryBaseline|FullyQualifiedName~LightweightRoomDetailQueryBudget\" --logger \"console;verbosity=detailed\"",
+  "regressionCommand": "dotnet test Game.Server.Tests/Game.Server.Tests.csproj --filter \"FullyQualifiedName~RoomDetailQueryBaseline|FullyQualifiedName~LightweightRoomDetailQueryBudget|FullyQualifiedName~BattleSynchronization|FullyQualifiedName~ClientSharedQueryStateTests|FullyQualifiedName~ClientQueryCacheTests|FullyQualifiedName~ContentCatalogTests|FullyQualifiedName~RoomReadSharesOneStatus|FullyQualifiedName~ContentControllerSharesAnonymousDefinitions\" --logger \"console;verbosity=detailed\"",
+  "cacheRegressionCommand": "dotnet test Game.Server.Tests/Game.Server.Tests.csproj --filter \"FullyQualifiedName~RoomProjectionCacheTests|FullyQualifiedName~ProjectionCache\" --logger \"console;verbosity=detailed\"",
+  "fullRegressionCommand": "dotnet test Game.Server.Tests/Game.Server.Tests.csproj --logger \"console;verbosity=normal\"",
+  "measurementScope": "The before/after arrays remain room projection only: RoomService.GetRoomDetailAsync with a fresh DbContext against isolated temporary SQLite fixtures, excluding BattleService.SyncAsync, heartbeat writes, round advancement, HTTP/controller costs, and transport. The separate projectionCacheStage.httpSmoke section records actual isolated HTTP snapshot response bodies. Neither test scope accesses the user's database.",
+  "fixture": {
+    "equippedSkillsPerCharacter": 2,
+    "activeStatusesPerCharacter": 1,
+    "activeMonsterStatuses": 1,
+    "rewardEntriesPerCharacterPerRun": 3,
+    "rewardKinds": ["Gold", "Experience", "Material"],
+    "materialCodes": "Distinct per run to exercise growing cumulative response cardinality",
+    "intent": "Existing unless explicitly marked missing"
+  },
+  "limitations": [
+    "Before/after projection JSON sizes are uncompressed UTF-8 serialized with JsonSerializerDefaults.Web; they do not include HTTP framing, compression, or SignalR envelopes. HTTP smoke body sizes below have their own scope and fixture.",
+    "Elapsed milliseconds are individual isolated fixture observations, include runtime warm-up effects, and are not production latency or a performance assertion.",
+    "Before rows precede RoomService read-snapshot integration and includeRewardDetails support; a status-description helper change was present without changing status-table SELECT counts.",
+    "The five-character SELECT reduction from 55 to 25 compares the old full room projection with the new lightweight projection only. It is not the SELECT count or latency of an entire synchronization request.",
+    "Full projections retain reward payloads. Lightweight projections omit Rewards and CumulativeRewards; their serialized sizes grow only by the two additional RunSequence digits between 1 and 100 in this fixture.",
+    "Regression tests enforce the optimized budgets rather than freezing these pre-optimization counts."
+  ],
+  "before": [
+    { "partySize": 1, "rewardRuns": 1, "rewardEntries": 3, "intent": "existing", "selects": 35, "statusSelects": 4, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 7868, "elapsedMs": 86.12 },
+    { "partySize": 1, "rewardRuns": 100, "rewardEntries": 300, "intent": "existing", "selects": 35, "statusSelects": 4, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 45676, "elapsedMs": 97.53 },
+    { "partySize": 5, "rewardRuns": 1, "rewardEntries": 15, "intent": "existing", "selects": 55, "statusSelects": 16, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 29524, "elapsedMs": 193.67 },
+    { "partySize": 5, "rewardRuns": 100, "rewardEntries": 1500, "intent": "existing", "selects": 55, "statusSelects": 16, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 220108, "elapsedMs": 170.11 },
+    { "partySize": 1, "rewardRuns": 1, "rewardEntries": 3, "intent": "missing", "selects": 35, "statusSelects": 4, "rewardSelects": 3, "writes": 1, "jsonUtf8Bytes": 7868, "elapsedMs": 426.58 }
+  ],
+  "after": {
+    "evidenceLog": ".codex-tmp/query-cache-focused.log",
+    "recordedFocusedRun": { "passed": 35, "failed": 0, "totalSeconds": 4.4333 },
+    "full": [
+      { "partySize": 1, "rewardRuns": 1, "rewardEntries": 3, "intent": "existing", "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 7868, "elapsedMs": 57.75 },
+      { "partySize": 1, "rewardRuns": 100, "rewardEntries": 300, "intent": "existing", "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 45676, "elapsedMs": 63.85 },
+      { "partySize": 5, "rewardRuns": 1, "rewardEntries": 15, "intent": "existing", "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 29524, "elapsedMs": 84.48 },
+      { "partySize": 5, "rewardRuns": 100, "rewardEntries": 1500, "intent": "existing", "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 220108, "elapsedMs": 65.18 },
+      { "partySize": 1, "rewardRuns": 1, "rewardEntries": 3, "intent": "missing", "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 1, "jsonUtf8Bytes": 7866, "elapsedMs": 141.74 }
+    ],
+    "lightweight": [
+      { "partySize": 1, "rewardRuns": 1, "rewardEntries": 3, "intent": "existing", "includeRewardDetails": false, "selects": 25, "statusSelects": 1, "rewardSelects": 0, "writes": 0, "jsonUtf8Bytes": 6947, "elapsedMs": 49.78 },
+      { "partySize": 1, "rewardRuns": 100, "rewardEntries": 300, "intent": "existing", "includeRewardDetails": false, "selects": 25, "statusSelects": 1, "rewardSelects": 0, "writes": 0, "jsonUtf8Bytes": 6949, "elapsedMs": 49.75 },
+      { "partySize": 5, "rewardRuns": 1, "rewardEntries": 15, "intent": "existing", "includeRewardDetails": false, "selects": 25, "statusSelects": 1, "rewardSelects": 0, "writes": 0, "jsonUtf8Bytes": 25883, "elapsedMs": 50.83 },
+      { "partySize": 5, "rewardRuns": 100, "rewardEntries": 1500, "intent": "existing", "includeRewardDetails": false, "selects": 25, "statusSelects": 1, "rewardSelects": 0, "writes": 0, "jsonUtf8Bytes": 25885, "elapsedMs": 49.77 }
+    ],
+    "repeatedFullComparisons": [
+      { "partySize": 1, "rewardRuns": 100, "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 45676, "elapsedMs": 61.40 },
+      { "partySize": 5, "rewardRuns": 100, "includeRewardDetails": true, "selects": 29, "statusSelects": 1, "rewardSelects": 3, "writes": 0, "jsonUtf8Bytes": 220108, "elapsedMs": 62.16 }
+    ]
+  },
+  "stageBoundaries": {
+    "measured": "Full and lightweight room projections for one/five characters with two skills each and one/100 reward runs, whole SynchronizeAsync cache-miss/hit SQL counts for a separate single-character fixture, and isolated HTTP first/unchanged snapshot body sizes in a default-character fixture. These are three distinct scopes.",
+    "behaviorVerified": "The latest centralized boundary run passed 42 tests, including projection-cache skip-on-hit SQL, late history in unchanged replies, context/permission isolation, inventory and explicit-commit invalidation, presence/offline boundaries, nested-copy isolation and build-time revision races. Isolated HTTP smoke verifies an unchanged reply, prepare version advancement with two events, and independent reward reading.",
+    "notMeasured": "Production p50/p95 latency, production database query plans, compressed wire traffic including HTTP framing, browser network traces, and load-test concurrency. Original projection SELECT counts are not end-to-end synchronization counts.",
+    "runtimeDiagnostics": "Opt-in request/SQL/transport metrics remain a documented proposal; no Program registration or production database execution was performed.",
+    "validationScope": "Final centralized verification passed all 945 .NET tests and all three browser combat tests, with simulator and client builds passing at zero warnings/errors. After adding explicit non-null full-response assertions, the 11 synchronization tests passed again; evidence files are listed under projectionCacheStage.finalVerification."
+  },
+  "projectionCacheStage": {
+    "cache": "Bounded process-memory projections keyed by room/user/active-character, database revision, room version and offline mask. Cache hits still refresh authentication, active character, room visibility, presence and the history snapshot.",
+    "unchanged": "A matching ProjectionId returns Room=null and Unchanged with room identity/version, current server time, history epoch and incremental logs/events. Newly published history can arrive at the same room version.",
+    "invalidation": "Non-presence SaveChanges increments the conservative process-wide revision. Explicit transaction commit invalidates again; transactional projections bypass cache reads and writes. Changed offline masks force rebuilding even when only presence timestamps changed.",
+    "copyIsolation": "Cached JSON produces private nested copies, excludes histories, and is not stored if the captured revision changed during projection construction.",
+    "boundaryVerification": {
+      "evidenceLog": ".codex-tmp/query-cache-boundary-tests.log",
+      "passed": 42,
+      "failed": 0,
+      "totalSeconds": 3.6831,
+      "scope": "Centralized selected boundary tests, including the 13 newly added projection-cache tests; not the latest full-solution count"
+    },
+    "wholeSynchronizationQueryMeasurement": {
+      "evidenceLog": ".codex-tmp/query-cache-boundary-tests.log",
+      "test": "ProjectionCacheRepeatedSynchronizationSkipsLargeProjectionTablesButRefreshesPresence",
+      "scope": "Entire BattleSynchronizationService.SynchronizeAsync against one-character isolated SQLite fixture with fresh DbContext per request and pre-existing monster intent; includes normal SyncAsync authorization/presence/progression checks plus cached projection lookup, excludes HTTP/controller/transport and is not production latency",
+      "partySize": 1,
+      "cacheMissSelects": 33,
+      "cacheHitSelects": 12,
+      "cacheMissLargeProjectionSelects": 9,
+      "cacheHitLargeProjectionSelects": 0,
+      "largeProjectionTables": ["BattleStatusEffects", "CharacterSkillSlots", "CharacterItemStacks", "CharacterWeapons", "CharacterCombatProfessions", "BattleConsumableBuffs", "CharacterConsumableSlots", "BattleSkillCooldowns", "BattleConsumableCooldowns"],
+      "presence": "The cache-hit test independently verifies persisted LastSeenAtUtc refresh; authorization/visibility SELECTs remain enabled."
+    },
+    "finalVerification": {
+      "evidenceLog": ".codex-tmp/query-cache-complete-verification.log",
+      "dotnetPassed": 945,
+      "dotnetFailed": 0,
+      "dotnetDuration": "1m45s",
+      "browserPassed": 3,
+      "browserFailed": 0,
+      "simulatorBuild": { "success": true, "warnings": 0, "errors": 0 },
+      "clientBuild": { "success": true, "warnings": 0, "errors": 0 },
+      "synchronizationAssertionFollowup": {
+        "evidenceLog": ".codex-tmp/query-cache-sync-final.log",
+        "passed": 11,
+        "failed": 0,
+        "scope": "After adding explicit non-null assertions for full synchronization responses; no implementation change"
+      }
+    },
+    "httpSmoke": {
+      "evidence": ".codex-tmp/query-cache-api-smoke.json",
+      "fixture": "Separate isolated server/database, default swordsman character, private one-character room against 岩芽幼狼; not the two-skill/one-or-100-history projection fixture",
+      "scope": "Actual JSON HTTP response body bytes from /api/battle/snapshot, without claims about production latency, HTTP framing or compressed wire traffic",
+      "roomId": 1,
+      "initialSnapshotBodyBytes": 9356,
+      "unchangedSnapshotBodyBytes": 292,
+      "unchanged": true,
+      "beforePrepareVersion": 0,
+      "afterPrepareVersion": 1,
+      "eventCountAfterPrepare": 2,
+      "independentRewardReadRoomId": 1,
+      "reproduction": [
+        "Use a fresh isolated test database/server and authenticated default swordsman; create a private one-character 岩芽幼狼 room.",
+        "POST /api/battle/snapshot with roomId. Record the returned ProjectionId, history epoch and event/log cursors; count the JSON response body bytes.",
+        "POST the same endpoint using those returned projection/history cursors before combat state changes. Expect Room=null, Unchanged present and a materially smaller body; current serialization retains the null field.",
+        "POST /api/battle/prepare with the current roomId, ExpectedRoundNumber and ExpectedRunSequence, then synchronize; confirm version advances and combat events arrive.",
+        "GET /api/rooms/{roomId}/rewards independently and confirm the response identifies that room."
+      ]
+    },
+    "oneMinuteHttpCadence": {
+      "evidence": ".codex-tmp/query-cache-minute-result.json",
+      "reproductionScript": ".codex-tmp/query-cache-minute.ps1",
+      "scope": "HTTP simulation of page endpoint cadence against the isolated local SQLite server: battle snapshot every two seconds and character/user header summaries every ten seconds, idle private one-character room. This is not a browser network capture or production performance measurement.",
+      "measurementBoundary": "Counts and body bytes cover the 42 timed cadence requests; login, fixture discovery, cache warm-up, ETag/preference/authentication checks outside that timed loop are excluded.",
+      "durationSeconds": 60.01,
+      "requests": 42,
+      "snapshotRequests": 30,
+      "headerSummaryRequests": 12,
+      "fullSnapshots": 6,
+      "unchangedSnapshots": 24,
+      "responseUtf8Bytes": 66981,
+      "localP50Ms": 15.84,
+      "localP95Ms": 19.89,
+      "latencyLimitation": "p50/p95 describe this single local 42-request sample, not production latency, concurrent load, browser rendering or compressed wire bytes.",
+      "catalogRevalidationStatus": 304,
+      "quickSkillCastPreferenceInvalidationVerified": true,
+      "unauthorizedSnapshotStatus": 401
+    },
+    "browserManualSmoke": {
+      "completed": false,
+      "reason": "The browser URL tool policy rejected access for the actual page smoke test; no successful manual browser/page/network capture is claimed.",
+      "availableEvidence": "Isolated API smoke and HTTP cadence results above, plus the existing three automated browser combat tests in query-cache-complete-verification.log."
+    }
+  },
+  "regressionBudgets": {
+    "statusSelectsPerDetail": 1,
+    "maximumFullDetailSelects": 40,
+    "maximumLightweightDetailSelects": 36,
+    "lightweightRewardSelects": 0,
+    "writesWithExistingIntent": 0,
+    "writesWithMissingIntent": 1,
+    "historyGrowth": "1 and 100 runs must use the same lightweight SELECT count and differ by at most 32 serialized bytes for run-sequence/server-time formatting",
+    "payloadReduction": "At 100 runs, lightweight JSON must be less than one quarter of full JSON",
+    "synchronization": "Presence writes and round settlement remain enabled; idle/nonlethal synchronization must not query reward-history tables"
+  },
+  "optionalRuntimeMeasurementPlan": {
+    "enabledByDefault": false,
+    "scope": "Request-scoped metrics with optional sampling and route/room allowlists",
+    "fields": ["route", "roomId", "operation", "elapsedMs", "selects", "statusSelects", "writes", "sqlElapsedMs", "responseUtf8Bytes"],
+    "sql": "DbCommandInterceptor sync/async executing, executed, and failed hooks; classify table/operation without logging SQL parameters or authentication tokens",
+    "http": "Counting response-stream wrapper records serialized bytes at request completion; explicitly identify whether measurement occurs before or after compression",
+    "rollout": "Validate in isolated tests before opting into diagnostics; no Program registration or production-database run is part of this baseline"
+  },
+  "followupSuggestions": [
+    "Refine the conservative global revision by room/account when cache-hit evidence shows unrelated writes causing unnecessary rebuilds; preserve cross-room inventory and active-character invalidation boundaries.",
+    "Choose indexes for remaining hot queries from real p95 latency and database execution plans rather than fixture SELECT counts alone.",
+    "Observe cache hit rates and actual synchronization response sizes before deciding whether push delivery adds enough benefit to justify its operational cost."
+  ]
+}

@@ -209,6 +209,7 @@
     private bool _loading = true;
     private bool _busy;
     private long _loadGeneration;
+    private long _viewDataRevision;
     private int? _viewCharacterId;
     private readonly Dictionary<string, string> _purchaseRequests = new();
 
@@ -223,8 +224,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await ActiveCharacters.RefreshAsync();
+        await ActiveCharacters.EnsureLoadedAsync();
         ActiveCharacters.Changed += OnActiveCharacterChanged;
+        AccountBalance.Changed += OnAccountBalanceChanged;
         if (ActiveCharacters.Current is null)
         {
             Navigation.NavigateTo("/login", replace: true);
@@ -236,6 +238,7 @@
     private async Task LoadAsync()
     {
         var generation = ++_loadGeneration;
+        _viewDataRevision = ApiService.DataRevision;
         var characterId = ActiveCharacters.Current?.CharacterId;
         _viewCharacterId = characterId;
         _shop = null;
@@ -247,6 +250,7 @@
             if (IsCurrentView(characterId, generation))
             {
                 _shop = response?.CharacterId == characterId ? response : null;
+                if (_shop is not null) AccountBalance.Update(_shop.CharacterId, _shop.Gold);
                 if (_shop is not null && !_shop.DungeonExchangeOffers.Any(offer => offer.DungeonCode == _exchangeDungeonCode))
                     _exchangeDungeonCode = _shop.DungeonExchangeOffers.FirstOrDefault()?.DungeonCode ?? "";
                 if (_shop is null) _message = "商店读取失败，请重试。";
@@ -270,7 +274,18 @@
     });
 
     private bool IsCurrentView(int? characterId, long generation) =>
-        generation == _loadGeneration && characterId == ActiveCharacters.Current?.CharacterId;
+        generation == _loadGeneration && _viewDataRevision == ApiService.DataRevision &&
+        characterId == ActiveCharacters.Current?.CharacterId;
+
+    private void OnAccountBalanceChanged() => _ = InvokeAsync(() =>
+    {
+        if (_shop is not null && IsCurrentView(_shop.CharacterId, _loadGeneration) &&
+            AccountBalance.CharacterId == _shop.CharacterId && AccountBalance.Gold is int gold)
+        {
+            _shop.Gold = gold;
+            StateHasChanged();
+        }
+    });
 
     private int GetQuantity(ShopItemResponse item) => item.Kind == "Weapon" ? 1 :
         _quantities.GetValueOrDefault(item.Code, 1);
@@ -313,9 +328,9 @@
                 return;
             }
             _purchaseRequests.Remove(key);
-            AccountBalance.NotifyChanged();
             if (!IsCurrentView(characterId, generation) || response.CharacterId != characterId) return;
             _shop = response;
+            AccountBalance.Update(response.CharacterId, response.Gold);
             _message = $"已为 {response.CharacterName} 购入 {item.Name} × {quantity}。";
         }
         catch { if (IsCurrentView(characterId, generation)) _message = "购买请求未能完成，请刷新商店核对余额和背包。"; }
@@ -347,6 +362,7 @@
             }
             if (!IsCurrentView(characterId, generation) || response.Shop.CharacterId != characterId) return;
             _shop = response.Shop;
+            AccountBalance.Update(_shop.CharacterId, _shop.Gold);
             _message = $"已为 {_shop.CharacterName} 兑换 {response.RewardDisplayName} × {response.RewardQuantity}。";
         }
         catch { if (IsCurrentView(characterId, generation)) _message = "兑换请求未能完成，请刷新页面核对材料和背包。"; }
@@ -377,14 +393,18 @@
                 return;
             }
 
-            AccountBalance.NotifyChanged();
             if (!IsCurrentView(characterId, generation) || response.CharacterId != characterId) return;
             _shop = response;
+            AccountBalance.Update(response.CharacterId, response.Gold);
             _message = $"已花费 {cost} 金币，解锁第 {response.CharacterSlotLimit} 个角色栏位。";
         }
         catch { if (IsCurrentView(characterId, generation)) _message = "解锁请求未能完成，请刷新商店核对金币和角色栏位。"; }
         finally { _busy = false; if (!IsCurrentView(characterId, generation)) await LoadAsync(); }
     }
 
-    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+    public void Dispose()
+    {
+        ActiveCharacters.Changed -= OnActiveCharacterChanged;
+        AccountBalance.Changed -= OnAccountBalanceChanged;
+    }
 }

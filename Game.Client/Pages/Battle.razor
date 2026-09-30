@@ -58,6 +58,11 @@ else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
             <p>已结算 @cumulative.CompletedRuns 轮</p>
             <div class="battle-rewards__loot"><RoomRewards Rewards="cumulative" /></div>
         }
+        @if (_rewardError is not null)
+        {
+            <p role="alert">@_rewardError</p>
+            <button type="button" @onclick="RefreshRewardsAsync">重试读取战利品</button>
+        }
         @if (IsOwner)
         {
             <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">删除记录</button>
@@ -101,6 +106,7 @@ else
                     <span>ENEMY INTENT · 敌方行动预告 · @GetDangerLabel(intent.DangerLevel)</span>
                     <strong>@intent.ActionName</strong>
                     <small>@intent.Description</small>
+
                 </div>
                 <div class="monster-intent__target">
                     <span>目标</span><strong>@intent.TargetLabel</strong>
@@ -111,6 +117,16 @@ else
                         </small>
                     }
                 </div>
+                @if (intent.Effects.Count > 0)
+                {
+                    <details class="monster-intent__effects">
+                        <summary>行动效果</summary>
+                        @foreach (var effect in intent.Effects)
+                        {
+                            <small>@effect.Summary</small>
+                        }
+                    </details>
+                }
             </section>
         }
         else
@@ -184,12 +200,12 @@ else
                                 <span class="fighter__number">@slot.SlotIndex</span>
                                 @if (slot.StatusEffects.Count > 0)
                                 {
-                                    <span class="fighter__effect-icons" aria-label="@($"{slot.CharacterName} 有 {slot.StatusEffects.Count} 个状态效果")">
+                                    <span data-combat-status-static class="fighter__effect-icons" aria-label="@($"{slot.CharacterName} 有 {slot.StatusEffects.Count} 个状态效果")">
                                         @foreach (var effect in slot.StatusEffects.Take(3))
                                         {
                                             <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
-                                                  title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}")"
-                                                  aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
+                                                  title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}{GetStatusEffectCounter(effect)}")"
+                                                  aria-hidden="true">@GetStatusEffectGlyph(effect)@if (!string.IsNullOrEmpty(effect.CounterText)) { <small>@effect.Stacks</small> }</span>
                                         }
                                         @if (slot.StatusEffects.Count > 3)
                                         {
@@ -197,6 +213,7 @@ else
                                         }
                                     </span>
                                 }
+                                <span class="fighter__effect-icons combat-status-live" data-combat-status-live></span>
                                 @if (IsMonsterIntentTarget(slot))
                                 {
                                     <span class="fighter__target-marker" aria-hidden="true">▼</span>
@@ -240,11 +257,11 @@ else
                     <img src="@MonsterArt.ForName(scene.MonsterName)" alt="" loading="eager" decoding="async" fetchpriority="high" />
                     @if (scene.MonsterEffects.Count > 0)
                     {
-                        <span class="enemy-effect-icons" aria-hidden="true">
+                        <span data-combat-status-static class="enemy-effect-icons" aria-hidden="true">
                             @foreach (var effect in scene.MonsterEffects.Take(3))
                             {
                                 <span class="fighter__effect-icon @(effect.IsPositive ? "fighter__effect-icon--positive" : "fighter__effect-icon--negative")"
-                                      title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}")">@GetStatusEffectGlyph(effect)</span>
+                                      title="@($"{effect.Name} · {GetStatusEffectDuration(effect)}{GetStatusEffectCounter(effect)}")">@GetStatusEffectGlyph(effect)@if (!string.IsNullOrEmpty(effect.CounterText)) { <small>@effect.Stacks</small> }</span>
                             }
                             @if (scene.MonsterEffects.Count > 3)
                             {
@@ -252,6 +269,7 @@ else
                             }
                         </span>
                     }
+                    <span class="enemy-effect-icons combat-status-live" data-combat-status-live></span>
                 </button>
                 }
             </div>
@@ -419,7 +437,7 @@ else
             <button type="button" class="battle-shortcut" title="队伍编成与房间管理" @onclick="OpenManagement" @ref="_managementTrigger" aria-haspopup="dialog">
                 <span aria-hidden="true">☷</span> 队伍 <span class="battle-shortcut__count">@_roomDetail.Slots.Count(slot => slot.IsOccupied)/@_roomDetail.SlotCount</span>
             </button>
-            @if (_roomDetail.CumulativeRewards is not null)
+            @if (_currentUser is not null)
             {
                 <button type="button"
                         class="battle-shortcut"
@@ -460,7 +478,7 @@ else
         </div>
     }
 
-    @if (_isRewardsOpen && _roomDetail.CumulativeRewards is { } dialogRewards)
+    @if (_isRewardsOpen)
     {
         <div class="battle-log-overlay battle-reward-overlay" @onclick="CloseRewards">
             <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
@@ -468,12 +486,23 @@ else
                     <div>
                         <span class="section-kicker">ROOM LOOT</span>
                         <h2 id="battle-reward-title">房间累计战利品</h2>
-                        <p>已结算 @dialogRewards.CompletedRuns 轮 · 当前第 @_roomDetail.RunSequence 轮</p>
+                        <p>当前第 @_roomDetail.RunSequence 轮</p>
                     </div>
                     <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭战利品">×</button>
                 </header>
                 <div class="battle-log-dialog__content battle-reward-dialog__content">
-                    <RoomRewards Rewards="dialogRewards" />
+                    @if (_roomDetail.CumulativeRewards is { } dialogRewards)
+                    {
+                        <RoomRewards Rewards="dialogRewards" />
+                    }
+                    else
+                    {
+                        <p>@(_rewardError ?? "正在读取累计战利品…")</p>
+                    }
+                    @if (_rewardError is not null)
+                    {
+                        <button type="button" @onclick="RefreshRewardsAsync">重试</button>
+                    }
                 </div>
             </section>
         </div>
@@ -521,7 +550,7 @@ else
                                     {
                                         <li class="status-detail status-detail--positive">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@GetStatusEffectCounter(effect)</strong><p>@effect.Description</p><small>@GetStatusEffectBinding(effect)@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -536,7 +565,7 @@ else
                                     {
                                         <li class="status-detail status-detail--negative">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@GetStatusEffectCounter(effect)</strong><p>@effect.Description</p><small>@GetStatusEffectBinding(effect)@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -595,7 +624,7 @@ else
                                     {
                                         <li class="status-detail status-detail--positive">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@GetStatusEffectCounter(effect)</strong><p>@effect.Description</p><small>@GetStatusEffectBinding(effect)@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -610,7 +639,7 @@ else
                                     {
                                         <li class="status-detail status-detail--negative">
                                             <span class="status-detail__icon" aria-hidden="true">@GetStatusEffectGlyph(effect)</span>
-                                            <div><strong>@effect.Name@(effect.Stacks > 1 ? $" ×{effect.Stacks}" : "")</strong><p>@effect.Description</p><small>@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
+                                            <div><strong>@effect.Name@GetStatusEffectCounter(effect)</strong><p>@effect.Description</p><small>@GetStatusEffectBinding(effect)@GetStatusEffectDuration(effect) · @(effect.CanDispel ? "可移除" : "不可移除")</small></div>
                                         </li>
                                     }
                                 </ul>
@@ -672,7 +701,7 @@ else
                     <div class="skill-dialog__facts">
                         @foreach (var effect in skillDialog.Skill.Effects)
                         {
-                            <span><i aria-hidden="true">✦</i>@GetSkillEffectText(effect, needsTarget)</span>
+                            <span><i aria-hidden="true">✦</i>@effect.Summary</span>
                         }
                         <span><i aria-hidden="true">⌛</i>@(skillDialog.Skill.CooldownRoundsRemaining > 0 ? $"剩余冷却 {skillDialog.Skill.CooldownRoundsRemaining} 回合" : "技能已就绪")</span>
                     </div>
@@ -836,7 +865,8 @@ else
     private List<CharacterSummaryResponse> _characters = new();
     private readonly List<BattleLogEntry> _logs = new();
     private long _nextLocalLogId;
-    private readonly HashSet<long> _seenServerLogIds = [];
+    private readonly BattleLogCursor _serverLogCursor = new();
+    private readonly BattleFeedbackCoordinator _feedbackCoordinator = new();
     private readonly CancellationTokenSource _refreshCancellation = new();
     private readonly string _dialogOwner = Guid.NewGuid().ToString("N");
     private bool? _dialogScrollOpen;
@@ -872,6 +902,18 @@ else
     private ElementReference _monsterStatusDialogCloseButton;
     private bool _isLogOpen;
     private bool _isRewardsOpen;
+    private bool _isLoadingRewards;
+    private bool _rewardRefreshPending;
+    private string? _rewardError;
+    private int _rewardVersion = -1;
+    private DateTime _rewardsLoadedAt;
+    private string _historyEpoch = "";
+    private long _afterEventId;
+    private long _afterLogId;
+    private long _roomReadSequence;
+    private string _projectionId = "";
+    private long _lastAppliedRoomRead;
+    private long _roomMutationGeneration;
     private bool _focusRewardsCloseButton;
     private bool _focusRewardsTrigger;
     private bool _focusLogCloseButton;
@@ -907,7 +949,7 @@ else
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
     private bool IsBattlePanelOpen => (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null) &&
-        (_isManagementOpen || _isLogOpen || _isRewardsOpen && _roomDetail?.CumulativeRewards is not null);
+        (_isManagementOpen || _isLogOpen || _isRewardsOpen);
     private bool CanChangeFormation => _roomDetail is { ClosedAtUtc: null } &&
         (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
          _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0);
@@ -937,20 +979,15 @@ else
                     Navigation.NavigateTo("/login", replace: true);
                 return;
             }
-            if (!await RefreshRoomDetailAsync()) return;
+            if (!await RefreshRoomDetailAsync(synchronize: true)) return;
             _characters = await ApiService.GetCurrentCharactersAsync() ?? new();
-            await ActiveCharacterState.RefreshAsync();
+            await ActiveCharacterState.EnsureLoadedAsync();
             if (_refreshCancellation.IsCancellationRequested) return;
             _accountCharacterId = ActiveCharacterState.Current?.CharacterId;
             if (!_isCharacterSubscribed)
             {
                 ActiveCharacterState.Changed += HandleAccountCharacterChanged;
                 _isCharacterSubscribed = true;
-            }
-            if (_roomDetail is { ClosedAtUtc: null } && _roomDetail.Slots.Any(slot => slot.IsCurrentUserCharacter))
-            {
-                await ApiService.SyncBattleAsync(RoomId);
-                if (!await RefreshRoomDetailAsync()) return;
             }
             if (!_hasStartedRoomRefresh && !_refreshCancellation.IsCancellationRequested)
             {
@@ -1115,11 +1152,53 @@ else
         _focusManagementTrigger = true;
     }
 
-    private void OpenRewards()
+    private async Task OpenRewards()
     {
         ClearCombatFeedback();
         _isRewardsOpen = true;
         _focusRewardsCloseButton = true;
+        await RefreshRewardsAsync();
+    }
+
+    private Task RefreshRewardsAsync() => RefreshRewardsCoreAsync(allowFollowup: true);
+
+    private async Task RefreshRewardsCoreAsync(bool allowFollowup)
+    {
+        if (_roomDetail is not { } room || _refreshCancellation.IsCancellationRequested) return;
+        if (_isLoadingRewards) { _rewardRefreshPending = true; return; }
+        var context = ApiService.DataRevision;
+        _isLoadingRewards = true;
+        _rewardRefreshPending = false;
+        _rewardError = null;
+        try
+        {
+            var rewards = await ApiService.GetRoomRewardsAsync(room.RoomId, _refreshCancellation.Token);
+            if (context != ApiService.DataRevision || room.RoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+            if (rewards is null) { _rewardError = "战利品暂时读取失败，请重试。"; return; }
+            if (_roomDetail is not { } latest) return;
+            if (latest.RunSequence != rewards.RunSequence || rewards.RoomVersion < latest.RoomVersion)
+            {
+                _rewardRefreshPending = latest.RoomVersion != room.RoomVersion;
+                _rewardError = "战利品刚刚更新，正在重新读取。";
+                return;
+            }
+            latest.Rewards = rewards.Rewards;
+            latest.CumulativeRewards = rewards.CumulativeRewards;
+            _rewardVersion = rewards.RoomVersion;
+            _rewardsLoadedAt = DateTime.UtcNow;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        { _rewardError = "战利品暂时读取失败，请重试。"; }
+        finally
+        {
+            _isLoadingRewards = false;
+            if (allowFollowup && _rewardRefreshPending && context == ApiService.DataRevision &&
+                !_refreshCancellation.IsCancellationRequested && (_isRewardsOpen || _roomDetail?.ClosedAtUtc is not null))
+            {
+                _rewardRefreshPending = false;
+                await RefreshRewardsCoreAsync(allowFollowup: false);
+            }
+        }
     }
 
     private void CloseRewards()
@@ -1182,22 +1261,18 @@ else
         ? _roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == characterId)
         : null;
 
-    private static string GetStatusEffectGlyph(BattleStatusEffectResponse effect)
-    {
-        var label = $"{effect.Code} {effect.Name}";
-        if (effect.Code.StartsWith("operation-potion:", StringComparison.OrdinalIgnoreCase)) return "✦";
-        if (label.Contains("poison", StringComparison.OrdinalIgnoreCase) || label.Contains("毒", StringComparison.Ordinal)) return "☠";
-        if (label.Contains("berserk", StringComparison.OrdinalIgnoreCase) || label.Contains("fury", StringComparison.OrdinalIgnoreCase) ||
-            label.Contains("狂暴", StringComparison.Ordinal) || label.Contains("狂怒", StringComparison.Ordinal)) return "⚔";
-        if (label.Contains("burn", StringComparison.OrdinalIgnoreCase) || label.Contains("灼烧", StringComparison.Ordinal)) return "♨";
-        if (label.Contains("guard", StringComparison.OrdinalIgnoreCase) || label.Contains("shield", StringComparison.OrdinalIgnoreCase) || label.Contains("护盾", StringComparison.Ordinal)) return "◆";
-        return effect.IsPositive ? "↑" : "↓";
-    }
+    private static string GetStatusEffectGlyph(BattleStatusEffectResponse effect) => BattleStatusPresentation.Glyph(effect);
 
     private static string GetStatusEffectDuration(BattleStatusEffectResponse effect) =>
-        effect.Code == "mage-disorder" ? "当前怪物存活期间" :
-        effect.Code.StartsWith("mage-skill-disruption-", StringComparison.Ordinal) ? "至下次伤害技能" :
+        !string.IsNullOrEmpty(effect.DurationText) ? effect.DurationText :
         effect.ExpiresWithRun ? "本场持续" : $"剩余 {effect.RemainingRounds} 回合";
+
+    private static string GetStatusEffectCounter(BattleStatusEffectResponse effect) =>
+        !string.IsNullOrEmpty(effect.CounterText) ? $" · {effect.CounterText}" :
+        effect.Stacks > 1 ? $" ×{effect.Stacks}" : "";
+
+    private static string GetStatusEffectBinding(BattleStatusEffectResponse effect) =>
+        effect.BoundTargetName is not null ? $"绑定目标：{effect.BoundTargetName} · " : "";
 
     private IEnumerable<CharacterSummaryResponse> GetFormationCharacters(RoomSlotResponse target) =>
         _characters.Where(character => character.CharacterId != target.CharacterId &&
@@ -1322,7 +1397,7 @@ else
                 ApplyRoomDetail(detail, allowCombatFeedback: false);
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
-                MergeRoomBattleLogs(detail.BattleLogs);
+                MergeRoomBattleLogs(detail);
             }
         }
         catch { _visibilityError = "连接失败，未能确认开放状态，请重试。"; }
@@ -1352,7 +1427,7 @@ else
                 ApplyRoomDetail(response.Room);
                 _serverTimeUtc = response.Room.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
-                MergeRoomBattleLogs(response.Room.BattleLogs);
+                MergeRoomBattleLogs(response.Room);
             }
         }
         catch
@@ -1507,25 +1582,17 @@ else
     private static bool IsSkillQueued(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
         (character.PendingSkillSlotMask & SkillRules.SlotMask(skill.SlotIndex)) != 0;
 
-    private static bool CanChooseSkillTarget(RoomSkillSlotResponse skill) =>
-        SkillTargetRules.CanChooseAllyTarget(skill.Effects.Select(effect => (effect.Type, effect.Target)));
+    private static bool CanChooseSkillTarget(RoomSkillSlotResponse skill) => skill.CanChooseAllyTarget;
 
     private static bool CanSelectSkillTarget(RoomSkillSlotResponse skill, RoomSlotResponse target) =>
-        target.IsAlive && target.CharacterId.HasValue && skill.Effects.Any(effect =>
-            SkillTargetRules.UsesChosenTarget(effect.Type, effect.Target) && effect.Type switch
-            {
-                "Heal" => target.CharacterHp < target.CharacterMaxHp,
-                "Cleanse" => target.StatusEffects.Any(status => !status.IsPositive && status.CanDispel),
-                "Guard" or "ApplyStatus" => true,
-                _ => false
-            });
+        target.IsAlive && target.CharacterId.HasValue && skill.AllowedTargetCharacterIds.Contains(target.CharacterId.Value);
 
     private string QueuedSkillTargetName(RoomSkillSlotResponse skill) =>
         _roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == skill.QueuedTargetCharacterId)?.CharacterName ?? "已离队的目标";
 
     private bool CanQueueSkill(RoomSlotResponse character, RoomSkillSlotResponse skill) =>
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive && skill.SkillCode is not null &&
-        (IsSkillQueued(character, skill) || skill.CooldownRoundsRemaining == 0 && HasApplicableSkillEffect(character, skill));
+        (IsSkillQueued(character, skill) || skill.CanUse);
 
     private bool CanQueueSoulImprint(RoomSlotResponse character, RoomSoulImprintResponse soulImprint) =>
         _roomDetail?.RoomStatus != Game.Shared.Enums.RoomStatus.BattleOver && character.IsAlive &&
@@ -1567,7 +1634,7 @@ else
         if (IsSkillQueued(character, skill)) return skill.QueuedTargetCharacterId.HasValue
             ? $"已安排对 {QueuedSkillTargetName(skill)} 施放，点击取消" : "点击取消本回合手动施放";
         if (skill.CooldownRoundsRemaining > 0) return $"冷却中，还需 {skill.CooldownRoundsRemaining} 回合";
-        if (!HasApplicableSkillEffect(character, skill)) return GetUnavailableSkillReason(skill);
+        if (!skill.CanUse) return GetUnavailableSkillReason(skill);
         return string.IsNullOrWhiteSpace(skill.Description) ? "安排在下一次结算中手动施放" : skill.Description;
     }
 
@@ -1575,6 +1642,7 @@ else
     {
         if (selected) return skill.QueuedTargetCharacterId.HasValue ? $"目标 · {QueuedSkillTargetName(skill)}" : "已安排手动施放";
         if (skill.CooldownRoundsRemaining > 0) return $"冷却 {skill.CooldownRoundsRemaining} 回合";
+        if (!skill.CanUse) return GetUnavailableSkillReason(skill);
         if (skill.AutoUseEnabled) return $"自动 · {SkillAutoRules.Describe(skill.AutoCondition, skill.AutoHpThresholdPercent)}";
         return "可手动施放";
     }
@@ -1590,80 +1658,19 @@ else
     private static string GetSkillAutoConditionText(RoomSkillSlotResponse skill) =>
         $"{SkillAutoRules.Describe(skill.AutoCondition, skill.AutoHpThresholdPercent)}时自动使用";
 
-    private static string GetSkillEffectText(SkillEffectResponse effect, bool canChooseTarget = false)
+    private static string GetUnavailableSkillReason(RoomSkillSlotResponse skill) => skill.UnavailableReason switch
     {
-        var target = canChooseTarget && SkillTargetRules.UsesChosenTarget(effect.Type, effect.Target) ? "本次所选队友" : effect.Target switch
-        {
-            "Self" => "自身",
-            "LowestHpAlly" or "LowestHpAllyFixed" => "生命值最低的队友",
-            "AllAllies" or "AllAlive" => "全体存活队友",
-            "AllOtherAlive" => "其他存活队友",
-            "FrontAlly" or "FrontAllyFixed" => "前排队友",
-            "Monster" => "敌人",
-            _ => "目标"
-        };
-        return effect.Type switch
-        {
-            "Damage" => $"对{target}造成 {effect.AttackPowerPercent:0.##}% 攻击伤害{(effect.Power > 0 ? $"，另加 {effect.Power} 点威力" : "")}",
-            "Heal" => $"为{target}恢复{(effect.Power > 0 ? $"{effect.Power} 点" : "")}{(effect.Power > 0 && effect.HealMaxHpPercent > 0 ? " + " : "")}{(effect.HealMaxHpPercent > 0 ? $"目标最大生命值的 {effect.HealMaxHpPercent:0.##}%" : "")}生命值",
-            "Guard" => $"使{target}在本回合获得 {effect.Power}% 伤害减免",
-            "Cleanse" => $"净化{target}的负面状态",
-            "Dispel" => $"驱散{target}的增益状态",
-            "Interrupt" => "打断敌人当前可打断技能",
-            "ApplyStatus" when effect.StatusCode is "rogue-adrenaline-1" or "rogue-adrenaline-2" or "rogue-adrenaline-3" =>
-                $"本回合和下一回合，普通攻击二连击概率 +{(effect.StatusCode switch { "rogue-adrenaline-1" => 20, "rogue-adrenaline-2" => 25, _ => 30 })} 个百分点",
-            "ApplyStatus" when effect.StatusCode == "rogue-poison" =>
-                $"使{target}中毒，未来 {effect.DurationRounds} 回合每回合受到施放时攻击力 {effect.AttackPowerPercent:0.##}% 的伤害",
-            "ApplyStatus" => $"对{target}施加{GetStatusName(effect.StatusCode)}，持续 {effect.DurationRounds} 回合" +
-                (effect.AttackPowerPercent > 0 ? $"，每回合造成施放时攻击力 {effect.AttackPowerPercent:0.##}% 的伤害" :
-                    effect.HealMaxHpPercent > 0 ? $"，每回合恢复目标最大生命值的 {effect.HealMaxHpPercent:0.##}%" : ""),
-            _ => $"对{target}产生技能效果"
-        };
-    }
-
-    private static string GetStatusName(string? code) => code switch
-    {
-        "armor-break" => "破甲",
-        "attack-down" => "攻击降低",
-        "attack-up" => "攻击提升",
-        "defense-up" => "防御提升",
-        "regen" => "持续恢复",
-        "knight-holy-burn" => "圣焰",
-        "knight-holy-renew" => "圣佑回春",
-        "rogue-shadow-charge" => "影袭蓄势",
-        "rogue-poison" => "淬毒",
-        "rogue-adrenaline-1" or "rogue-adrenaline-2" or "rogue-adrenaline-3" => "肾上腺素",
-        _ => "状态效果"
+        "BattleOver" => "战斗已结束",
+        "CharacterDead" => "角色已阵亡",
+        "SkillNotEquipped" => "尚未装备技能",
+        "SkillCooldown" => "技能仍在冷却中",
+        "NoRemovableDebuff" => "没有可净化的负面状态",
+        "NoRemovableBuff" => "怪物没有可驱散的增益",
+        "NoInterruptibleIntent" => "当前没有可打断的敌方技能",
+        "NoInjuredTarget" => "没有受伤队友",
+        "NoReducibleCooldown" => "没有可缩短冷却的伤害技能",
+        _ => "当前没有有效目标"
     };
-
-    private bool HasApplicableSkillEffect(RoomSlotResponse character, RoomSkillSlotResponse skill)
-    {
-        if (_roomDetail is null) return false;
-        if (SkillRules.RequiresInterruptibleTarget(skill.Effects.Select(effect => effect.Type)))
-            return _roomDetail.MonsterIntent is { ActionType: "Skill", IsInterruptible: true, IsInterrupted: false };
-        return skill.Effects.Any(effect => effect.Type switch
-        {
-            "Damage" => _roomDetail.MonsterHp > 0,
-            "Heal" when effect.Target == "Self" => character.CharacterHp < character.CharacterMaxHp,
-            "Heal" => _roomDetail.Slots.Any(slot => slot.IsAlive && slot.CharacterHp < slot.CharacterMaxHp),
-            "Guard" => _roomDetail.Slots.Any(slot => slot.IsAlive),
-            "Cleanse" when effect.Target == "Self" => character.StatusEffects.Any(status => !status.IsPositive && status.CanDispel),
-            "Cleanse" => _roomDetail.Slots.Any(slot => slot.IsAlive && slot.StatusEffects.Any(status => !status.IsPositive && status.CanDispel)),
-            "Dispel" => _roomDetail.MonsterEffects.Any(status => status.IsPositive && status.CanDispel),
-            "Interrupt" => _roomDetail.MonsterIntent is { ActionType: "Skill", IsInterruptible: true, IsInterrupted: false },
-            "ApplyStatus" => effect.Target != "Monster" || _roomDetail.MonsterHp > 0,
-            _ => false
-        });
-    }
-
-    private string GetUnavailableSkillReason(RoomSkillSlotResponse skill)
-    {
-        if (skill.Effects.Any(effect => effect.Type == "Cleanse")) return "没有可净化的负面状态";
-        if (skill.Effects.Any(effect => effect.Type == "Dispel")) return "怪物没有可驱散的增益";
-        if (skill.Effects.Any(effect => effect.Type == "Interrupt")) return "当前没有可打断的敌方技能";
-        if (skill.Effects.Any(effect => effect.Type == "Heal")) return "没有受伤队友";
-        return "当前没有有效目标";
-    }
 
     private static string GetDangerLabel(string dangerLevel) => dangerLevel switch
     {
@@ -1690,7 +1697,7 @@ else
             }
             else
             {
-                _roomDetail = detail;
+                ApplyRoomDetail(detail);
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
                 _alignMobileQuickActions = true;
@@ -1740,7 +1747,7 @@ else
             }
             else
             {
-                _roomDetail = detail;
+                ApplyRoomDetail(detail);
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
                 _alignMobileQuickActions = true;
@@ -1767,7 +1774,7 @@ else
             }
             else
             {
-                _roomDetail = detail;
+                ApplyRoomDetail(detail);
                 _serverTimeUtc = detail.ServerTimeUtc;
                 _serverTimeReceivedAtUtc = DateTime.UtcNow;
                 _consumableMessage = null;
@@ -1806,7 +1813,7 @@ else
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
-        if (detail is null) _message = error ?? "重置战斗失败。"; else { ApplyRoomDetail(detail, false); _logs.Clear(); _seenServerLogIds.Clear(); AppendBattleLogs(["战斗已重置。"]); }
+        if (detail is null) _message = error ?? "重置战斗失败。"; else { ApplyRoomDetail(detail, false); _logs.Clear(); _serverLogCursor.Reset(); AppendBattleLogs(["战斗已重置。"]); }
         _isBusy = false;
     }
 
@@ -1816,11 +1823,25 @@ else
         if (await ApiService.DeleteRoomAsync(RoomId)) Navigation.NavigateTo("/rooms"); else { _message = "解散房间失败。"; _isBusy = false; }
     }
 
-    private async Task<bool> RefreshRoomDetailAsync(int? expectedRoomId = null)
+    private async Task<bool> RefreshRoomDetailAsync(int? expectedRoomId = null, bool synchronize = false)
     {
         var requestRoomId = expectedRoomId ?? RoomId;
-        var result = await ApiService.LoadRoomDetailAsync(requestRoomId, _refreshCancellation.Token);
-        if (requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return false;
+        await ApiService.EnsureContextAsync();
+        var context = ApiService.DataRevision;
+        var readSequence = ++_roomReadSequence;
+        var mutationGeneration = _roomMutationGeneration;
+        var requestedEventId = _afterEventId;
+        var requestedLogId = _afterLogId;
+        var result = synchronize
+            ? await ApiService.LoadBattleSnapshotAsync(new BattleSyncRequest
+            {
+                RoomId = requestRoomId, HistoryEpoch = _historyEpoch, ProjectionId = _projectionId,
+                AfterEventId = requestedEventId, AfterLogId = requestedLogId
+            }, _refreshCancellation.Token)
+            : await ApiService.LoadRoomDetailAsync(requestRoomId, _refreshCancellation.Token);
+        if (context != ApiService.DataRevision && result.Status != RoomLoadStatus.Unauthorized ||
+            requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return false;
+        if (readSequence < _lastAppliedRoomRead || mutationGeneration != _roomMutationGeneration) return true;
         if (result.Status == RoomLoadStatus.Unavailable)
         {
             Navigation.NavigateTo("/rooms?notice=room-unavailable", replace: true);
@@ -1832,25 +1853,59 @@ else
             Navigation.NavigateTo("/login", replace: true);
             return false;
         }
-        if (result.Room is not { } latest)
+        var latest = result.Synchronization is { } response
+            ? BattleSnapshotProjection.Resolve(_roomDetail, _projectionId, response) : result.Room;
+        if (latest is null)
         {
             _roomLoadError = "连接失败、超时或服务暂时不可用，请重试。";
             return false;
         }
         _roomLoadError = null;
-        ApplyRoomDetail(latest);
+        if (BattleFeedbackCoordinator.IsStale(_roomDetail, latest)) return true;
+        _lastAppliedRoomRead = readSequence;
+        var canResetHistory = _afterEventId <= requestedEventId && _afterLogId <= requestedLogId;
+        ApplyRoomDetail(latest, fromRefresh: true);
+        _projectionId = result.Synchronization?.ProjectionId ?? "";
+        if (result.Synchronization is { } synchronization)
+        {
+            _afterEventId = synchronization.HistoryReset && canResetHistory
+                ? synchronization.LastEventId : Math.Max(_afterEventId, synchronization.LastEventId);
+            _afterLogId = synchronization.HistoryReset && canResetHistory
+                ? synchronization.LastLogId : Math.Max(_afterLogId, synchronization.LastLogId);
+        }
         if (_roomDetail is not null)
         {
             foreach (var slot in _roomDetail.Slots) _selectedCharacterIds.TryAdd(slot.SlotIndex, 0);
-            MergeRoomBattleLogs(_roomDetail.BattleLogs);
+            MergeRoomBattleLogs(_roomDetail);
         }
         if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
+        if ((_isRewardsOpen || latest.ClosedAtUtc.HasValue) &&
+            (_rewardVersion != latest.RoomVersion || DateTime.UtcNow - _rewardsLoadedAt > TimeSpan.FromSeconds(10)))
+            await RefreshRewardsAsync();
         return true;
     }
 
-    private void ApplyRoomDetail(RoomDetailResponse? detail, bool allowCombatFeedback = true)
+    private void ApplyRoomDetail(RoomDetailResponse? detail, bool allowCombatFeedback = true, bool fromRefresh = false)
     {
         var previous = _roomDetail;
+        if (_refreshCancellation.IsCancellationRequested || detail is not null && detail.RoomId != RoomId) return;
+        if (BattleFeedbackCoordinator.IsStale(previous, detail)) return;
+        if (!fromRefresh) { _roomMutationGeneration++; _projectionId = ""; }
+        if (detail is not null)
+        {
+            if (_historyEpoch != detail.BattleHistoryEpoch)
+            {
+                _historyEpoch = detail.BattleHistoryEpoch;
+                _afterEventId = _afterLogId = 0;
+            }
+            _afterEventId = Math.Max(_afterEventId, detail.BattleEvents.Select(item => item.Id).DefaultIfEmpty().Max());
+            _afterLogId = Math.Max(_afterLogId, detail.BattleLogs.Select(item => item.Id).DefaultIfEmpty().Max());
+            if (detail.CumulativeRewards is null && previous?.RoomId == detail.RoomId)
+            {
+                detail.CumulativeRewards = previous.CumulativeRewards;
+                detail.Rewards = previous.Rewards;
+            }
+        }
         if (previous is not null && detail is not null)
         {
             var finished = detail.Operations.FirstOrDefault(operation => operation.Status != "Pending" &&
@@ -1879,18 +1934,19 @@ else
         }
         // Inspect the killing round before treating a changed enemy or a closed
         // room as navigation. Both can be part of that same server response.
-        if (BattleFeedbackPlanner.Create(previous, detail) is { } plan)
+        if (_feedbackCoordinator.Observe(previous, detail, true) is { } playback)
         {
-            _combatScene = previous;
-            _activeCombatPlan = _pendingCombatPlan = plan;
+            _combatScene = playback.Scene;
+            _activeCombatPlan = _pendingCombatPlan = playback.Plan;
         }
         else if (detail.ClosedAtUtc.HasValue || previous is not null &&
             (!BattleFeedbackPlanner.SameEncounter(previous, detail) || detail.RoundNumber != previous.RoundNumber))
-            ClearCombatFeedback();
+            ClearCombatFeedback(cancelPending: false);
     }
 
-    private void ClearCombatFeedback()
+    private void ClearCombatFeedback(bool cancelPending = true)
     {
+        if (cancelPending) _feedbackCoordinator.CancelPending();
         _cancelCombatPlayback = true;
         _activeCombatPlan = _pendingCombatPlan = _lastCombatPlan = null;
         _combatScene = null;
@@ -2036,11 +2092,12 @@ else
         var aliveOwnSlots = _roomDetail?.Slots.Where(slot => slot.IsCurrentUserCharacter && slot.IsOccupied && slot.IsAlive).ToList();
         return aliveOwnSlots is { Count: > 0 } && aliveOwnSlots.All(slot => slot.IsConfirmed);
     }
-    private void MergeRoomBattleLogs(IEnumerable<BattleLogResponse> logs)
+    private void MergeRoomBattleLogs(RoomDetailResponse detail)
     {
-        foreach (var log in logs.OrderBy(entry => entry.Id))
+        if (BattleFeedbackCoordinator.IsStale(_roomDetail, detail)) return;
+        foreach (var log in detail.BattleLogs.OrderBy(entry => entry.Id))
         {
-            if (_seenServerLogIds.Add(log.Id)) _logs.Add(new BattleLogEntry(log.Id, log.Text));
+            if (_serverLogCursor.Accept(detail.BattleHistoryEpoch, log.Id, detail.RoomId)) _logs.Add(new BattleLogEntry(log.Id, log.Text));
         }
         if (_logs.Count > 80) _logs.RemoveRange(0, _logs.Count - 80);
     }
@@ -2065,13 +2122,11 @@ else
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
                 ticks++;
-                if (ticks % 2 == 0 && !_isBusy && _roomDetail?.ClosedAtUtc is null)
+                if (ticks % 2 == 0 && !_isBusy && (_roomDetail?.ClosedAtUtc is null || _feedbackCoordinator.BeginClosedRetry()))
                 {
                     try
                     {
-                        if (_roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter) == true)
-                            await ApiService.SyncBattleAsync(RoomId);
-                        await RefreshRoomDetailAsync();
+                        await RefreshRoomDetailAsync(synchronize: true);
                     }
                     catch (Exception) when (!cancellationToken.IsCancellationRequested)
                     {

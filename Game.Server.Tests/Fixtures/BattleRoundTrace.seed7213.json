@@ -1,0 +1,1202 @@
+[
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 1,
+      "CurrentWaveNumber": 1,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:1:1",
+      "Status": 1,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 96,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 96,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 30,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 1000,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 10,
+          "ActualAmount": 10,
+          "HpBefore": 50,
+          "HpAfter": 40,
+          "TargetMaxHp": 50,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:2",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 10,
+          "ActualAmount": 10,
+          "HpBefore": 40,
+          "HpAfter": 30,
+          "TargetMaxHp": 50,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 3,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 0,
+          "Source": "monster:1:1",
+          "Target": "character:1",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 100,
+          "HpAfter": 96,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 4,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 0,
+          "Source": "monster:1:1",
+          "Target": "character:2",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 100,
+          "HpAfter": 96,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 5,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 2,
+          "ActionKind": 0,
+          "Source": "monster:1:1",
+          "Target": "character:1",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 0,
+          "ActualAmount": 0,
+          "HpBefore": null,
+          "HpAfter": null,
+          "TargetMaxHp": null,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": 0,
+          "CountBefore": 0,
+          "CountAfter": 1,
+          "Status": {
+            "Code": "weakness",
+            "EffectType": "AttackPercent",
+            "IsPositive": false,
+            "CanDispel": true,
+            "Stacks": 1,
+            "RemainingRounds": 4,
+            "Lifetime": 0,
+            "CounterKind": 0,
+            "Mechanic": 0,
+            "AppliedRound": 0,
+            "ExpiresAfterRound": 3,
+            "PerTickValue": null,
+            "MagnitudeSnapshot": null,
+            "Source": "monster:1:1",
+            "SourceSkillCode": "boss-combination",
+            "BoundTarget": null
+          }
+        },
+        {
+          "Sequence": 6,
+          "RunSequence": 1,
+          "RoundNumber": 1,
+          "Monster": "monster:1:1",
+          "Kind": 2,
+          "ActionKind": 0,
+          "Source": "monster:1:1",
+          "Target": "character:2",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 0,
+          "ActualAmount": 0,
+          "HpBefore": null,
+          "HpAfter": null,
+          "TargetMaxHp": null,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": 0,
+          "CountBefore": 0,
+          "CountAfter": 1,
+          "Status": {
+            "Code": "weakness",
+            "EffectType": "AttackPercent",
+            "IsPositive": false,
+            "CanDispel": true,
+            "Stacks": 1,
+            "RemainingRounds": 4,
+            "Lifetime": 0,
+            "CounterKind": 0,
+            "Mechanic": 0,
+            "AppliedRound": 0,
+            "ExpiresAfterRound": 3,
+            "PerTickValue": null,
+            "MagnitudeSnapshot": null,
+            "Source": "monster:1:1",
+            "SourceSkillCode": "boss-combination",
+            "BoundTarget": null
+          }
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "F50C8367239EF75EF7D73857F6C61D197585E041FE40BB5A2EC1B3C0769121C5"
+  },
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 2,
+      "CurrentWaveNumber": 1,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:1:1",
+      "Status": 1,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 92,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 96,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 8,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 1000,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 2,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 13,
+          "ActualAmount": 13,
+          "HpBefore": 30,
+          "HpAfter": 17,
+          "TargetMaxHp": 50,
+          "IsCritical": true,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 2,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:2",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 9,
+          "ActualAmount": 9,
+          "HpBefore": 17,
+          "HpAfter": 8,
+          "TargetMaxHp": 50,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 3,
+          "RunSequence": 1,
+          "RoundNumber": 2,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "monster:1:1",
+          "Target": "character:1",
+          "SkillCode": "basic-attack",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 96,
+          "HpAfter": 92,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "ACDB95E6B414BE0AD59FDB5C6664748307869FEEFA59BC8FDF8ADC3AC67B3D4B"
+  },
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 3,
+      "CurrentWaveNumber": 2,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:2:1",
+      "Status": 4,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 92,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 96,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 0,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 1000,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 3,
+          "Monster": "monster:1:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 9,
+          "ActualAmount": 8,
+          "HpBefore": 8,
+          "HpAfter": 0,
+          "TargetMaxHp": 50,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 3,
+          "Monster": "monster:1:1",
+          "Kind": 7,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:1:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 0,
+          "ActualAmount": 0,
+          "HpBefore": 8,
+          "HpAfter": 0,
+          "TargetMaxHp": null,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 0,
+          "ExpiresAfterRound": 3,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:1:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "C6CF173ED035216B6D86343CA40A7D13B1C649FCF85A719C937B1E68CFE9BBC0"
+  },
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 4,
+      "CurrentWaveNumber": 2,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:2:1",
+      "Status": 1,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 88,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 92,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 0,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 978,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 13,
+          "ActualAmount": 13,
+          "HpBefore": 1000,
+          "HpAfter": 987,
+          "TargetMaxHp": 1000,
+          "IsCritical": true,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:2",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 9,
+          "ActualAmount": 9,
+          "HpBefore": 987,
+          "HpAfter": 978,
+          "TargetMaxHp": 1000,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 3,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 0,
+          "Source": "monster:2:1",
+          "Target": "character:1",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 92,
+          "HpAfter": 88,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 4,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 0,
+          "Source": "monster:2:1",
+          "Target": "character:2",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 96,
+          "HpAfter": 92,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 5,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 2,
+          "ActionKind": 0,
+          "Source": "monster:2:1",
+          "Target": "character:1",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 0,
+          "ActualAmount": 0,
+          "HpBefore": null,
+          "HpAfter": null,
+          "TargetMaxHp": null,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": 1,
+          "CountBefore": 1,
+          "CountAfter": 1,
+          "Status": {
+            "Code": "weakness",
+            "EffectType": "AttackPercent",
+            "IsPositive": false,
+            "CanDispel": true,
+            "Stacks": 1,
+            "RemainingRounds": 4,
+            "Lifetime": 0,
+            "CounterKind": 0,
+            "Mechanic": 0,
+            "AppliedRound": 3,
+            "ExpiresAfterRound": 6,
+            "PerTickValue": null,
+            "MagnitudeSnapshot": null,
+            "Source": "monster:2:1",
+            "SourceSkillCode": "boss-combination",
+            "BoundTarget": null
+          }
+        },
+        {
+          "Sequence": 6,
+          "RunSequence": 1,
+          "RoundNumber": 4,
+          "Monster": "monster:2:1",
+          "Kind": 2,
+          "ActionKind": 0,
+          "Source": "monster:2:1",
+          "Target": "character:2",
+          "SkillCode": "boss-combination",
+          "CalculatedAmount": 0,
+          "ActualAmount": 0,
+          "HpBefore": null,
+          "HpAfter": null,
+          "TargetMaxHp": null,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": 1,
+          "CountBefore": 1,
+          "CountAfter": 1,
+          "Status": {
+            "Code": "weakness",
+            "EffectType": "AttackPercent",
+            "IsPositive": false,
+            "CanDispel": true,
+            "Stacks": 1,
+            "RemainingRounds": 4,
+            "Lifetime": 0,
+            "CounterKind": 0,
+            "Mechanic": 0,
+            "AppliedRound": 3,
+            "ExpiresAfterRound": 6,
+            "PerTickValue": null,
+            "MagnitudeSnapshot": null,
+            "Source": "monster:2:1",
+            "SourceSkillCode": "boss-combination",
+            "BoundTarget": null
+          }
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        },
+        {
+          "Actor": "monster:2:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 6
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "E101C5172B6810A6060690B33578D63819C998EADD052F9F34135F309979237B"
+  },
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 5,
+      "CurrentWaveNumber": 2,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:2:1",
+      "Status": 1,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 84,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 92,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 0,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 956,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 5,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 13,
+          "ActualAmount": 13,
+          "HpBefore": 978,
+          "HpAfter": 965,
+          "TargetMaxHp": 1000,
+          "IsCritical": true,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 5,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:2",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 9,
+          "ActualAmount": 9,
+          "HpBefore": 965,
+          "HpAfter": 956,
+          "TargetMaxHp": 1000,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 3,
+          "RunSequence": 1,
+          "RoundNumber": 5,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "monster:2:1",
+          "Target": "character:1",
+          "SkillCode": "basic-attack",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 88,
+          "HpAfter": 84,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        },
+        {
+          "Actor": "monster:2:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 6
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "987909711AF6C437B7EDC0E16746F5DAEBBE364F964E924FF8AE8A7D2D0AE254"
+  },
+  {
+    "Data": {
+      "SchemaVersion": 1,
+      "RunSequence": 1,
+      "RoundNumber": 6,
+      "CurrentWaveNumber": 2,
+      "TotalWaveCount": 2,
+      "ActiveMonster": "monster:2:1",
+      "Status": 1,
+      "IsVictory": false,
+      "Characters": [
+        {
+          "Actor": "character:1",
+          "Hp": 80,
+          "MaxHp": 100
+        },
+        {
+          "Actor": "character:2",
+          "Hp": 92,
+          "MaxHp": 100
+        }
+      ],
+      "Monsters": [
+        {
+          "Actor": "monster:1:1",
+          "Hp": 0,
+          "MaxHp": 50
+        },
+        {
+          "Actor": "monster:2:1",
+          "Hp": 934,
+          "MaxHp": 1000
+        }
+      ],
+      "Events": [
+        {
+          "Sequence": 1,
+          "RunSequence": 1,
+          "RoundNumber": 6,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:1",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 13,
+          "ActualAmount": 13,
+          "HpBefore": 956,
+          "HpAfter": 943,
+          "TargetMaxHp": 1000,
+          "IsCritical": true,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 2,
+          "RunSequence": 1,
+          "RoundNumber": 6,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "character:2",
+          "Target": "monster:2:1",
+          "SkillCode": "normal-attack",
+          "CalculatedAmount": 9,
+          "ActualAmount": 9,
+          "HpBefore": 943,
+          "HpAfter": 934,
+          "TargetMaxHp": 1000,
+          "IsCritical": false,
+          "Element": null,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        },
+        {
+          "Sequence": 3,
+          "RunSequence": 1,
+          "RoundNumber": 6,
+          "Monster": "monster:2:1",
+          "Kind": 0,
+          "ActionKind": 1,
+          "Source": "monster:2:1",
+          "Target": "character:1",
+          "SkillCode": "basic-attack",
+          "CalculatedAmount": 4,
+          "ActualAmount": 4,
+          "HpBefore": 84,
+          "HpAfter": 80,
+          "TargetMaxHp": 100,
+          "IsCritical": false,
+          "Element": 3,
+          "ElementModifier": 0,
+          "StatusChange": null,
+          "CountBefore": null,
+          "CountAfter": null,
+          "Status": null
+        }
+      ],
+      "Statuses": [
+        {
+          "Target": "character:1",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        },
+        {
+          "Target": "character:2",
+          "EffectCode": "weakness",
+          "Stacks": 1,
+          "AppliedRound": 3,
+          "ExpiresAfterRound": 6,
+          "PerTickValue": null,
+          "MagnitudeSnapshot": null,
+          "Lifetime": 0,
+          "Source": "monster:2:1",
+          "SourceSkillCode": "boss-combination",
+          "BoundTarget": null
+        }
+      ],
+      "CharacterCooldowns": [],
+      "MonsterCooldowns": [
+        {
+          "Actor": "monster:1:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 3
+        },
+        {
+          "Actor": "monster:2:1",
+          "SkillCode": "boss-combination",
+          "ReadyAtRound": 6
+        }
+      ],
+      "ConsumableCooldowns": [],
+      "HealingPotions": [],
+      "OperationPotions": [
+        {
+          "Actor": "character:1",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        },
+        {
+          "Actor": "character:2",
+          "ItemCode": null,
+          "AttackPercent": 0,
+          "FinalDamagePercent": 0,
+          "DamageTakenPercent": 0,
+          "NormalAttackDamagePercent": 0,
+          "AreaDamageReductionPercent": 0
+        }
+      ],
+      "ConsumableBuffs": []
+    },
+    "Fingerprint": "3FD74DD33BD5FE699BF6FCC5FE8BB5C867D00D98281C43748CC5C0E84D62524F"
+  }
+]

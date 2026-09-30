@@ -77,5 +77,6 @@ public static class CharacterActivityManager
         }
         db.CharacterActivities.RemoveRange(await db.CharacterActivities
             .Where(activity => activity.Kind == BattleKind && activity.SourceId == room.Id).ToListAsync());
+        db.BattleStatusEffects.RemoveRange(await db.BattleStatusEffects.Where(effect => effect.RoomId == room.Id).ToListAsync());
     }
 }

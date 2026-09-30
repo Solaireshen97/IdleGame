@@ -60,6 +60,10 @@ public sealed class RoomSoulImprintResponse
 
 public class RoomSkillSlotResponse
 {
+    public string? UnavailableReason { get; set; }
+    public bool CanUse { get; set; }
+    public bool CanChooseAllyTarget { get; set; }
+    public List<int> AllowedTargetCharacterIds { get; set; } = [];
     public int SlotIndex { get; set; }
     public string? SkillCode { get; set; }
     public int? QueuedTargetCharacterId { get; set; }

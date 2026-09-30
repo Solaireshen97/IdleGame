@@ -125,7 +125,7 @@ public sealed class DungeonDepthCatalogTests
             Assert.Equal($"depth-placeholder-lv{index + 2}", intent.SkillCode);
             var previousHp = character.Hp;
             var logs = new List<string>();
-            await service.ExecuteIntentAsync(room, monster, [new(slot, character)], new Dictionary<int, Game.Shared.Enums.ElementType>(), default, logs);
+            await service.ExecuteIntentAsync(room, monster, [new(slot, character)], new Dictionary<int, Game.Shared.Enums.ElementType>(), logs);
             await db.SaveChangesAsync();
             Assert.True(character.Hp < previousHp);
             Assert.Contains(logs, log => log.Contains(combat.FindSkill(intent.SkillCode)!.Name));

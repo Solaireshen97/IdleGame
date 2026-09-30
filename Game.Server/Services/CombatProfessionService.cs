@@ -54,7 +54,7 @@ public sealed class CombatProfessionService(GameDbContext db, UserService users,
         character.Experience = next.Experience;
         character.Version++;
         var saved = next.SkillLoadoutJson is null
-            ? skills.SkillsForProfessionAtLevel(target.Code, next.Level).Select((skill, index) => new SavedSkillSlot(index + 1, skill.Code, false,
+            ? skills.SkillsAtLevel(target.Code, next.Level).Select((skill, index) => new SavedSkillSlot(index + 1, skill.Code, false,
                 null, SkillRules.DefaultAutoHpThresholdPercent)).ToList()
             : JsonSerializer.Deserialize<List<SavedSkillSlot>>(next.SkillLoadoutJson) ?? [];
         foreach (var index in Enumerable.Range(1, SkillRules.SlotCount))

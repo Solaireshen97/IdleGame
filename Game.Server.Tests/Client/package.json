@@ -1,0 +1,15 @@
+{
+  "name": "idle-game-combat-browser-tests",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "test": "node --test battle-combat.test.cjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

@@ -20,20 +20,17 @@ public class MonsterCombatServiceTests
         var allySlot = new RoomSlot { Id = 2, RoomId = test.Room.Id, SlotIndex = 2, CharacterId = ally.Id, UserId = 1 };
         test.Db.AddRange(ally, allySlot);
         await test.Db.SaveChangesAsync();
-        var participants = new List<MonsterCombatParticipant>
+        var participants = new List<BattleParticipant>
         {
             new(test.Slot, test.Character), new(allySlot, ally)
         };
-        var defense = new PlayerRoundDefense(0, null, GuardsByCharacter:
-            new Dictionary<int, CharacterRoundDefense>
-            {
-                [test.Character.Id] = new(40, test.Character.Id, true),
-                [ally.Id] = new(10, test.Character.Id, true)
-            });
+        var guards = new BattleGuardService(test.Service.Statuses);
+        await guards.ApplyAsync(test.Room, test.Character.Id, 40, new("Character", test.Character.Id), true);
+        await guards.ApplyAsync(test.Room, ally.Id, 10, new("Character", test.Character.Id), true);
         var logs = new List<string>();
 
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster, participants,
-            new Dictionary<int, ElementType>(), defense, logs);
+            new Dictionary<int, ElementType>(), logs);
         await test.Db.SaveChangesAsync();
 
         Assert.Contains(logs, log => log.Contains("攻击 1号位 Knight"));
@@ -52,15 +49,12 @@ public class MonsterCombatServiceTests
         test.Character.ProfessionCode = "swordsman";
         var intent = await test.Service.EnsureIntentAsync(test.Room, test.Monster);
         intent.IsInterrupted = true;
-        var defense = new PlayerRoundDefense(0, null, GuardsByCharacter:
-            new Dictionary<int, CharacterRoundDefense>
-            {
-                [test.Character.Id] = new(40, test.Character.Id, true)
-            });
+        var guards = new BattleGuardService(test.Service.Statuses);
+        await guards.ApplyAsync(test.Room, test.Character.Id, 40, new("Character", test.Character.Id), true);
         var logs = new List<string>();
 
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
-            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), defense, logs);
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), logs);
 
         Assert.Contains(logs, log => log.Contains("已被打断"));
         Assert.DoesNotContain(logs, log => log.Contains("守护反击"));
@@ -117,7 +111,7 @@ public class MonsterCombatServiceTests
         await test.Db.SaveChangesAsync();
 
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
-            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), []);
         await test.Db.SaveChangesAsync();
 
         Assert.Equal(88, test.Character.Hp);
@@ -133,7 +127,7 @@ public class MonsterCombatServiceTests
     {
         await using var test = await Context.CreateAsync("toxic-slime");
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
-            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), []);
         await test.Db.SaveChangesAsync();
         Assert.Equal(92, test.Character.Hp);
 
@@ -243,7 +237,7 @@ public class MonsterCombatServiceTests
         var removed = await test.Service.RemoveFirstStatusAsync(test.Room, "Monster", [test.Monster.Id], true);
 
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
-            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), []);
         await test.Db.SaveChangesAsync();
 
         Assert.NotNull(removed);
@@ -275,7 +269,7 @@ public class MonsterCombatServiceTests
         await test.Db.SaveChangesAsync();
 
         await test.Service.ExecuteIntentAsync(test.Room, test.Monster,
-            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), default, []);
+            [new(test.Slot, test.Character)], new Dictionary<int, ElementType>(), []);
 
         Assert.Equal(91, test.Character.Hp);
     }

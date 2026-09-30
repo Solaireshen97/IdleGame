@@ -110,7 +110,7 @@ public sealed class PeriodicStatusTests
         public Room Room { get; }
         public Monster Monster { get; }
         public Character Character { get; }
-        public IReadOnlyList<MonsterCombatParticipant> Participants { get; }
+        public IReadOnlyList<BattleParticipant> Participants { get; }
         public MonsterCombatService Service { get; }
 
         public static async Task<Fixture> CreateAsync()

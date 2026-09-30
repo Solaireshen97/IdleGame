@@ -491,7 +491,9 @@
     pointer-events: none;
 }
 
-.fighter__effect-icon {
+.fighter__effect-icon,
+.combat-status-live ::deep .fighter__effect-icon {
+    position: relative;
     display: grid;
     place-items: center;
     width: 1.25rem;
@@ -506,9 +508,9 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, .55);
 }
 
-.fighter__effect-icon--positive { border-color: #78d6b4; color: #b8ffe6; background: #1d6657; }
-.fighter__effect-icon--negative { border-color: #f08f7c; color: #ffd0c7; background: #753b3b; }
-.fighter__effect-icon--more { border-color: #93aabd; color: #e2edf3; font-size: .5rem; }
+.fighter__effect-icon--positive, .combat-status-live ::deep .fighter__effect-icon--positive { border-color: #78d6b4; color: #b8ffe6; background: #1d6657; }
+.fighter__effect-icon--negative, .combat-status-live ::deep .fighter__effect-icon--negative { border-color: #f08f7c; color: #ffd0c7; background: #753b3b; }
+.fighter__effect-icon--more, .combat-status-live ::deep .fighter__effect-icon--more { border-color: #93aabd; color: #e2edf3; font-size: .5rem; }
 
 .fighter--empty .fighter__portrait {
     width: 72%;
@@ -2276,7 +2278,9 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
     .fighter__portrait { height: var(--unit-height); }
     .fighter__portrait img, .battle-field__enemy-art img { height: 100%; max-height: none; }
     .fighter__number { width: .85rem; height: .85rem; font-size: .52rem; }
-    .fighter__effect-icon { width: .9rem; height: .9rem; margin-left: -.2rem; font-size: .48rem; }
+    .fighter__effect-icon,
+.combat-status-live ::deep .fighter__effect-icon {
+    position: relative; width: .9rem; height: .9rem; margin-left: -.2rem; font-size: .48rem; }
     .fighter__level { display: none; }
     .fighter__health, .enemy-vitals__health { height: .3rem; margin-top: .15rem; }
     .battle-field__enemy-art { height: var(--unit-height); min-height: 0; }
@@ -3324,3 +3328,18 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 .monster-intent--victory .monster-intent__target strong { color: #f6dba8; }
 
 .battle-page--focused .battle-supplies-panel { grid-column: 1 / -1; min-width: 0; width: 100%; }
+
+.combat-status-live { display: none; }
+.combat-playing .combat-status-live { display: flex; }
+.combat-playing ::deep [data-combat-status-static] { display: none; }
+.fighter__effect-icon small, .combat-status-live ::deep .fighter__effect-icon small {
+    position: absolute; right: -.1rem; bottom: -.1rem; padding: .05rem .15rem;
+    border-radius: .2rem; background: #102334; color: #fff; font-size: .5rem; line-height: 1;
+}
+
+.monster-intent__effects { grid-column: 1 / -1; min-width: 0; }
+.monster-intent__effects summary { cursor: pointer; color: #e6c48e; font-size: .68rem; }
+.monster-intent__effects small {
+    display: block; margin: .35rem 0 .15rem; color: #c7d6e2;
+    font-size: .7rem; line-height: 1.5; overflow-wrap: anywhere;
+}

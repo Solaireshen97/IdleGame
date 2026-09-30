@@ -1,3 +1,5 @@
+using Game.Shared.Enums;
+
 namespace Game.Server.Configuration;
 
 public sealed class MonsterCombatOptions
@@ -20,6 +22,15 @@ public sealed class BattleStatusOptions
     public string Stacking { get; set; } = "RefreshDuration";
     public bool IsPositive { get; set; }
     public bool IsDispellable { get; set; } = true;
+    public BattleStatusLifetime Lifetime { get; set; }
+    public BattleStatusCounterKind CounterKind { get; set; }
+    public BattleStatusMechanic Mechanic { get; set; }
+    public BattleStatusSnapshotRefresh SnapshotRefresh { get; set; }
+    public string? FamilyCode { get; set; }
+    public BattleStatusFamilyRefresh FamilyRefresh { get; set; }
+    public int InitialStacks { get; set; } = 1;
+    public int MechanicLevel { get; set; }
+    public decimal MechanicPower { get; set; }
 }
 
 public sealed class MonsterSkillOptions
@@ -28,6 +39,8 @@ public sealed class MonsterSkillOptions
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string TargetType { get; set; } = "Front";
+    public List<CombatSkillEffectOptions>? Effects { get; set; }
+    public int InitialCooldownRounds { get; set; }
     public int DamagePowerPercent { get; set; }
     public int CooldownRounds { get; set; }
     public int? SelfHpBelowPercent { get; set; }

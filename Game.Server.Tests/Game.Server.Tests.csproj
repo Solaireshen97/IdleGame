@@ -14,10 +14,18 @@
 	</PackageReference>
   </ItemGroup>
   <ItemGroup>
+	<Compile Include="..\Game.Client\Services\BattleStatusPresentation.cs" Link="Client\BattleStatusPresentation.cs" />
 	<Compile Include="..\Game.Client\Services\BattleFeedbackPlanner.cs" Link="Client\BattleFeedbackPlanner.cs" />
+	<Compile Include="..\Game.Client\Services\BattleFeedbackCoordinator.cs" Link="Client\BattleFeedbackCoordinator.cs" />
 	<Compile Include="..\Game.Client\Services\MonsterArt.cs" Link="Client\MonsterArt.cs" />
 	<Compile Include="..\Game.Client\Services\WeaponArt.cs" Link="Client\WeaponArt.cs" />
-	<Compile Include="..\Game.Client\Services\ApiService.cs" Link="Client\ApiService.cs" />
+	<Compile Include="..\Game.Client\Services\ApiService*.cs" Link="Client\%(Filename)%(Extension)" />
+	<Compile Include="..\Game.Client\Services\ClientQueryCache.cs" Link="Client\ClientQueryCache.cs" />
+	<Compile Include="..\Game.Client\Services\ContentCatalogCache.cs" Link="Client\ContentCatalogCache.cs" />
+	<Compile Include="..\Game.Client\Services\ActiveCharacterState.cs" Link="Client\ActiveCharacterState.cs" />
+	<Compile Include="..\Game.Client\Services\AccountBalanceState.cs" Link="Client\AccountBalanceState.cs" />
+	<Compile Include="..\Game.Client\Services\CharacterUserSnapshotReader.cs" Link="Client\CharacterUserSnapshotReader.cs" />
+	<Compile Include="..\Game.Client\Services\BattleSnapshotProjection.cs" Link="Client\BattleSnapshotProjection.cs" />
 	<Compile Include="..\Game.Client\Services\UserSessionService.cs" Link="Client\UserSessionService.cs" />
 	<Compile Include="..\Game.Client\Services\RoomLoadResult.cs" Link="Client\RoomLoadResult.cs" />
 	<ProjectReference Include="..\Game.Server\Game.Server.csproj" />

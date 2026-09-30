@@ -1,0 +1,10 @@
+{
+  "RoomId": 1,
+  "InitialBytes": 9356,
+  "UnchangedBytes": 292,
+  "Unchanged": true,
+  "BeforeVersion": 0,
+  "AfterVersion": 1,
+  "EventCount": 2,
+  "RewardReadRoom": 1
+}

@@ -91,7 +91,7 @@ public sealed class FirstHuntBalanceTests
             Assert.Equal(skillCode, second.SkillCode);
             Assert.Equal(character.Id, second.TargetCharacterId);
             await service.ExecuteIntentAsync(room, monster, [new(slot, character)],
-                new Dictionary<int, ElementType>(), default, []);
+                new Dictionary<int, ElementType>(), []);
             room.RoundNumber = 2;
             Assert.Equal("BasicAttack", (await service.EnsureIntentAsync(room, monster)).ActionType);
         }

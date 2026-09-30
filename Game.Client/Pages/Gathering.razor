@@ -149,7 +149,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await ActiveCharacters.RefreshAsync();
+        await ActiveCharacters.EnsureLoadedAsync();
         if (_disposed) return;
         _viewCharacterId = ActiveCharacters.Current?.CharacterId;
         if (_viewCharacterId is null) { Navigation.NavigateTo("/login", replace: true); return; }

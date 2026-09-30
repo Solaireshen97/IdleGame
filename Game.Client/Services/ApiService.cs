@@ -12,14 +12,14 @@ using Game.Shared.Dtos.Professions;
 
 namespace Game.Client.Services;
 
-public partial class ApiService(HttpClient httpClient, UserSessionService userSessionService)
+public partial class ApiService
 {
     public async Task<ProfessionProgressResponse?> GetProfessionProgressAsync(string professionCode)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get,
             $"api/professions/{Uri.EscapeDataString(professionCode)}", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>() : null;
     }
 
@@ -28,7 +28,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(HttpMethod.Post,
             $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/{Uri.EscapeDataString(nodeCode)}", requiresAuth: true);
-        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+        return await ReadProfessionResultAsync(await SendTrackedAsync(request));
     }
 
     public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> RefundProfessionTalentAsync(
@@ -36,21 +36,21 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(HttpMethod.Post,
             $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/{Uri.EscapeDataString(nodeCode)}/refund", requiresAuth: true);
-        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+        return await ReadProfessionResultAsync(await SendTrackedAsync(request));
     }
 
     public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> ResetProfessionTalentsAsync(string professionCode)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post,
             $"api/professions/{Uri.EscapeDataString(professionCode)}/talents/reset", requiresAuth: true);
-        return await ReadProfessionResultAsync(await httpClient.SendAsync(request));
+        return await ReadProfessionResultAsync(await SendTrackedAsync(request));
     }
 
     private async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> ReadProfessionResultAsync(HttpResponseMessage response)
     {
         using (response)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
                 return (await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>(), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -72,8 +72,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<ProductionOverviewResponse?> GetProductionAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/production", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProductionOverviewResponse>() : null;
     }
 
@@ -86,13 +86,13 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             CharacterId = characterId, RecipeCode = recipeCode, TargetCycles = targetCycles,
             RequestId = requestId ?? Guid.NewGuid().ToString("N")
         });
-        return await ReadProductionResultAsync(await httpClient.SendAsync(request));
+        return await ReadProductionResultAsync(await SendTrackedAsync(request));
     }
 
     public async Task<(ProductionOverviewResponse? Response, string? ErrorMessage)> StopProductionAsync(int taskId)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, $"api/production/{taskId}/stop", requiresAuth: true);
-        return await ReadProductionResultAsync(await httpClient.SendAsync(request));
+        return await ReadProductionResultAsync(await SendTrackedAsync(request));
     }
 
     private async Task<(ProductionOverviewResponse? Response, string? ErrorMessage)> ReadProductionResultAsync(
@@ -100,7 +100,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using (response)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
                 return (await response.Content.ReadFromJsonAsync<ProductionOverviewResponse>(), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -123,8 +123,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<GatheringOverviewResponse?> GetGatheringAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/gathering", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>() : null;
     }
 
@@ -133,13 +133,13 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/gathering/start", requiresAuth: true);
         request.Content = JsonContent.Create(new StartGatheringRequest { CharacterId = characterId, PointCode = pointCode });
-        return await ReadGatheringResultAsync(await httpClient.SendAsync(request));
+        return await ReadGatheringResultAsync(await SendTrackedAsync(request));
     }
 
     public async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> StopGatheringAsync(int taskId)
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, $"api/gathering/{taskId}/stop", requiresAuth: true);
-        return await ReadGatheringResultAsync(await httpClient.SendAsync(request));
+        return await ReadGatheringResultAsync(await SendTrackedAsync(request));
     }
 
     private async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> ReadGatheringResultAsync(
@@ -147,7 +147,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using (response)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
                 return (await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>(), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -169,8 +169,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<ShopResponse?> GetShopAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/shop", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ShopResponse>() : null;
     }
 
@@ -183,8 +183,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             CharacterId = characterId, Code = code, Quantity = quantity,
             RequestId = requestId ?? Guid.NewGuid().ToString("N")
         });
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         if (!response.IsSuccessStatusCode)
         {
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -207,8 +207,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseCharacterSlotAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/character-slot", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         if (!response.IsSuccessStatusCode)
         {
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -232,8 +232,8 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         {
             CharacterId = characterId, OfferCode = offerCode
         });
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         if (!response.IsSuccessStatusCode)
         {
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
@@ -253,35 +253,29 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/quick-skill-cast", requiresAuth: true);
         request.Content = JsonContent.Create(new SetQuickSkillCastRequest { IsEnabled = isEnabled });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode) return null;
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return await response.Content.ReadAsStringAsync();
     }
 
     public async Task<List<RoomSummaryResponse>?> GetRoomsAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/rooms", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomSummaryResponse>>() : null;
     }
 
-    public Task<List<RegionSummaryResponse>?> GetRegionsAsync() =>
-        httpClient.GetFromJsonAsync<List<RegionSummaryResponse>>("api/regions");
+    public Task<List<RegionSummaryResponse>?> GetRegionsAsync() => GetCatalogRegionsAsync();
 
-    public async Task<List<DungeonSummaryResponse>?> GetDungeonsAsync()
-    {
-        var request = await CreateRequestAsync(HttpMethod.Get, "api/dungeons", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<DungeonSummaryResponse>>() : null;
-    }
+    public Task<List<DungeonSummaryResponse>?> GetDungeonsAsync() => GetMergedDungeonsAsync();
 
     public async Task<DungeonSummaryResponse?> GetDungeonAsync(int dungeonId, int depthLevel = 1)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, $"api/dungeons/{dungeonId}?depthLevel={depthLevel}", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<DungeonSummaryResponse>() : null;
     }
 
@@ -289,14 +283,14 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Join, SlotIndex = slotIndex });
-        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "加入房间失败。");
+        return await HandleRoomDetailResponseAsync(await SendTrackedAsync(request), "加入房间失败。");
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetRoomVisibilityAsync(int roomId, bool isPublic)
     {
         using var request = await CreateRequestAsync(HttpMethod.Put, $"api/rooms/{roomId}/visibility", requiresAuth: true);
         request.Content = JsonContent.Create(new SetRoomVisibilityRequest { IsPublic = isPublic });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if ((int)response.StatusCode >= 500) return (null, "房间服务暂时不可用，请稍后重试。");
         return await HandleRoomDetailResponseAsync(response, "更新房间开放状态失败。");
     }
@@ -305,17 +299,17 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Leave });
-        return await HandleRoomDetailResponseAsync(await httpClient.SendAsync(request), "离开房间失败。");
+        return await HandleRoomDetailResponseAsync(await SendTrackedAsync(request), "离开房间失败。");
     }
 
     public async Task<(SetSlotAutoResponse? Response, string? ErrorMessage)> SetSlotAutoAsync(int roomId, int slotIndex, bool isAutoEnabled)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots/{slotIndex}/auto", requiresAuth: true);
         request.Content = JsonContent.Create(new SetSlotAutoRequest { SlotIndex = slotIndex, IsAutoEnabled = isAutoEnabled });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
             return (null, string.IsNullOrWhiteSpace(error) ? "配置 Auto 失败。" : error);
         }
@@ -330,10 +324,10 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         try
         {
             using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
-            using var response = await httpClient.SendAsync(request, timeout.Token);
+            using var response = await SendTrackedAsync(request, timeout.Token);
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
                 return new(null, RoomLoadStatus.Unauthorized);
             }
             if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.Gone)
@@ -361,7 +355,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/sync", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode) return (null, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
     }
@@ -370,7 +364,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
         request.Content = JsonContent.Create(options);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -381,19 +375,19 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+        return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Assign, SlotIndex = slotIndex, CharacterId = characterId });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -405,35 +399,35 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+        return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> RemoveRoomSlotAsync(int roomId, int slotIndex)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Remove, SlotIndex = slotIndex });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         return await HandleRoomDetailResponseAsync(response, "移除角色失败。");
     }
 
     public async Task<List<RoomOperationResponse>?> GetRoomOperationsAsync(int roomId)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}/operations", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomOperationResponse>>() : null;
     }
 
     public async Task<string?> CancelRoomOperationAsync(int roomId, int operationId)
     {
         using var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/operations/{operationId}", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         return response.IsSuccessStatusCode ? null : await response.Content.ReadAsStringAsync();
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         return response.IsSuccessStatusCode;
     }
 
@@ -443,7 +437,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var error = await response.Content.ReadAsStringAsync();
@@ -457,19 +451,19 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
         }
 
-        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+        return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
     }
 
     public async Task<(BattleResult? Result, string? ErrorMessage)> ExecuteRoundAsync(int roomId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/round", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             if (response.StatusCode == HttpStatusCode.Conflict &&
@@ -516,13 +510,13 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             ExpectedRoundNumber = expectedRoundNumber,
             ExpectedRunSequence = expectedRunSequence
         });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode)
             return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            await userSessionService.ClearToken();
+            await ClearResponseSessionAsync(response);
             return (null, "登录已失效，请重新登录。");
         }
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -560,12 +554,12 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -577,7 +571,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<RoomDetailResponse>(), null);
+        return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
     }
 
     public async Task<(AuthResponse? Response, string? ErrorMessage)> RegisterAsync(RegisterRequest request)
@@ -592,17 +586,20 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         return await HandleAuthResponseAsync(response);
     }
 
-    public async Task<CurrentUserResponse?> GetCurrentUserAsync()
+    public Task<CurrentUserResponse?> GetCurrentUserAsync(bool forceRefresh = false) =>
+        ReadCachedAsync("user", ReadCurrentUserAsync, forceRefresh);
+
+    private async Task<CurrentUserResponse?> ReadCurrentUserAsync()
     {
         try
         {
             using var request = await CreateRequestAsync(HttpMethod.Get, "api/user/me", requiresAuth: true);
-            using var response = await httpClient.SendAsync(request);
+            using var response = await SendTrackedAsync(request);
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == HttpStatusCode.Unauthorized)
                 {
-                    await userSessionService.ClearToken();
+                    await ClearResponseSessionAsync(response);
                 }
 
                 return null;
@@ -620,15 +617,18 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         }
     }
 
-    public async Task<CurrentCharacterResponse?> GetCurrentCharacterAsync()
+    public Task<CurrentCharacterResponse?> GetCurrentCharacterAsync(bool forceRefresh = false) =>
+        ReadCachedAsync("character", ReadCurrentCharacterAsync, forceRefresh);
+
+    private async Task<CurrentCharacterResponse?> ReadCurrentCharacterAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Get, "api/user/character", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             return null;
@@ -637,15 +637,18 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         return await response.Content.ReadFromJsonAsync<CurrentCharacterResponse>();
     }
 
-    public async Task<List<CharacterSummaryResponse>?> GetCurrentCharactersAsync()
+    public Task<List<CharacterSummaryResponse>?> GetCurrentCharactersAsync(bool forceRefresh = false) =>
+        ReadCachedAsync("characters", ReadCurrentCharactersAsync, forceRefresh);
+
+    private async Task<List<CharacterSummaryResponse>?> ReadCurrentCharactersAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Get, "api/user/characters", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             return null;
@@ -654,11 +657,10 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
     }
 
-    public async Task<List<ProfessionResponse>?> GetProfessionsAsync() =>
-        await httpClient.GetFromJsonAsync<List<ProfessionResponse>>("api/skills/professions");
+    public Task<List<ProfessionResponse>?> GetProfessionsAsync() => GetCatalogProfessionsAsync();
 
     public Task<(CharacterCombatProfessionsResponse? Response, string? ErrorMessage)> GetCharacterProfessionsAsync(int characterId) =>
-        SendCharacterProfessionRequestAsync(HttpMethod.Get, $"api/skills/professions/{characterId}");
+        ReadCachedResultAsync($"professions:{characterId}", () => SendCharacterProfessionRequestAsync(HttpMethod.Get, $"api/skills/professions/{characterId}"));
 
     public Task<(CharacterCombatProfessionsResponse? Response, string? ErrorMessage)> SwitchCharacterProfessionAsync(int characterId, string professionCode) =>
         SendCharacterProfessionRequestAsync(HttpMethod.Post, $"api/skills/professions/{characterId}/switch",
@@ -669,18 +671,18 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (body is not null) request.Content = JsonContent.Create(body);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
             return (null, string.IsNullOrWhiteSpace(error) ? "职业操作失败。" : error.Trim().Trim('"'));
         }
-        return (await response.Content.ReadFromJsonAsync<CharacterCombatProfessionsResponse>(), null);
+        return await ReadCharacterResultAsync<CharacterCombatProfessionsResponse>(response, method, "professions", value => value.CharacterId);
     }
 
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> GetCharacterSkillsAsync(int characterId) =>
-        SendSkillRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/skills");
+        ReadCachedResultAsync($"skills:{characterId}", () => SendSkillRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/skills"));
 
     public Task<(CharacterSkillsResponse? Response, string? ErrorMessage)> SetSkillSlotAsync(
         int characterId, int slotIndex, SetSkillSlotRequest configuration) =>
@@ -725,7 +727,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             IsQueued = isQueued,
             TargetCharacterId = targetCharacterId
         });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         return await HandleRoomDetailResponseAsync(response, "安排技能失败。");
     }
 
@@ -737,7 +739,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         {
             RoomId = roomId, CharacterId = characterId, IsQueued = isQueued
         });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         return await HandleRoomDetailResponseAsync(response, "安排魂印失败。");
     }
 
@@ -746,21 +748,21 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
             return (null, string.IsNullOrWhiteSpace(error) ? "技能操作失败。" : error);
         }
-        return (await response.Content.ReadFromJsonAsync<CharacterSkillsResponse>(), null);
+        return await ReadCharacterResultAsync<CharacterSkillsResponse>(response, method, "skills", value => value.CharacterId);
     }
 
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId) =>
-        SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables");
+        ReadCachedResultAsync($"consumables:{characterId}", () => SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables"));
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> GetCharacterWeaponsAsync(int characterId) =>
-        SendWeaponRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/weapons");
+        ReadCachedResultAsync($"weapons:{characterId}", () => SendWeaponRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/weapons"));
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SetWeaponSlotAsync(
         int characterId, int slotIndex, int? weaponId) =>
@@ -804,19 +806,19 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
             return (null, string.IsNullOrWhiteSpace(error) ? "武器操作失败。" : error);
         }
-        return (await response.Content.ReadFromJsonAsync<CharacterWeaponsResponse>(), null);
+        return await ReadCharacterResultAsync<CharacterWeaponsResponse>(response, method, "weapons", value => value.CharacterId);
     }
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> GetCharacterSoulImprintsAsync(
         int characterId) =>
-        SendSoulImprintRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/soul-imprints");
+        ReadCachedResultAsync($"soul-imprints:{characterId}", () => SendSoulImprintRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/soul-imprints"));
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetEquippedSoulImprintAsync(
         int characterId, int? soulImprintId) =>
@@ -847,10 +849,10 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
             return (null, error switch
             {
@@ -862,7 +864,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
                 _ => "魂印操作失败，请稍后重试。"
             });
         }
-        return (await response.Content.ReadFromJsonAsync<CharacterSoulImprintsResponse>(), null);
+        return await ReadCharacterResultAsync<CharacterSoulImprintsResponse>(response, method, "soul-imprints", value => value.CharacterId);
     }
 
     public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SetConsumableSlotAsync(
@@ -883,7 +885,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
             ExpectedRoundNumber = expectedRoundNumber,
             ExpectedRunSequence = expectedRunSequence
         });
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         return await HandleRoomDetailResponseAsync(response, "安排战斗道具失败。");
     }
 
@@ -892,26 +894,26 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         using var request = await CreateRequestAsync(method, url, requiresAuth: true);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
-        using var response = await httpClient.SendAsync(request);
+        using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
-            if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+            if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
             return (null, string.IsNullOrWhiteSpace(error) ? "补给操作失败。" : error);
         }
-        return (await response.Content.ReadFromJsonAsync<CharacterConsumablesResponse>(), null);
+        return await ReadCharacterResultAsync<CharacterConsumablesResponse>(response, method, "consumables", value => value.CharacterId);
     }
 
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> SelectCurrentCharacterAsync(int characterId)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/character/select", requiresAuth: true);
         request.Content = JsonContent.Create(new SelectCharacterRequest { CharacterId = characterId });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -930,12 +932,12 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true);
         request.Content = JsonContent.Create(new CreateCharacterRequest { Name = name, ProfessionCode = professionCode });
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -953,12 +955,12 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<(bool Success, string? ErrorMessage)> DeleteCharacterAsync(int characterId)
     {
         var request = await CreateRequestAsync(HttpMethod.Delete, $"api/user/characters/{characterId}", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                await userSessionService.ClearToken();
+                await ClearResponseSessionAsync(response);
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
@@ -978,10 +980,10 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
     public async Task<bool> LogoutAsync()
     {
         var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true);
-        var response = await httpClient.SendAsync(request);
+        var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            await userSessionService.ClearToken();
+            await ClearResponseSessionAsync(response);
         }
 
         return response.IsSuccessStatusCode;
@@ -1016,6 +1018,7 @@ public partial class ApiService(HttpClient httpClient, UserSessionService userSe
         if (requiresAuth)
         {
             await AttachAuthorizationHeaderAsync(request);
+            request.Options.Set(ContextRevisionKey, DataRevision);
         }
 
         return request;

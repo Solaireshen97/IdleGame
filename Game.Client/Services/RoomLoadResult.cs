@@ -10,4 +10,4 @@ public enum RoomLoadStatus
     RetryableError
 }
 
-public sealed record RoomLoadResult(RoomDetailResponse? Room, RoomLoadStatus Status);
+public sealed record RoomLoadResult(RoomDetailResponse? Room, RoomLoadStatus Status, BattleSyncResponse? Synchronization = null);

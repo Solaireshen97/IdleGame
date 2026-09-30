@@ -1,0 +1,14 @@
+{
+  "durationSeconds": 60.01,
+  "scenario": "One-minute HTTP cadence simulation: battle every 2s and character/user summaries every 10s; isolated SQLite, idle private one-character room, no browser network trace",
+  "requests": 42,
+  "snapshotRequests": 30,
+  "fullSnapshots": 6,
+  "unchangedSnapshots": 24,
+  "responseUtf8Bytes": 66981.0,
+  "p50Ms": 15.84,
+  "p95Ms": 19.89,
+  "catalogRevalidationStatus": 304,
+  "preferenceInvalidationVerified": true,
+  "unauthorizedSnapshotStatus": 401
+}

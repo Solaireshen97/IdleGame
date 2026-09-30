@@ -19,15 +19,27 @@ if (!Path.IsPathRooted(gameDbConnection.DataSource))
     gameDbConnection.DataSource = Path.Combine(builder.Environment.ContentRootPath, gameDbConnection.DataSource);
 }
 
-builder.Services.AddDbContext<GameDbContext>(options =>
-    options.UseSqlite(gameDbConnection.ToString()));
+builder.Services.AddSingleton<RoomProjectionRevision>();
+builder.Services.AddSingleton<RoomProjectionCache>();
+builder.Services.AddSingleton<RoomProjectionInvalidation>();
+builder.Services.AddSingleton<RoomProjectionTransactionInvalidation>();
+builder.Services.AddDbContext<GameDbContext>((services, options) =>
+    options.UseSqlite(gameDbConnection.ToString()).AddInterceptors(
+        services.GetRequiredService<RoomProjectionInvalidation>(),
+        services.GetRequiredService<RoomProjectionTransactionInvalidation>()));
 
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<BattleService>();
+builder.Services.AddScoped<BattleSynchronizationService>();
 builder.Services.AddScoped<DungeonRunService>();
 builder.Services.AddScoped<DungeonDepthProgressService>();
 builder.Services.AddScoped<PartyScalingService>();
 builder.Services.AddScoped<MonsterCombatService>();
+builder.Services.AddScoped<BattleEventCollector>();
+builder.Services.AddScoped<BattleStatusService>();
+builder.Services.AddScoped<BattleGuardService>();
+builder.Services.AddScoped<BattleDamageService>();
+builder.Services.AddScoped<BattleEffectExecutor>();
 builder.Services.AddScoped<RewardService>();
 builder.Services.AddScoped<BattleMilestoneService>();
 builder.Services.AddScoped<RareSeedService>();
@@ -70,12 +82,16 @@ builder.Services.AddSingleton<DungeonDepthCatalog>();
 builder.Services.AddSingleton<WeaponBreakthroughCatalog>();
 builder.Services.AddSingleton<PartyScalingCatalog>();
 builder.Services.AddSingleton<MonsterCombatCatalog>();
+builder.Services.AddSingleton<BattleStatusCatalog>();
+builder.Services.AddSingleton(_ => ProfessionMechanicCatalog.Default);
+builder.Services.AddSingleton<SkillInformationService>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();
 builder.Services.AddSingleton<PlantingCatalog>();
 builder.Services.AddSingleton<ProductionCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<WorldCatalog>();
+builder.Services.AddSingleton<ContentCatalogStore>();
 builder.Services.AddSingleton<CharacterSlotCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
@@ -93,6 +109,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    scope.ServiceProvider.GetRequiredService<ProfessionMechanicCatalog>().Validate(
+        scope.ServiceProvider.GetRequiredService<SkillCatalog>(), scope.ServiceProvider.GetRequiredService<BattleStatusCatalog>());
     var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
     var world = scope.ServiceProvider.GetRequiredService<WorldCatalog>();
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();

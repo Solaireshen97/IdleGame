@@ -3,6 +3,7 @@
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
+@inject AccountBalanceState AccountBalance
 @inject NavigationManager Navigation
 @inherits LayoutComponentBase
 @implements IDisposable
@@ -98,6 +99,7 @@
 
 @code {
     private CurrentUserResponse? _currentUser;
+    private long _userLoadRequest;
     private bool _isLoadingUser = true;
     private bool _canRenderBody;
     private bool _isLoggingOut;
@@ -150,15 +152,22 @@
     protected override void OnInitialized()
     {
         ActiveCharacters.Changed += OnActiveCharacterChanged;
+        AccountBalance.Changed += OnAccountBalanceChanged;
+        ApiService.ContextChanged += OnContextChanged;
         _ = RefreshCharacterLoopAsync(_refreshCancellation.Token);
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        var request = ++_userLoadRequest;
         _isLoadingUser = true;
         _canRenderBody = IsAuthPage;
-        _currentUser = await ApiService.GetCurrentUserAsync();
-        if (_refreshCancellation.IsCancellationRequested) return;
+        await ApiService.EnsureContextAsync();
+        var revision = ApiService.DataRevision;
+        var user = await LoadCurrentUserAsync();
+        if (_refreshCancellation.IsCancellationRequested || request != _userLoadRequest) return;
+        if (user is not null) _currentUser = user;
+        else if (revision != ApiService.DataRevision) return;
         if (_currentUser is null)
         {
             _isSwitcherOpen = false;
@@ -177,8 +186,8 @@
         }
         else
         {
-            await ActiveCharacters.RefreshAsync();
-            if (_refreshCancellation.IsCancellationRequested) return;
+            await ActiveCharacters.EnsureLoadedAsync();
+            if (_refreshCancellation.IsCancellationRequested || request != _userLoadRequest) return;
             _canRenderBody = true;
         }
         _isLoadingUser = false;
@@ -216,6 +225,33 @@
     }
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnContextChanged()
+    {
+        _currentUser = null;
+        _isSwitcherOpen = false;
+        _focusSwitcherClose = false;
+        _focusSwitcherTrigger = false;
+        _ = InvokeAsync(async () =>
+        {
+            if (_refreshCancellation.IsCancellationRequested) return;
+            await OnParametersSetAsync();
+            if (!_refreshCancellation.IsCancellationRequested) StateHasChanged();
+        });
+    }
+
+    private void OnAccountBalanceChanged() => _ = InvokeAsync(() =>
+    {
+        if (_currentUser is not null && _currentUser.ActiveCharacterId == AccountBalance.CharacterId &&
+            AccountBalance.CharacterId == ActiveCharacters.Current?.CharacterId &&
+            AccountBalance.Gold is int gold)
+            _currentUser.Gold = gold;
+        StateHasChanged();
+    });
+
+    private Task<CurrentUserResponse?> LoadCurrentUserAsync(bool forceRefresh = false) =>
+        CharacterUserSnapshotReader.LoadAsync(ApiService, ActiveCharacters, AccountBalance,
+            forceRefresh, _refreshCancellation.Token);
 
     private async Task OpenBattleAsync()
     {
@@ -275,7 +311,7 @@
                 if (_currentUser is not null)
                 {
                     await ActiveCharacters.RefreshAsync();
-                    var refreshed = await ApiService.GetCurrentUserAsync();
+                    var refreshed = await LoadCurrentUserAsync(forceRefresh: true);
                     if (refreshed is not null)
                     {
                         _currentUser = refreshed;
@@ -291,6 +327,8 @@
     public void Dispose()
     {
         ActiveCharacters.Changed -= OnActiveCharacterChanged;
+        AccountBalance.Changed -= OnAccountBalanceChanged;
+        ApiService.ContextChanged -= OnContextChanged;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
     }

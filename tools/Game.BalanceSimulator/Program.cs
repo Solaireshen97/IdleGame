@@ -25,7 +25,9 @@ var talentBuilds = talentBuildPath.Length == 0 ? new Dictionary<string, TalentBu
 foreach (var (name, profile) in talentBuilds)
 {
     _ = StandardRole(profile.Role);
-    if (string.IsNullOrWhiteSpace(name) || profile.Nodes.Count == 0 || profile.Nodes.Values.Any(rank => rank <= 0) ||
+    if (profile.Nodes is { Count: > 0 })
+        throw new ArgumentException($"Combat talent trees are no longer active; remove Nodes from build {name} and select native Skills instead.");
+    if (string.IsNullOrWhiteSpace(name) ||
         profile.Skills.Count is < 1 or > 5 || profile.Skills.Distinct(StringComparer.OrdinalIgnoreCase).Count() != profile.Skills.Count)
         throw new ArgumentException($"Invalid talent build: {name}");
 }
@@ -34,11 +36,13 @@ var partyScalingCatalog = new PartyScalingCatalog(Bind<PartyScalingOptions>(Part
 var world = new WorldCatalog(Options.Create(worldConfig.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!), partyScalingCatalog);
 var runs = int.Parse(Option("--runs", "5"));
 var seedStart = int.Parse(Option("--seed-start", "1"));
+var includeTrace = args.Contains("--trace");
 var sourceFiles = SourceHashes();
 var elements = Option("--elements", "Fire,Water,Earth,Wind,Light,Dark").Split(',').Select(Enum.Parse<ElementType>).ToList();
 var weaponElementOption = Option("--weapon-element", string.Empty);
 ElementType? weaponElement = weaponElementOption.Length == 0 ? null : Enum.Parse<ElementType>(weaponElementOption);
-var roles = Option("--roles", "knight,warrior,priest,inquisitor,elementalist,arcanist,marksman,beastmaster,assassin,trickster")
+var roles = Option("--roles", string.Join(',', Bind<SkillOptions>(SkillOptions.SectionName).Value.Professions
+        .Where(profession => !profession.IsPromotion).Select(profession => profession.Code)))
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 var stages = Option("--stages", "starter,shop,field,week,graduate").Split(',');
 var targets = Option("--targets", "normal,dungeon,elite,endgame").Split(',');
@@ -90,9 +94,10 @@ var report = new
     Assumptions = new { RunsPerScenario = runs, SeedStart = seedStart, MaxRounds = 250, PartySize = partySize, ControlMode = controlMode,
         WeaponElement = weaponElement?.ToString() ?? "SameAsDungeonRegion",
         TalentBuildsFile = talentBuildPath.Length == 0 ? null : talentBuildPath,
+        TraceSchemaVersion = BattleRoundTrace.SchemaVersion, IncludesRoundTrace = includeTrace,
         Compositions = compositions.Count > 0 ? compositions : null,
         SoulLoadouts = soulLoadouts,
-        Description = "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and reachable talent builds; weapon element defaults to dungeon region unless overridden; dungeon clear milestones pre-unlocked; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Raid weapons come from regional content; native souls require a previous endgame clear or exchange, so raid/native measures farming, not first-clear access. Auto uses production Auto conditions. Manual queues equipped skills before each round, reserving Guard effects for Deadly intents; it is a fixed policy, not optimal human play. Successful encounters include the full interval until the next run's first round (20s Auto, 10s manual), including the 5s respawn wait; failures have no automatic restart. Hunt HP uses the configured party scaling profile." },
+        Description = "Real BattleService, MonsterCombatService, RewardService and configuration; deterministic seeds; preset equipment and level-unlocked native skills; inactive combat talent trees are excluded; weapon element defaults to dungeon region unless overridden; dungeon clear milestones pre-unlocked; 1000 starting potions per actor; full health on entry; includes wave/cooldown/repeat waits and excludes acquisition time. Raid weapons come from regional content; native souls require a previous endgame clear or exchange, so raid/native measures farming, not first-clear access. Auto uses production Auto conditions. Manual queues equipped skills before each round, reserving Guard effects for Deadly intents; it is a fixed policy, not optimal human play. Successful encounters include the full interval until the next run's first round (20s Auto, 10s manual), including the 5s respawn wait; failures have no automatic restart. Hunt HP uses the configured party scaling profile." },
     Summary = results.GroupBy(x => new { x.Stage, x.Element, x.Profession, x.SoulLoadout, x.Dungeon, x.PartySize }).Select(group => new
     {
         group.Key, Runs = group.Count(), Victories = group.Count(x => x.Victory),
@@ -146,6 +151,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var rewards = new RewardCatalog(Bind<RewardOptions>(RewardOptions.SectionName), consumables, weapons,
         materials, soulImprints, random);
     var combatCatalog = new MonsterCombatCatalog(Bind<MonsterCombatOptions>(MonsterCombatOptions.SectionName));
+    ProfessionMechanicCatalog.Default.Validate(skills, combatCatalog.Statuses);
     var encounters = new DungeonEncounterCatalog(Bind<DungeonEncounterOptions>(DungeonEncounterOptions.SectionName), combatCatalog, rewards);
     var region = world.Regions.Single(region => region.FeaturedElement == element);
     var definition = target switch
@@ -162,7 +168,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
     await db.Database.EnsureCreatedAsync();
     var dungeon = JsonSerializer.Deserialize<Dungeon>(JsonSerializer.Serialize(definition))!;
-    var user = new User { Id = 1, UserName = "simulation", PasswordHash = "unused", ActiveCharacterId = 1, StarterWeaponRewardClaimed = true };
+    var user = new User { Id = 1, UserName = "simulation", PasswordHash = "unused", ActiveCharacterId = 1 };
     db.AddRange(user, dungeon);
     await db.SaveChangesAsync();
     var room = new Room { DungeonId = dungeon.Id, OwnerUserId = 1, IsOwnerAutoEnabled = true, SlotCount = 5, Status = RoomStatus.NotStarted, IsPreparationTimeoutEnabled = false, TotalWaveCount = encounters.GetWaveCount(dungeon) };
@@ -181,14 +187,14 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         var role = explicitComposition.Count > 0 ? explicitComposition[index - 1] :
             party == 1 ? profession : BalancedPartyRole(index);
         var build = ResolveRole(role);
-        var baseProfession = build.BaseProfession;
+        var baseProfession = skills.FindProfession(build.BaseProfession)?.Code ??
+            throw new ArgumentException($"Role {role} has no configured native profession.");
         var character = new Character { Id = index, UserId = 1, Name = $"{role}-{index}", ProfessionCode = baseProfession,
-            AdvancedProfessionCode = stage is "starter" or "shop" ? null : build.Promotion,
             Level = stage == "starter" ? 1 : stage == "shop" ? 5 : 10 };
         var loadout = Loadout(weapons, stage, weaponElement ?? element, index);
         character.Attack = loadout.Sum(item => item.Attack);
         character.MaxHp = loadout.Sum(item => item.MaxHp);
-        var talentCodes = Talents(character, stage, build);
+        var talentCodes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         weapons.ApplyBonuses(character, loadout);
         character.Hp = TalentRules.EffectiveMaxHp(character);
         actors.Add(character);
@@ -208,11 +214,18 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 70 });
         foreach (var (code, rank) in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = rank });
         var learned = skills.LearnedSkills(character, talentCodes).Select(skill => skill.Code).ToHashSet();
-        var preferred = build.Profile?.Skills.ToArray() ?? PreferredSkills(build.Promotion);
+        var preferred = build.Profile?.Skills.ToArray() ?? skills.NativeSkills(character)
+            .OrderBy(skill => skill.UnlockLevel).ThenBy(skill => skill.Code, StringComparer.Ordinal).Select(skill => skill.Code).ToArray();
         if (build.Profile is not null && preferred.Any(code => !learned.Contains(code)))
             throw new InvalidOperationException($"Talent build {role} equips an unlearned skill");
         var selected = preferred.Where(learned.Contains).Take(5).ToList();
-        actorBuilds.Add(new ActorBuild(index, build.Promotion, weaponElement ?? element, selected, talentCodes));
+        if (selected.Count == 0 || selected.Any(code => skills.Resolve(character, code) is null))
+            throw new InvalidOperationException($"Role {role} has no valid equipped native skills at level {character.Level}.");
+        actorBuilds.Add(new ActorBuild(index, baseProfession, character.Level, weaponElement ?? element, selected, talentCodes,
+            loadout.Select(weapon => new WeaponBuild(weapon.EquippedSlotIndex!.Value, weapon.WeaponCode,
+                weapon.TemplateRevision, weapon.Element, weapon.ItemLevel, weapon.QualityRank, weapon.Attack, weapon.MaxHp,
+                weapon.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
+                    new WeaponSkillBuild(skill.SlotIndex, skill.SkillCode, skill.Level, skill.EnhancementLevel)).ToList())).ToList()));
         for (var slot = 0; slot < selected.Count; slot++) db.CharacterSkillSlots.Add(new CharacterSkillSlot
         { CharacterId = index, SlotIndex = slot + 1, SkillCode = selected[slot], AutoUseEnabled = true, AutoHpThresholdPercent = 75 });
         if (stage == "raid")
@@ -242,6 +255,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         partyScalingService: new PartyScalingService(db, partyScalingCatalog));
     var seconds = 0d;
     var logs = new List<string>();
+    var traces = new List<BattleRoundTrace>();
     var roundCounts = monsters.Select(monster => monster.Name).Distinct().ToDictionary(name => name, _ => 0);
     bool victory = false;
     for (var step = 0; step < 300 && room.RoundNumber < 250; step++)
@@ -274,6 +288,19 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         if (error is not null || result is null) throw new InvalidOperationException(error ?? "No result");
         roundCounts[active.Name] += room.RoundNumber - previousRounds;
         logs.AddRange(result.Logs);
+        if (room.RoundNumber != previousRounds)
+        {
+            var participants = (await db.RoomSlots.Where(slot => slot.RoomId == room.Id && slot.CharacterId != null).ToListAsync())
+                .Select(slot => new BattleParticipant(slot, actors.Single(actor => actor.Id == slot.CharacterId))).ToList();
+            traces.Add(BattleRoundTrace.Capture(room, result, participants, monsters,
+                await db.BattleStatusEffects.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleSkillCooldowns.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleMonsterSkillCooldowns.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleConsumableCooldowns.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleHealingPotionStates.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleOperationPotionStates.Where(state => state.RoomId == room.Id).ToListAsync(),
+                await db.BattleConsumableBuffs.Where(state => state.RoomId == room.Id).ToListAsync()));
+        }
         if (room.Status == RoomStatus.BattleOver)
         {
             victory = result.IsVictory;
@@ -303,16 +330,18 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         TalentRules.EffectiveMaxHp(actors[0]), finalMonster.Hp, finalMonster.MaxHp, roundCounts, bossSkillUses,
         victory ? [] : logs.TakeLast(8).ToList(), actorBuilds, actors.Count(actor => actor.Hp > 0),
         bossSkillUses.GetValueOrDefault(combatCatalog.FindSkill("endgame-soft-enrage")?.Name ?? ""),
-        bossSkillUses.GetValueOrDefault(combatCatalog.FindSkill("endgame-hard-enrage")?.Name ?? ""));
+        bossSkillUses.GetValueOrDefault(combatCatalog.FindSkill("endgame-hard-enrage")?.Name ?? ""),
+        BattleRoundTrace.EncounterFingerprint(traces), includeTrace ? traces : null);
 }
 
 List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType element, int characterId)
 {
     var all = Bind<WeaponOptions>(WeaponOptions.SectionName).Value.Items;
-    var field = all.Where(item => item.Element == element && item.Code.StartsWith("t1-") && !item.Code.StartsWith("t1-shop-")).OrderByDescending(item => item.Attack).ToList();
+    var field = all.Where(item => item.Element == element && item.Code.StartsWith("t1-") && !item.Code.StartsWith("t1-shop-"))
+        .OrderByDescending(item => item.Attack).ThenBy(item => item.Code, StringComparer.Ordinal).ToList();
     var bossCode = world.Regions.Single(region => region.FeaturedElement == element).FeaturedWeaponCode;
     var exchange = Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName).Value.Offers;
-    var mine = exchange.Single(offer => offer.DungeonCode == "kobold-mine" && offer.RewardKind == "Weapon" &&
+    var mine = exchange.Single(offer => offer.DungeonCode == "kobold-mine-depths" && offer.RewardKind == "Weapon" &&
         catalog.FindItem(offer.EffectiveRewardCode)!.Element == element).EffectiveRewardCode;
     var endgameCode = world.Dungeons.Single(dungeon => dungeon.RegionCode ==
         world.Regions.Single(region => region.FeaturedElement == element).Code &&
@@ -321,7 +350,10 @@ List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType e
         catalog.FindItem(offer.EffectiveRewardCode)!.Element == element).EffectiveRewardCode;
     var eliteNames = world.Dungeons.Where(d => d.DungeonKind == "Elite" && d.RegionCode == world.Regions.Single(r => r.FeaturedElement == element).Code).Select(d => d.Code).ToList();
     var rewards = Bind<RewardOptions>(RewardOptions.SectionName).Value;
-    var elite = eliteNames.Select(code => rewards.MonsterKills[code].Drops.Single(drop => drop.Kind == "Weapon").Code).ToList();
+    var elite = eliteNames.Select(code => rewards.MonsterKills[code].Drops
+        .Where(drop => drop.Kind == "Weapon" && catalog.FindItem(drop.Code)?.Element == element)
+        .OrderByDescending(drop => catalog.FindItem(drop.Code)!.Attack).ThenBy(drop => drop.Code, StringComparer.Ordinal)
+        .First().Code).ToList();
     var shop = $"t1-shop-{element.ToString().ToLowerInvariant()}";
     List<string> codes = stage switch
     {
@@ -352,81 +384,6 @@ List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType e
     return result;
 }
 
-Dictionary<string, int> Talents(Character character, string stage, RoleBuild build)
-{
-    if (stage == "starter") return new(StringComparer.OrdinalIgnoreCase);
-    var isShop = stage == "shop";
-    Dictionary<string, int> nodes = build.Profile is not null
-        ? new(build.Profile.Nodes, StringComparer.OrdinalIgnoreCase)
-        : character.ProfessionCode switch
-    {
-        "swordsman" when isShop => new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-assault-stance"] = 1 },
-        "swordsman" when build.Style == "guard" => new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-guard-stance"] = 1,
-            ["sword-recovery-training"] = 2, ["sword-counteroffense"] = 1, ["sword-protection"] = 2 },
-        "swordsman" => new() { ["sword-rhythm"] = 1, ["sword-edge"] = 1, ["sword-vitality"] = 1, ["sword-assault-stance"] = 1,
-            ["sword-combat-training"] = 2, ["sword-pursuit"] = 1, ["sword-precision"] = 2 },
-        "acolyte" when isShop => new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-judgment"] = 1 },
-        "acolyte" when build.Style == "mercy" => new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-mercy"] = 1,
-            ["acolyte-heal-training"] = 2, ["acolyte-afterglow"] = 1, ["acolyte-devotion"] = 2 },
-        "acolyte" => new() { ["acolyte-echo"] = 1, ["acolyte-doctrine"] = 1, ["acolyte-prayer"] = 1, ["acolyte-judgment"] = 1,
-            ["acolyte-light-training"] = 2, ["acolyte-light-return"] = 1, ["acolyte-focus"] = 2 },
-        "mage" when isShop => new() { ["mage-arcane-insight"] = 1, ["mage-flow"] = 1, ["mage-frost-discipline"] = 1, ["mage-arcane-training"] = 1 },
-        "mage" when build.Style == "burst" => new() { ["mage-arcane-insight"] = 1, ["mage-flow"] = 1, ["mage-frost-discipline"] = 1,
-            ["mage-arcane-training"] = 2, ["mage-barrage-talent"] = 1, ["mage-precision"] = 2, ["mage-arcane-mastery"] = 1 },
-        "mage" => new() { ["mage-flow"] = 1, ["mage-frost-discipline"] = 1, ["mage-spellbreak-talent"] = 1,
-            ["mage-suppression-talent"] = 1, ["mage-countermagic"] = 2, ["mage-stable-channeling"] = 1, ["mage-ward-training"] = 2 },
-        "hunter" when isShop => new() { ["hunter-keen-eye"] = 1, ["hunter-steady-hand"] = 1, ["hunter-fieldcraft"] = 1, ["hunter-bow-training"] = 1 },
-        "hunter" when build.Style == "precision" => new() { ["hunter-keen-eye"] = 1, ["hunter-steady-hand"] = 1, ["hunter-venom-talent"] = 1,
-            ["hunter-bow-training"] = 2, ["hunter-mark-talent"] = 1, ["hunter-precision"] = 2, ["hunter-predator"] = 1 },
-        "hunter" => new() { ["hunter-steady-hand"] = 1, ["hunter-fieldcraft"] = 1, ["hunter-mending-training"] = 2,
-            ["hunter-venom-talent"] = 1, ["hunter-volley-talent"] = 1, ["hunter-toxin-training"] = 2, ["hunter-relentless"] = 1 },
-        "rogue" when isShop => new() { ["rogue-killer-instinct"] = 1, ["rogue-light-fingers"] = 1, ["rogue-footwork"] = 1, ["rogue-blade-training"] = 1 },
-        "rogue" when build.Style == "burst" => new() { ["rogue-killer-instinct"] = 1, ["rogue-light-fingers"] = 1, ["rogue-footwork"] = 1,
-            ["rogue-blade-training"] = 2, ["rogue-flurry-talent"] = 1, ["rogue-deadly-precision"] = 2, ["rogue-relentless-assault"] = 1 },
-        "rogue" => new() { ["rogue-light-fingers"] = 1, ["rogue-footwork"] = 1, ["rogue-recovery-training"] = 2,
-            ["rogue-poison-talent"] = 1, ["rogue-gouge-talent"] = 1, ["rogue-dirty-fighting"] = 2, ["rogue-opportunist"] = 1 },
-        _ => throw new InvalidOperationException($"Unsupported base profession: {character.ProfessionCode}")
-    };
-    var settings = Bind<SkillOptions>(SkillOptions.SectionName).Value;
-    var talentCatalog = new SkillCatalog(Bind<SkillOptions>(SkillOptions.SectionName));
-    if (nodes.Values.Any(rank => rank <= 0)) throw new InvalidOperationException("Illegal talent rank");
-    var unlocked = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-    while (unlocked.Values.Sum() < nodes.Values.Sum())
-    {
-        var next = nodes.Select(entry => settings.TalentNodes.Single(node => node.Code == entry.Key))
-            .FirstOrDefault(node =>
-                node.ProfessionCode == character.ProfessionCode &&
-                unlocked.GetValueOrDefault(node.Code) < nodes[node.Code] &&
-                unlocked.GetValueOrDefault(node.Code) < node.MaxRank &&
-                character.Level >= node.RequiredLevel + unlocked.GetValueOrDefault(node.Code) &&
-                unlocked.Values.Sum() >= node.RequiredTreePoints &&
-                talentCatalog.ArePrerequisitesMet(node, unlocked) &&
-                (node.ExclusiveGroup is null || !settings.TalentNodes.Any(other =>
-                    other.Code != node.Code && other.ExclusiveGroup == node.ExclusiveGroup &&
-                    unlocked.GetValueOrDefault(other.Code) > 0)));
-        if (next is null) throw new InvalidOperationException($"Unreachable talent build for {build.Promotion}/{stage}");
-        unlocked[next.Code] = unlocked.GetValueOrDefault(next.Code) + 1;
-    }
-    foreach (var (code, rank) in nodes)
-    {
-        var node = settings.TalentNodes.Single(item => item.Code == code);
-        var value = node.ValuePerRank * rank;
-        switch (node.EffectCode)
-        {
-            case "MaxHpPercent": character.TalentMaxHpPercent += value; break;
-            case "NormalAttackPercent": character.TalentNormalAttackPercent += value; break;
-            case "SkillDamagePercent": character.TalentSkillDamagePercent += value; break;
-            case "HealingDonePercent": character.TalentHealingDonePercent += value; break;
-            case "HealingReceivedPercent": character.TalentHealingReceivedPercent += value; break;
-            case "SkillCriticalChancePercent": character.TalentSkillCriticalChancePercent += value; break;
-        }
-    }
-    var spent = nodes.Sum(item => item.Value);
-    if (spent > character.Level - 1) throw new InvalidOperationException("Illegal talent budget");
-    character.TalentPoints = character.Level - 1 - spent;
-    return nodes;
-}
-
 static string BalancedPartyRole(int slotIndex) => slotIndex switch
 {
     1 => "knight",
@@ -442,41 +399,25 @@ RoleBuild ResolveRole(string role) => talentBuilds.TryGetValue(role, out var pro
 
 static RoleBuild StandardRole(string role) => role.ToLowerInvariant() switch
 {
-    "knight" or "swordsman-guard" => new("swordsman", "knight", "guard"),
-    "warrior" or "swordsman-assault" => new("swordsman", "warrior", "assault"),
-    "priest" or "acolyte-mercy" => new("acolyte", "priest", "mercy"),
-    "inquisitor" or "acolyte-judgment" => new("acolyte", "inquisitor", "judgment"),
-    "elementalist" => new("mage", "elementalist", "burst"),
-    "arcanist" => new("mage", "arcanist", "control"),
-    "marksman" => new("hunter", "marksman", "precision"),
-    "beastmaster" => new("hunter", "beastmaster", "survival"),
-    "assassin" => new("rogue", "assassin", "burst"),
-    "trickster" => new("rogue", "trickster", "control"),
+    "swordsman" or "knight" or "warrior" or "swordsman-guard" or "swordsman-assault" => new("swordsman"),
+    "acolyte" or "cleric" or "priest" or "inquisitor" or "acolyte-mercy" or "acolyte-judgment" => new("acolyte"),
+    "mage" or "elementalist" or "arcanist" => new("mage"),
+    "hunter" or "marksman" or "beastmaster" => new("hunter"),
+    "rogue" or "assassin" or "trickster" => new("rogue"),
     _ => throw new ArgumentException($"Unknown role {role}")
-};
-
-static string[] PreferredSkills(string promotion) => promotion switch
-{
-    "knight" => ["knight-guard", "sword-parry", "sword-intercept", "sword-double-slash", "sword-slash"],
-    "warrior" => ["warrior-fury", "sword-double-slash", "sword-intercept", "sword-parry", "sword-slash"],
-    "priest" => ["priest-group-heal", "acolyte-heal", "acolyte-purify", "acolyte-radiant-flare", "acolyte-holy-bolt"],
-    "inquisitor" => ["inquisitor-condemn", "acolyte-heal", "acolyte-purify", "acolyte-radiant-flare", "acolyte-holy-bolt"],
-    "elementalist" => ["elementalist-pyroblast", "mage-arcane-barrage", "mage-frost-ward", "mage-arcane-bolt"],
-    "arcanist" => ["arcanist-overcharge", "mage-arcane-suppression", "mage-spellbreak", "mage-frost-ward", "mage-arcane-bolt"],
-    "marksman" => ["hunter-marked-shot", "marksman-sniper-shot", "hunter-venom-arrow", "hunter-field-mend", "hunter-quick-shot"],
-    "beastmaster" => ["beastmaster-coordinated-assault", "hunter-field-mend", "hunter-venom-arrow", "hunter-rapid-volley", "hunter-quick-shot"],
-    "assassin" => ["assassin-deathblow", "rogue-blade-flurry", "rogue-evasion", "rogue-shadow-strike"],
-    "trickster" => ["trickster-smoke-bomb", "rogue-gouge", "rogue-poisoned-blade", "rogue-evasion", "rogue-shadow-strike"],
-    _ => throw new ArgumentException($"Unknown promotion {promotion}")
 };
 
 record Sample(string Stage, ElementType Element, string Profession, string SoulLoadout, string Dungeon, int PartySize, string ControlMode, int Seed,
     bool Victory, int Rounds, double CycleSeconds, int PotionsUsed, int PotionDrops, int Gold, int RemainingHp,
     int Attack, int MaxHp, int MonsterHp, int MonsterMaxHp, Dictionary<string, int> EnemyRounds,
     Dictionary<string, int> BossSkillUses, List<string> FailureLog, List<ActorBuild> Builds, int Survivors,
-    int SoftEnrageCasts, int HardEnrageCasts);
+    int SoftEnrageCasts, int HardEnrageCasts, string BattleFingerprint,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<BattleRoundTrace>? RoundTrace);
 
-record RoleBuild(string BaseProfession, string Promotion, string Style, TalentBuildProfile? Profile = null);
-record TalentBuildProfile(string Role, Dictionary<string, int> Nodes, List<string> Skills);
-record ActorBuild(int Slot, string Profession, ElementType WeaponElement,
-    List<string> EquippedSkills, Dictionary<string, int> TalentRanks);
+record RoleBuild(string BaseProfession, TalentBuildProfile? Profile = null);
+record TalentBuildProfile(string Role, Dictionary<string, int>? Nodes, List<string> Skills);
+record ActorBuild(int Slot, string Profession, int Level, ElementType WeaponElement,
+    List<string> EquippedSkills, Dictionary<string, int> TalentRanks, List<WeaponBuild> Weapons);
+record WeaponBuild(int Slot, string Code, int TemplateRevision, ElementType Element, int ItemLevel, int QualityRank,
+    int Attack, int MaxHp, List<WeaponSkillBuild> Skills);
+record WeaponSkillBuild(int Slot, string Code, int Level, int EnhancementLevel);

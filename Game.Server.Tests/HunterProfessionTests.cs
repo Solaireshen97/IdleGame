@@ -28,11 +28,16 @@ public partial class BattleServiceTests
 
         Assert.Null(firstError);
         Assert.Equal(2, first!.Logs.Count(log => log.Contains("使用 追踪射击 攻击")));
-        Assert.True(await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
-        Assert.True(await combat.HasHunterMarkAsync(test.Room, second.Id, test.Monster.Id));
+        Assert.True(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
+        Assert.True(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, second.Id, test.Monster.Id));
         var marks = await test.Db.BattleStatusEffects.Where(effect => effect.EffectCode == "hunter-prey-mark").ToListAsync();
         Assert.Equal(2, marks.Count);
-        Assert.All(marks, mark => Assert.Equal(test.Monster.Id, mark.PerTickValue));
+        Assert.All(marks, mark =>
+        {
+            Assert.Equal("Monster", mark.BoundTargetType);
+            Assert.Equal(test.Monster.Id, mark.BoundTargetId);
+            Assert.Null(mark.PerTickValue);
+        });
         Assert.Equal(new[] { test.Character.Id, second.Id }.Order(), marks.Select(mark => mark.TargetId).Order());
 
         await test.AddSkillAsync(test.Character, 2, "hunter-precision-shot", autoUse: true);
@@ -42,8 +47,8 @@ public partial class BattleServiceTests
 
         Assert.Null(secondError);
         Assert.Contains(secondRound!.Logs, log => log.Contains("使用 精准射击 攻击"));
-        Assert.False(await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
-        Assert.True(await combat.HasHunterMarkAsync(test.Room, second.Id, test.Monster.Id));
+        Assert.False(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
+        Assert.True(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, second.Id, test.Monster.Id));
     }
 
     [Fact]
@@ -55,8 +60,8 @@ public partial class BattleServiceTests
         test.Monster.Hp = test.Monster.MaxHp = 10000;
         await test.EnableAutoForCharacterAsync(test.Character);
         var (service, combat) = CreateProductionSoulBattleService(test);
-        await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 3, [],
-            test.Character.Name);
+        await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 3, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
         await test.Db.SaveChangesAsync();
 
         for (var roundNumber = 1; roundNumber <= 4; roundNumber++)
@@ -69,7 +74,7 @@ public partial class BattleServiceTests
             var (_, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
             Assert.Null(error);
             Assert.Equal(roundNumber < 4,
-                await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
+                await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
         }
     }
 
@@ -88,8 +93,8 @@ public partial class BattleServiceTests
             var (service, combat) = CreateProductionSoulBattleService(test);
             if (marked)
             {
-                await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 4, [],
-                    test.Character.Name);
+                await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 4, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
                 await test.Db.SaveChangesAsync();
             }
 
@@ -98,7 +103,7 @@ public partial class BattleServiceTests
             Assert.Null(error);
             var hits = round!.Logs.Where(log => log.Contains("使用 精准射击 攻击")).ToList();
             return (HunterDamage(hits.Single()),
-                await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id), hits.Count);
+                await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id), hits.Count);
         }
 
         var plain = await CastAsync(false);
@@ -125,8 +130,8 @@ public partial class BattleServiceTests
             var (service, combat) = CreateProductionSoulBattleService(test);
             if (marked)
             {
-                await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 4, [],
-                    test.Character.Name);
+                await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 4, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
                 await test.Db.SaveChangesAsync();
             }
 
@@ -137,7 +142,7 @@ public partial class BattleServiceTests
             var statuses = await test.Db.BattleStatusEffects.Where(effect =>
                 effect.EffectCode.StartsWith("hunter-vulnerability-")).Select(effect => effect.EffectCode).ToArrayAsync();
             return (HunterDamage(normal), statuses,
-                await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
+                await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
         }
 
         var plain = await CastAsync(false);
@@ -172,7 +177,7 @@ public partial class BattleServiceTests
             log.Contains("使用 破绽射击 攻击"))));
         Assert.Contains(await test.Db.BattleStatusEffects.ToListAsync(), effect =>
             effect.EffectCode == "hunter-vulnerability-10-shared");
-        Assert.False(await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
+        Assert.False(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
     }
 
     [Theory]
@@ -192,9 +197,10 @@ public partial class BattleServiceTests
         await test.AddSkillAsync(test.Character, 1, "hunter-expose-shot", autoUse: true);
         await test.AddSkillAsync(second, 1, "hunter-expose-shot", autoUse: true);
         var (service, combat) = CreateProductionSoulBattleService(test);
-        await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 4, [],
-            test.Character.Name);
-        await combat.ApplyHunterMarkAsync(test.Room, second.Id, test.Monster.Id, 4, [], second.Name);
+        await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 4, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
+        await combat.Statuses.ApplyAsync(test.Room, "Character", second.Id, "hunter-prey-mark", 4, [],
+            second.Name, source: new("Character", second.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
         await test.Db.SaveChangesAsync();
 
         var (round, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
@@ -231,8 +237,8 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Contains(round!.Logs, log => log.Contains("第 2 波"));
-        Assert.False(await combat.HasHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id));
-        Assert.False(await combat.HasHunterMarkAsync(test.Room, test.Character.Id, next.Id));
+        Assert.False(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, test.Monster.Id));
+        Assert.False(await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id, next.Id));
         Assert.Empty(await test.Db.BattleStatusEffects.Where(effect =>
             effect.EffectCode == "hunter-prey-mark").ToListAsync());
     }
@@ -253,8 +259,8 @@ public partial class BattleServiceTests
             var (service, combat) = CreateProductionSoulBattleService(test);
             if (marked)
             {
-                await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 4, [],
-                    test.Character.Name);
+                await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 4, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
                 await test.Db.SaveChangesAsync();
             }
 
@@ -287,8 +293,8 @@ public partial class BattleServiceTests
         await test.Db.SaveChangesAsync();
         await test.AddSkillAsync(test.Character, 1, "hunter-hunting-signal", autoUse: true);
         var (service, combat) = CreateProductionSoulBattleService(test);
-        await combat.ApplyHunterMarkAsync(test.Room, test.Character.Id, test.Monster.Id, 4, [],
-            test.Character.Name);
+        await combat.Statuses.ApplyAsync(test.Room, "Character", test.Character.Id, "hunter-prey-mark", 4, [],
+            test.Character.Name, source: new("Character", test.Character.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
         await test.Db.SaveChangesAsync();
 
         var (round, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
@@ -318,7 +324,8 @@ public partial class BattleServiceTests
         await test.AddSkillAsync(second, 1, "hunter-hunting-signal", autoUse: true);
         var (service, combat) = CreateProductionSoulBattleService(test);
         var stronger = strongerFirst ? test.Character : second;
-        await combat.ApplyHunterMarkAsync(test.Room, stronger.Id, test.Monster.Id, 4, [], stronger.Name);
+        await combat.Statuses.ApplyAsync(test.Room, "Character", stronger.Id, "hunter-prey-mark", 4, [],
+            stronger.Name, source: new("Character", stronger.Id), boundTargetType: "Monster", boundTargetId: test.Monster.Id);
         await test.Db.SaveChangesAsync();
 
         var (round, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
@@ -361,7 +368,7 @@ public partial class BattleServiceTests
 
             Assert.Null(error);
             Assert.Contains(round!.Logs, log => log.Contains("使用 精准射击 攻击"));
-            Assert.Equal(cast < 3, await combat.HasHunterMarkAsync(test.Room, test.Character.Id,
+            Assert.Equal(cast < 3, await HunterMechanics.HasMarkAsync(combat.Statuses, test.Room, test.Character.Id,
                 test.Monster.Id));
         }
     }

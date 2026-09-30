@@ -44,6 +44,10 @@ public class SkillEffectResponse
     public decimal HealMaxHpPercent { get; set; }
     public string? StatusCode { get; set; }
     public int DurationRounds { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public string? StatusName { get; set; }
+    public string? StatusDescription { get; set; }
+    public bool? StatusIsPositive { get; set; }
 }
 
 public class EquippedSkillResponse

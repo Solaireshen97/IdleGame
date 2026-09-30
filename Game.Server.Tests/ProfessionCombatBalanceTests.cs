@@ -76,10 +76,12 @@ public partial class BattleServiceTests
                 statusCode, 1, [], test.Character.Name);
         await test.Db.SaveChangesAsync();
         var slot = await test.Db.RoomSlots.SingleAsync();
+        await new BattleGuardService(monsterCombat.Statuses).ApplyAsync(test.Room, test.Character.Id,
+            guardPercent, new("Character", test.Character.Id), false);
 
         await monsterCombat.ExecuteIntentAsync(test.Room, test.Monster,
-            [new MonsterCombatParticipant(slot, test.Character)], new Dictionary<int, Game.Shared.Enums.ElementType>(),
-            new PlayerRoundDefense(guardPercent, test.Character.Id, test.Character.Id), [],
+            [new BattleParticipant(slot, test.Character)], new Dictionary<int, Game.Shared.Enums.ElementType>(),
+            [],
             new Dictionary<int, OperationPotionBonuses>
             {
                 [test.Character.Id] = new(0, 0, potionDamageTakenPercent, 0, 0)

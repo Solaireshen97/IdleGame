@@ -4,6 +4,7 @@ public class CurrentUserResponse
 {
     public int UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
+    public int? ActiveCharacterId { get; set; }
     public int Gold { get; set; }
     public int CharacterCount { get; set; }
     public int CharacterSlotLimit { get; set; }

@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject ApiService ApiService
 @inject AccountBalanceState AccountBalance
+@inject ActiveCharacterState ActiveCharacters
 @inject IJSRuntime Js
 @implements IAsyncDisposable
 
@@ -499,7 +500,10 @@
         _notice = null;
         try
         {
+            await ApiService.EnsureContextAsync();
+            var revision = ApiService.DataRevision;
             var (response, error) = await ApiService.GetCharacterWeaponsAsync(CharacterId);
+            if (_disposed || revision != ApiService.DataRevision) return;
             _data = response;
             _inspectedWeaponId = null;
             _detailFromSlot = false;
@@ -790,12 +794,15 @@
         _isSaving = true;
         _error = null;
         _notice = null;
+        var revision = ApiService.DataRevision;
         try
         {
             var (response, error) = await ApiService.SetWeaponSlotAsync(CharacterId, _selectedSlot, weaponId);
+            if (_disposed || revision != ApiService.DataRevision) return;
             if (response is null) { _error = GetError(error) ?? "换装失败，请稍后重试。"; return; }
             var previousHp = _data?.Hp;
             _data = response;
+            ApplySharedSummary(response);
             ReconcileInventoryState(response);
             _inspectedWeaponId = null;
             _detailFromSlot = false;
@@ -937,7 +944,7 @@
     {
         if (!await Js.InvokeAsync<bool>("confirm", $"出售 {weapon.Name}？将获得 {weapon.SellGold} 金币，强化投入不会返还。")) return;
         await RunWeaponActionAsync(() => ApiService.SellWeaponsAsync(CharacterId, weapon.Id),
-            $"已出售 {weapon.Name}，获得 {weapon.SellGold} 金币。", balanceChanged: true);
+            $"已出售 {weapon.Name}，获得 {weapon.SellGold} 金币。");
     }
 
     private async Task DismantleAsync(CharacterWeaponResponse weapon)
@@ -957,7 +964,7 @@
                 $"出售选中的 {selected.Count} 把武器？将获得 {gold} 金币，强化投入不会返还。")) return;
         var ids = selected.Select(weapon => weapon.Id).ToArray();
         await RunWeaponActionAsync(() => ApiService.SellWeaponsAsync(CharacterId, ids),
-            $"已批量出售 {selected.Count} 把武器，获得 {gold} 金币。", balanceChanged: true, focusWorkspace: "batch");
+            $"已批量出售 {selected.Count} 把武器，获得 {gold} 金币。", focusWorkspace: "batch");
     }
 
     private async Task DismantleSelectedAsync()
@@ -974,18 +981,21 @@
 
     private async Task RunWeaponActionAsync(
         Func<Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)>> action,
-        string notice, bool refreshCharacter = false, bool balanceChanged = false, string? focusWorkspace = null)
+        string notice, bool refreshCharacter = false, string? focusWorkspace = null)
     {
         if (_isSaving) return;
         _isSaving = true;
         _error = null;
         _notice = null;
+        var revision = ApiService.DataRevision;
         try
         {
             var (response, error) = await action();
+            if (_disposed || revision != ApiService.DataRevision) return;
             if (response is null) { _error = GetError(error) ?? "武器操作失败，请稍后重试。"; return; }
             var previousPage = _inventoryPage;
             _data = response;
+            ApplySharedSummary(response);
             ReconcileInventoryState(response);
             if (focusWorkspace is not null)
             {
@@ -1002,10 +1012,16 @@
             }
             _notice = notice;
             if (refreshCharacter && OnChanged.HasDelegate) await OnChanged.InvokeAsync();
-            if (balanceChanged) AccountBalance.NotifyChanged();
         }
         catch { _error = "连接失败，请稍后重试。"; }
         finally { _isSaving = false; }
+    }
+
+    private void ApplySharedSummary(CharacterWeaponsResponse response)
+    {
+        if (response.CharacterId != CharacterId) return;
+        ActiveCharacters.ApplyWeaponSummary(response);
+        AccountBalance.Update(response.CharacterId, response.Gold);
     }
 
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch

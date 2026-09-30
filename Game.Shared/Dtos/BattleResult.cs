@@ -19,4 +19,6 @@ public class BattleResult
     public bool IsVictory { get; set; }
     public bool IsCharacterDead { get; set; }
     public List<string> Logs { get; set; } = new();
+    public List<BattleEventResponse> Events { get; set; } = [];
+    public string BattleHistoryEpoch { get; set; } = "";
 }

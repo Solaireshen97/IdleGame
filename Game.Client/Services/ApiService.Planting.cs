@@ -7,8 +7,8 @@ public partial class ApiService
     public async Task<PlantingOverviewResponse?> GetPlantingAsync()
     {
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/planting", requiresAuth: true);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<PlantingOverviewResponse>() : null;
     }
     public Task<(PlantingOverviewResponse? Overview, string? Error)> PlantAsync(PlantGardenRequest value) => SendGardenAsync("plant", value);
@@ -17,8 +17,8 @@ public partial class ApiService
     {
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/planting/" + action, requiresAuth: true);
         request.Content = JsonContent.Create(value);
-        using var response = await httpClient.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await userSessionService.ClearToken();
+        using var response = await SendTrackedAsync(request);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
         if (response.IsSuccessStatusCode) return (await response.Content.ReadFromJsonAsync<PlantingOverviewResponse>(), null);
         if ((int)response.StatusCode >= 500) return (null, "服务器暂时未能确认操作，可再次点击相同植物安全重试。");
         var error = (await response.Content.ReadAsStringAsync()).Trim('"');

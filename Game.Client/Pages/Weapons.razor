@@ -22,8 +22,7 @@
     }
     else if (ActiveCharacters.Current is { } character)
     {
-        <CharacterWeaponBoard @key="character.CharacterId" CharacterId="@character.CharacterId"
-                              OnChanged="ActiveCharacters.RefreshAsync" />
+        <CharacterWeaponBoard @key="character.CharacterId" CharacterId="@character.CharacterId" />
     }
     else
     {
@@ -37,7 +36,7 @@
     protected override async Task OnInitializedAsync()
     {
         ActiveCharacters.Changed += OnActiveCharacterChanged;
-        await ActiveCharacters.RefreshAsync();
+        await ActiveCharacters.EnsureLoadedAsync();
         _isLoading = false;
         if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
     }

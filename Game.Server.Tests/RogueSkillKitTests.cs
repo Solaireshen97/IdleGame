@@ -75,7 +75,7 @@ public partial class BattleServiceTests
         await test.AddSkillAsync(test.Character, 1, "rogue-execution-slash", autoUse: true);
         var (service, monsterCombat) = CreateProductionSoulBattleService(test);
         for (var i = 0; i < 4; i++)
-            await monsterCombat.AddShadowChargeAsync(test.Room, test.Character.Id, [], test.Character.Name);
+            await RogueMechanics.AddChargeAsync(monsterCombat.Statuses, test.Room, test.Character.Id, [], test.Character.Name);
         await test.Db.SaveChangesAsync();
 
         Assert.Equal(3, await monsterCombat.GetStatusStacksAsync(test.Room, "Character", test.Character.Id,
@@ -104,7 +104,7 @@ public partial class BattleServiceTests
         await test.AddSkillAsync(test.Character, 1, "rogue-execution-slash", autoUse: true);
         var (service, monsterCombat) = CreateProductionSoulBattleService(test);
         for (var i = 0; i < 3; i++)
-            await monsterCombat.AddShadowChargeAsync(test.Room, test.Character.Id, [], test.Character.Name);
+            await RogueMechanics.AddChargeAsync(monsterCombat.Statuses, test.Room, test.Character.Id, [], test.Character.Name);
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
@@ -192,7 +192,7 @@ public partial class BattleServiceTests
             Name = "Second", Hp = 1, MaxHp = 1, Attack = 1, Defense = 0 });
         await test.Db.SaveChangesAsync();
         var (service, monsterCombat) = CreateProductionSoulBattleService(test);
-        await monsterCombat.AddShadowChargeAsync(test.Room, test.Character.Id, [], test.Character.Name);
+        await RogueMechanics.AddChargeAsync(monsterCombat.Statuses, test.Room, test.Character.Id, [], test.Character.Name);
         await test.Db.SaveChangesAsync();
 
         var (first, firstError) = await service.StartPreparationAsync(test.Room.Id, test.Token);

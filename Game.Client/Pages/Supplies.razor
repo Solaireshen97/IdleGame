@@ -45,7 +45,7 @@
     protected override async Task OnInitializedAsync()
     {
         ActiveCharacters.Changed += OnActiveCharacterChanged;
-        await ActiveCharacters.RefreshAsync();
+        await ActiveCharacters.EnsureLoadedAsync();
         _isLoading = false;
         if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
     }

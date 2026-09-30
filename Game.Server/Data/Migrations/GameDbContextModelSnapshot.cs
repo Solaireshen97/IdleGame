@@ -349,6 +349,13 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("EffectCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("ExpiresAfterRound").HasColumnType("INTEGER");
                     b.Property<int?>("PerTickValue").HasColumnType("INTEGER");
+                    b.Property<decimal?>("MagnitudeSnapshot").HasColumnType("TEXT");
+                    b.Property<string>("SourceActorType").HasColumnType("TEXT");
+                    b.Property<int?>("SourceActorId").HasColumnType("INTEGER");
+                    b.Property<string>("SourceSkillCode").HasColumnType("TEXT");
+                    b.Property<string>("BoundTargetType").HasColumnType("TEXT");
+                    b.Property<int?>("BoundTargetId").HasColumnType("INTEGER");
+                    b.Property<int>("Lifetime").HasColumnType("INTEGER");
                     b.Property<int>("RoomId").HasColumnType("INTEGER");
                     b.Property<int>("RunSequence").HasColumnType("INTEGER");
                     b.Property<int>("Stacks").HasColumnType("INTEGER");

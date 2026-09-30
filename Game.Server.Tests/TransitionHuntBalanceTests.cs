@@ -105,7 +105,7 @@ public sealed class TransitionHuntBalanceTests
                 Assert.Equal(shouldCast ? "Skill" : "BasicAttack", intent.ActionType);
                 if (shouldCast) Assert.Equal(skill.Code, intent.SkillCode);
                 await service.ExecuteIntentAsync(room, monster, [new(slot, character)],
-                    new Dictionary<int, Game.Shared.Enums.ElementType>(), default, []);
+                    new Dictionary<int, Game.Shared.Enums.ElementType>(), []);
                 if (status is not null && round == 3)
                     Assert.True(await service.HasStatusAsync(room, "Character", character.Id, status));
             }

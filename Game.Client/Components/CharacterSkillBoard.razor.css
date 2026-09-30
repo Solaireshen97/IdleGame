@@ -80,6 +80,8 @@
 .skill-board__detail-facts > div { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: .65rem; font-size: .75rem; line-height: 1.5; }
 .skill-board__detail-facts dt { color: #9fb3c1; }
 .skill-board__detail-facts dd { margin: 0; color: #f0c980; overflow-wrap: anywhere; }
+.skill-board__effect { margin: 0; }
+.skill-board__effect + .skill-board__effect { margin-top: .55rem; }
 .skill-board__detail-footer { display: flex; flex: 0 0 auto; justify-content: flex-end; padding: .75rem 1rem; border-top: 1px solid #344d60; }
 .skill-board__detail-footer button { min-width: 82px; min-height: 44px; }
 .skill-board__error { margin: .7rem 0 0; color: #efa2a9; font-size: .8rem; }

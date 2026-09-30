@@ -5,6 +5,8 @@ namespace Game.Shared.Dtos;
 public class RoomDetailResponse
 {
     public int RoomId { get; set; }
+    public int RoomVersion { get; set; }
+    public string BattleHistoryEpoch { get; set; } = "";
     public int OwnerUserId { get; set; }
     public int DungeonId { get; set; }
     public bool SupportsDepths { get; set; }
@@ -20,6 +22,7 @@ public class RoomDetailResponse
     public string RegionName { get; set; } = string.Empty;
     public int SlotCount { get; set; }
     public string MonsterName { get; set; } = string.Empty;
+    public int MonsterId { get; set; }
     public ElementType MonsterElement { get; set; }
     public int MonsterHp { get; set; }
     public int MonsterMaxHp { get; set; }
@@ -60,6 +63,19 @@ public class RoomDetailResponse
     public RoomRewardSummaryResponse? Rewards { get; set; }
     public RoomCumulativeRewardsResponse? CumulativeRewards { get; set; }
     public List<BattleLogResponse> BattleLogs { get; set; } = [];
+    public List<BattleEventResponse> BattleEvents { get; set; } = [];
+
+    // The unchanged protocol replaces only history/time. Keep the previous view's
+    // scalar state and collections, without copying potentially large reward data.
+    public RoomDetailResponse WithBattleHistory(BattleUnchangedResponse history)
+    {
+        var copy = (RoomDetailResponse)MemberwiseClone();
+        copy.ServerTimeUtc = history.ServerTimeUtc;
+        copy.BattleHistoryEpoch = history.BattleHistoryEpoch;
+        copy.BattleEvents = history.BattleEvents;
+        copy.BattleLogs = history.BattleLogs;
+        return copy;
+    }
 }
 
 public class BattleLogResponse

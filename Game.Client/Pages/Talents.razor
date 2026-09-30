@@ -44,11 +44,13 @@
     private bool _isLoading = true;
     private int _talentRevision;
     private string _section = "profession";
+    private (int CharacterId, string ProfessionCode, int Level)? _skillContext;
 
     protected override async Task OnInitializedAsync()
     {
         ActiveCharacters.Changed += OnActiveCharacterChanged;
-        await ActiveCharacters.RefreshAsync();
+        await ActiveCharacters.EnsureLoadedAsync();
+        UpdateSkillContext();
         _isLoading = false;
         if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
     }
@@ -60,15 +62,27 @@
 
     private async Task RefreshCurrentAsync()
     {
+        var revision = _talentRevision;
         await ActiveCharacters.RefreshAsync();
-        _talentRevision++;
+        UpdateSkillContext();
+        if (_talentRevision == revision) _talentRevision++;
     }
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(() =>
     {
-        _talentRevision++;
+        UpdateSkillContext();
         StateHasChanged();
     });
+
+    private void UpdateSkillContext()
+    {
+        var context = ActiveCharacters.Current is { } character
+            ? ((int CharacterId, string ProfessionCode, int Level)?)(character.CharacterId, character.ProfessionCode, character.Level)
+            : null;
+        if (_skillContext == context) return;
+        _skillContext = context;
+        _talentRevision++;
+    }
 
     public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
 }

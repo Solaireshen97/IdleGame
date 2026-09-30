@@ -5,8 +5,7 @@
     const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isCovered = root => root.closest(".battle-page--panel-open") !== null;
     const number = value => value.toLocaleString("zh-CN");
-    const basicLabels = new Set(["普通攻击", "二连击", "追击", "普攻追击", "追加伤害", "持续伤害", "敌方反击", "回合伤害"]);
-    const isSkill = event => event.kind === "damage" && !basicLabels.has(event.label);
+    const isSkill = event => event.isSkill === true;
     const spriteLoads = new WeakMap();
     const sprites = root => [...root.querySelectorAll(".fighter__portrait img, .battle-field__enemy-art img, .battle-field__backdrop img")];
 
@@ -394,10 +393,47 @@
                 if (cardIndex >= 0) effectCards.splice(cardIndex, 1);
             }, () => {});
         };
+        const statusStates = new Map(Object.entries(plan.initialStatuses ?? {}).map(([key, statuses]) =>
+            [key, new Map(statuses.map(status => [status.code, status]))]));
+        const renderStatuses = targetKey => {
+            const target = units.get(targetKey);
+            const bar = target?.element.querySelector("[data-combat-status-live]");
+            if (!bar) return;
+            const statuses = [...(statusStates.get(targetKey)?.values() ?? [])];
+            const icons = statuses.slice(0, 3).map(status => {
+                const icon = document.createElement("span");
+                icon.className = `fighter__effect-icon fighter__effect-icon--${status.isPositive ? "positive" : "negative"}`;
+                icon.dataset.statusCode = status.code;
+                icon.textContent = status.glyph;
+                icon.title = [status.name, status.durationText, status.counterText, status.boundTargetName, status.description].filter(Boolean).join(" · ");
+                if (status.counterText) {
+                    const count = document.createElement("small");
+                    count.textContent = status.stacks;
+                    icon.append(count);
+                }
+                return icon;
+            });
+            if (statuses.length > 3) {
+                const more = document.createElement("span");
+                more.className = "fighter__effect-icon fighter__effect-icon--more";
+                more.textContent = `+${statuses.length - 3}`;
+                icons.push(more);
+            }
+            bar.replaceChildren(...icons);
+            bar.setAttribute("aria-label", statuses.map(status => `${status.name} ${status.counterText}`).join("，"));
+        };
+        const applyStatus = event => {
+            if (!event.status || !event.statusChange) return;
+            let statuses = statusStates.get(event.target);
+            if (!statuses) statusStates.set(event.target, statuses = new Map());
+            if (event.countAfter === 0) statuses.delete(event.status.code);
+            else statuses.set(event.status.code, event.status);
+            renderStatuses(event.target);
+        };
         const applyHit = (event, target, lane, color) => {
             popup(event, lane, color);
             if (event.kind === "damage" || event.kind === "heal")
-                updateHp(target, target.hp + (event.kind === "heal" ? event.amount : -event.amount));
+                updateHp(target, event.hpAfter ?? target.hp + (event.kind === "heal" ? event.amount : -event.amount), event.targetMaxHp ?? target.max);
             if (event.target === "enemy" && event.kind === "damage") {
                 hitCount++;
                 total += event.amount;
@@ -454,6 +490,7 @@
             if (!ready) return "assets-unavailable";
             root.classList.remove("combat-preparing");
             root.classList.add("combat-playing");
+            for (const key of units.keys()) renderStatuses(key);
             root.dataset.combatPhase = "attacking";
             if (isReduced) {
                 if (hitsText) hitsText.textContent = `${plan.hitCount} HIT`;
@@ -475,6 +512,7 @@
                 const color = tones[event.tone] ?? tones.neutral;
                 const point = pointOf(target);
                 if (event.amount <= 0) {
+                    applyStatus(event);
                     if (actionText) actionText.textContent = event.label;
                     showEffect(event.label, event.kind, color, target);
                     impact(event, point, color);
@@ -562,6 +600,7 @@
             for (const node of nodes) node.remove();
             for (const [key, unit] of units) {
                 unit.element.classList.remove("combat-unit--acting");
+                unit.element.querySelector("[data-combat-status-live]")?.replaceChildren();
                 const final = plan.finalVitals[key];
                 if (final && !signal.aborted) updateHp(unit, final.hp, final.maxHp, true);
             }

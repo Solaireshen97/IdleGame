@@ -7,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class SkillService(GameDbContext dbContext, UserService userService, SkillCatalog catalog)
+public sealed class SkillService(GameDbContext dbContext, UserService userService, SkillCatalog catalog, SkillInformationService? skillInformation = null)
 {
+    private readonly SkillInformationService _information = skillInformation ?? new();
     public List<ProfessionResponse> GetProfessions() => catalog.BaseProfessions
         .Select(profession => new ProfessionResponse
         {
@@ -34,10 +35,9 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         var autoCondition = SkillAutoRules.Normalize(request.AutoConditionOverride);
         if (!SkillAutoRules.IsValidOverride(autoCondition)) return (null, "InvalidAutoCondition");
 
-        var skill = request.SkillCode is null ? null : catalog.FindSkill(request.SkillCode.Trim());
         var professionLevels = await GetProfessionLevelsAsync(characterId);
-        if (request.SkillCode is not null && (skill is null || !catalog.IsLearned(character!, skill.Code,
-                new Dictionary<string, int>(), professionLevels)))
+        var skill = catalog.Resolve(character!, request.SkillCode?.Trim(), professionLevels);
+        if (request.SkillCode is not null && skill is null)
             return (null, "SkillNotLearned");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
@@ -54,10 +54,9 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (skill is not null && equipped.Any(slot => slot.SlotIndex != slotIndex &&
             string.Equals(slot.SkillCode, skill.Code, StringComparison.OrdinalIgnoreCase)))
             return (null, "SkillAlreadyEquipped");
-        if (skill is not null && !string.Equals(skill.ProfessionCode, character!.ProfessionCode, StringComparison.OrdinalIgnoreCase) &&
+        if (skill?.IsShared == true &&
             equipped.Any(slot => slot.SlotIndex != slotIndex && slot.SkillCode is not null &&
-                catalog.FindSkill(slot.SkillCode) is { } other &&
-                !string.Equals(other.ProfessionCode, character.ProfessionCode, StringComparison.OrdinalIgnoreCase)))
+                catalog.Resolve(character!, slot.SkillCode, professionLevels)?.IsShared == true))
             return (null, "SharedSkillLimitReached");
 
         var target = equipped.SingleOrDefault(slot => slot.SlotIndex == slotIndex);
@@ -101,7 +100,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (target?.SkillCode is null) return (null, "SkillNotEquipped");
 
         var professionLevels = await GetProfessionLevelsAsync(characterId);
-        if (!catalog.IsLearned(character!, target.SkillCode, new Dictionary<string, int>(), professionLevels))
+        if (catalog.Resolve(character!, target.SkillCode, professionLevels) is null)
             return (null, "SkillNotLearned");
 
         target.AutoUseEnabled = request.AutoUseEnabled;
@@ -192,23 +191,18 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         professionLevels[profession.Code] = character.Level;
         var equipped = await dbContext.CharacterSkillSlots
             .Where(slot => slot.CharacterId == character.Id).ToDictionaryAsync(slot => slot.SlotIndex);
-        LearnedSkillResponse Describe(Game.Server.Configuration.CombatSkillOptions skill, bool isShared) => new()
+        LearnedSkillResponse Describe(CharacterSkillDefinition skill, bool isShared) => new()
         {
-            Code = skill.Code, Name = skill.Name, Description = skill.Description,
+            Code = skill.Code, Name = skill.Name, Description = _information.Description(skill),
             EffectType = SkillCatalog.PrimaryEffectType(skill), Power = SkillCatalog.PrimaryPower(skill),
             CooldownRounds = skill.CooldownRounds, InitialCooldownRounds = skill.InitialCooldownRounds,
             Level = isShared ? 3 : SkillCatalog.RankFor(skill, character.Level),
             UnlockLevel = skill.UnlockLevel, Level2UnlockLevel = skill.Level2UnlockLevel,
             Level3UnlockLevel = skill.Level3UnlockLevel, IsShared = isShared,
             SourceProfessionCode = skill.ProfessionCode, AutoCondition = SkillCatalog.AutoConditionFor(skill),
-            Effects = SkillCatalog.EffectsFor(skill).Select(effect => new SkillEffectResponse
-            {
-                Type = effect.Type, Target = effect.Target, Power = effect.Power,
-                AttackPowerPercent = effect.AttackPowerPercent, HealMaxHpPercent = effect.HealMaxHpPercent,
-                StatusCode = effect.StatusCode, DurationRounds = effect.DurationRounds
-            }).ToList()
+            Effects = _information.Effects(skill)
         };
-        SharedSkillResponse DescribeShared(Game.Server.Configuration.CombatSkillOptions skill)
+        SharedSkillResponse DescribeShared(CharacterSkillDefinition skill)
         {
             var source = Describe(skill, true);
             return new SharedSkillResponse
@@ -228,12 +222,12 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             ProfessionCode = profession.Code,
             ProfessionName = profession.Name,
             Level = character.Level,
-            LearnedSkills = catalog.LearnedSkills(character, new Dictionary<string, int>()).Select(skill => Describe(skill, false)).ToList(),
-            SharedSkills = catalog.SharedSkills(character, professionLevels).Select(DescribeShared).ToList(),
+            LearnedSkills = catalog.NativeSkills(character).Select(skill => Describe(skill, false)).ToList(),
+            SharedSkills = catalog.AvailableSharedSkills(character, professionLevels).Select(DescribeShared).ToList(),
             Slots = Enumerable.Range(1, SkillRules.SlotCount).Select(index =>
             {
                 equipped.TryGetValue(index, out var slot);
-                var resolved = catalog.ResolveSkillForLevel(character, slot?.SkillCode, professionLevels);
+                var resolved = catalog.Resolve(character, slot?.SkillCode, professionLevels);
                 var learned = resolved is not null;
                 return new EquippedSkillResponse
                 {

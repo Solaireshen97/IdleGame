@@ -10,7 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Game.Server.Services;
 
 public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog,
-    WeaponCatalog? weaponCatalog = null, CharacterSlotCatalog? characterSlotCatalog = null)
+    WeaponCatalog? weaponCatalog = null, CharacterSlotCatalog? characterSlotCatalog = null,
+    RoomProjectionRevision? projectionRevision = null)
 {
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
@@ -102,6 +103,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         {
             UserId = user.Id,
             UserName = user.UserName,
+            ActiveCharacterId = activeCharacter?.Id,
             Gold = activeCharacter?.Gold ?? 0,
             CharacterCount = characterCount,
             CharacterSlotLimit = user.CharacterSlotLimit,
@@ -228,6 +230,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             .ExecuteUpdateAsync(setters => setters.SetProperty(character => character.IsQuickSkillCastEnabled, isEnabled));
         if (updated == 0)
             return (false, await dbContext.Characters.AnyAsync(character => character.Id == characterId) ? "NotOwner" : "CharacterNotFound");
+        projectionRevision?.Changed();
         var tracked = dbContext.Characters.Local.FirstOrDefault(character => character.Id == characterId);
         if (tracked is not null)
         {
@@ -434,7 +437,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
     private void AddStartingSkills(Character character)
     {
-        var available = skillCatalog.SkillsForProfessionAtLevel(character.ProfessionCode, character.Level);
+        var available = skillCatalog.SkillsAtLevel(character.ProfessionCode, character.Level);
         for (var index = 0; index < available.Count; index++)
             dbContext.CharacterSkillSlots.Add(new CharacterSkillSlot
             {

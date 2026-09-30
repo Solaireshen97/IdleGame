@@ -27,6 +27,13 @@ public class RoomController(RoomService roomService, BattleService battleService
         return Ok(roomDetail);
     }
 
+    [HttpGet("{roomId:int}/rewards")]
+    public async Task<IActionResult> GetRewards(int roomId)
+    {
+        var rewards = await roomService.GetRoomRewardsAsync(roomId, GetBearerToken());
+        return rewards is null ? NotFound() : Ok(rewards);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest? request)
     {

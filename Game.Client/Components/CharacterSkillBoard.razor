@@ -147,6 +147,12 @@
                     <div class="skill-board__detail-body">
                         <p id="skill-detail-description" class="skill-board__detail-description">@detailSkill.Description</p>
                         <dl class="skill-board__detail-facts">
+                            <div><dt>技能效果</dt><dd>
+                                @foreach (var effect in detailSkill.Effects)
+                                {
+                                    <p class="skill-board__effect">@effect.Summary</p>
+                                }
+                            </dd></div>
                             <div><dt>@(detailSkill.IsShared ? "共享版本" : "技能等级")</dt><dd>@(detailSkill.IsShared ? "固定效果" : $"Lv {detailSkill.Level}")</dd></div>
                             <div><dt>初始冷却</dt><dd>@detailSkill.InitialCooldownRounds 回合</dd></div>
                             <div><dt>常规冷却</dt><dd>@detailSkill.CooldownRounds 回合</dd></div>
