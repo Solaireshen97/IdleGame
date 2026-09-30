@@ -49,10 +49,10 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
 
     [HttpPost("{weaponId:int}/skills/{skillSlotIndex:int}/enhance")]
     public async Task<ActionResult<CharacterWeaponsResponse>> EnhanceSkill(
-        int characterId, int weaponId, int skillSlotIndex)
+        int characterId, int weaponId, int skillSlotIndex, [FromBody] EnhanceWeaponSkillRequest request)
     {
         var (response, error) = await weaponService.EnhanceSkillAsync(
-            GetToken(), characterId, weaponId, skillSlotIndex);
+            GetToken(), characterId, weaponId, skillSlotIndex, request.RequestId);
         return error is null ? Ok(response) : ToError(error);
     }
 

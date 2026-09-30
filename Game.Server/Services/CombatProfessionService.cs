@@ -66,7 +66,7 @@ public sealed class CombatProfessionService(GameDbContext db, UserService users,
             db.ChangeTracker.Clear();
             return (null, "UnsupportedSkillLoadoutVersion");
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             db.ChangeTracker.Clear();

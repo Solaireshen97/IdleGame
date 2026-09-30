@@ -16,7 +16,7 @@ namespace Game.Server.Tests;
 public sealed class WeaponTierBalanceTests
 {
     private static IConfiguration Configuration() => new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        TestRepository.File("Game.Server", "appsettings.json"))).Build();
 
     [Theory]
     [InlineData("durotar-valley-boar", "t1-candle-staff", 125, 95, "weapon-critical")]

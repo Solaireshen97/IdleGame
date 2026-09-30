@@ -31,7 +31,7 @@ public sealed class TransitionHuntBalanceTests
     [Fact]
     public async Task TransitionHuntsUseMatchingStatsAndTelegraphedSkillSchedule()
     {
-        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server"));
+        var root = TestRepository.File("Game.Server");
         var settings = new ConfigurationBuilder().AddJsonFile(Path.Combine(root, "appsettings.json")).Build();
         var worldSettings = new ConfigurationBuilder().AddJsonFile(Path.Combine(root, "world.json")).Build();
         var encounters = settings.GetSection(DungeonEncounterOptions.SectionName).Get<DungeonEncounterOptions>()!;

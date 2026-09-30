@@ -89,7 +89,7 @@
 ./tools/run-t1-endgame-balance.ps1 -Suite professions
 ./tools/run-t1-soul-imprint-balance.ps1
 ./tools/run-t1-endgame-balance.ps1 -Suite holdout
-dotnet tools/Game.BalanceSimulator/bin/Debug/net8.0/Game.BalanceSimulator.dll --stages week --targets endgame --runs 5 --seed-start 1001 --composition knight,priest,elementalist,marksman --mode auto --output docs/t1-audit-party4-auto.json
+dotnet tools/Game.BalanceSimulator/bin/Debug/net10.0/Game.BalanceSimulator.dll --stages week --targets endgame --runs 5 --seed-start 1001 --composition knight,priest,elementalist,marksman --mode auto --output docs/t1-audit-party4-auto.json
 ./tools/verify-t1-balance-audit.ps1
 node tools/audit-talent-paths.mjs
 ./tools/run-talent-balance.ps1

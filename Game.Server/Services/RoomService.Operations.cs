@@ -1,3 +1,4 @@
+using Game.Server.Data;
 using Game.Shared.Dtos;
 using Game.Shared.Enums;
 using Game.Shared.Models;
@@ -228,8 +229,7 @@ public partial class RoomService
         operation.Version++;
     }
 
-    private static bool IsOperationConflict(Exception exception) => exception is DbUpdateException ||
-        exception is SqliteException { SqliteErrorCode: 5 or 6 or 19 };
+    private static bool IsOperationConflict(Exception exception) => DatabaseWriteErrors.IsConflict(exception);
 
     private async Task<List<RoomOperationResponse>> GetOperationResponsesAsync(int roomId, int? userId)
     {

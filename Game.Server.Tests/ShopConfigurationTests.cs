@@ -11,8 +11,7 @@ public class ShopConfigurationTests
     [Fact]
     public void ConfiguredShopProductsResolveToRealItemsAndWeapons()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
         var characterSlots = new CharacterSlotCatalog(Options.Create(
             configuration.GetSection(CharacterSlotOptions.SectionName).Get<CharacterSlotOptions>()!));

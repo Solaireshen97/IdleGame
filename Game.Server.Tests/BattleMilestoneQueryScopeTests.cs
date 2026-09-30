@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Game.Server.Data;
 using Game.Server.Services;
@@ -68,9 +67,18 @@ public partial class BattleServiceTests
 
     private static void AssertPartyPredicate(PartyMilestoneQuery query, IReadOnlyCollection<int> partyIds)
     {
-        Assert.Matches(new Regex("WHERE[\\s\\S]*\\\"CharacterId\\\"\\s+IN\\s*\\(", RegexOptions.IgnoreCase), query.Sql);
-        var scopeParameter = Assert.Single(query.Parameters, item => item.Name.Contains("characterIds", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(partyIds.Order(), JsonSerializer.Deserialize<int[]>(scopeParameter.Value)!.Order());
+        // EF 10 expands collection parameters and reduces a single member to '='.
+        // Verify the actual SQL scope, independent of those two equivalent shapes.
+        var predicate = Regex.Match(query.Sql,
+            "WHERE[\\s\\S]*\"CharacterId\"\\s*(?:IN\\s*\\((?<parameters>[^)]+)\\)|=\\s*(?<parameters>@\\w+))",
+            RegexOptions.IgnoreCase);
+        Assert.True(predicate.Success, $"Expected a character-scoped predicate: {query.Sql}");
+        var names = Regex.Matches(predicate.Groups["parameters"].Value, "@\\w+")
+            .Select(match => match.Value).Distinct().ToArray();
+        Assert.NotEmpty(names);
+        var values = names.Select(name => int.Parse(Assert.Single(query.Parameters, item => item.Name == name).Value,
+            System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(partyIds.Order(), values.Distinct().Order());
     }
 
     private sealed record PartyMilestoneQuery(string Sql, List<(string Name, string Value)> Parameters);

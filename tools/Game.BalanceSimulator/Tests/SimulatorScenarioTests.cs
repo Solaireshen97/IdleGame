@@ -18,10 +18,7 @@ public sealed class SimulatorScenarioTests : IDisposable
 
     public SimulatorScenarioTests()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Game.Server", "appsettings.json"))) root = root.Parent;
-        if (root is null) throw new InvalidOperationException("Repository root not found.");
-        Directory.SetCurrentDirectory(root.FullName);
+        Directory.SetCurrentDirectory(Game.Server.Tests.TestRepository.Root);
         _fixtureDirectory = Path.Combine(Path.GetTempPath(), "idle-balance-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_fixtureDirectory);
         _config = Path.Combine(_fixtureDirectory, "settings.json");

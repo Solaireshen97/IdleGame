@@ -1,6 +1,6 @@
 # IdleGame V1.0
 
-基于 .NET 8、ASP.NET Core Web API、Blazor WebAssembly、EF Core 和 SQLite 的网页放置类战斗游戏骨架。
+基于 .NET 10 LTS、ASP.NET Core Web API、Blazor WebAssembly、EF Core 和 SQLite 的网页放置类战斗游戏骨架。
 
 ## 项目结构
 
@@ -8,6 +8,8 @@
 - `Game.Server`：Web API、SQLite 持久化及领域服务
 - `Game.Client`：Blazor WebAssembly 客户端
 - `Game.Server.Tests`：服务层测试
+
+单机存档备份、恢复和发布流程见 [单机内测运维](docs/single-host-operations.md)，架构优化进度见 [实施记录](docs/server-architecture-plan.md)。`/liveness` 检查进程存活，`/readiness`（或 `/health`）同时检查数据库和房间、生产后台扫描。
 
 当前四块药田、并行炼金、普通/次级/强效药剂与测试配表见 [并行种植与炼金实施稿](docs/planting-alchemy-redesign.md)。
 
@@ -161,6 +163,8 @@ Auto 开关在每个房间内按账号控制自有队员；房主的设置独立
 - `POST /api/battle/skill`：手动排队或取消一个技能栏位；请求体为 `roomId`、`characterId`、`skillSlotIndex`、`isQueued`。
 
 ## 本地运行
+
+需要 .NET 10 SDK；仓库的 `global.json` 选择已安装的最新 .NET 10 SDK 功能带并排除预览版。客户端发布需要 `wasm-tools` 工作负载。框架依赖的服务端部署需要 ASP.NET Core Runtime 10，独立维护工具需要 .NET Runtime 10。
 
 ```bash
 dotnet restore IdleGame.sln

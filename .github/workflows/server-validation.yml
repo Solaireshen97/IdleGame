@@ -1,0 +1,43 @@
+name: Server validation
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install WebAssembly build tools
+        run: dotnet workload install wasm-tools --skip-manifest-update
+      - name: Server regression tests
+        run: dotnet test Game.Server.Tests/Game.Server.Tests.csproj --configuration Release --artifacts-path artifacts/ci-tests --nologo
+      - name: Maintenance backup and restore tests
+        run: dotnet test tools/Game.Maintenance/Tests/Game.Maintenance.Tests.csproj --configuration Release --artifacts-path artifacts/ci-maintenance --nologo
+      - name: Simulator scenario tests
+        run: dotnet test tools/Game.BalanceSimulator/Tests/Game.BalanceSimulator.Tests.csproj --configuration Release --artifacts-path artifacts/ci-simulator --nologo
+      - name: Published server HTTP smoke
+        shell: pwsh
+        run: ./tools/verify-server-release.ps1
+      - name: Preserve smoke logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-logs
+          path: artifacts/server-release-smoke/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

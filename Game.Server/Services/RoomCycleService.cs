@@ -5,13 +5,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<RoomCycleService> logger) : BackgroundService
+public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<RoomCycleService> logger,
+    BackgroundCycleHealth? health = null, TimeProvider? timeProvider = null) : BackgroundService
 {
     private static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(2);
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(ScanInterval);
+        health?.Register(BackgroundCycleHealth.Rooms);
+        using var timer = new PeriodicTimer(ScanInterval, clock);
         try
         {
             do
@@ -22,6 +25,8 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
                 {
+                    stoppingToken.ThrowIfCancellationRequested();
+                    health?.FailScan(BackgroundCycleHealth.Rooms);
                     logger.LogError(exception, "Failed to scan rooms for automatic battle progress.");
                 }
             }
@@ -36,7 +41,7 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
     {
         using var listScope = scopeFactory.CreateScope();
         var dbContext = listScope.ServiceProvider.GetRequiredService<GameDbContext>();
-        var now = DateTime.UtcNow;
+        var now = clock.GetUtcNow().UtcDateTime;
         var repeatCutoff = now.AddSeconds(-BattleRules.RepeatBattleDelaySeconds);
         var roomIds = await dbContext.Rooms.AsNoTracking()
             .Where(room => dbContext.RoomOperations.Any(operation => operation.RoomId == room.Id && operation.Status == "Pending") ||
@@ -49,6 +54,7 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
             .Select(room => room.Id)
             .ToListAsync(cancellationToken);
 
+        var failedItems = 0;
         foreach (var roomId in roomIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -58,12 +64,23 @@ public sealed class RoomCycleService(IServiceScopeFactory scopeFactory, ILogger<
                 var battleService = roomScope.ServiceProvider.GetRequiredService<BattleService>();
                 var (_, error) = await battleService.SyncRoomAsync(roomId);
                 if (error is not null && error is not ("ConcurrencyConflict" or "NotFound"))
+                {
+                    failedItems++;
                     logger.LogWarning("Automatic battle progress for room {RoomId} failed: {Error}", roomId, error);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                failedItems++;
                 logger.LogError(exception, "Automatic battle progress for room {RoomId} failed.", roomId);
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        health?.CompleteScan(BackgroundCycleHealth.Rooms, roomIds.Count, failedItems);
     }
 }

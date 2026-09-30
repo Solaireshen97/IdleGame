@@ -11,8 +11,7 @@ namespace Game.Server.Tests;
 
 public sealed class BattleSkillDefinitionTests
 {
-    private static string RepositoryFile(string path) => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-        "..", "..", "..", "..", path));
+    private static string RepositoryFile(string path) => TestRepository.File(path);
 
     [Fact]
     public void EveryProductionCharacterVersionMatchesFrozenBehaviorAndUnlockBoundaries()

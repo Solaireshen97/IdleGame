@@ -17,8 +17,7 @@ public sealed class WeaponBreakthroughTests
     [Fact]
     public void ProductionRecipeLoadsOnceWithT1BoundaryAndConversionCost()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         var options = new WeaponBreakthroughOptions();
         new ConfigurationBuilder().AddJsonFile(path).Build().GetSection(WeaponBreakthroughOptions.SectionName).Bind(options);
         var catalog = new WeaponBreakthroughCatalog(Options.Create(options));

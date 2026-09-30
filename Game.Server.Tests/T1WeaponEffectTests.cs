@@ -18,7 +18,7 @@ public sealed class T1WeaponEffectTests
 {
     internal static WeaponCatalog ProductionCatalog()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         return new WeaponCatalog(Options.Create(new ConfigurationBuilder().AddJsonFile(path).Build()
             .GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!));
     }

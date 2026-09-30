@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $PSScriptRoot 'Game.BalanceSimulator/Game.BalanceSimulator.csproj'
-$dll = Join-Path $PSScriptRoot 'Game.BalanceSimulator/bin/Debug/net8.0/Game.BalanceSimulator.dll'
+$dll = Join-Path $PSScriptRoot 'Game.BalanceSimulator/bin/Debug/net10.0/Game.BalanceSimulator.dll'
 $standard = 'knight,priest,elementalist,marksman,trickster'
 $replacements = @(
     'warrior,priest,elementalist,marksman,trickster',

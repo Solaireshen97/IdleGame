@@ -25,8 +25,7 @@ public partial class BattleServiceTests
         Assert.Equal(original.Select(trace => trace.Data.GetRawText()), repeated.Select(trace => trace.Data.GetRawText()));
         Assert.Equal(original.Select(trace => trace.Data.GetRawText()), rebuilt.Select(trace => trace.Data.GetRawText()));
         Assert.Equal(BattleRoundTrace.EncounterFingerprint(original), BattleRoundTrace.EncounterFingerprint(rebuilt));
-        var fixturePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..",
-            "Game.Server.Tests", "Fixtures", "BattleRoundTrace.seed7213.json"));
+        var fixturePath = TestRepository.File("Game.Server.Tests", "Fixtures", "BattleRoundTrace.seed7213.json");
         if (Environment.GetEnvironmentVariable("IDLEGAME_UPDATE_BATTLE_TRACE") == "1")
         {
             Directory.CreateDirectory(Path.GetDirectoryName(fixturePath)!);

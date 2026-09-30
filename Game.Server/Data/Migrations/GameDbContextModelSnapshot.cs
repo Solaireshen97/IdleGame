@@ -585,6 +585,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<string>("RequestId").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Kind").IsRequired().HasColumnType("TEXT");
                     b.Property<string>("Fingerprint").IsRequired().HasColumnType("TEXT");
+                    b.Property<string>("ResultJson").HasColumnType("TEXT");
                     b.Property<DateTime>("CompletedAtUtc").HasColumnType("TEXT");
                     b.HasKey("CharacterId", "RequestId");
                     b.ToTable("LogisticsRequests");
@@ -646,6 +647,8 @@ namespace Game.Server.Data.Migrations
                     b.HasIndex("CharacterId", "Status");
                     b.HasIndex("CharacterId").IsUnique().HasFilter("Status = 'Running'");
                     b.HasIndex("CharacterId", "RequestId").IsUnique().HasFilter("RequestId IS NOT NULL");
+                    b.HasIndex("Status", "NextCycleAtUtc");
+                    b.HasIndex("Status", "EndsAtUtc");
                     b.ToTable("ProductionTasks", t => t.HasCheckConstraint("CK_ProductionTasks_Quantities",
                         "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
                 });
@@ -821,6 +824,8 @@ namespace Game.Server.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("UserName").IsUnique();
+
                     b.ToTable("Users");
                 });
 
@@ -865,6 +870,9 @@ namespace Game.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Token").IsUnique();
+                    b.HasIndex("ExpireAt");
 
                     b.ToTable("UserLoginSessions");
                 });

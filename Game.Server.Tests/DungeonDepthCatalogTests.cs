@@ -195,7 +195,7 @@ public sealed class DungeonDepthCatalogTests
     }
 
     private static IConfiguration Configuration() => new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        TestRepository.File("Game.Server", "appsettings.json"))).Build();
 
     private static T Bind<T>(IConfiguration configuration, string section) where T : new()
     {

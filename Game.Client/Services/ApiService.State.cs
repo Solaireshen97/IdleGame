@@ -26,7 +26,11 @@ public partial class ApiService : IDisposable
         userSessionService.Changed += ChangeSessionContext;
     }
 
-    private void ChangeSessionContext() => ChangeContext();
+    private void ChangeSessionContext()
+    {
+        _pendingEconomicRequests.Clear();
+        ChangeContext();
+    }
     private void ChangeCharacterSelection()
     {
         CharacterSelectionRevision++;

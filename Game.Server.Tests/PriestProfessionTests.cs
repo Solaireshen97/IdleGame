@@ -440,8 +440,7 @@ public partial class BattleServiceTests
 
     private static SkillCatalog PriestCatalog()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         return new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
     }
 

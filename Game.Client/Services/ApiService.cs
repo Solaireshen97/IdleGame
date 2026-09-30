@@ -225,12 +225,13 @@ public partial class ApiService
     }
 
     public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonRewardAsync(
-        int characterId, string offerCode)
+        int characterId, string offerCode, string? requestId = null)
     {
+        var receipt = await BeginEconomicRequestAsync($"exchange:{characterId}:{offerCode.Trim().ToLowerInvariant()}", requestId);
         using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/exchange", requiresAuth: true);
         request.Content = JsonContent.Create(new ExchangeDungeonWeaponRequest
         {
-            CharacterId = characterId, OfferCode = offerCode
+            CharacterId = characterId, OfferCode = offerCode, RequestId = receipt.Id
         });
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
@@ -246,7 +247,9 @@ public partial class ApiService
                 _ => "兑换失败，请稍后重试。"
             });
         }
-        return (await ReadContextResponseAsync<DungeonExchangeResultResponse>(response), null);
+        var result = await ReadContextResponseAsync<DungeonExchangeResultResponse>(response);
+        if (result is not null) CompleteEconomicRequest(receipt);
+        return (result, null);
     }
 
     public async Task<string?> SetQuickSkillCastAsync(int characterId, bool isEnabled)
@@ -789,10 +792,16 @@ public partial class ApiService
         SendWeaponRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/weapons/dismantle",
             new WeaponBatchRequest { WeaponIds = weaponIds.ToList() });
 
-    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> EnhanceWeaponSkillAsync(
-        int characterId, int weaponId, int skillSlotIndex) =>
-        SendWeaponRequestAsync(HttpMethod.Post,
-            $"api/user/characters/{characterId}/weapons/{weaponId}/skills/{skillSlotIndex}/enhance");
+    public async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> EnhanceWeaponSkillAsync(
+        int characterId, int weaponId, int skillSlotIndex, string? requestId = null)
+    {
+        var receipt = await BeginEconomicRequestAsync($"enhance:{characterId}:{weaponId}:{skillSlotIndex}", requestId);
+        var result = await SendWeaponRequestAsync(HttpMethod.Post,
+            $"api/user/characters/{characterId}/weapons/{weaponId}/skills/{skillSlotIndex}/enhance",
+            new EnhanceWeaponSkillRequest { RequestId = receipt.Id });
+        if (result.Response is not null) CompleteEconomicRequest(receipt);
+        return result;
+    }
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> UpgradeWeaponQualityAsync(
         int characterId, int weaponId, int materialWeaponId, bool useUniversalStone = false) =>

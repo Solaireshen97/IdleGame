@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public sealed class ApiRequestScopeTests
+public sealed partial class ApiRequestScopeTests
 {
     [Theory]
     [InlineData("skill")]

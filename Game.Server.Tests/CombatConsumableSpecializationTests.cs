@@ -229,8 +229,7 @@ public partial class BattleServiceTests
     public async Task LoadoutServiceRejectsHealingInBuffSlotAndBuffInHealingSlot()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var weapons = new WeaponCatalog(Options.Create(configuration.GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!));
         var catalog = new ConsumableCatalog(Options.Create(configuration.GetSection(ConsumableOptions.SectionName).Get<ConsumableOptions>()!), weapons);
         var service = new ConsumableService(test.Db,
@@ -244,8 +243,7 @@ public partial class BattleServiceTests
 
     private static async Task<BattleService> AddCombatBuffAsync(BattleTestContext test, bool automatic)
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var weapons = new WeaponCatalog(Options.Create(configuration.GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!));
         // Preserve the simple fixture's healing amount while using the production weapon buff curve.
         var items = configuration.GetSection(ConsumableOptions.SectionName).Get<ConsumableOptions>()!;

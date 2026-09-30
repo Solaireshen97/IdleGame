@@ -46,8 +46,12 @@ public sealed class ParallelPlantingMigrationTests
                 Assert.Equal(("Stopped", 2), ((await db.ProductionTasks.SingleAsync()).Status, (await db.ProductionTasks.SingleAsync()).TotalQuantity));
                 Assert.Equal("Battle", (await db.CharacterActivities.SingleAsync()).Kind);
                 db.CharacterGardenPlots.Add(new CharacterGardenPlot { CharacterId = 3, PlotIndex = 0 });
-                db.LogisticsRequests.Add(new LogisticsRequest { CharacterId = 3, RequestId = "migration-check", Kind = "Plant", Fingerprint = "test", CompletedAtUtc = DateTime.UtcNow });
                 await db.SaveChangesAsync();
+                // Seed the historical schema before later receipt-result columns exist.
+                await db.Database.ExecuteSqlRawAsync("""
+                    INSERT INTO LogisticsRequests (CharacterId, RequestId, Kind, Fingerprint, CompletedAtUtc)
+                    VALUES (3, 'migration-check', 'Plant', 'test', '2026-09-27 00:00:00');
+                    """);
                 Assert.Single(await db.CharacterGardenPlots.ToListAsync());
                 await db.Database.MigrateAsync();
                 Assert.Single(await db.LogisticsRequests.ToListAsync());

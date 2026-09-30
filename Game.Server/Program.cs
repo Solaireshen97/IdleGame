@@ -1,6 +1,7 @@
 using Game.Server.Data;
 using Game.Server.Services;
 using Game.Server.Configuration;
+using Game.Server.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +9,8 @@ builder.Host.UseWindowsService(options => options.ServiceName = "IdleGame");
 builder.Configuration.AddJsonFile("world.json", optional: false, reloadOnChange: false);
 
 builder.Services.AddControllers();
+builder.Services.AddExceptionHandler<DatabaseExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -53,6 +56,9 @@ builder.Services.AddScoped<SoulImprintService>();
 builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<PlantingService>();
 builder.Services.AddScoped<ProductionService>();
+builder.Services.Configure<SessionCleanupOptions>(builder.Configuration.GetSection(SessionCleanupOptions.SectionName));
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<BackgroundCycleHealth>();
 builder.Services.Configure<ProgressionOptions>(builder.Configuration.GetSection(ProgressionOptions.SectionName));
 builder.Services.Configure<ConsumableOptions>(builder.Configuration.GetSection(ConsumableOptions.SectionName));
 builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillOptions.SectionName));
@@ -98,6 +104,7 @@ builder.Services.AddSingleton<CharacterSlotCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
 builder.Services.AddHostedService<ProductionCycleService>();
+builder.Services.AddHostedService<SessionCleanupService>();
 
 builder.Services.AddCors(options =>
 {
@@ -108,6 +115,7 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+app.UseExceptionHandler();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -155,6 +163,7 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapServerHealth();
 app.MapFallbackToFile("index.html");
 
 app.Run();

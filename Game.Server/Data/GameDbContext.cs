@@ -92,9 +92,14 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.CharacterId, task.Status });
         modelBuilder.Entity<ProductionTask>().HasIndex(task => task.CharacterId).IsUnique().HasFilter("Status = 'Running'");
         modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.CharacterId, task.RequestId }).IsUnique().HasFilter("RequestId IS NOT NULL");
+        modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.Status, task.NextCycleAtUtc });
+        modelBuilder.Entity<ProductionTask>().HasIndex(task => new { task.Status, task.EndsAtUtc });
         modelBuilder.Entity<ProductionTask>().ToTable(table => table.HasCheckConstraint("CK_ProductionTasks_Quantities",
             "CompletedCycles >= 0 AND TotalQuantity >= 0 AND CycleSeconds > 0 AND OutputQuantity > 0"));
         modelBuilder.Entity<User>().Property(user => user.Version).IsConcurrencyToken();
+        modelBuilder.Entity<User>().HasIndex(user => user.UserName).IsUnique();
+        modelBuilder.Entity<UserLoginSession>().HasIndex(session => session.Token).IsUnique();
+        modelBuilder.Entity<UserLoginSession>().HasIndex(session => session.ExpireAt);
         modelBuilder.Entity<RewardRun>().HasKey(run => new { run.RoomId, run.Sequence });
         modelBuilder.Entity<RewardEvent>().HasKey(entry => new { entry.RoomId, entry.Sequence, entry.EventKey });
         modelBuilder.Entity<RewardEntry>().HasIndex(entry => new { entry.RoomId, entry.Sequence, entry.UserId });

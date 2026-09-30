@@ -16,8 +16,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync();
         test.Character.ProfessionCode = "mage";
         test.Character.Level = 30;
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         var skillOptions = configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!;
         skillOptions.Professions.Single(profession => profession.Code == "swordsman").SharedSkillCode = "knight-faith-barrier";
@@ -45,8 +44,7 @@ public partial class BattleServiceTests
         test.Character.Level = 30;
         test.Monster.CombatProfileCode = "slime-acid";
         await test.AddSkillAsync(test.Character, 1, "rogue-adrenaline", false);
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsterOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
         monsterOptions.Profiles["slime-acid"].SkillUseChancePercent = 100;
         var monsters = new MonsterCombatCatalog(Options.Create(monsterOptions));

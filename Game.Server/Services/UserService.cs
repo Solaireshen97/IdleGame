@@ -6,6 +6,7 @@ using Game.Shared.Dtos.Characters;
 using Game.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 
 namespace Game.Server.Services;
 
@@ -47,16 +48,33 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
 
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
+        try
+        {
+            dbContext.Users.Add(user);
+            await dbContext.SaveChangesAsync();
 
-        var session = CreateSession(user.Id);
-        dbContext.UserLoginSessions.Add(session);
+            var session = CreateSession(user.Id);
+            dbContext.UserLoginSessions.Add(session);
 
-        await dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
 
-        return (BuildAuthResponse(user, session.Token), null);
+            return (BuildAuthResponse(user, session.Token), null);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqliteException
+            { SqliteExtendedErrorCode: 2067 } sqlite &&
+            sqlite.Message.Contains("Users.UserName", StringComparison.Ordinal))
+        {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
+            return (null, "DuplicateUserName");
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public async Task<(AuthResponse? Response, string? Error)> LoginAsync(LoginRequest request)

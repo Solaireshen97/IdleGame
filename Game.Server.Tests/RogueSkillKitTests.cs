@@ -337,8 +337,7 @@ public partial class BattleServiceTests
 
     private static SkillCatalog LoadRogueCatalog()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(
             configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         return new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);

@@ -13,8 +13,7 @@ public partial class BattleServiceTests
     [Fact]
     public void MageCatalogHasFiveRankedSkillsAndFixedSharedSpellbreak()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var catalog = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
         var mage = catalog.FindProfession("mage")!;
         Assert.Equal(new[] { "mage-arcane-bolt" }, mage.StartingSkills);

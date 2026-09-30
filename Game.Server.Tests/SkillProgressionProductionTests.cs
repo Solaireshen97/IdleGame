@@ -156,8 +156,7 @@ public sealed class SkillProgressionProductionTests
 
     private static SkillCatalog LoadProductionCatalog()
     {
-        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var config = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(
             config.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         return new SkillCatalog(Options.Create(config.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);

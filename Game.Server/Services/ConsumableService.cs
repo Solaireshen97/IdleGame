@@ -67,7 +67,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
             await dbContext.SaveChangesAsync();
             return (await BuildResponseAsync(character), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }

@@ -125,7 +125,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         var (room, slots, monster, _, error) = await GetBattleContextAsync(roomId, token);
         if (error is not null) return (null, error);
         try { await dbContext.SaveChangesAsync(); }
-        catch (DbUpdateException) { return (null, "ConcurrencyConflict"); }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { return (null, "ConcurrencyConflict"); }
         return await SyncCoreAsync(room!, slots!, monster!);
     }
 
@@ -535,7 +535,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             await dbContext.SaveChangesAsync();
             return (true, null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             dbContext.ChangeTracker.Clear();
             return (false, "ConcurrencyConflict");

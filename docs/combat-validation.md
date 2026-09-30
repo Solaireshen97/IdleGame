@@ -1,6 +1,6 @@
 # 战斗验证
 
-前提：.NET 8 SDK、PowerShell、Node.js 22.13 或更新版本、pnpm 11.19.0，以及可用浏览器。
+前提：.NET 10 SDK、PowerShell、Node.js 22.13 或更新版本、pnpm 11.19.0，以及可用浏览器。
 最低 Node.js 版本由 pnpm 11.19.0 的 engines 要求决定（Playwright 本身要求 Node.js 20 或更新版本）。
 浏览器测试的 Playwright 固定为 1.62.1（与本次验证机器已安装版本一致）；依赖和锁文件仅属于 `Game.Server.Tests/Client`。
 

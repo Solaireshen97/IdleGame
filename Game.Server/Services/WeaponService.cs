@@ -67,7 +67,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -89,7 +89,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await dbContext.SaveChangesAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -118,7 +118,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -164,17 +164,30 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
     }
 
     public async Task<(CharacterWeaponsResponse? Response, string? Error)> EnhanceSkillAsync(
-        string? token, int characterId, int weaponId, int skillSlotIndex)
+        string? token, int characterId, int weaponId, int skillSlotIndex, string? requestId = null)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        if (!Guid.TryParse(requestId, out var requestGuid) || requestGuid == Guid.Empty)
+            return (null, "InvalidRequestId");
+        requestId = requestGuid.ToString("N");
+        var fingerprint = $"{weaponId}:{skillSlotIndex}";
+        var previous = await dbContext.LogisticsRequests.AsNoTracking().SingleOrDefaultAsync(receipt =>
+            receipt.CharacterId == characterId && receipt.RequestId == requestId);
+        if (previous is not null)
+        {
+            if (previous.Kind != "WeaponEnhancement" || previous.Fingerprint != fingerprint)
+                return (null, "RequestIdReused");
+            dbContext.ChangeTracker.Clear();
+            return await GetAsync(token, characterId);
+        }
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
         var weapons = await dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
             .Where(weapon => weapon.CharacterId == characterId).ToListAsync();
@@ -201,12 +214,16 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             skill.Level++;
             weapon.Version++;
             RecalculateCharacter(character!, weapons);
+            dbContext.LogisticsRequests.Add(new LogisticsRequest { CharacterId = characterId, RequestId = requestId,
+                Kind = "WeaponEnhancement", Fingerprint = fingerprint, CompletedAtUtc = DateTime.UtcNow });
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
     }
@@ -268,7 +285,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -309,7 +326,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }

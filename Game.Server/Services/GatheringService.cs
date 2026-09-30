@@ -77,7 +77,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             db.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             db.ChangeTracker.Clear();
@@ -105,7 +105,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
             }
             task.Version++;
             try { await db.SaveChangesAsync(); }
-            catch (DbUpdateException)
+            catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
             {
                 db.ChangeTracker.Clear();
                 return (null, "ConcurrencyConflict");
@@ -122,7 +122,7 @@ public sealed class GatheringService(GameDbContext db, UserService users, Gather
         await AdvanceCoreAsync(task, now);
         task.Version++;
         try { await db.SaveChangesAsync(); return null; }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             db.ChangeTracker.Clear();
             return "ConcurrencyConflict";

@@ -26,16 +26,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
     {
         var (currentUser, userError) = await userService.GetCurrentUserEntityAsync(token);
         var currentUserId = userError is null ? currentUser!.Id : (int?)null;
-        var rooms = await dbContext.Rooms.Where(room => room.ClosedAtUtc == null && room.IsPublic ||
-            currentUserId.HasValue && (room.OwnerUserId == currentUserId.Value ||
-                dbContext.RoomSlots.Any(slot => slot.RoomId == room.Id && slot.UserId == currentUserId.Value))).ToListAsync();
-        var result = new List<RoomSummaryResponse>();
-        foreach (var room in rooms)
-        {
-            var summary = await BuildRoomSummaryAsync(room, currentUserId);
-            if (summary is not null) result.Add(summary);
-        }
-        return result;
+        return await new RoomListQuery(dbContext, _depthCatalog).ReadAsync(currentUserId);
     }
 
     public async Task<RoomDetailResponse?> GetRoomDetailAsync(int roomId, string? token = null, bool includeRewardDetails = true)
@@ -274,7 +265,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             }));
             CharacterActivityManager.StartBattle(dbContext, character.Id, room, now);
             try { await dbContext.SaveChangesAsync(); }
-            catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+            catch (DbUpdateException exception) when (DatabaseWriteErrors.IsUniqueConstraint(exception))
             {
                 await transaction.RollbackAsync();
                 dbContext.ChangeTracker.Clear();
@@ -366,7 +357,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
-        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsUniqueConstraint(exception))
         {
             dbContext.ChangeTracker.Clear();
             return (null, "CharacterAlreadyInRoom");
@@ -484,7 +475,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
-        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsUniqueConstraint(exception))
         {
             dbContext.ChangeTracker.Clear();
             return (null, "CharacterAlreadyInRoom");
@@ -529,7 +520,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             if (transaction is not null) { await transaction.RollbackAsync(); dbContext.ChangeTracker.Clear(); }
             return (null, "ConcurrencyConflict");
         }
-        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsUniqueConstraint(exception))
         {
             if (transaction is not null) { await transaction.RollbackAsync(); dbContext.ChangeTracker.Clear(); }
             return (null, "CharacterAlreadyInRoom");
@@ -1046,36 +1037,6 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
     {
         "Mastery" => "精通追加", "Challenge" => "挑战奖励", _ => baseName
     };
-
-    private async Task<RoomSummaryResponse?> BuildRoomSummaryAsync(Room room, int? currentUserId = null)
-    {
-        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
-        var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        if (monster is null) return null;
-        var isCurrentUserParticipant = currentUserId.HasValue && await dbContext.RoomSlots
-            .AnyAsync(slot => slot.RoomId == room.Id && slot.UserId == currentUserId.Value &&
-                (slot.CharacterId.HasValue || room.ClosedAtUtc.HasValue));
-        var enemiesInCurrentWave = monster.RoomId.HasValue
-            ? await dbContext.Monsters.CountAsync(candidate => candidate.RoomId == room.Id && candidate.WaveNumber == monster.WaveNumber)
-            : 1;
-        return new RoomSummaryResponse
-        {
-            RoomId = room.Id, MonsterName = monster.Name, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
-            RegionCode = dungeon?.RegionCode ?? "", RegionName = dungeon?.RegionName ?? "",
-            DepthLevel = room.DepthLevel,
-            DungeonName = dungeon is not null && (_depthCatalog.Find(dungeon.Code) is not null || room.DepthDefinitionJson is not null)
-                ? _depthCatalog.DisplayName(dungeon.Name, room.DepthLevel) : dungeon?.Name ?? "",
-            CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
-            CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
-            RoomStatus = room.Status, IsRepeatBattle = room.IsRepeatBattle, IsPublic = room.IsPublic,
-            ExpiresAtUtc = room.ExpiresAtUtc, ClosedAtUtc = room.ClosedAtUtc,
-            IsPreparationTimeoutEnabled = room.IsPreparationTimeoutEnabled,
-            IsCurrentUserParticipant = isCurrentUserParticipant,
-            PendingOperationCount = currentUserId.HasValue ? await dbContext.RoomOperations.CountAsync(operation =>
-                operation.RoomId == room.Id && operation.UserId == currentUserId.Value && operation.Status == "Pending") : 0,
-            IsOwnedByCurrentUser = currentUserId.HasValue && room.OwnerUserId == currentUserId.Value
-        };
-    }
 
     private List<DungeonRewardPreviewResponse> BuildRewardPreview(Dungeon dungeon)
     {

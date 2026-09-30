@@ -18,7 +18,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         if (error is not null) return (null, error);
         await SettleCharacterTrackedAsync(character!.Id, DateTime.UtcNow);
         try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
         return (await BuildResponseAsync(user!, character), null);
     }
 
@@ -51,7 +51,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         if (db.ProductionTasks.Local.Any(item => item.CharacterId == character.Id && item.Status == "Running"))
         {
             try { await db.SaveChangesAsync(); await transaction.CommitAsync(); }
-            catch (DbUpdateException) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
+            catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
             return (null, "CharacterBusy");
         }
 
@@ -62,7 +62,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         if (recipe.Ingredients.Any(item => stocks.GetValueOrDefault(item.Code) < item.Quantity))
         {
             try { await db.SaveChangesAsync(); await transaction.CommitAsync(); }
-            catch (DbUpdateException) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
+            catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
             return (null, "InsufficientMaterials");
         }
 
@@ -95,7 +95,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
             db.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             db.ChangeTracker.Clear();
@@ -129,7 +129,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
             }
             task.Version++;
             try { await db.SaveChangesAsync(); await transaction.CommitAsync(); }
-            catch (DbUpdateException)
+            catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
             {
                 await transaction.RollbackAsync();
                 db.ChangeTracker.Clear();
@@ -148,7 +148,7 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
         await AdvanceCoreAsync(task, now);
         task.Version++;
         try { await db.SaveChangesAsync(); await transaction.CommitAsync(); return null; }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             db.ChangeTracker.Clear();

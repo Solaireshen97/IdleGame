@@ -15,7 +15,7 @@ namespace Game.Server.Tests;
 
 public sealed class ContentNamingTests
 {
-    private static readonly string Root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    private static readonly string Root = TestRepository.Root;
 
     [Fact]
     public void EveryRenamedMonsterAndWeaponStillUsesItsAssignedImage()

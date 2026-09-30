@@ -223,12 +223,12 @@ public sealed class T1WeaponEconomyTests
         test.Db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = test.Character.Id, ItemCode = WeaponRules.FragmentCode(1), Quantity = 10 });
         await test.Db.SaveChangesAsync();
 
-        Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1)).Error);
-        Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1)).Error);
+        Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1, Guid.NewGuid().ToString("N"))).Error);
+        Assert.Null((await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1, Guid.NewGuid().ToString("N"))).Error);
         Assert.Equal(6, weapon.Skills.Single().SpentFragments);
         Assert.Equal(3, test.Weapons.DismantleReturn(weapon));
         Assert.True(test.Weapons.CanDismantle(weapon));
-        var rejected = await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1);
+        var rejected = await test.Armory.EnhanceSkillAsync(test.Token, test.Character.Id, weapon.Id, 1, Guid.NewGuid().ToString("N"));
         Assert.Equal("InsufficientWeaponFragments", rejected.Error);
         Assert.Equal(2, weapon.Skills.Single().EnhancementLevel);
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
@@ -355,8 +355,7 @@ public sealed class T1WeaponEconomyTests
         {
             _connection = connection;
             Db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
-            _configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-                "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+            _configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
             Weapons = new WeaponCatalog(Bind<WeaponOptions>(WeaponOptions.SectionName));
             Consumables = new ConsumableCatalog(Bind<ConsumableOptions>(ConsumableOptions.SectionName));
             Materials = new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName));

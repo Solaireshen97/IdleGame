@@ -18,7 +18,7 @@ public sealed class PlantingService(GameDbContext db, UserService users, Plantin
         if (indices.Count == 4) return;
         foreach (var index in Enumerable.Range(0, 4).Except(indices)) db.CharacterGardenPlots.Add(new() { CharacterId = characterId, PlotIndex = index });
         try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException) { db.ChangeTracker.Clear(); if (await db.CharacterGardenPlots.CountAsync(p => p.CharacterId == characterId) != 4) throw; }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { db.ChangeTracker.Clear(); if (await db.CharacterGardenPlots.CountAsync(p => p.CharacterId == characterId) != 4) throw; }
     }
     private async Task<int> ProgressAsync(int characterId, Game.Server.Configuration.PlantOptions plant)
     {
@@ -59,7 +59,7 @@ public sealed class PlantingService(GameDbContext db, UserService users, Plantin
             await db.SaveChangesAsync(); await transaction.CommitAsync();
             return (await OverviewAsync(character), null);
         }
-        catch (DbUpdateException) { await transaction.RollbackAsync(); db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { await transaction.RollbackAsync(); db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
     }
     public async Task<(PlantingOverviewResponse? Response, string? Error)> HarvestAsync(string? token, HarvestGardenRequest request)
     {
@@ -91,7 +91,7 @@ public sealed class PlantingService(GameDbContext db, UserService users, Plantin
             }
             await db.SaveChangesAsync(); await transaction.CommitAsync(); return (await OverviewAsync(character), null);
         }
-        catch (DbUpdateException) { await transaction.RollbackAsync(); db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { await transaction.RollbackAsync(); db.ChangeTracker.Clear(); return (null, "ConcurrencyConflict"); }
     }
     private static bool ValidPlots(List<PlotVersionRequest>? plots) => plots is { Count: >= 1 and <= 4 } && plots.All(p => p != null && p.PlotIndex is >= 0 and < 4 && p.ExpectedVersion >= 0) && plots.Select(p => p.PlotIndex).Distinct().Count() == plots.Count;
     private async Task<PlantingOverviewResponse> OverviewAsync(Character character)

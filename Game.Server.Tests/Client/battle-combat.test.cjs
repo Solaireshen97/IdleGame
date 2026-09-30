@@ -12,7 +12,7 @@ async function scene(run) {
         const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
-        const cssPath = path.resolve(__dirname, '../../Game.Client/obj/Debug/net8.0/scopedcss/Pages/Battle.razor.rz.scp.css');
+        const cssPath = path.resolve(__dirname, '../../Game.Client/obj/Debug/net10.0/scopedcss/Pages/Battle.razor.rz.scp.css');
         const css = fs.readFileSync(cssPath, 'utf8');
         const scope = css.match(/\[(b-[a-z0-9]+)\]/)[1];
         await page.setContent(`<style>${css}

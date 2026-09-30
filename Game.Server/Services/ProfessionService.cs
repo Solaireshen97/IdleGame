@@ -45,7 +45,7 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
         else character.AlchemyTalentPoints--;
         character.Version++;
         try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             db.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
@@ -78,7 +78,7 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
         else character.AlchemyTalentPoints++;
         character.Version++;
         try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             db.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
@@ -102,7 +102,7 @@ public sealed class ProfessionService(GameDbContext db, UserService users, Profe
         else character!.AlchemyTalentPoints += refunded;
         character.Version++;
         try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             db.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");

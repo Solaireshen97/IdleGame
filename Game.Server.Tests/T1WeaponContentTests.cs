@@ -14,7 +14,7 @@ namespace Game.Server.Tests;
 public sealed class T1WeaponContentTests
 {
     private static IConfiguration Configuration() => new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        TestRepository.File("Game.Server", "appsettings.json"))).Build();
 
     [Fact]
     public void EveryConfiguredWeaponSkillStartsAtLevelOneAndUsesQualityCapacity()

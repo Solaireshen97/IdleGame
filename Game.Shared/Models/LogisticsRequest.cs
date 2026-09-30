@@ -6,5 +6,6 @@ public sealed class LogisticsRequest
     public string RequestId { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public string Fingerprint { get; set; } = string.Empty;
+    public string? ResultJson { get; set; }
     public DateTime CompletedAtUtc { get; set; }
 }

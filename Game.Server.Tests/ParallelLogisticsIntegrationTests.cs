@@ -114,10 +114,7 @@ public sealed class ParallelLogisticsIntegrationTests
         }
         public static async Task<LogisticsFixture> CreateAsync()
         {
-            var root = new DirectoryInfo(AppContext.BaseDirectory);
-            while (root != null && !File.Exists(Path.Combine(root.FullName, "Game.Server", "appsettings.json"))) root = root.Parent;
-            Assert.NotNull(root);
-            var config = new ConfigurationBuilder().AddJsonFile(Path.Combine(root!.FullName, "Game.Server", "appsettings.json")).Build();
+            var config = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
             IOptions<T> Settings<T>(string section) where T : class => Options.Create(config.GetSection(section).Get<T>()!);
             var world = WorldCatalog.LoadDefault();
             var weapons = new WeaponCatalog(Settings<WeaponOptions>(WeaponOptions.SectionName));

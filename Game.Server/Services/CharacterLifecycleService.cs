@@ -22,7 +22,7 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
             await transaction.CommitAsync();
             return (character, null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             dbContext.ChangeTracker.Clear();
@@ -63,7 +63,7 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             dbContext.ChangeTracker.Clear();
@@ -138,7 +138,7 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
             await transaction.CommitAsync();
             return (true, null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             dbContext.ChangeTracker.Clear();

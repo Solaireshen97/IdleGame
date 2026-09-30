@@ -163,8 +163,7 @@ public sealed class ProfessionMechanicCatalogTests
 
     private static (SkillCatalog Skills, BattleStatusCatalog Statuses) Production()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         return (new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters), monsters.Statuses);
     }
@@ -178,8 +177,7 @@ public partial class BattleServiceTests
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 100, monsterDefense: 0);
         test.Character.ProfessionCode = "mage";
         test.Monster.Hp = test.Monster.MaxHp = 1000;
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         var skills = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!), monsters);
         var statuses = new BattleStatusService(test.Db, monsters.Statuses);
@@ -198,8 +196,7 @@ public partial class BattleServiceTests
     public async Task LiveStatusSnapshotUsesTheSameCustomMechanicNumbersAsSkillInformation()
     {
         await using var test = await BattleTestContext.CreateAsync();
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsters = new MonsterCombatCatalog(Options.Create(configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         var mechanics = new ProfessionMechanicCatalog(acolyte: new(new(1, 2, 3), HealingEnhancementPercent: 26));
         var statuses = new BattleStatusService(test.Db, monsters.Statuses, mechanics: mechanics);

@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public class ShopServiceTests
+public partial class ShopServiceTests
 {
     [Fact]
     public async Task ConsumablePurchaseUsesServerPriceAndDeliversOnlyToActiveCharacter()
@@ -159,12 +159,10 @@ public class ShopServiceTests
         });
         await test.Db.SaveChangesAsync();
 
-        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
-        {
+        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest { RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, OfferCode = "kobold-fire"
         });
-        var (rejected, rejectedError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
-        {
+        var (rejected, rejectedError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest { RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, OfferCode = "kobold-fire"
         });
 
@@ -187,12 +185,10 @@ public class ShopServiceTests
         });
         await test.Db.SaveChangesAsync();
 
-        var (first, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
-        {
+        var (first, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest { RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, OfferCode = "kobold-fragments"
         });
-        var (second, secondError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
-        {
+        var (second, secondError) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest { RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, OfferCode = "kobold-fragments"
         });
 
@@ -215,8 +211,7 @@ public class ShopServiceTests
         });
         await test.Db.SaveChangesAsync();
 
-        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest
-        {
+        var (result, error) = await test.Service.ExchangeAsync(test.Token, new ExchangeDungeonWeaponRequest { RequestId = Guid.NewGuid().ToString("N"),
             CharacterId = test.Character.Id, OfferCode = "kobold-soul"
         });
 

@@ -99,24 +99,26 @@ public sealed class AutoBattleFlowTests
                 battleLogStore: test.LogStore);
         });
         await using var provider = services.BuildServiceProvider();
+        var health = new BackgroundCycleHealth();
         using var worker = new RoomCycleService(provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<RoomCycleService>.Instance);
+            NullLogger<RoomCycleService>.Instance, health);
 
         await worker.StartAsync(CancellationToken.None);
         try
         {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            var roundNumber = 0;
-            while (DateTime.UtcNow < deadline)
-            {
-                await using var check = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
-                    .UseSqlite(connectionString).Options);
-                roundNumber = await check.Rooms.AsNoTracking().Where(room => room.Id == 1)
-                    .Select(room => room.RoundNumber).SingleAsync();
-                if (roundNumber > 0) break;
-                await Task.Delay(50);
-            }
-
+            // .NET 10 schedules ExecuteAsync on the thread pool. Observe the completed
+            // scan instead of spending the startup window repeatedly opening SQLite.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            while (health.Snapshot().SingleOrDefault()?.LastScanCompletedAtUtc is null)
+                await Task.Delay(25, deadline.Token);
+            await worker.StopAsync(CancellationToken.None);
+            var scan = Assert.Single(health.Snapshot());
+            Assert.Equal(0, scan.ConsecutiveFailedScans);
+            Assert.Equal(0, scan.FailedItems);
+            await using var check = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>()
+                .UseSqlite(connectionString).Options);
+            var roundNumber = await check.Rooms.AsNoTracking().Where(room => room.Id == 1)
+                .Select(room => room.RoundNumber).SingleAsync();
             Assert.Equal(1, roundNumber);
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("准备超时"));
             Assert.Contains(test.LogStore.Get(1), log => log.Text.Contains("1号位") && log.Text.Contains("普通攻击"));

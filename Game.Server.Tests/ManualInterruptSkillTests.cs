@@ -88,8 +88,7 @@ public partial class BattleServiceTests
     private static async Task<(BattleService Service, MonsterCombatService MonsterCombat, CombatSkillOptions Skill, MonsterIntent Intent)>
         PrepareInterruptSkillAsync(BattleTestContext test, string skillCode, string intentState, bool autoUse = false)
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsterOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
         monsterOptions.Skills.Add(new MonsterSkillOptions
         {

@@ -82,8 +82,7 @@ public partial class BattleServiceTests
         await test.Db.SaveChangesAsync();
         await test.AddSkillAsync(test.Character, 1, "sword-slash", autoUse: true);
 
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var skills = new SkillCatalog(Options.Create(configuration.GetSection(SkillOptions.SectionName).Get<SkillOptions>()!));
         var progression = ProgressionTestFactory.Create();
         var users = new UserService(test.Db, progression, skills);
@@ -1290,8 +1289,7 @@ public partial class BattleServiceTests
             { CharacterId = test.Character.Id, NodeCode = "sword-rhythm", PointsSpent = 1 });
         await test.Db.SaveChangesAsync();
         await test.AddSkillAsync(test.Character, 1, "sword-slash", autoUse: true);
-        var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var config = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var skills = CreateImmediateProductionSkills(config);
         var progression = ProgressionTestFactory.Create();
         var service = new BattleService(test.Db, new UserService(test.Db, progression, skills),
@@ -2686,8 +2684,7 @@ public partial class BattleServiceTests
     private static (BattleService Service, MonsterCombatService MonsterCombat) CreateProductionSoulBattleService(
         BattleTestContext test)
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsterCatalog = new MonsterCombatCatalog(Options.Create(
             configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!));
         var monsterCombat = new MonsterCombatService(test.Db, monsterCatalog);

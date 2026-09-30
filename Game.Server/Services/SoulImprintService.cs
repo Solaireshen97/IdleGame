@@ -55,7 +55,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -77,7 +77,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             await dbContext.SaveChangesAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -99,7 +99,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             await dbContext.SaveChangesAsync();
             return (await BuildResponseAsync(character!), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }
@@ -153,7 +153,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character), null);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }

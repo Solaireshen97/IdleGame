@@ -16,7 +16,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public sealed class WeaponServiceTests
+public sealed partial class WeaponServiceTests
 {
     [Fact]
     public void FragmentTiersCoverCompleteTenLevelRanges()
@@ -32,8 +32,7 @@ public sealed class WeaponServiceTests
     [Fact]
     public void ProductionWeaponSkillConfigurationLoads()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         var options = new WeaponOptions();
         new ConfigurationBuilder().AddJsonFile(path).Build()
             .GetSection(WeaponOptions.SectionName).Bind(options);
@@ -369,11 +368,11 @@ public sealed class WeaponServiceTests
         CharacterWeaponsResponse? response = null;
         for (var index = 0; index < 3; index++)
         {
-            var enhancement = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+            var enhancement = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1, Guid.NewGuid().ToString("N"));
             response = enhancement.Response;
             Assert.Null(enhancement.Error);
         }
-        var (_, maximumError) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+        var (_, maximumError) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1, Guid.NewGuid().ToString("N"));
 
         var skill = Assert.Single(response!.Weapons.Single(weapon => weapon.Id == main.Id).Skills);
         Assert.Equal((4, 1, 3), (skill.Level, skill.BaseLevel, skill.EnhancementLevel));
@@ -408,7 +407,7 @@ public sealed class WeaponServiceTests
         var remaining = 62;
         foreach (var cost in new[] { 2, 4, 8, 8, 8, 8, 8, 8, 8 })
         {
-            var (response, error) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1);
+            var (response, error) = await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1, Guid.NewGuid().ToString("N"));
             Assert.Null(error);
             remaining -= cost;
             Assert.Equal(remaining, response!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
@@ -416,7 +415,7 @@ public sealed class WeaponServiceTests
         }
         Assert.Equal(0, remaining);
         Assert.Equal("WeaponSkillAtMaximum",
-            (await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1)).Error);
+            (await test.Service.EnhanceSkillAsync(test.Token, 1, main.Id, 1, Guid.NewGuid().ToString("N"))).Error);
 
         var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
         Assert.Null((await test.Service.SetSlotAsync(test.Token, 1, 1,
@@ -518,10 +517,10 @@ public sealed class WeaponServiceTests
         });
         await test.Db.SaveChangesAsync();
         for (var level = 0; level < 4; level++)
-            Assert.Null((await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1)).Error);
+            Assert.Null((await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1, Guid.NewGuid().ToString("N"))).Error);
         Assert.Equal(6, target.Skills.Single().Level);
         Assert.Equal("WeaponSkillAtMaximum",
-            (await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1)).Error);
+            (await test.Service.EnhanceSkillAsync(test.Token, 1, target.Id, 1, Guid.NewGuid().ToString("N"))).Error);
 
         var whiteMaterial = catalog.CreateRewardSnapshot("ember-blade").ToCharacterWeapon(1);
         test.Db.CharacterWeapons.Add(whiteMaterial);

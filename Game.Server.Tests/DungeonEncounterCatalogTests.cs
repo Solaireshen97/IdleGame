@@ -13,8 +13,7 @@ public class DungeonEncounterCatalogTests
     [Fact]
     public void ProductionConfigurationDefinesKoboldMineAndValidRewardProfiles()
     {
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
         var consumableOptions = new ConsumableOptions();
         var weaponOptions = new WeaponOptions();

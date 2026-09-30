@@ -12,8 +12,7 @@ public sealed class FireWeaponProgressionTests
     [Fact]
     public void FireTransitionTemplatesSnapshotsAndVisibleHuntDropsMatchDesign()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         T Bind<T>(string section) where T : class, new() => configuration.GetSection(section).Get<T>()!;
         var catalog = new WeaponCatalog(Options.Create(Bind<WeaponOptions>(WeaponOptions.SectionName)));
         var rewards = new RewardCatalog(Options.Create(Bind<RewardOptions>(RewardOptions.SectionName)),

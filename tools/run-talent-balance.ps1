@@ -3,7 +3,7 @@ param([switch]$SkipBuild)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$dll = Join-Path $PSScriptRoot 'Game.BalanceSimulator/bin/Debug/net8.0/Game.BalanceSimulator.dll'
+$dll = Join-Path $PSScriptRoot 'Game.BalanceSimulator/bin/Debug/net10.0/Game.BalanceSimulator.dll'
 $profilePath = 'docs/talent-build-profiles.json'
 
 Push-Location $repositoryRoot

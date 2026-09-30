@@ -18,8 +18,7 @@ public sealed class CharacterStatSnapshotTests
     public void EquipmentRecalculationUsesOnlyEquippedWeaponsAndDoesNotHealOrAdvanceVersion()
     {
         var options = new WeaponOptions();
-        var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"));
+        var path = TestRepository.File("Game.Server", "appsettings.json");
         new ConfigurationBuilder().AddJsonFile(path).Build().GetSection(WeaponOptions.SectionName).Bind(options);
         var catalog = new WeaponCatalog(Options.Create(options));
         var weapons = catalog.CreateStarterWeapons(1, "knight").ToList();

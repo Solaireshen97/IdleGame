@@ -26,8 +26,7 @@ public sealed class FirstHuntBalanceTests
     [Fact]
     public async Task SixFirstHuntsHaveFixedSecondRoundIntentAndMatchingRewardPreview()
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         T OptionsFor<T>(string section) where T : class, new() =>
             configuration.GetSection(section).Get<T>()!;
         var encounters = OptionsFor<DungeonEncounterOptions>(DungeonEncounterOptions.SectionName);

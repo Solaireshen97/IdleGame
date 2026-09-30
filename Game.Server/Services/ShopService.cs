@@ -4,6 +4,7 @@ using Game.Shared.Models;
 using Game.Shared.Enums;
 using Game.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Game.Server.Services;
 
@@ -79,7 +80,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             await transaction.RollbackAsync();
             dbContext.ChangeTracker.Clear();
@@ -113,6 +114,26 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
         if (error is not null) return (null, error);
         if (character!.Id != request.CharacterId) return (null, "ActiveCharacterChanged");
+        if (!Guid.TryParse(request.RequestId, out var requestGuid) || requestGuid == Guid.Empty)
+            return (null, "InvalidRequestId");
+        var requestId = requestGuid.ToString("N");
+        var fingerprint = (request.OfferCode?.Trim() ?? "").ToLowerInvariant();
+        var previous = await dbContext.LogisticsRequests.AsNoTracking().SingleOrDefaultAsync(receipt =>
+            receipt.CharacterId == character.Id && receipt.RequestId == requestId);
+        if (previous is not null)
+        {
+            if (previous.Kind != "DungeonExchange" || previous.Fingerprint != fingerprint)
+                return (null, "RequestIdReused");
+            var summary = JsonSerializer.Deserialize<ExchangeReceipt>(previous.ResultJson
+                ?? throw new InvalidOperationException("Missing exchange receipt result."))
+                ?? throw new InvalidOperationException("Invalid exchange receipt result.");
+            dbContext.ChangeTracker.Clear();
+            (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
+            if (error is not null) return (null, error);
+            if (character!.Id != request.CharacterId) return (null, "ActiveCharacterChanged");
+            return (new DungeonExchangeResultResponse { Shop = await BuildResponseAsync(user!, character),
+                RewardDisplayName = summary.Name, RewardQuantity = summary.Quantity, WeaponDisplayName = summary.WeaponName }, null);
+        }
         var offer = dungeonExchanges.Find(request.OfferCode);
         if (offer is null) return (null, "ExchangeOfferNotFound");
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -173,18 +194,24 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             materialStack.Quantity += offer.RewardQuantity;
             materialStack.Version++;
         }
+        var rewardName = weaponSnapshot?.DisplayName ?? soulImprints?.Find(rewardCode)?.Name ??
+            materials.FindItem(rewardCode)!.Name;
+        var resultSummary = new ExchangeReceipt(rewardName, offer.RewardQuantity, weaponSnapshot?.DisplayName ?? string.Empty);
+        dbContext.LogisticsRequests.Add(new LogisticsRequest { CharacterId = character.Id, RequestId = requestId,
+            Kind = "DungeonExchange", Fingerprint = fingerprint, CompletedAtUtc = DateTime.UtcNow,
+            ResultJson = JsonSerializer.Serialize(resultSummary) });
         try
         {
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
+            await transaction.RollbackAsync();
+            dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
 
-        var rewardName = weaponSnapshot?.DisplayName ?? soulImprints?.Find(rewardCode)?.Name ??
-            materials.FindItem(rewardCode)!.Name;
         return (new DungeonExchangeResultResponse
         {
             Shop = await BuildResponseAsync(user!, character),
@@ -193,6 +220,8 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
             WeaponDisplayName = weaponSnapshot?.DisplayName ?? string.Empty
         }, null);
     }
+
+    private sealed record ExchangeReceipt(string Name, int Quantity, string WeaponName);
 
     public async Task<(ShopResponse? Response, string? Error)> PurchaseCharacterSlotAsync(string? token)
     {
@@ -211,7 +240,7 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         {
             await dbContext.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
             return (null, "ConcurrencyConflict");
         }

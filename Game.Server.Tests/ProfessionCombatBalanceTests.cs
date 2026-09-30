@@ -93,8 +93,7 @@ public partial class BattleServiceTests
     private static (BattleService Service, MonsterCombatService MonsterCombat) CreateProfessionBalanceService(
         BattleTestContext test)
     {
-        var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "Game.Server", "appsettings.json"))).Build();
+        var configuration = new ConfigurationBuilder().AddJsonFile(TestRepository.File("Game.Server", "appsettings.json")).Build();
         var monsterOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
         monsterOptions.Skills.Add(new MonsterSkillOptions
         {
