@@ -9,6 +9,8 @@ public sealed class MonsterCombatOptions
     public List<MonsterSkillOptions> Skills { get; set; } = [];
     public Dictionary<string, MonsterCombatProfileOptions> Profiles { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, List<MonsterDepthStageOptions>> DepthProgressions { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class BattleStatusOptions
@@ -61,6 +63,14 @@ public sealed class MonsterCombatProfileOptions
 {
     public int SkillUseChancePercent { get; set; }
     public List<MonsterProfileSkillOptions> Skills { get; set; } = [];
+    public string? DepthProgressionCode { get; set; }
+}
+
+public sealed class MonsterDepthStageOptions
+{
+    public int Depth { get; set; }
+    public string? ReplacementProfileCode { get; set; }
+    public List<MonsterProfileSkillOptions> AddedSkills { get; set; } = [];
 }
 
 public sealed class MonsterProfileSkillOptions

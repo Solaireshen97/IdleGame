@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class PartyScalingService(GameDbContext dbContext, PartyScalingCatalog catalog)
+public sealed class PartyScalingService(GameDbContext dbContext, PartyScalingCatalog catalog, DungeonRunRulesService? runRules = null)
 {
     public PartyScalingCatalog Catalog => catalog;
 
@@ -13,14 +13,14 @@ public sealed class PartyScalingService(GameDbContext dbContext, PartyScalingCat
     {
         // Admission after victory belongs to the next run and must not revive the defeated monster.
         if (room.ClosedAtUtc.HasValue || room.Status == RoomStatus.BattleOver) return;
-        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
-        if (dungeon is null || !catalog.ScalesHp(dungeon.PartyScalingProfileCode)) return;
+        var percentages = await PercentagesAsync(room);
+        if (percentages.All(percent => percent == 100)) return;
 
         // Read all slots before filtering so pending assignments/removals in this context are included.
         slots ??= await dbContext.RoomSlots.Where(slot => slot.RoomId == room.Id).ToListAsync();
         var partySize = Math.Clamp(slots.Count(slot => slot.CharacterId.HasValue), 1, room.SlotCount);
         var targetSize = room.RoundNumber == 0 ? partySize : Math.Max(room.ScalingPartySize, partySize);
-        var percent = catalog.GetHpPercent(dungeon.PartyScalingProfileCode, targetSize);
+        var percent = percentages[Math.Clamp(targetSize, 1, 5) - 1];
         var monsters = await dbContext.Monsters.Where(monster => monster.RoomId == room.Id).ToListAsync();
         if (monsters.Count == 0 && await dbContext.Monsters.FindAsync(room.MonsterId) is { } legacyMonster)
             monsters.Add(legacyMonster);
@@ -36,5 +36,12 @@ public sealed class PartyScalingService(GameDbContext dbContext, PartyScalingCat
             monster.MaxHp = maxHp;
         }
         room.ScalingPartySize = targetSize;
+    }
+
+    public async Task<IReadOnlyList<int>> PercentagesAsync(Room room)
+    {
+        if (runRules is not null) return (await runRules.EnsureAsync(room)).PartyHpPercentages;
+        var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
+        return dungeon is null ? [100, 100, 100, 100, 100] : catalog.GetHpPercentages(dungeon.PartyScalingProfileCode);
     }
 }

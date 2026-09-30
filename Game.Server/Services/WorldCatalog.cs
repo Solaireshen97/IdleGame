@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Game.Server.Configuration;
 using Game.Shared.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
@@ -11,7 +12,8 @@ public sealed class WorldCatalog
     public IReadOnlyList<RegionOptions> Regions { get; }
     public IReadOnlyList<Dungeon> Dungeons { get; }
 
-    public WorldCatalog(IOptions<WorldOptions> options, PartyScalingCatalog? partyScaling = null)
+    public WorldCatalog(IOptions<WorldOptions> options, PartyScalingCatalog? partyScaling = null,
+        DungeonEncounterCatalog? encounters = null)
     {
         Regions = options.Value.Regions;
         Dungeons = options.Value.Dungeons;
@@ -30,6 +32,7 @@ public sealed class WorldCatalog
         }
         foreach (var dungeon in Dungeons)
         {
+            encounters?.PopulateRepresentativeStats(dungeon);
             var region = Regions.SingleOrDefault(region => region.Code == dungeon.RegionCode);
             if (string.IsNullOrWhiteSpace(dungeon.Code) || string.IsNullOrWhiteSpace(dungeon.Name) || dungeon.Id != 0 ||
                 dungeon.MinimumLevel < 1 || dungeon.RecommendedLevel < dungeon.MinimumLevel ||
@@ -77,6 +80,14 @@ public sealed class WorldCatalog
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "world.json")));
         var options = document.RootElement.GetProperty(WorldOptions.SectionName).Deserialize<WorldOptions>(
             new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } })!;
-        return new WorldCatalog(Options.Create(options));
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), optional: false).Build();
+        var combatOptions = configuration.GetSection(MonsterCombatOptions.SectionName).Get<MonsterCombatOptions>()!;
+        var encounterOptions = configuration.GetSection(DungeonEncounterOptions.SectionName).Get<DungeonEncounterOptions>()!;
+        var depthOptions = configuration.GetSection(DungeonDepthOptions.SectionName).Get<DungeonDepthOptions>()!;
+        var partyOptions = configuration.GetSection(PartyScalingOptions.SectionName).Get<PartyScalingOptions>()!;
+        var encounters = new DungeonEncounterCatalog(Options.Create(encounterOptions),
+            new MonsterCombatCatalog(Options.Create(combatOptions)), depthCatalog: new DungeonDepthCatalog(Options.Create(depthOptions)));
+        return new WorldCatalog(Options.Create(options), new PartyScalingCatalog(Options.Create(partyOptions)), encounters);
     }
 }

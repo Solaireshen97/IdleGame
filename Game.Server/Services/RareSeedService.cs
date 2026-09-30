@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class RareSeedService(GameDbContext db, PlantingCatalog plants)
+public sealed class RareSeedService(GameDbContext db, PlantingCatalog plants, DungeonRunRulesService? runRules = null)
 {
     public async Task RecordDropsAsync(Room room, string dungeonCode,
         IEnumerable<RewardParticipant> participants, IEnumerable<int> actualCharacterIds)
@@ -15,8 +15,11 @@ public sealed class RareSeedService(GameDbContext db, PlantingCatalog plants)
         var recipients = participants.Where(p => actual.Contains(p.Character.Id))
             .DistinctBy(p => p.Character.Id).ToList();
         if (recipients.Count == 0) return;
-        foreach (var plant in plants.Plants.Where(p => p.IsRare &&
-                     (p.UnlockTargetCode == dungeonCode || p.AlternativeUnlockTargetCodes.Contains(dungeonCode))))
+        var drops = runRules is null ? plants.Plants.Where(p => p.IsRare &&
+                (p.UnlockTargetCode == dungeonCode || p.AlternativeUnlockTargetCodes.Contains(dungeonCode)))
+            .Select(p => new DungeonSeedDrop(p.SeedCode, p.DropChancePercent)).ToList()
+            : (await runRules.EnsureAsync(room)).RareSeeds;
+        foreach (var plant in drops)
         {
             var eventKey = $"rare-seed:{plant.SeedCode}";
             if (db.RewardEvents.Local.Any(e => e.RoomId == room.Id && e.Sequence == room.RunSequence && e.EventKey == eventKey) ||

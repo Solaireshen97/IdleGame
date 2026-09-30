@@ -7,6 +7,8 @@ public sealed class DungeonEncounterOptions
     public const string SectionName = "DungeonEncounters";
     public Dictionary<string, List<DungeonWaveOptions>> Dungeons { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, DungeonRewardEligibility> RewardEligibility { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class DungeonWaveOptions

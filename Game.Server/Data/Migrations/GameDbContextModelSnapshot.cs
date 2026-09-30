@@ -16,6 +16,16 @@ namespace Game.Server.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.6");
+            modelBuilder.Entity("Game.Shared.Models.DungeonRunRuleSnapshot", b =>
+            {
+                b.Property<int>("RoomId").HasColumnType("INTEGER");
+                b.Property<string>("Revision").IsRequired().HasColumnType("TEXT");
+                b.Property<string>("DefinitionJson").IsRequired().HasColumnType("TEXT");
+                b.HasKey("RoomId");
+                b.ToTable("DungeonRunRuleSnapshots");
+                b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId")
+                    .OnDelete(DeleteBehavior.Cascade).IsRequired();
+            });
 
             modelBuilder.Entity("Game.Shared.Models.CharacterCombatProfession", b =>
                 {

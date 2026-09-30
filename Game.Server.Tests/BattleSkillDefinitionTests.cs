@@ -131,7 +131,7 @@ public sealed class BattleSkillDefinitionTests
             Skills = [new() { Code = "slam", Name = "Slam", Description = "Damage", DamagePowerPercent = 150 }],
             Profiles = new() { ["boss"] = new() { SkillUseChancePercent = 100, Skills = [new() { Code = "slam" }] } }
         };
-        var catalog = new MonsterCombatCatalog(Options.Create(options));
+        var catalog = new MonsterCombatCatalog(Options.Create(DepthMechanicTestFactory.WithCurrentDeclarations(options)));
         options.Skills[0].DamagePowerPercent = 999;
         options.Profiles["boss"].Skills.Clear();
         catalog.FindSkill("slam")!.DamagePowerPercent = 888;

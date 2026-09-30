@@ -103,6 +103,7 @@ public class UserController(UserService userService, ConsumableService consumabl
             "UserNotFound" => NotFound("User not found."),
             "CharacterNotFound" => NotFound("Character not found."),
             "NotOwner" => StatusCode(403, "Character does not belong to current user."),
+            "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
             _ => BadRequest()
         };
     }
@@ -160,6 +161,7 @@ public class UserController(UserService userService, ConsumableService consumabl
             "CannotDeleteLastCharacter" => BadRequest("Cannot delete the last character."),
             "CharacterInRoom" => BadRequest("Character is still in a room."),
             "CharacterBusy" => Conflict("CharacterBusy"),
+            "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
             _ => BadRequest()
         };
     }

@@ -9,9 +9,9 @@ namespace Game.Server.Services;
 public sealed class DungeonRunService(GameDbContext dbContext, RewardService rewardService,
     MonsterCombatService? monsterCombatService = null, BattleMilestoneService? battleMilestones = null,
     GatheringOpportunityService? gatheringOpportunities = null, RareSeedService? rareSeeds = null,
-    DungeonDepthProgressService? depthProgress = null)
+    DungeonDepthProgressService? depthProgress = null, DungeonRunRulesService? runRules = null)
 {
-    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext);
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, runRules: runRules);
     public async Task<(Monster ActiveMonster, bool IsDungeonComplete, string? Error)> AdvanceAfterDefeatAsync(
         Room room, Monster defeatedMonster, IReadOnlyCollection<RewardParticipant> participants,
         DateTime now, List<string> logs, IReadOnlyCollection<int>? actualMonsterCharacterIds = null,
@@ -19,8 +19,14 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
     {
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return (defeatedMonster, false, "DungeonNotFound");
-        var isDepth = await _depthProgress.DefinitionAsync(room) is not null;
-        var killParticipants = isDepth && actualMonsterCharacterIds is not null
+        var definition = runRules is not null ? await runRules.EnsureAsync(room) : null;
+        var dungeonKind = definition?.DungeonKind ?? dungeon.DungeonKind;
+        var eligibility = definition is not null ? definition.RewardEligibility :
+            await _depthProgress.DefinitionAsync(room) is not null ? DungeonRewardEligibility.ActualParticipants : DungeonRewardEligibility.CurrentSlots;
+        if (definition is not null && eligibility == DungeonRewardEligibility.ActualParticipants &&
+            (actualMonsterCharacterIds is null || actualRunCharacterIds is null))
+            return (defeatedMonster, false, "MissingParticipationEvidence");
+        var killParticipants = eligibility == DungeonRewardEligibility.ActualParticipants && actualMonsterCharacterIds is not null
             ? participants.Where(item => actualMonsterCharacterIds.Contains(item.Character.Id)).ToList()
             : participants;
 
@@ -61,7 +67,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         }
 
         SetBattleOver(room, now);
-        var clearParticipants = isDepth && actualRunCharacterIds is not null
+        var clearParticipants = eligibility == DungeonRewardEligibility.ActualParticipants && actualRunCharacterIds is not null
             ? participants.Where(item => actualRunCharacterIds.Contains(item.Character.Id)).ToList()
             : participants;
         var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
@@ -75,9 +81,9 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualCharacterIds,
                 BattleMilestoneService.DungeonClearKind, dungeon.Code, now);
-            if ((dungeon.DungeonKind is "Elite" or "Dungeon") && rareSeeds is not null)
+            if ((dungeonKind is "Elite" or "Dungeon") && rareSeeds is not null)
                 await rareSeeds.RecordDropsAsync(room, dungeon.Code, participants, actualCharacterIds);
-            if ((dungeon.DungeonKind is "Elite" or "Dungeon") && gatheringOpportunities is not null)
+            if ((dungeonKind is "Elite" or "Dungeon") && gatheringOpportunities is not null)
             {
                 var names = participants.DistinctBy(participant => participant.Character.Id)
                     .ToDictionary(participant => participant.Character.Id, participant => participant.Character.Name);
@@ -86,7 +92,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             }
         }
         var firstClearRewardCode = $"{dungeon.Code}-first-clear";
-        if (firstClearUserIds.Count > 0 && rewardService.HasRewardProfile(firstClearRewardCode, true))
+        if (firstClearUserIds.Count > 0 && await rewardService.HasRewardProfileAsync(room, firstClearRewardCode, true))
             await rewardService.RecordAsync(room, firstClearRewardCode,
                 clearParticipants.Where(participant => firstClearUserIds.Contains(participant.UserId)),
                 "first-clear", true);

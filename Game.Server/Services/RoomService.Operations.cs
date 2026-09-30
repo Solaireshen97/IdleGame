@@ -18,11 +18,13 @@ public partial class RoomService
         {
             var room = await dbContext.Rooms.FindAsync(roomId);
             if (room is null) return (null, "NotFound");
+            var joiningCharacterId = request.Kind == RoomOperationKind.Join
+                ? await new CharacterAccessResolver(dbContext).ActiveIdAsync(user!) : null;
             var operation = new RoomOperation
             {
                 RoomId = roomId, UserId = user!.Id, Kind = request.Kind,
                 SlotIndex = request.SlotIndex, CharacterId = request.Kind == RoomOperationKind.Assign
-                    ? request.CharacterId ?? 0 : user.ActiveCharacterId ?? 0,
+                    ? request.CharacterId ?? 0 : joiningCharacterId ?? 0,
                 CreatedAtUtc = DateTime.UtcNow
             };
             var error = await ValidateOperationAsync(room, operation, capture: true);

@@ -11,7 +11,7 @@ public sealed class RogueMechanics(ProfessionMechanicCatalog? mechanics = null) 
     {
         if (cast.Skill.Code != "rogue-execution-slash") return;
         cast.Result.UseActualDamage = true;
-        var definition = executor.Statuses?.Catalog.FindMechanic(BattleStatusMechanic.ShadowCharges);
+        var definition = executor.Statuses?.CatalogFor(cast.Battle.Room).FindMechanic(BattleStatusMechanic.ShadowCharges);
         var charges = definition is null ? 0 : await executor.Statuses!.ConsumeAsync(cast.Battle.Room, "Character", cast.Source.Id, definition.Code);
         if (charges <= 0) return;
         cast.DamageMultipliers.Add(1 + charges * _mechanics.Rogue.DamageBonusPerChargePercent / 100m);
@@ -48,7 +48,7 @@ public sealed class RogueMechanics(ProfessionMechanicCatalog? mechanics = null) 
     public static async Task<bool> AddChargeAsync(BattleStatusService statuses, Room room, int characterId,
         List<string> logs, string label, string? skillCode = null, ProfessionMechanicCatalog? mechanics = null)
     {
-        var definition = statuses.Catalog.FindMechanic(BattleStatusMechanic.ShadowCharges);
+        var definition = statuses.CatalogFor(room).FindMechanic(BattleStatusMechanic.ShadowCharges);
         if (definition is null) return false;
         var current = await statuses.StacksAsync(room, "Character", characterId, definition.Code);
         var charge = await statuses.SetCounterAsync(room, "Character", characterId, definition.Code,

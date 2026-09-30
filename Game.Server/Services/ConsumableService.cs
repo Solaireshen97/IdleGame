@@ -77,9 +77,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
-        var character = await dbContext.Characters.FirstOrDefaultAsync(item => item.Id == characterId);
-        if (character is null) return (null, "CharacterNotFound");
-        return character.UserId == user!.Id ? (character, null) : (null, "NotOwner");
+        return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
     private async Task<CharacterConsumablesResponse> BuildResponseAsync(Character character)

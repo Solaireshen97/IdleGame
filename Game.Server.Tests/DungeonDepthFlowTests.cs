@@ -198,7 +198,7 @@ public sealed class DungeonDepthFlowTests
                     ChallengeFragmentCode = $"t{id - 99}-universal-breakthrough-fragment", ChallengeFragmentChancePercent = 0 };
                 encounters.Dungeons[code] = [
                     new DungeonWaveOptions { Monsters = [new EncounterMonsterOptions { Name = "Guard", MaxHp = 100, Attack = 1, RewardProfileCode = "slime-field" }] },
-                    new DungeonWaveOptions { Monsters = [new EncounterMonsterOptions { Name = "Boss", MaxHp = 200, Attack = 2, IsBoss = true, RewardProfileCode = "slime-field" }] }];
+                    new DungeonWaveOptions { Monsters = [new EncounterMonsterOptions { Name = "Boss", MaxHp = 200, Attack = 2, IsBoss = true, RewardProfileCode = "slime-field", CombatProfileCode = "test-boss" }] }];
             }
             await db.SaveChangesAsync();
             var depths = new DungeonDepthCatalog(Options.Create(definitions));
@@ -209,7 +209,11 @@ public sealed class DungeonDepthFlowTests
             var users = new UserService(db, progression, skills);
             var rewardCatalog = RewardTestFactory.CreateCatalog();
             var rewards = new RewardService(db, rewardCatalog, progression, depthProgress: progress);
-            var encounterCatalog = new DungeonEncounterCatalog(Options.Create(encounters), rewardCatalog: rewardCatalog, depthCatalog: depths);
+            var combat = new MonsterCombatCatalog(Options.Create(DepthMechanicTestFactory.WithCurrentDeclarations(new MonsterCombatOptions
+            {
+                Profiles = new() { ["test-boss"] = new() }
+            })));
+            var encounterCatalog = new DungeonEncounterCatalog(Options.Create(encounters), combat, rewardCatalog, depths);
             var rooms = new RoomService(db, users, progression, consumables, skills, rewards, encounterCatalog: encounterCatalog, depthCatalog: depths, depthProgress: progress);
             var runs = new DungeonRunService(db, rewards, depthProgress: progress);
             var battle = new BattleService(db, users, consumables, skills, rewards, dungeonRunService: runs, roomService: rooms);

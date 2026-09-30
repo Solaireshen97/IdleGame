@@ -10,6 +10,7 @@ namespace Game.Server.Services;
 public sealed class SkillService(GameDbContext dbContext, UserService userService, SkillCatalog catalog, SkillInformationService? skillInformation = null)
 {
     private readonly SkillInformationService _information = skillInformation ?? new();
+    private readonly CombatProfessionProgressStore _professionProgress = new(dbContext);
     public List<ProfessionResponse> GetProfessions() => catalog.BaseProfessions
         .Select(profession => new ProfessionResponse
         {
@@ -170,18 +171,14 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         }
     }
 
-    private async Task<Dictionary<string, int>> GetProfessionLevelsAsync(int characterId) =>
-        (await dbContext.CharacterCombatProfessions.AsNoTracking()
-            .Where(progress => progress.CharacterId == characterId).ToListAsync())
-            .ToDictionary(progress => progress.ProfessionCode, progress => progress.Level, StringComparer.OrdinalIgnoreCase);
+    private Task<Dictionary<string, int>> GetProfessionLevelsAsync(int characterId) =>
+        _professionProgress.ReadLevelsAsync(characterId);
 
     private async Task<(Character? Character, string? Error)> GetOwnedCharacterAsync(string? token, int characterId)
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
-        var character = await dbContext.Characters.FirstOrDefaultAsync(item => item.Id == characterId);
-        if (character is null) return (null, "CharacterNotFound");
-        return character.UserId == user!.Id ? (character, null) : (null, "NotOwner");
+        return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
     private async Task<CharacterSkillsResponse> BuildResponseAsync(Character character)

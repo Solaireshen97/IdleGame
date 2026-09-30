@@ -1,7 +1,7 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
-@inject ActiveCharacterState ActiveCharacters
+@inject CharacterContextCoordinator CharacterContext
 @inject IJSRuntime JSRuntime
 
 @if (_isLoading)
@@ -170,7 +170,7 @@ else
             await LoadCharactersAsync();
             if (FirstCharacterCreation && _characters.Count > 0)
             {
-                await ActiveCharacters.RefreshAsync();
+                await CharacterContext.EnsureLoadedAsync();
                 await OnCreated.InvokeAsync();
                 return;
             }
@@ -198,11 +198,9 @@ else
 
     private async Task LoadCharactersAsync()
     {
-        var charactersTask = ApiService.GetCurrentCharactersAsync();
-        var userTask = ApiService.GetCurrentUserAsync();
-        await Task.WhenAll(charactersTask, userTask);
-        var characters = await charactersTask;
-        var user = await userTask;
+        var snapshot = await CharacterContext.LoadRosterAsync();
+        var characters = snapshot?.Characters;
+        var user = snapshot?.User;
         if (characters is not null)
         {
             _characters = characters;
@@ -266,7 +264,6 @@ else
             }
 
             await LoadCharactersAsync();
-            await ActiveCharacters.RefreshAsync();
             _isCreating = false;
             _newCharacterName = string.Empty;
             SetSuccessMessage($"已创建角色“{character.Name}”。");
@@ -309,7 +306,6 @@ else
             }
 
             await LoadCharactersAsync();
-            await ActiveCharacters.RefreshAsync();
             SetSuccessMessage($"已删除角色“{character.Name}”。");
         }
         finally
@@ -337,7 +333,6 @@ else
             }
 
             await LoadCharactersAsync();
-            await ActiveCharacters.RefreshAsync();
             SetSuccessMessage($"已切换当前角色为“{selectedCharacter.Name}”。");
             await OnSelected.InvokeAsync();
         }

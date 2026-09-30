@@ -53,19 +53,18 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         foreach (var entry in aliveSlots)
         {
             if (monster.Hp <= 0) break;
+            var stats = battle.StatsFor(entry.Character);
             var talentEcho = pendingTalentEcho[entry.Character.Id];
-            var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character),
-                entry.Character.WeaponStaminaPercent + entry.Character.TemporaryWeaponStaminaPercent,
-                entry.Character.WeaponEnmityPercent + entry.Character.TemporaryWeaponEnmityPercent);
+            var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, stats.MaxHp,
+                stats.StaminaPercent, stats.EnmityPercent);
             var adrenalineChance = monsterCombatService is null ? 0m :
                 await monsterCombatService.GetModifierAsync(room, "Character", entry.Character.Id, "DoubleAttackChancePercent");
             var coordinatedEcho = monsterCombatService is null ? 0 :
                 await monsterCombatService.Statuses.MechanicPowerAsync(room, "Character", entry.Character.Id, BattleStatusMechanic.HunterCoordinated);
-            var hits = WeaponCombatRules.RollPercent(entry.Character.WeaponDoubleAttackChancePercent +
-                entry.Character.TemporaryWeaponDoubleAttackChancePercent + adrenalineChance, random) ? 2 : 1;
+            var hits = WeaponCombatRules.RollPercent(stats.DoubleAttackChancePercent + adrenalineChance, random) ? 2 : 1;
             for (var hit = 0; hit < hits && monster.Hp > 0; hit++)
             {
-                var source = BattleActor.ForCharacter(new(entry.Slot, entry.Character));
+                var source = BattleActor.ForCharacter(new(entry.Slot, entry.Character), stats);
                 using var attackAction = _events.ActionScope(source, "normal-attack", hit == 0 ? "普通攻击" : "二连击", BattleActionKind.NormalAttack);
                 var damageResult = await Effects.Damage.CharacterDamageAsync(battle, source,
                     BattleSkillEffect.Damage(100), BattleDamageOrigin.NormalAttack, true, healthPercent);
@@ -73,8 +72,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 var critical = damageResult.IsCritical;
                 logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} {(hit == 0 ? "普通攻击" : "二连击")} {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                 var echo = WeaponCombatRules.EchoDamage(damage,
-                    entry.Character.WeaponNormalEchoPercent + entry.Character.TemporaryWeaponNormalEchoPercent +
-                    talentEcho + coordinatedEcho);
+                    stats.NormalEchoPercent + talentEcho + coordinatedEcho);
                 if (monster.Hp > 0 && echo > 0)
                 {
                     var before = monster.Hp;
@@ -82,7 +80,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                     using var followUp = _events.ActionScope(source, "normal-echo", "普攻追击", BattleActionKind.FollowUp);
                     _events.Hp(room, BattleEventKind.Damage, source, battle.Enemy, echo, before - monster.Hp, before,
                         element: mainWeaponElements.TryGetValue(source.Id, out var echoElement) ? echoElement : null, modifier: WeaponCombatRules.ElementAttackPercent(
-                            mainWeaponElements.TryGetValue(source.Id, out var echoModifierElement) ? echoModifierElement : null, monster.Element, source.Character!.CombatWeaponElementAdvantagePercent));
+                            mainWeaponElements.TryGetValue(source.Id, out var echoModifierElement) ? echoModifierElement : null, monster.Element, stats.ElementAdvantagePercent));
                     logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 对 {monster.Name} 造成 {echo} 点普攻追击伤害。");
                 }
             }
@@ -111,7 +109,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         {
             var target = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).First();
             using var attackAction = _events.ActionScope(battle.Enemy, "basic-attack", "普通攻击", BattleActionKind.NormalAttack);
-            var damageResult = await Effects.Damage.MonsterDamageAsync(battle, BattleActor.ForCharacter(target),
+            var damageResult = await Effects.Damage.MonsterDamageAsync(battle, BattleActor.ForCharacter(target, battle.StatsFor(target.Character)),
                 new(BattleEffectKind.Damage, BattleEffectTarget.ForMonster("Front")), false);
             logs.Add($"{monster.Name} 普通攻击 {target.Slot.SlotIndex}号位 {target.Character.Name}，造成 {damageResult.CalculatedAmount} 点伤害。");
             await Statuses.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs, operationBonuses);

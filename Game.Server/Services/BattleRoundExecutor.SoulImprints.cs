@@ -44,12 +44,12 @@ public sealed partial class BattleRoundExecutor
                 !await CanSoulImprintApplyAsync(room, monster, definition, participant, aliveSlots) ||
                 automatic && !await MeetsSoulImprintAutoConditionAsync(room, monster, definition, participant, aliveSlots)) continue;
 
-            var soulSource = BattleActor.ForCharacter(new(participant.Slot, participant.Character));
+            var soulSource = BattleActor.ForCharacter(new(participant.Slot, participant.Character), battle.StatsFor(participant.Character));
             using var soulAction = _events.ActionScope(soulSource, definition.Code, definition.Name, BattleActionKind.SoulImprint);
             async Task<int> DealSoulDamageAsync()
             {
                 var damageResult = await Effects.Damage.CharacterDamageAsync(battle,
-                    BattleActor.ForCharacter(new(participant.Slot, participant.Character)), BattleSkillEffect.Damage(definition.PowerPercent),
+                    soulSource, BattleSkillEffect.Damage(definition.PowerPercent),
                     BattleDamageOrigin.Skill, true, damageElement: definition.Element);
                 var damage = damageResult.CalculatedAmount;
                 var critical = damageResult.IsCritical;
@@ -106,7 +106,7 @@ public sealed partial class BattleRoundExecutor
                     foreach (var target in aliveSlots.Where(entry => entry.Character.Hp > 0))
                     {
                         var hpBefore = target.Character.Hp;
-                        var healingTarget = BattleActor.ForCharacter(new(target.Slot, target.Character));
+                        var healingTarget = BattleActor.ForCharacter(new(target.Slot, target.Character), battle.StatsFor(target.Character));
                         var calculated = BattleDamageService.CalculateHealing(soulSource, healingTarget,
                             new(BattleEffectKind.Heal, BattleEffectTarget.ForCharacter("AllAlive"), HealMaxHpPercent: definition.PowerPercent),
                             applyHealingBonuses: false);

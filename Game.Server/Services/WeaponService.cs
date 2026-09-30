@@ -338,10 +338,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
 
     private void RecalculateCharacter(Character character, IReadOnlyCollection<CharacterWeapon> weapons)
     {
-        var equipped = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).ToList();
-        character.Attack = equipped.Sum(weapon => weapon.Attack);
-        character.MaxHp = equipped.Sum(weapon => weapon.MaxHp);
-        weaponCatalog.ApplyBonuses(character, weapons);
+        weaponCatalog.RecalculateEquipmentStats(character, weapons);
         character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
         character.Version++;
     }
@@ -350,9 +347,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
-        var character = await dbContext.Characters.SingleOrDefaultAsync(item => item.Id == characterId);
-        if (character is null) return (null, "CharacterNotFound");
-        return character.UserId == user!.Id ? (character, null) : (null, "NotOwner");
+        return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
     private async Task<CharacterWeaponsResponse> BuildResponseAsync(Character character)

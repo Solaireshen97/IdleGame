@@ -26,6 +26,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<CharacterDungeonProgress> CharacterDungeonProgress => Set<CharacterDungeonProgress>();
     public DbSet<CharacterFirstHuntWeaponClaim> CharacterFirstHuntWeaponClaims => Set<CharacterFirstHuntWeaponClaim>();
     public DbSet<DungeonRunParticipant> DungeonRunParticipants => Set<DungeonRunParticipant>();
+    public DbSet<DungeonRunRuleSnapshot> DungeonRunRuleSnapshots => Set<DungeonRunRuleSnapshot>();
     public DbSet<CharacterItemStack> CharacterItemStacks => Set<CharacterItemStack>();
     public DbSet<CharacterConsumableSlot> CharacterConsumableSlots => Set<CharacterConsumableSlot>();
     public DbSet<BattleConsumableCooldown> BattleConsumableCooldowns => Set<BattleConsumableCooldown>();
@@ -47,6 +48,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<DungeonRunRuleSnapshot>().HasKey(item => item.RoomId);
+        modelBuilder.Entity<DungeonRunRuleSnapshot>().Property(item => item.RoomId).ValueGeneratedNever();
+        modelBuilder.Entity<DungeonRunRuleSnapshot>().HasOne<Room>().WithMany()
+            .HasForeignKey(item => item.RoomId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CharacterCombatProfession>().HasKey(item => new { item.CharacterId, item.ProfessionCode });
         modelBuilder.Entity<CharacterCombatProfession>().HasOne<Character>().WithMany()
             .HasForeignKey(item => item.CharacterId).OnDelete(DeleteBehavior.Cascade);

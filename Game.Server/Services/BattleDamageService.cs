@@ -15,27 +15,26 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         decimal conditionalBonus = 0, decimal attackPowerBonus = 0, IReadOnlyList<decimal>? multipliers = null, ElementType? damageElement = null)
     {
         var character = source.Character ?? throw new InvalidOperationException("Character damage needs a character source.");
+        var stats = battle.StatsFor(character);
         var monster = battle.Monster;
         if (monster.Hp <= 0) return new(0, 0, false);
         var potion = battle.OperationBonuses.GetValueOrDefault(source.Id);
         var element = damageElement ?? (battle.MainWeaponElements.TryGetValue(source.Id, out var main) ? main : (ElementType?)null);
         var isSkill = origin != BattleDamageOrigin.NormalAttack;
         var isLegacyParry = origin == BattleDamageOrigin.LegacyParry;
-        var critical = rollCritical && WeaponCombatRules.RollPercent(character.WeaponCriticalChancePercent +
-            character.TemporaryWeaponCriticalChancePercent + (isSkill ? character.TalentSkillCriticalChancePercent : 0), random);
+        var critical = rollCritical && WeaponCombatRules.RollPercent(stats.CriticalChancePercent +
+            (isSkill ? stats.SkillCriticalChancePercent : 0), random);
         var attack = statuses is null || isLegacyParry ? 0 : await statuses.ModifierAsync(battle.Room, "Character", source.Id, "AttackPercent");
         var reduction = statuses is null || isLegacyParry ? 0 : await statuses.ModifierAsync(battle.Room, "Monster", monster.Id, "ReductionPercent");
         if (!isLegacyParry) reduction += (await guards.DefenseAsync(battle.Room, "Monster", monster.Id)).ReductionPercent;
-        var health = healthSnapshot ?? WeaponCombatRules.HealthDamagePercent(character.Hp, TalentRules.EffectiveMaxHp(character),
-            character.WeaponStaminaPercent + character.TemporaryWeaponStaminaPercent,
-            character.WeaponEnmityPercent + character.TemporaryWeaponEnmityPercent);
-        var damage = DamageCalculator.Calculate(TalentRules.EffectiveAttack(character), monster.Defense, effect.Power,
-            new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(character, battle.Room.RoundNumber) + attack + potion.AttackPercent +
-                    (isSkill ? 0 : character.TalentNormalAttackPercent),
+        var health = healthSnapshot ?? WeaponCombatRules.HealthDamagePercent(character.Hp, stats.MaxHp,
+            stats.StaminaPercent, stats.EnmityPercent);
+        var damage = DamageCalculator.Calculate(stats.Attack, monster.Defense, effect.Power,
+            new DamageFactors(AttackPercent: WeaponCombatRules.AttackBonusPercent(stats, battle.Room.RoundNumber) + attack + potion.AttackPercent +
+                    (isSkill ? 0 : stats.NormalAttackPercent),
                 HealthPercent: isLegacyParry ? 0 : health, CriticalPercent: critical ? BattleRules.CriticalDamageBonusPercent : 0,
-                ElementPercent: isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, character.CombatWeaponElementAdvantagePercent),
-                ReductionPercent: reduction, SkillDamagePercent: isSkill && !isLegacyParry ? character.WeaponSkillDamagePercent +
-                    character.TemporaryWeaponSkillDamagePercent + character.TalentSkillDamagePercent + conditionalBonus : 0,
+                ElementPercent: isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, stats.ElementAdvantagePercent),
+                ReductionPercent: reduction, SkillDamagePercent: isSkill && !isLegacyParry ? stats.SkillDamagePercent + conditionalBonus : 0,
                 ConsumablePercent: potion.FinalDamagePercent + (isSkill ? 0 : potion.NormalAttackDamagePercent)),
             effect.AttackPowerPercent + attackPowerBonus);
         foreach (var multiplier in multipliers ?? [])
@@ -45,7 +44,7 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         var actual = Math.Min(before, damage);
         monster.Hp = Math.Max(0, monster.Hp - damage);
         Events.Hp(battle.Room, BattleEventKind.Damage, source, battle.Enemy, damage, actual, before, critical,
-            isLegacyParry ? null : element, isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, character.CombatWeaponElementAdvantagePercent));
+            isLegacyParry ? null : element, isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, stats.ElementAdvantagePercent));
         return new(damage, actual, critical);
     }
 
@@ -53,6 +52,7 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         BattleSkillEffect effect, bool areaAttack, decimal skillReduction = 0, int legacyReduction = 0)
     {
         var character = target.Character ?? throw new InvalidOperationException("Monster direct damage needs a character target.");
+        var stats = battle.StatsFor(character);
         var monster = battle.Monster;
         var potion = battle.OperationBonuses.GetValueOrDefault(target.Id);
         var element = battle.MainWeaponElements.TryGetValue(target.Id, out var main) ? main : (ElementType?)null;
@@ -64,7 +64,7 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         var damage = DamageCalculator.Calculate(scaledAttack, 0, scaledFlat, factors: new DamageFactors(AttackPercent: attack,
             ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
             ReductionPercent: WeaponCombatRules.CombinedDirectReductionPercent(guard.ReductionPercent + reduction + legacyReduction +
-                (areaAttack ? potion.AreaDamageReductionPercent : 0) - potion.DamageTakenPercent, character)));
+                (areaAttack ? potion.AreaDamageReductionPercent : 0) - potion.DamageTakenPercent, stats, character.Hp)));
         var before = character.Hp;
         var actual = Math.Min(before, damage);
         character.Hp = Math.Max(0, character.Hp - damage);
@@ -82,7 +82,7 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
 
     public static int CalculateHealing(BattleActor source, BattleActor target, BattleSkillEffect effect, decimal multiplier = 1, bool applyHealingBonuses = true)
     {
-        var bonus = applyHealingBonuses ? (source.Character?.TalentHealingDonePercent ?? 0) + (target.Character?.TalentHealingReceivedPercent ?? 0) : 0;
+        var bonus = applyHealingBonuses ? (source.Stats?.HealingDonePercent ?? 0) + (target.Stats?.HealingReceivedPercent ?? 0) : 0;
         var raw = (int)decimal.Floor(RecoveryCalculator.Calculate(target.MaxHp, effect.Power, effect.HealMaxHpPercent) * (1 + bonus / 100m));
         return (int)Math.Min(int.MaxValue, decimal.Floor(raw * multiplier));
     }

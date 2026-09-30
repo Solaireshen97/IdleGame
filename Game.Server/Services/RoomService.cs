@@ -12,12 +12,12 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, DungeonDepthCatalog? depthCatalog = null, DungeonDepthProgressService? depthProgress = null, SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null)
+public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, DungeonDepthCatalog? depthCatalog = null, DungeonDepthProgressService? depthProgress = null, SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
 {
     private readonly SkillInformationService _information = skillInformation ?? new(monsterCombatService?.Statuses.Catalog, mechanics);
     private readonly DungeonDepthCatalog _depthCatalog = depthCatalog ?? new(Options.Create(new DungeonDepthOptions()));
-    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, depthCatalog);
-    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, depthCatalog, runRules);
+    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default, runRules);
     private readonly SkillBattleSnapshotFactory _skillSnapshots = new(dbContext, skillCatalog, monsterCombatService);
     private const int SlotCount = 5;
     private TimeSpan MaximumActivityDuration => TimeSpan.FromHours(activityOptions?.Value.MaximumHours is > 0 and <= 168 ? activityOptions.Value.MaximumHours : 12);
@@ -127,6 +127,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var result = new List<DungeonSummaryResponse>();
         foreach (var dungeon in dungeons)
         {
+            var representative = encounterCatalog?.GetRepresentativeMonster(dungeon);
             var canEnter = error is null;
             var definition = _depthCatalog.Find(dungeon.Code);
             var highest = definition is not null && character is not null
@@ -145,7 +146,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             {
                 SupportsDepths = definition is not null, Stage = definition?.Stage ?? 0,
                 MaximumDepth = definition?.MaximumDepth ?? 1, UnlockedDepth = unlocked,
-                CharacterHighestDepth = highest, MasteryLevel = mastery, UsesPlaceholderBalance = definition is not null,
+                CharacterHighestDepth = highest, MasteryLevel = mastery, UsesPlaceholderBalance = definition?.UsesPlaceholderBalance == true,
                 GoldBonusPercent = mastery >= 2 ? definition!.GoldBonusPercent : 0,
                 KillExtraRollChancePercent = mastery >= 3 ? definition!.KillExtraRollChancePercent : 0,
                 ClearExtraRollChancePercent = mastery >= 4 ? definition!.ClearExtraRollChancePercent : 0,
@@ -153,7 +154,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 {
                     DepthLevel = depth, IsUnlocked = depth <= unlocked, IsChallenge = depth >= definition.ChallengeStartDepth,
                     StatMultiplier = _depthCatalog.StatMultiplier(dungeon.Code, depth),
-                    AddedMechanics = _depthCatalog.AddedMechanics(dungeon.Code, depth).ToList()
+                    AddedMechanics = encounterCatalog?.GetAddedMechanics(dungeon, depth).ToList() ?? []
                 }).ToList(),
                 DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
                 RegionCode = dungeon.RegionCode, RegionName = dungeon.RegionName, DungeonKind = dungeon.DungeonKind,
@@ -163,9 +164,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
                 CanEnter = canEnter && unlocked > 0,
                 LockReason = !canEnter ? "请先选择角色" : unlocked == 0 ? "账号需先通关本地区普通副本" : null,
-                MonsterName = dungeon.MonsterName, MonsterElement = dungeon.MonsterElement,
-                MonsterMaxHp = dungeon.MonsterMaxHp, MonsterAttack = dungeon.MonsterAttack,
-                MonsterDefense = dungeon.MonsterDefense, SlotCount = dungeon.SlotCount,
+                MonsterName = representative?.Name ?? dungeon.MonsterName, MonsterElement = representative?.Element ?? dungeon.MonsterElement,
+                MonsterMaxHp = representative?.MaxHp ?? dungeon.MonsterMaxHp, MonsterAttack = representative?.Attack ?? dungeon.MonsterAttack,
+                MonsterDefense = representative?.Defense ?? dungeon.MonsterDefense, SlotCount = dungeon.SlotCount,
                 WaveCount = encounterCatalog?.GetWaveCount(dungeon) ?? 1,
                 MonsterCount = encounterCatalog?.GetMonsterCount(dungeon) ?? 1,
                 IsClearedByCurrentUser = clearedDungeonCodes.Contains(dungeon.Code),
@@ -191,8 +192,12 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         if (result.SupportsDepths)
         {
             result.Name = _depthCatalog.DisplayName(dungeon.Name, depthLevel);
-            result.MonsterMaxHp = _depthCatalog.ScaleStat(dungeon.MonsterMaxHp, depthLevel, dungeon.Code);
-            result.MonsterAttack = _depthCatalog.ScaleStat(dungeon.MonsterAttack, depthLevel, dungeon.Code);
+            var representative = encounterCatalog?.GetRepresentativeMonster(dungeon, depthLevel);
+            result.MonsterName = representative?.Name ?? dungeon.MonsterName;
+            result.MonsterElement = representative?.Element ?? dungeon.MonsterElement;
+            result.MonsterMaxHp = representative?.MaxHp ?? _depthCatalog.ScaleStat(dungeon.MonsterMaxHp, depthLevel, dungeon.Code);
+            result.MonsterAttack = representative?.Attack ?? _depthCatalog.ScaleStat(dungeon.MonsterAttack, depthLevel, dungeon.Code);
+            result.MonsterDefense = representative?.Defense ?? dungeon.MonsterDefense;
             if (depthLevel > result.UnlockedDepth)
             {
                 result.CanEnter = false;
@@ -248,31 +253,45 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             TotalWaveCount = monsters.Max(monster => monster.WaveNumber)
         };
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        dbContext.Monsters.AddRange(monsters);
-        await dbContext.SaveChangesAsync();
-        room.MonsterId = firstMonster.Id;
-        dbContext.Rooms.Add(room);
-        await dbContext.SaveChangesAsync();
-        foreach (var monster in monsters) monster.RoomId = room.Id;
-        dbContext.RoomSlots.AddRange(Enumerable.Range(1, room.SlotCount).Select(index => new RoomSlot
+        try
         {
-            RoomId = room.Id,
-            SlotIndex = index,
-            CharacterId = index == 1 ? character.Id : null,
-            UserId = index == 1 ? user.Id : null,
-            LastSeenAtUtc = index == 1 ? now : null
-        }));
-        CharacterActivityManager.StartBattle(dbContext, character.Id, room, now);
-        try { await dbContext.SaveChangesAsync(); }
-        catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+            // Admission and profession/equipment changes share the character version.
+            // Even a fully healed character must participate in the concurrency check.
+            character.Version++;
+            dbContext.Monsters.AddRange(monsters);
+            await dbContext.SaveChangesAsync();
+            room.MonsterId = firstMonster.Id;
+            dbContext.Rooms.Add(room);
+            await dbContext.SaveChangesAsync();
+            foreach (var monster in monsters) monster.RoomId = room.Id;
+            dbContext.RoomSlots.AddRange(Enumerable.Range(1, room.SlotCount).Select(index => new RoomSlot
+            {
+                RoomId = room.Id,
+                SlotIndex = index,
+                CharacterId = index == 1 ? character.Id : null,
+                UserId = index == 1 ? user.Id : null,
+                LastSeenAtUtc = index == 1 ? now : null
+            }));
+            CharacterActivityManager.StartBattle(dbContext, character.Id, room, now);
+            try { await dbContext.SaveChangesAsync(); }
+            catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
+            {
+                await transaction.RollbackAsync();
+                dbContext.ChangeTracker.Clear();
+                return (null, "CharacterAlreadyInRoom");
+            }
+            if (runRules is not null) await runRules.EnsureAsync(room);
+            await _partyScaling.SynchronizeAsync(room);
+            if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, firstMonster);
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (DbUpdateConcurrencyException)
         {
             await transaction.RollbackAsync();
-            return (null, "CharacterAlreadyInRoom");
+            dbContext.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
         }
-        await _partyScaling.SynchronizeAsync(room);
-        if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, firstMonster);
-        await dbContext.SaveChangesAsync();
-        await transaction.CommitAsync();
         return (await BuildRoomDetailAsync(room, user.Id), null);
     }
 
@@ -316,6 +335,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         if (slot.CharacterId.HasValue) return (null, "SlotOccupied");
         var joinedAt = DateTime.UtcNow;
         character.Hp = TalentRules.EffectiveMaxHp(character);
+        character.Version++;
         slot.CharacterId = character.Id;
         slot.UserId = user.Id;
         slot.LastSeenAtUtc = joinedAt;
@@ -343,10 +363,12 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         try { await dbContext.SaveChangesAsync(); }
         catch (DbUpdateConcurrencyException)
         {
+            dbContext.ChangeTracker.Clear();
             return (null, "ConcurrencyConflict");
         }
         catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
         {
+            dbContext.ChangeTracker.Clear();
             return (null, "CharacterAlreadyInRoom");
         }
         return (await BuildRoomDetailAsync(room, user.Id), null);
@@ -440,6 +462,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         }
         if (target.CharacterId.HasValue && target.CharacterId != character.Id) return (null, "SlotOccupied");
         character.Hp = TalentRules.EffectiveMaxHp(character);
+        character.Version++;
         target.CharacterId = character.Id;
         target.UserId = user.Id;
         target.IsAutoEnabled = room!.IsOwnerAutoEnabled;
@@ -456,8 +479,14 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         await _partyScaling.SynchronizeAsync(room!);
         room!.Version++;
         try { await dbContext.SaveChangesAsync(); }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.ChangeTracker.Clear();
+            return (null, "ConcurrencyConflict");
+        }
         catch (DbUpdateException exception) when (exception.InnerException is SqliteException { SqliteErrorCode: 19 })
         {
+            dbContext.ChangeTracker.Clear();
             return (null, "CharacterAlreadyInRoom");
         }
         return (await BuildRoomDetailAsync(room, user.Id), null);
@@ -600,6 +629,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (monster is null || dungeon is null) return null;
         using var statusSnapshot = monsterCombatService is null ? null : await monsterCombatService.Statuses.BeginReadSnapshotAsync(room);
+        var roomInformation = monsterCombatService is null ? _information :
+            new SkillInformationService(monsterCombatService.Statuses.CatalogFor(room), mechanics);
         var enemiesInCurrentWave = monster.RoomId.HasValue
             ? await dbContext.Monsters.CountAsync(candidate => candidate.RoomId == room.Id && candidate.WaveNumber == monster.WaveNumber)
             : 1;
@@ -706,8 +737,11 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     room.Status == RoomStatus.BattleOver || room.ClosedAtUtc is not null || monster.Hp <= 0);
             }
         }
-        var activeCharacterId = currentUserId.HasValue ? (await dbContext.Users.FindAsync(currentUserId.Value))?.ActiveCharacterId : null;
         var definition = await _depthProgress.DefinitionAsync(room);
+        var projectionUser = currentUserId.HasValue && definition is not null
+            ? await dbContext.Users.FindAsync(currentUserId.Value) : null;
+        var activeCharacterId = projectionUser is not null
+            ? await new CharacterAccessResolver(dbContext).ActiveIdAsync(projectionUser) : null;
         var highestDepth = definition is not null && activeCharacterId.HasValue
             ? await _depthProgress.HighestAsync(activeCharacterId.Value, dungeon.Id) : 0;
         var history = battleLogStore?.GetSnapshot(room.Id);
@@ -722,9 +756,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             RegionName = dungeon.RegionName,
             MonsterId = monster.Id, MonsterName = monster.Name, MonsterElement = monster.Element, MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp,
             MonsterBaseMaxHp = monster.BaseMaxHp > 0 ? monster.BaseMaxHp : monster.MaxHp,
-            IsPartyHpScaled = _partyScaling.Catalog.ScalesHp(dungeon.PartyScalingProfileCode),
+            IsPartyHpScaled = (await _partyScaling.PercentagesAsync(room)).Any(percent => percent != 100),
             ScalingPartySize = room.ScalingPartySize,
-            MonsterHpPercent = _partyScaling.Catalog.GetHpPercent(dungeon.PartyScalingProfileCode, room.ScalingPartySize),
+            MonsterHpPercent = (await _partyScaling.PercentagesAsync(room))[Math.Clamp(room.ScalingPartySize, 1, 5) - 1],
             CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount,
             CurrentEnemyNumber = monster.Position, EnemiesInCurrentWave = enemiesInCurrentWave,
             RoomStatus = room.Status, RunSequence = room.RunSequence, RoundNumber = room.RoundNumber, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, RoundCooldownDurationSeconds = room.RoundCooldownDurationSeconds, PreparationStartedAtUtc = room.PreparationStartedAtUtc, PreparationExpiresAtUtc = isPreparationTimeoutEnabled ? room.PreparationStartedAtUtc?.AddSeconds(BattleRules.PreparationTimeoutSeconds) : null, BattleEndedAtUtc = room.BattleEndedAtUtc,
@@ -827,12 +861,12 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                             SkillCode = skill?.Code,
                             QueuedTargetCharacterId = skill is null ? null : SkillQueueRules.TargetCharacterId(slot, index),
                             SkillName = skill?.Name,
-                            Description = skill is null ? null : _information.Description(skill, availability?.CanChooseAllyTarget == true),
+                            Description = skill is null ? null : roomInformation.Description(skill, availability?.CanChooseAllyTarget == true),
                             EffectType = skill is null ? null : SkillCatalog.PrimaryEffectType(skill),
                             Power = skill is null ? 0 : SkillCatalog.PrimaryPower(skill),
                             AutoCondition = skill is null ? "Always" : equipped?.AutoConditionOverride ?? SkillCatalog.AutoConditionFor(skill),
                             AutoConditionOverride = skill is null ? null : equipped?.AutoConditionOverride,
-                            Effects = skill is null ? [] : _information.Effects(skill, availability?.CanChooseAllyTarget == true),
+                            Effects = skill is null ? [] : roomInformation.Effects(skill, availability?.CanChooseAllyTarget == true),
                             InitialCooldownRounds = skill?.InitialCooldownRounds ?? 0,
                             CooldownRoundsRemaining = Math.Max(0,
                                 (cooldown?.ReadyAtRound ?? skill?.InitialCooldownRounds ?? 0) - room.RoundNumber),

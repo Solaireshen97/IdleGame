@@ -37,12 +37,17 @@ public class UserSessionService(IJSRuntime jsRuntime)
 
     public async ValueTask<string?> GetToken()
     {
+        return (await GetSnapshot()).Token;
+    }
+
+    public async ValueTask<UserSessionSnapshot> GetSnapshot()
+    {
         await _gate.WaitAsync();
         try
         {
             var token = await jsRuntime.InvokeAsync<string?>("localStorage.getItem", TokenStorageKey);
             Observe(string.IsNullOrWhiteSpace(token) ? null : token);
-            return _token;
+            return new(_token, Revision);
         }
         finally { _gate.Release(); }
     }
@@ -77,3 +82,5 @@ public class UserSessionService(IJSRuntime jsRuntime)
         return !string.IsNullOrWhiteSpace(await GetToken());
     }
 }
+
+public readonly record struct UserSessionSnapshot(string? Token, long Revision);

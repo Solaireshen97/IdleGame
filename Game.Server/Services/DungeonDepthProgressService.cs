@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class DungeonDepthProgressService(GameDbContext db, DungeonDepthCatalog? catalog = null)
+public sealed class DungeonDepthProgressService(GameDbContext db, DungeonDepthCatalog? catalog = null,
+    DungeonRunRulesService? runRules = null)
 {
     public async Task<DungeonDepthDefinitionOptions?> DefinitionAsync(Room room)
     {
+        if (runRules is not null) return (await runRules.EnsureAsync(room)).Depth;
         if (room.DepthDefinitionJson is not null)
             return JsonSerializer.Deserialize<DungeonDepthDefinitionOptions>(room.DepthDefinitionJson);
         var dungeon = await db.Dungeons.FindAsync(room.DungeonId);

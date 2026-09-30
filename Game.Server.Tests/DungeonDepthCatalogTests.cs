@@ -32,7 +32,6 @@ public sealed class DungeonDepthCatalogTests
         Assert.Throws<ArgumentOutOfRangeException>(() => catalog.ScaleStat(100, 2, "kobold-mine"));
         Assert.Equal("烛井矿窟·深层LV7", catalog.DisplayName("烛井矿窟·深层LV1", 7));
         Assert.Equal("新副本·深层LV2", catalog.DisplayName("新副本", 2));
-        Assert.Equal(catalog.AddedMechanics(Codes[0], 4), catalog.AddedMechanics(Codes[0], 10));
     }
 
     [Fact]
@@ -106,10 +105,10 @@ public sealed class DungeonDepthCatalogTests
         await connection.OpenAsync();
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        var combat = new MonsterCombatCatalog(Options.Create(new MonsterCombatOptions
+        var combat = new MonsterCombatCatalog(Options.Create(DepthMechanicTestFactory.WithCurrentDeclarations(new MonsterCombatOptions
         {
             Profiles = new() { ["base"] = new() { SkillUseChancePercent = 0 } }
-        }));
+        })));
         var room = new Room { Id = 1, DungeonId = 1, MonsterId = 1, OwnerUserId = 1, SlotCount = 1 };
         var monster = new Monster { Id = 1, RoomId = 1, Name = "Boss", Hp = 100, MaxHp = 100, Attack = 10,
             CombatProfileCode = combat.ResolveDepthProfile("base", depth) };

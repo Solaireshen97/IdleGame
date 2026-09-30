@@ -13,5 +13,6 @@ builder.Services.AddScoped<UserSessionService>();
 builder.Services.AddScoped<ApiService>();
 builder.Services.AddScoped<ActiveCharacterState>();
 builder.Services.AddScoped<AccountBalanceState>();
+builder.Services.AddScoped<CharacterContextCoordinator>();
 
 await builder.Build().RunAsync();

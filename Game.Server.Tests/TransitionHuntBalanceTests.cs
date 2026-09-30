@@ -43,7 +43,8 @@ public sealed class TransitionHuntBalanceTests
             new WeaponCatalog(Options.Create(settings.GetSection(WeaponOptions.SectionName).Get<WeaponOptions>()!)),
             new MaterialCatalog(Options.Create(settings.GetSection(MaterialOptions.SectionName).Get<MaterialOptions>()!)),
             new SoulImprintCatalog(Options.Create(settings.GetSection(SoulImprintOptions.SectionName).Get<SoulImprintOptions>()!)));
-        var world = worldSettings.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!;
+        var world = new WorldCatalog(Options.Create(worldSettings.GetSection(WorldOptions.SectionName).Get<WorldOptions>()!),
+            encounters: new DungeonEncounterCatalog(Options.Create(encounters), combat, rewards));
         var huntTiers = world.Dungeons.Where(entry => entry.IsVisible && entry.DungeonKind == "Hunt" &&
             entry.RecommendedLevel is 1 or 3 or 5).GroupBy(entry => entry.MonsterElement).ToList();
         Assert.Equal(6, huntTiers.Count);

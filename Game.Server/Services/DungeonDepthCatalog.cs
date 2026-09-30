@@ -7,7 +7,6 @@ namespace Game.Server.Services;
 public sealed class DungeonDepthCatalog
 {
     private readonly Dictionary<string, DungeonDepthDefinitionOptions> _dungeons = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly string[] PlaceholderNames = ["深层核心试击（占位）", "深层压力试击（占位）", "深层循环试击（占位）"];
 
     public DungeonDepthCatalog(IOptions<DungeonDepthOptions> options)
     {
@@ -84,9 +83,4 @@ public sealed class DungeonDepthCatalog
             : $"{dungeonName}·深层LV{depth}";
     }
 
-    public IReadOnlyList<string> AddedMechanics(string code, int depth)
-    {
-        if (!ValidateDepth(code, depth)) throw new ArgumentOutOfRangeException(nameof(depth));
-        return Find(code) is null ? [] : PlaceholderNames.Take(Math.Min(depth, 4) - 1).ToArray();
-    }
 }

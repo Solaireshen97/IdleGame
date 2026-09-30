@@ -33,6 +33,7 @@ builder.Services.AddScoped<BattleService>();
 builder.Services.AddScoped<BattleSynchronizationService>();
 builder.Services.AddScoped<DungeonRunService>();
 builder.Services.AddScoped<DungeonDepthProgressService>();
+builder.Services.AddScoped<DungeonRunRulesService>();
 builder.Services.AddScoped<PartyScalingService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<BattleEventCollector>();
@@ -91,6 +92,7 @@ builder.Services.AddSingleton<PlantingCatalog>();
 builder.Services.AddSingleton<ProductionCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<WorldCatalog>();
+builder.Services.AddSingleton<DungeonContentValidator>();
 builder.Services.AddSingleton<ContentCatalogStore>();
 builder.Services.AddSingleton<CharacterSlotCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
@@ -116,27 +118,23 @@ using (var scope = app.Services.CreateScope())
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<SoulImprintCatalog>();
     var encounters = scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>();
-    world.ValidateContent(weapons, encounters,
-        scope.ServiceProvider.GetRequiredService<RewardCatalog>(), scope.ServiceProvider.GetRequiredService<DungeonExchangeCatalog>());
-    var depthCatalog = scope.ServiceProvider.GetRequiredService<DungeonDepthCatalog>();
-    var materials = scope.ServiceProvider.GetRequiredService<MaterialCatalog>();
-    foreach (var dungeon in world.Dungeons)
-    {
-        if (depthCatalog.Find(dungeon.Code) is not { } depth) continue;
-        if (!string.IsNullOrWhiteSpace(depth.PrerequisiteDungeonCode) && !world.Dungeons.Any(candidate =>
-            candidate.Code == depth.PrerequisiteDungeonCode && candidate.RegionCode == dungeon.RegionCode &&
-            candidate.DungeonKind == "Dungeon" && candidate.IsVisible && depthCatalog.Find(candidate.Code) is null))
-            throw new InvalidOperationException($"Invalid ordinary dungeon prerequisite for {dungeon.Code}: {depth.PrerequisiteDungeonCode}");
-        depthCatalog.ValidateStats(dungeon.Code, dungeon.MonsterMaxHp, dungeon.MonsterAttack, dungeon.MonsterName);
-        if (materials.FindItem(depth.ChallengeFragmentCode) is null)
-            throw new InvalidOperationException($"Unknown challenge fragment for {dungeon.Code}: {depth.ChallengeFragmentCode}");
-    }
-    foreach (var recipe in scope.ServiceProvider.GetRequiredService<WeaponBreakthroughCatalog>().Recipes)
-        if (materials.FindItem(recipe.FragmentCode) is null || materials.FindItem(recipe.StoneCode) is null)
-            throw new InvalidOperationException($"Unknown breakthrough materials for T{recipe.Tier}");
+    scope.ServiceProvider.GetRequiredService<DungeonContentValidator>().Validate();
     _ = scope.ServiceProvider.GetRequiredService<PlantingCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world, encounters);
+    // Finish the legacy cutover before background cycles or HTTP requests can claim a snapshot.
+    while (true)
+    {
+        using var freezeScope = app.Services.CreateScope();
+        var freezeDb = freezeScope.ServiceProvider.GetRequiredService<GameDbContext>();
+        var rooms = await freezeDb.Rooms.Where(room =>
+                !freezeDb.DungeonRunRuleSnapshots.Any(snapshot => snapshot.RoomId == room.Id))
+            .OrderBy(room => room.Id).Take(100).ToListAsync();
+        if (rooms.Count == 0) break;
+        var rules = freezeScope.ServiceProvider.GetRequiredService<DungeonRunRulesService>();
+        foreach (var room in rooms) await rules.EnsureAsync(room);
+        await freezeDb.SaveChangesAsync();
+    }
 }
 
 if (app.Environment.IsDevelopment())

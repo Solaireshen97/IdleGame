@@ -20,7 +20,7 @@ public partial class ApiService
             $"api/professions/{Uri.EscapeDataString(professionCode)}", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<ProfessionProgressResponse>(response) : null;
     }
 
     public async Task<(ProfessionProgressResponse? Progress, string? ErrorMessage)> SpendProfessionTalentAsync(
@@ -52,7 +52,7 @@ public partial class ApiService
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
-                return (await response.Content.ReadFromJsonAsync<ProfessionProgressResponse>(), null);
+                return (await ReadContextResponseAsync<ProfessionProgressResponse>(response), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
             return (null, error.StartsWith("TalentRefundBlocked:", StringComparison.Ordinal) ? error["TalentRefundBlocked:".Length..] : error switch
             {
@@ -74,7 +74,7 @@ public partial class ApiService
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/production", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProductionOverviewResponse>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<ProductionOverviewResponse>(response) : null;
     }
 
     public async Task<(ProductionOverviewResponse? Response, string? ErrorMessage)> StartProductionAsync(
@@ -102,7 +102,7 @@ public partial class ApiService
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
-                return (await response.Content.ReadFromJsonAsync<ProductionOverviewResponse>(), null);
+                return (await ReadContextResponseAsync<ProductionOverviewResponse>(response), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
             return (null, error switch
             {
@@ -125,7 +125,7 @@ public partial class ApiService
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/gathering", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<GatheringOverviewResponse>(response) : null;
     }
 
     public async Task<(GatheringOverviewResponse? Response, string? ErrorMessage)> StartGatheringAsync(
@@ -149,7 +149,7 @@ public partial class ApiService
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             if (response.IsSuccessStatusCode)
-                return (await response.Content.ReadFromJsonAsync<GatheringOverviewResponse>(), null);
+                return (await ReadContextResponseAsync<GatheringOverviewResponse>(response), null);
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
             return (null, error switch
             {
@@ -171,7 +171,7 @@ public partial class ApiService
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/shop", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ShopResponse>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<ShopResponse>(response) : null;
     }
 
     public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseShopItemAsync(
@@ -201,7 +201,7 @@ public partial class ApiService
                 _ => "购买失败，请稍后重试。"
             });
         }
-        return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
+        return (await ReadContextResponseAsync<ShopResponse>(response), null);
     }
 
     public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseCharacterSlotAsync()
@@ -221,7 +221,7 @@ public partial class ApiService
             });
         }
 
-        return (await response.Content.ReadFromJsonAsync<ShopResponse>(), null);
+        return (await ReadContextResponseAsync<ShopResponse>(response), null);
     }
 
     public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonRewardAsync(
@@ -246,12 +246,12 @@ public partial class ApiService
                 _ => "兑换失败，请稍后重试。"
             });
         }
-        return (await response.Content.ReadFromJsonAsync<DungeonExchangeResultResponse>(), null);
+        return (await ReadContextResponseAsync<DungeonExchangeResultResponse>(response), null);
     }
 
     public async Task<string?> SetQuickSkillCastAsync(int characterId, bool isEnabled)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/quick-skill-cast", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/quick-skill-cast", requiresAuth: true, scope: ApiRequestScope.Account);
         request.Content = JsonContent.Create(new SetQuickSkillCastRequest { IsEnabled = isEnabled });
         using var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode) return null;
@@ -264,7 +264,7 @@ public partial class ApiService
         using var request = await CreateRequestAsync(HttpMethod.Get, "api/rooms", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomSummaryResponse>>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<List<RoomSummaryResponse>>(response) : null;
     }
 
     public Task<List<RegionSummaryResponse>?> GetRegionsAsync() => GetCatalogRegionsAsync();
@@ -276,7 +276,7 @@ public partial class ApiService
         using var request = await CreateRequestAsync(HttpMethod.Get, $"api/dungeons/{dungeonId}?depthLevel={depthLevel}", requiresAuth: true);
         using var response = await SendTrackedAsync(request);
         if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<DungeonSummaryResponse>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<DungeonSummaryResponse>(response) : null;
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
@@ -288,7 +288,7 @@ public partial class ApiService
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> SetRoomVisibilityAsync(int roomId, bool isPublic)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/rooms/{roomId}/visibility", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Put, $"api/rooms/{roomId}/visibility", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new SetRoomVisibilityRequest { IsPublic = isPublic });
         using var response = await SendTrackedAsync(request);
         if ((int)response.StatusCode >= 500) return (null, "房间服务暂时不可用，请稍后重试。");
@@ -297,14 +297,14 @@ public partial class ApiService
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> LeaveRoomAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Leave });
         return await HandleRoomDetailResponseAsync(await SendTrackedAsync(request), "离开房间失败。");
     }
 
     public async Task<(SetSlotAutoResponse? Response, string? ErrorMessage)> SetSlotAutoAsync(int roomId, int slotIndex, bool isAutoEnabled)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots/{slotIndex}/auto", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/slots/{slotIndex}/auto", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new SetSlotAutoRequest { SlotIndex = slotIndex, IsAutoEnabled = isAutoEnabled });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -314,7 +314,7 @@ public partial class ApiService
             return (null, string.IsNullOrWhiteSpace(error) ? "配置 Auto 失败。" : error);
         }
 
-        return (await response.Content.ReadFromJsonAsync<SetSlotAutoResponse>(), null);
+        return (await ReadContextResponseAsync<SetSlotAutoResponse>(response), null);
     }
 
     public async Task<RoomLoadResult> LoadRoomDetailAsync(int roomId, CancellationToken cancellationToken = default)
@@ -323,7 +323,7 @@ public partial class ApiService
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {
-            using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true);
+            using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}", requiresAuth: true, scope: ApiRequestScope.Room);
             using var response = await SendTrackedAsync(request, timeout.Token);
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
@@ -336,6 +336,7 @@ public partial class ApiService
                 return new(null, RoomLoadStatus.RetryableError);
 
             var room = await response.Content.ReadFromJsonAsync<RoomDetailResponse>(timeout.Token);
+            if (!IsRequestContextCurrent(request)) return new(null, RoomLoadStatus.RetryableError);
             return room is null
                 ? new(null, RoomLoadStatus.RetryableError)
                 : room.RoomId != roomId
@@ -353,11 +354,11 @@ public partial class ApiService
 
     public async Task<(BattleResult? Result, string? ErrorMessage)> SyncBattleAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/sync", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/sync", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode) return (null, await response.Content.ReadAsStringAsync());
-        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
+        return (await ReadContextResponseAsync<BattleResult>(response), null);
     }
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(CreateRoomRequest options)
@@ -380,7 +381,7 @@ public partial class ApiService
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Assign, SlotIndex = slotIndex, CharacterId = characterId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -404,7 +405,7 @@ public partial class ApiService
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> RemoveRoomSlotAsync(int roomId, int slotIndex)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Remove, SlotIndex = slotIndex });
         var response = await SendTrackedAsync(request);
         return await HandleRoomDetailResponseAsync(response, "移除角色失败。");
@@ -412,21 +413,21 @@ public partial class ApiService
 
     public async Task<List<RoomOperationResponse>?> GetRoomOperationsAsync(int roomId)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}/operations", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Get, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: ApiRequestScope.Room);
         using var response = await SendTrackedAsync(request);
-        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<List<RoomOperationResponse>>() : null;
+        return response.IsSuccessStatusCode ? await ReadContextResponseAsync<List<RoomOperationResponse>>(response) : null;
     }
 
     public async Task<string?> CancelRoomOperationAsync(int roomId, int operationId)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/operations/{operationId}", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}/operations/{operationId}", requiresAuth: true, scope: ApiRequestScope.Room);
         using var response = await SendTrackedAsync(request);
         return response.IsSuccessStatusCode ? null : await response.Content.ReadAsStringAsync();
     }
 
     public async Task<bool> DeleteRoomAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/rooms/{roomId}", requiresAuth: true, scope: ApiRequestScope.Room);
         var response = await SendTrackedAsync(request);
         return response.IsSuccessStatusCode;
     }
@@ -456,7 +457,7 @@ public partial class ApiService
 
     public async Task<(BattleResult? Result, string? ErrorMessage)> ExecuteRoundAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/round", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/round", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -469,7 +470,7 @@ public partial class ApiService
             if (response.StatusCode == HttpStatusCode.Conflict &&
                 response.Content.Headers.ContentType?.MediaType == "application/json")
             {
-                var conflictResult = await response.Content.ReadFromJsonAsync<BattleResult>();
+                var conflictResult = await ReadContextResponseAsync<BattleResult>(response);
                 if (conflictResult is not null)
                 {
                     return (conflictResult, conflictResult.RoomStatus == Game.Shared.Enums.RoomStatus.Cooldown
@@ -487,7 +488,7 @@ public partial class ApiService
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
+        return (await ReadContextResponseAsync<BattleResult>(response), null);
     }
 
     public Task<(BattleResult? Result, string? ErrorMessage)> StartBattleAsync(int roomId) => ExecuteRoundAsync(roomId);
@@ -503,7 +504,7 @@ public partial class ApiService
     private async Task<(BattleResult? Result, string? ErrorMessage)> SendPreparationRequestAsync(
         string action, int roomId, int expectedRoundNumber, int expectedRunSequence)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Post, $"api/battle/{action}", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Post, $"api/battle/{action}", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new BattleRequest
         {
             RoomId = roomId,
@@ -512,7 +513,7 @@ public partial class ApiService
         });
         using var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode)
-            return (await response.Content.ReadFromJsonAsync<BattleResult>(), null);
+            return (await ReadContextResponseAsync<BattleResult>(response), null);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
@@ -552,7 +553,7 @@ public partial class ApiService
 
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> ResetBattleAsync(int roomId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/reset", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new BattleRequest { RoomId = roomId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -605,7 +606,7 @@ public partial class ApiService
                 return null;
             }
 
-            return await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
+            return await ReadContextResponseAsync<CurrentUserResponse>(response);
         }
         catch (HttpRequestException)
         {
@@ -634,7 +635,7 @@ public partial class ApiService
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<CurrentCharacterResponse>();
+        return await ReadContextResponseAsync<CurrentCharacterResponse>(response);
     }
 
     public Task<List<CharacterSummaryResponse>?> GetCurrentCharactersAsync(bool forceRefresh = false) =>
@@ -654,7 +655,7 @@ public partial class ApiService
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<List<CharacterSummaryResponse>>();
+        return await ReadContextResponseAsync<List<CharacterSummaryResponse>>(response);
     }
 
     public Task<List<ProfessionResponse>?> GetProfessionsAsync() => GetCatalogProfessionsAsync();
@@ -676,7 +677,11 @@ public partial class ApiService
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
-            return (null, string.IsNullOrWhiteSpace(error) ? "职业操作失败。" : error.Trim().Trim('"'));
+            return (null, string.IsNullOrWhiteSpace(error) ? "职业操作失败。" : error.Trim().Trim('"') switch
+            {
+                "UnsupportedSkillLoadoutVersion" => "技能配置版本暂不支持，请更新后重试。",
+                _ => error.Trim().Trim('"')
+            });
         }
         return await ReadCharacterResultAsync<CharacterCombatProfessionsResponse>(response, method, "professions", value => value.CharacterId);
     }
@@ -718,7 +723,7 @@ public partial class ApiService
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSkillAsync(
         int roomId, int characterId, int skillSlotIndex, bool isQueued, int? targetCharacterId = null)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/skill", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/skill", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new QueueSkillRequest
         {
             RoomId = roomId,
@@ -734,7 +739,7 @@ public partial class ApiService
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueSoulImprintAsync(
         int roomId, int characterId, bool isQueued)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/soul-imprint", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/soul-imprint", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new QueueSoulImprintRequest
         {
             RoomId = roomId, CharacterId = characterId, IsQueued = isQueued
@@ -875,7 +880,7 @@ public partial class ApiService
         int roomId, int characterId, int consumableSlotIndex, bool isQueued,
         int expectedRoundNumber, int expectedRunSequence)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/consumable", requiresAuth: true);
+        using var request = await CreateRequestAsync(HttpMethod.Post, "api/battle/consumable", requiresAuth: true, scope: ApiRequestScope.Room);
         request.Content = JsonContent.Create(new QueueConsumableRequest
         {
             RoomId = roomId,
@@ -906,7 +911,7 @@ public partial class ApiService
 
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> SelectCurrentCharacterAsync(int characterId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/character/select", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/character/select", requiresAuth: true, scope: ApiRequestScope.Account);
         request.Content = JsonContent.Create(new SelectCharacterRequest { CharacterId = characterId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -917,6 +922,8 @@ public partial class ApiService
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
+            if (errorMessage.Trim().Trim('"') == "ConcurrencyConflict")
+                errorMessage = "角色信息刚刚变化，请刷新后重试。";
             if (string.IsNullOrWhiteSpace(errorMessage))
             {
                 errorMessage = "切换当前角色失败。";
@@ -925,12 +932,12 @@ public partial class ApiService
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
+        return (await ReadContextResponseAsync<CharacterSummaryResponse>(response), null);
     }
 
     public async Task<(CharacterSummaryResponse? Response, string? ErrorMessage)> CreateCharacterAsync(string name, string professionCode)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/characters", requiresAuth: true, scope: ApiRequestScope.Account);
         request.Content = JsonContent.Create(new CreateCharacterRequest { Name = name, ProfessionCode = professionCode });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -949,12 +956,12 @@ public partial class ApiService
             return (null, errorMessage);
         }
 
-        return (await response.Content.ReadFromJsonAsync<CharacterSummaryResponse>(), null);
+        return (await ReadContextResponseAsync<CharacterSummaryResponse>(response), null);
     }
 
     public async Task<(bool Success, string? ErrorMessage)> DeleteCharacterAsync(int characterId)
     {
-        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/user/characters/{characterId}", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Delete, $"api/user/characters/{characterId}", requiresAuth: true, scope: ApiRequestScope.Account);
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -964,6 +971,8 @@ public partial class ApiService
             }
 
             var errorMessage = await response.Content.ReadAsStringAsync();
+            if (errorMessage.Trim().Trim('"') == "ConcurrencyConflict")
+                errorMessage = "角色信息刚刚变化，请刷新后重试。";
             if (errorMessage.Trim('"') == "CharacterBusy")
                 errorMessage = "角色正在战斗，请先结束战斗。";
             if (string.IsNullOrWhiteSpace(errorMessage))
@@ -979,7 +988,7 @@ public partial class ApiService
 
     public async Task<bool> LogoutAsync()
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true);
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/user/logout", requiresAuth: true, scope: ApiRequestScope.Account);
         var response = await SendTrackedAsync(request);
         if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Unauthorized)
         {
@@ -1002,7 +1011,7 @@ public partial class ApiService
             return (null, errorMessage);
         }
 
-        var authResponse = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        var authResponse = await ReadContextResponseAsync<AuthResponse>(response);
         if (authResponse is null)
         {
             return (null, "认证响应解析失败。");
@@ -1012,13 +1021,15 @@ public partial class ApiService
         return (authResponse, null);
     }
 
-    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string requestUri, bool requiresAuth = false)
+    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string requestUri, bool requiresAuth = false,
+        ApiRequestScope scope = ApiRequestScope.CurrentCharacter)
     {
         var request = new HttpRequestMessage(method, requestUri);
         if (requiresAuth)
         {
             await AttachAuthorizationHeaderAsync(request);
-            request.Options.Set(ContextRevisionKey, DataRevision);
+            request.Options.Set(SelectionRevisionKey, CharacterSelectionRevision);
+            request.Options.Set(RequestScopeKey, scope);
         }
 
         return request;
@@ -1026,10 +1037,11 @@ public partial class ApiService
 
     private async Task AttachAuthorizationHeaderAsync(HttpRequestMessage request)
     {
-        var token = await userSessionService.GetToken();
-        if (!string.IsNullOrWhiteSpace(token))
+        var snapshot = await userSessionService.GetSnapshot();
+        request.Options.Set(SessionRevisionKey, snapshot.Revision);
+        if (!string.IsNullOrWhiteSpace(snapshot.Token))
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", snapshot.Token);
         }
     }
 }

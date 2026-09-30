@@ -85,14 +85,14 @@ public sealed class AcolyteMechanics(ProfessionMechanicCatalog? mechanics = null
     public static async Task ConsumeEnhancementAsync(BattleStatusService statuses, Room room, int id, bool healing, bool includeRevelation = true,
         ProfessionMechanicCatalog? mechanics = null)
     {
-        var definition = statuses.Catalog.FindMechanic(healing ? BattleStatusMechanic.NextNativeHeal : BattleStatusMechanic.NextNativeDamage);
+        var definition = statuses.CatalogFor(room).FindMechanic(healing ? BattleStatusMechanic.NextNativeHeal : BattleStatusMechanic.NextNativeDamage);
         if (definition is not null) await statuses.ConsumeAsync(room, "Character", id, definition.Code);
         if (includeRevelation) await ConsumeRevelationAsync(statuses, room, id, mechanics);
     }
 
     public static async Task ConsumeRevelationAsync(BattleStatusService statuses, Room room, int id, ProfessionMechanicCatalog? mechanics = null)
     {
-        var definition = statuses.Catalog.FindMechanic(BattleStatusMechanic.Revelation);
+        var definition = statuses.CatalogFor(room).FindMechanic(BattleStatusMechanic.Revelation);
         if (definition is not null) await statuses.ConsumeAsync(room, "Character", id, definition.Code,
             (mechanics ?? ProfessionMechanicCatalog.Default).Acolyte.RevelationConsumption);
     }
@@ -100,14 +100,14 @@ public sealed class AcolyteMechanics(ProfessionMechanicCatalog? mechanics = null
     public static async Task GrantEnhancementAsync(BattleStatusService statuses, Room room, int id, bool healing, string? skillCode = null,
         ProfessionMechanicCatalog? mechanics = null)
     {
-        var definition = statuses.Catalog.FindMechanic(healing ? BattleStatusMechanic.NextNativeHeal : BattleStatusMechanic.NextNativeDamage);
+        var definition = statuses.CatalogFor(room).FindMechanic(healing ? BattleStatusMechanic.NextNativeHeal : BattleStatusMechanic.NextNativeDamage);
         if (definition is not null) await statuses.SetCounterAsync(room, "Character", id, definition.Code,
             (mechanics ?? ProfessionMechanicCatalog.Default).Acolyte.EnhancementCharges, new("Character", id, skillCode));
     }
 
     public static async Task SetRevelationAsync(BattleStatusService statuses, Room room, int id, int charges, string? skillCode = null)
     {
-        var definition = statuses.Catalog.FindMechanic(BattleStatusMechanic.Revelation);
+        var definition = statuses.CatalogFor(room).FindMechanic(BattleStatusMechanic.Revelation);
         if (definition is not null) await statuses.SetCounterAsync(room, "Character", id, definition.Code, charges, new("Character", id, skillCode));
     }
 }

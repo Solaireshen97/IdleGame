@@ -46,6 +46,7 @@ public class RoomController(RoomService roomService, BattleService battleService
                 "UserNotFound" => NotFound("User not found."),
                 "CharacterNotFound" => NotFound("Character not found."),
                 "CharacterAlreadyInRoom" => Conflict("CharacterAlreadyBusy"),
+                "ConcurrencyConflict" => Conflict("ConcurrencyConflict"),
                 "DungeonDepthLocked" or "InvalidDungeonDepth" => BadRequest(error),
                 _ => BadRequest("Failed to create room.")
             };

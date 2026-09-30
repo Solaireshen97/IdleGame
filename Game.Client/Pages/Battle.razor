@@ -1166,14 +1166,14 @@ else
     {
         if (_roomDetail is not { } room || _refreshCancellation.IsCancellationRequested) return;
         if (_isLoadingRewards) { _rewardRefreshPending = true; return; }
-        var context = ApiService.DataRevision;
+        var context = ApiService.SessionRevision;
         _isLoadingRewards = true;
         _rewardRefreshPending = false;
         _rewardError = null;
         try
         {
             var rewards = await ApiService.GetRoomRewardsAsync(room.RoomId, _refreshCancellation.Token);
-            if (context != ApiService.DataRevision || room.RoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
+            if (context != ApiService.SessionRevision || room.RoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
             if (rewards is null) { _rewardError = "战利品暂时读取失败，请重试。"; return; }
             if (_roomDetail is not { } latest) return;
             if (latest.RunSequence != rewards.RunSequence || rewards.RoomVersion < latest.RoomVersion)
@@ -1192,7 +1192,7 @@ else
         finally
         {
             _isLoadingRewards = false;
-            if (allowFollowup && _rewardRefreshPending && context == ApiService.DataRevision &&
+            if (allowFollowup && _rewardRefreshPending && context == ApiService.SessionRevision &&
                 !_refreshCancellation.IsCancellationRequested && (_isRewardsOpen || _roomDetail?.ClosedAtUtc is not null))
             {
                 _rewardRefreshPending = false;
@@ -1827,7 +1827,7 @@ else
     {
         var requestRoomId = expectedRoomId ?? RoomId;
         await ApiService.EnsureContextAsync();
-        var context = ApiService.DataRevision;
+        var context = ApiService.SessionRevision;
         var readSequence = ++_roomReadSequence;
         var mutationGeneration = _roomMutationGeneration;
         var requestedEventId = _afterEventId;
@@ -1839,7 +1839,7 @@ else
                 AfterEventId = requestedEventId, AfterLogId = requestedLogId
             }, _refreshCancellation.Token)
             : await ApiService.LoadRoomDetailAsync(requestRoomId, _refreshCancellation.Token);
-        if (context != ApiService.DataRevision && result.Status != RoomLoadStatus.Unauthorized ||
+        if (context != ApiService.SessionRevision && result.Status != RoomLoadStatus.Unauthorized ||
             requestRoomId != RoomId || _refreshCancellation.IsCancellationRequested) return false;
         if (readSequence < _lastAppliedRoomRead || mutationGeneration != _roomMutationGeneration) return true;
         if (result.Status == RoomLoadStatus.Unavailable)

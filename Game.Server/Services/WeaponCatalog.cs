@@ -329,15 +329,15 @@ public sealed class WeaponCatalog
     public WeaponSkillBonuses ApplyBonuses(Character character, IEnumerable<CharacterWeapon> weapons)
     {
         var bonuses = CalculateBonuses(weapons);
-        character.WeaponAttackBonusPercent = bonuses.AttackPercent;
-        character.WeaponHealthBonusPercent = bonuses.HealthPercent;
-        character.WeaponCriticalChancePercent = bonuses.CriticalChancePercent;
-        character.WeaponStaminaPercent = bonuses.Percent(WeaponSkillEffectType.StaminaPercent);
-        character.WeaponEnmityPercent = bonuses.Percent(WeaponSkillEffectType.EnmityPercent);
-        character.WeaponDoubleAttackChancePercent = bonuses.Percent(WeaponSkillEffectType.DoubleAttackChancePercent);
-        character.WeaponNormalEchoPercent = bonuses.Percent(WeaponSkillEffectType.NormalEchoPercent);
-        character.WeaponSkillDamagePercent = bonuses.Percent(WeaponSkillEffectType.SkillDamagePercent);
+        CharacterEquipmentStats.ApplyBonusesTo(character, bonuses);
         return bonuses;
+    }
+
+    public CharacterEquipmentStats RecalculateEquipmentStats(Character character, IEnumerable<CharacterWeapon> weapons)
+    {
+        var stats = CharacterEquipmentStats.Calculate(weapons, this);
+        stats.ApplyTo(character);
+        return stats;
     }
 }
 

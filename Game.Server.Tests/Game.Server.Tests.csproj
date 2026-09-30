@@ -25,6 +25,7 @@
 	<Compile Include="..\Game.Client\Services\ActiveCharacterState.cs" Link="Client\ActiveCharacterState.cs" />
 	<Compile Include="..\Game.Client\Services\AccountBalanceState.cs" Link="Client\AccountBalanceState.cs" />
 	<Compile Include="..\Game.Client\Services\CharacterUserSnapshotReader.cs" Link="Client\CharacterUserSnapshotReader.cs" />
+	<Compile Include="..\Game.Client\Services\CharacterContextCoordinator.cs" Link="Client\CharacterContextCoordinator.cs" />
 	<Compile Include="..\Game.Client\Services\BattleSnapshotProjection.cs" Link="Client\BattleSnapshotProjection.cs" />
 	<Compile Include="..\Game.Client\Services\UserSessionService.cs" Link="Client\UserSessionService.cs" />
 	<Compile Include="..\Game.Client\Services\RoomLoadResult.cs" Link="Client\RoomLoadResult.cs" />

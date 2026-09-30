@@ -13,6 +13,8 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
     WeaponCatalog? weaponCatalog = null, CharacterSlotCatalog? characterSlotCatalog = null,
     RoomProjectionRevision? projectionRevision = null)
 {
+    private readonly CharacterAccessResolver _characters = new(dbContext);
+    private readonly CharacterLifecycleService _lifecycle = new(dbContext, skillCatalog, weaponCatalog);
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
     private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
@@ -98,7 +100,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         }
 
         var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user.Id);
-        var activeCharacter = await ResolveActiveCharacterAsync(user);
+        var activeCharacter = await _characters.ActiveAsync(user);
         return (new CurrentUserResponse
         {
             UserId = user.Id,
@@ -120,7 +122,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, error);
         }
 
-        var character = await ResolveActiveCharacterAsync(user!);
+        var character = await _characters.ActiveAsync(user!);
         if (character is null)
         {
             return (null, "CharacterNotFound");
@@ -148,7 +150,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             .OrderBy(x => x.Id)
             .ToListAsync();
 
-        var currentCharacter = await ResolveActiveCharacterAsync(user!, characters);
+        var currentCharacter = CharacterAccessResolver.Active(user!, characters);
         var response = characters
             .Select(x => BuildCharacterSummary(x, currentCharacter?.Id == x.Id))
             .ToList();
@@ -159,30 +161,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
     public async Task<(CharacterSummaryResponse? Response, string? Error)> SelectCurrentCharacterAsync(string? token, int characterId)
     {
         var (user, error) = await GetCurrentUserEntityAsync(token);
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        var targetCharacter = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == characterId);
-        if (targetCharacter is null)
-        {
-            return (null, "CharacterNotFound");
-        }
-
-        if (targetCharacter.UserId != user!.Id)
-        {
-            return (null, "NotOwner");
-        }
-
-        var currentCharacter = await ResolveActiveCharacterAsync(user);
-        if (currentCharacter?.Id != targetCharacter.Id)
-        {
-            user.ActiveCharacterId = targetCharacter.Id;
-            await dbContext.SaveChangesAsync();
-        }
-
-        return (BuildCharacterSummary(targetCharacter, isCurrent: true), null);
+        if (error is not null) return (null, error);
+        var result = await _lifecycle.SelectAsync(user!, characterId);
+        return result.Error is null ? (BuildCharacterSummary(result.Character!, true), null) : (null, result.Error);
     }
 
     public async Task<(User? User, string? Error)> GetCurrentUserEntityAsync(string? token)
@@ -210,7 +191,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             return (null, null, error);
         }
 
-        var character = await ResolveActiveCharacterAsync(user!);
+        var character = await _characters.ActiveAsync(user!);
         if (character is null)
         {
             return (user, null, "CharacterNotFound");
@@ -244,113 +225,17 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
     public async Task<(CharacterSummaryResponse? Response, string? Error)> CreateCurrentCharacterAsync(string? token, CreateCharacterRequest request)
     {
         var (user, error) = await GetCurrentUserEntityAsync(token);
-        if (error is not null)
-        {
-            return (null, error);
-        }
-
-        var name = request.Name?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return (null, "InvalidName");
-        }
-
-        var professionCode = request.ProfessionCode?.Trim() ?? string.Empty;
-        if (skillCatalog.FindProfession(professionCode) is not { IsPromotion: false }) return (null, "InvalidProfession");
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user!.Id);
-        if (characterCount >= user!.CharacterSlotLimit) return (null, "CharacterSlotLimitReached");
-
-        var character = CreateCharacterEntity(user!.Id, name, professionCode);
-        if (characterCount == 0) character.Gold = weaponCatalog?.StartingCharacterGold ?? 0;
-        dbContext.Characters.Add(character);
-        user.Version++;
-        try
-        {
-            await dbContext.SaveChangesAsync();
-            AddStartingSkills(character);
-            dbContext.CharacterCombatProfessions.Add(new CharacterCombatProfession
-            {
-                CharacterId = character.Id, ProfessionCode = character.ProfessionCode,
-                Level = character.Level, Experience = character.Experience
-            });
-            AddStartingWeapons(character);
-            if (characterCount == 0) user.ActiveCharacterId = character.Id;
-            await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch (DbUpdateException)
-        {
-            return (null, "ConcurrencyConflict");
-        }
-
-        return (BuildCharacterSummary(character, isCurrent: user.ActiveCharacterId == character.Id), null);
+        if (error is not null) return (null, error);
+        var result = await _lifecycle.CreateAsync(user!, request);
+        return result.Error is null
+            ? (BuildCharacterSummary(result.Character!, user!.ActiveCharacterId == result.Character!.Id), null)
+            : (null, result.Error);
     }
 
     public async Task<(bool Success, string? Error)> DeleteCurrentCharacterAsync(string? token, int characterId)
     {
         var (user, error) = await GetCurrentUserEntityAsync(token);
-        if (error is not null)
-        {
-            return (false, error);
-        }
-
-        var character = await dbContext.Characters.FirstOrDefaultAsync(x => x.Id == characterId);
-        if (character is null)
-        {
-            return (false, "CharacterNotFound");
-        }
-
-        if (character.UserId != user!.Id)
-        {
-            return (false, "NotOwner");
-        }
-
-        var characterCount = await dbContext.Characters.CountAsync(x => x.UserId == user.Id);
-        if (characterCount <= 1)
-        {
-            return (false, "CannotDeleteLastCharacter");
-        }
-
-        if (await dbContext.RoomSlots.AnyAsync(x => x.CharacterId == characterId))
-            return (false, "CharacterInRoom");
-        if (await dbContext.CharacterActivities.AnyAsync(activity => activity.CharacterId == characterId))
-            return (false, "CharacterBusy");
-
-        await ResolveActiveCharacterAsync(user);
-        if (user.ActiveCharacterId == characterId)
-        {
-            var nextCharacter = await dbContext.Characters
-                .Where(x => x.UserId == user.Id && x.Id != characterId)
-                .OrderBy(x => x.Id)
-                .FirstOrDefaultAsync();
-            user.ActiveCharacterId = nextCharacter?.Id;
-        }
-
-        dbContext.CharacterItemStacks.RemoveRange(await dbContext.CharacterItemStacks.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterBattleMilestones.RemoveRange(await dbContext.CharacterBattleMilestones.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterDungeonProgress.RemoveRange(await dbContext.CharacterDungeonProgress.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.DungeonRunParticipants.RemoveRange(await dbContext.DungeonRunParticipants.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterGatheringOpportunities.RemoveRange(await dbContext.CharacterGatheringOpportunities.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterProfessionTalents.RemoveRange(await dbContext.CharacterProfessionTalents.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.GatheringTasks.RemoveRange(await dbContext.GatheringTasks.Where(task => task.CharacterId == characterId).ToListAsync());
-        dbContext.ProductionTasks.RemoveRange(await dbContext.ProductionTasks.Where(task => task.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterGardenPlots.RemoveRange(await dbContext.CharacterGardenPlots.Where(plot => plot.CharacterId == characterId).ToListAsync());
-        dbContext.LogisticsRequests.RemoveRange(await dbContext.LogisticsRequests.Where(request => request.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterConsumableSlots.RemoveRange(await dbContext.CharacterConsumableSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
-        dbContext.BattleConsumableCooldowns.RemoveRange(await dbContext.BattleConsumableCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
-        dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());
-        dbContext.BattleHealingPotionStates.RemoveRange(await dbContext.BattleHealingPotionStates.Where(state => state.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterSkillSlots.RemoveRange(await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterCombatProfessions.RemoveRange(await dbContext.CharacterCombatProfessions.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterSkillTalents.RemoveRange(await dbContext.CharacterSkillTalents.Where(talent => talent.CharacterId == characterId).ToListAsync());
-        dbContext.BattleSkillCooldowns.RemoveRange(await dbContext.BattleSkillCooldowns.Where(cooldown => cooldown.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterSoulImprints.RemoveRange(await dbContext.CharacterSoulImprints.Where(item => item.CharacterId == characterId).ToListAsync());
-        dbContext.CharacterWeapons.RemoveRange(await dbContext.CharacterWeapons.Where(weapon => weapon.CharacterId == characterId).ToListAsync());
-        dbContext.Characters.Remove(character);
-        await dbContext.SaveChangesAsync();
-        return (true, null);
+        return error is null ? await _lifecycle.DeleteAsync(user!, characterId) : (false, error);
     }
 
     public async Task<(bool Success, string? Error)> LogoutAsync(string? token)
@@ -392,8 +277,6 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
         if (session.ExpireAt <= DateTime.UtcNow)
         {
-            dbContext.UserLoginSessions.Remove(session);
-            await dbContext.SaveChangesAsync();
             return null;
         }
 
@@ -420,76 +303,6 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             UserId = user.Id,
             UserName = user.UserName
         };
-    }
-
-    private static Character CreateCharacterEntity(int userId, string name, string professionCode)
-    {
-        return new Character
-        {
-            UserId = userId,
-            Name = name,
-            ProfessionCode = professionCode,
-            Hp = 0,
-            MaxHp = 0,
-            Attack = 0
-        };
-    }
-
-    private void AddStartingSkills(Character character)
-    {
-        var available = skillCatalog.SkillsAtLevel(character.ProfessionCode, character.Level);
-        for (var index = 0; index < available.Count; index++)
-            dbContext.CharacterSkillSlots.Add(new CharacterSkillSlot
-            {
-                CharacterId = character.Id,
-                SlotIndex = index + 1,
-                SkillCode = available[index].Code,
-                AutoHpThresholdPercent = SkillRules.DefaultAutoHpThresholdPercent
-            });
-    }
-
-    private void AddStartingWeapons(Character character)
-    {
-        var catalog = weaponCatalog ?? throw new InvalidOperationException("A weapon catalog is required to create characters.");
-        var weapons = catalog.CreateStarterWeapons(character.Id, character.ProfessionCode);
-        dbContext.CharacterWeapons.AddRange(weapons);
-        character.Attack = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.Attack);
-        character.MaxHp = weapons.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.MaxHp);
-        catalog.ApplyBonuses(character, weapons);
-        character.Hp = TalentRules.EffectiveMaxHp(character);
-        character.Version++;
-    }
-
-    private async Task<Character?> ResolveActiveCharacterAsync(User user, List<Character>? characters = null)
-    {
-        characters ??= await dbContext.Characters
-            .Where(x => x.UserId == user.Id)
-            .OrderBy(x => x.Id)
-            .ToListAsync();
-
-        if (characters.Count == 0)
-        {
-            if (user.ActiveCharacterId is not null)
-            {
-                user.ActiveCharacterId = null;
-                await dbContext.SaveChangesAsync();
-            }
-
-            return null;
-        }
-
-        var activeCharacter = user.ActiveCharacterId.HasValue
-            ? characters.FirstOrDefault(x => x.Id == user.ActiveCharacterId.Value)
-            : null;
-        var resolvedCharacter = activeCharacter ?? characters[0];
-
-        if (user.ActiveCharacterId != resolvedCharacter.Id)
-        {
-            user.ActiveCharacterId = resolvedCharacter.Id;
-            await dbContext.SaveChangesAsync();
-        }
-
-        return resolvedCharacter;
     }
 
     private CurrentCharacterResponse BuildCurrentCharacterResponse(Character character)

@@ -16,6 +16,7 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
 
     public async Task<BattleSkillResult> ExecuteAsync(BattleCastExecution cast, ProfessionCastMechanic? mechanic = null)
     {
+        if (statuses is not null) await statuses.PrepareAsync(cast.Battle.Room);
         using var action = Events.ActionScope(cast.Source, cast.Skill.Code, cast.Skill.Name,
             cast.IsBasicAttack ? BattleActionKind.NormalAttack : BattleActionKind.Skill);
         mechanic ??= new ProfessionCastMechanic();
@@ -121,16 +122,17 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
 
     public async Task<BattleEffectOutcome> ApplyStatusAsync(BattleCastExecution cast, BattleSkillEffect effect, BattleActor target)
     {
-        var definition = statuses?.Catalog.Find(effect.StatusCode);
+        if (statuses is not null) await statuses.PrepareAsync(cast.Battle.Room);
+        var definition = statuses?.CatalogFor(cast.Battle.Room).Find(effect.StatusCode);
         if (definition is null) return new(BattleEffectKind.ApplyStatus, target, false);
         int? snapshot = null;
         if (definition.EffectType == "DamageOverTime" && effect.AttackPowerPercent > 0)
         {
             var attackModifier = await statuses!.ModifierAsync(cast.Battle.Room, cast.Source.ActorType, cast.Source.Id, "AttackPercent");
             var character = cast.Source.Character;
-            var bonus = attackModifier + (character is null ? 0 : WeaponCombatRules.AttackBonusPercent(character, cast.Battle.Room.RoundNumber) +
+            var bonus = attackModifier + (character is null ? 0 : WeaponCombatRules.AttackBonusPercent(cast.Battle.StatsFor(character), cast.Battle.Room.RoundNumber) +
                 cast.Battle.OperationBonuses.GetValueOrDefault(character.Id).AttackPercent);
-            var attack = character is null ? cast.Battle.Monster.Attack : TalentRules.EffectiveAttack(character);
+            var attack = character is null ? cast.Battle.Monster.Attack : cast.Battle.StatsFor(character).Attack;
             snapshot = Math.Max(1, (int)Math.Min(int.MaxValue, decimal.Floor(attack *
                 Math.Max(0, 1m + bonus / 100m) * effect.AttackPowerPercent / 100m)));
         }

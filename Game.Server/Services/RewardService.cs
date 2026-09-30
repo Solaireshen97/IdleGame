@@ -7,9 +7,10 @@ namespace Game.Server.Services;
 
 public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression,
     ProductionService? production = null, PlantingCatalog? planting = null,
-    DungeonDepthProgressService? depthProgress = null)
+    DungeonDepthProgressService? depthProgress = null, DungeonRunRulesService? runRules = null)
 {
-    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext);
+    private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, runRules: runRules);
+    private readonly CombatProfessionProgressStore _professionProgress = new(dbContext);
 
     public Task CaptureDungeonParticipantsAsync(Room room, IEnumerable<int> characterIds) =>
         _depthProgress.CaptureAsync(room, characterIds);
@@ -26,9 +27,17 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
     public bool HasRewardProfile(string rewardCode, bool isClear) =>
         catalog.HasRewardProfile(rewardCode, isClear);
 
+    public async Task<bool> HasRewardProfileAsync(Room room, string rewardCode, bool isClear)
+    {
+        if (runRules is null) return HasRewardProfile(rewardCode, isClear);
+        var frozen = (await runRules.EnsureAsync(room)).Rewards;
+        return (isClear ? frozen.Clears : frozen.Kills).ContainsKey(rewardCode);
+    }
+
     public async Task<bool> RecordAsync(Room room, string dungeonCode, IEnumerable<RewardParticipant> participants,
         string eventKey, bool isClear)
     {
+        var frozen = runRules is null ? null : (await runRules.EnsureAsync(room)).Rewards;
         var run = await GetRunAsync(room);
         if (run.Status != "Pending" || dbContext.RewardEvents.Local.Any(entry =>
                 entry.RoomId == room.Id && entry.Sequence == room.RunSequence && entry.EventKey == eventKey) ||
@@ -44,7 +53,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         foreach (var participant in participants.DistinctBy(entry => entry.Character.Id))
         {
             var entries = catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
-                eventKey, participant.UserId, participant.Character.Id).ToList();
+                eventKey, participant.UserId, participant.Character.Id, frozen).ToList();
             if (definition is not null && isRegular)
             {
                 var mastery = await _depthProgress.RunMasteryAsync(room, participant.Character.Id);
@@ -75,7 +84,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                 if (catalog.RollChance(chance))
                 {
                     var extra = catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
-                        eventKey, participant.UserId, participant.Character.Id)
+                        eventKey, participant.UserId, participant.Character.Id, frozen)
                         .Where(item => item.Kind is not ("Gold" or "Experience")).ToList();
                     foreach (var item in extra) item.RewardSource = "Mastery";
                     entries.AddRange(extra);
@@ -117,7 +126,10 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
 
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId)
             ?? throw new InvalidOperationException($"Dungeon {room.DungeonId} was not found while settling rewards.");
-        var tutorial = victory && dungeon.DungeonKind == "Hunt" ? catalog.FirstHuntWeapon(dungeon.Code) : null;
+        var ruleDefinition = runRules is null ? null : await runRules.EnsureAsync(room);
+        var frozen = ruleDefinition?.Rewards;
+        var tutorial = victory && (ruleDefinition?.DungeonKind ?? dungeon.DungeonKind) == "Hunt"
+            ? frozen is null ? catalog.FirstHuntWeapon(dungeon.Code) : frozen.FirstHuntWeapon : null;
         if (tutorial is not null)
         {
             const string eventKey = "starter-hunt-weapon";
@@ -180,17 +192,9 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             var experience = group.Where(entry => entry.Kind == "Experience").Sum(entry => entry.Quantity);
             if (experience > 0)
             {
-                var gain = progression.AwardExperience(character, experience);
+                var gain = await _professionProgress.AwardExperienceAsync(character, experience, progression);
                 if (gain.ExperienceGained > 0) logs.Add($"{character.Name} 获得 {gain.ExperienceGained} 点经验值。");
                 if (gain.LevelsGained > 0) logs.Add($"{character.Name} 的当前职业升至 Lv.{character.Level}。");
-                var activeProgress = await dbContext.CharacterCombatProfessions.FindAsync(character.Id, character.ProfessionCode);
-                if (activeProgress is null)
-                    dbContext.CharacterCombatProfessions.Add(activeProgress = new CharacterCombatProfession
-                    {
-                        CharacterId = character.Id, ProfessionCode = character.ProfessionCode
-                    });
-                activeProgress.Level = character.Level;
-                activeProgress.Experience = character.Experience;
             }
             foreach (var items in group.Where(entry => entry.Kind is "Consumable" or "Material").GroupBy(entry => entry.Code))
             {

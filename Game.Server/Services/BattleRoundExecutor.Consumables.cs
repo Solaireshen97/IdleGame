@@ -90,20 +90,20 @@ public sealed partial class BattleRoundExecutor
         foreach (var entry in entries)
         {
             var buffs = active.Where(buff => buff.CharacterId == entry.Character.Id).ToList();
+            BattleWeaponBonusSnapshot temporary;
             if (buffs.Count == 0 || weaponCatalog is null)
             {
-                BattleConsumableBonusCalculator.Apply(entry.Character, null);
-                if (weaponCatalog is not null)
-                    BattleConsumableBonusCalculator.ApplyCombatEffects(entry.Character,
-                        weaponCatalog.CalculateBonuses(weapons.Where(weapon => weapon.CharacterId == entry.Character.Id)));
+                temporary = weaponCatalog is null ? new() : BattleConsumableBonusCalculator.CalculateCombatEffects(
+                    weaponCatalog.CalculateBonuses(weapons.Where(weapon => weapon.CharacterId == entry.Character.Id)));
             }
             else
             {
                 var levels = buffs.GroupBy(buff => buff.WeaponSkillCode, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.Sum(buff => buff.SkillLevel), StringComparer.OrdinalIgnoreCase);
-                BattleConsumableBonusCalculator.Apply(entry.Character,
+                temporary = BattleConsumableBonusCalculator.Calculate(entry.Character,
                     weaponCatalog.CalculateBonuses(weapons.Where(weapon => weapon.CharacterId == entry.Character.Id), levels));
             }
+            temporary.ApplyTo(entry.Character);
             entry.Character.Hp = Math.Min(entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character));
         }
     }

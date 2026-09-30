@@ -56,7 +56,8 @@ public sealed partial class BattleRoundExecutor
             var chosenTargetId = automatic ? null : SkillQueueRules.TargetCharacterId(participant.Slot, slot.SlotIndex);
             if (!SkillBattlePolicy.HasApplicableEffect(skill, snapshot, chosenTargetId)) return false;
 
-            var source = BattleActor.ForCharacter(battle.Party.Single(entry => entry.Character.Id == participant.Character.Id));
+            var source = BattleActor.ForCharacter(battle.Party.Single(entry => entry.Character.Id == participant.Character.Id),
+                battle.StatsFor(participant.Character));
             var cast = new BattleCastExecution(battle, skill, source)
             {
                 ChosenTargetId = chosenTargetId, Cooldowns = cooldowns, ProfessionLevels = levels

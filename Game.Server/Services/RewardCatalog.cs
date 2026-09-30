@@ -54,10 +54,23 @@ public sealed class RewardCatalog
         return result;
     }
 
-    public IReadOnlyList<RewardEntry> Roll(string dungeonCode, bool isClear, int roomId, int sequence,
-        string eventKey, int userId, int characterId)
+    public DungeonRewardRules CaptureRules(string dungeonCode, IEnumerable<string> killCodes)
     {
-        var bundles = isClear ? _clears : _kills;
+        var rules = new DungeonRewardRules { FirstHuntWeapon = FirstHuntWeapon(dungeonCode) };
+        foreach (var code in killCodes.Distinct(StringComparer.OrdinalIgnoreCase))
+            if (_kills.TryGetValue(code, out var bundle)) rules.Kills.Add(code, bundle);
+        foreach (var code in new[] { dungeonCode, $"{dungeonCode}-first-clear" })
+            if (_clears.TryGetValue(code, out var bundle)) rules.Clears.Add(code, bundle);
+        foreach (var code in rules.Kills.Values.Concat(rules.Clears.Values).SelectMany(bundle => bundle.Drops)
+                     .Where(drop => drop.Kind == "Weapon").Select(drop => drop.Code).Distinct(StringComparer.OrdinalIgnoreCase))
+            rules.Weapons.Add(code, _weapons.CreateRewardSnapshot(code));
+        return JsonSerializer.Deserialize<DungeonRewardRules>(JsonSerializer.Serialize(rules))!;
+    }
+
+    public IReadOnlyList<RewardEntry> Roll(string dungeonCode, bool isClear, int roomId, int sequence,
+        string eventKey, int userId, int characterId, DungeonRewardRules? frozen = null)
+    {
+        var bundles = frozen is null ? isClear ? _clears : _kills : isClear ? frozen.Clears : frozen.Kills;
         if (!bundles.TryGetValue(dungeonCode, out var bundle)) return [];
         var entries = new List<RewardEntry>();
         if (bundle.Gold > 0) entries.Add(NewEntry("Gold", "", bundle.Gold));
@@ -71,7 +84,8 @@ public sealed class RewardCatalog
                 for (var index = 0; index < drop.Quantity; index++)
                 {
                     var entry = NewEntry(drop.Kind, drop.Code, 1);
-                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(_weapons.CreateRewardSnapshot(drop.Code));
+                    entry.WeaponSnapshotJson = JsonSerializer.Serialize(frozen is null
+                        ? _weapons.CreateRewardSnapshot(drop.Code) : frozen.Weapons[drop.Code]);
                     entries.Add(entry);
                 }
             }

@@ -1,5 +1,6 @@
 using Game.Server.Configuration;
 using System.Collections.Immutable;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
@@ -11,12 +12,16 @@ public sealed class MonsterCombatCatalog
     private readonly Dictionary<string, MonsterCombatProfileOptions> _profiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MonsterSkillDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MonsterCombatProfile> _compiledProfiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int[]> _depthStages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly MonsterCombatOptions _source;
 
     public MonsterCombatCatalog(IOptions<MonsterCombatOptions> options, BattleStatusCatalog? statuses = null)
     {
-        Statuses = statuses ?? new BattleStatusCatalog(options);
+        _source = Copy(options.Value);
+        var content = Copy(_source);
+        Statuses = statuses ?? new BattleStatusCatalog(Options.Create(_source));
 
-        foreach (var skill in options.Value.Skills)
+        foreach (var skill in content.Skills)
         {
             if (string.IsNullOrWhiteSpace(skill.Code) || string.IsNullOrWhiteSpace(skill.Name) ||
                 string.IsNullOrWhiteSpace(skill.Description) || skill.TargetType is not ("Self" or "Front" or "AllAlive") ||
@@ -32,7 +37,7 @@ public sealed class MonsterCombatCatalog
                 throw new InvalidOperationException($"Invalid monster skill configuration: {skill.Code}");
         }
 
-        foreach (var (code, profile) in options.Value.Profiles)
+        foreach (var (code, profile) in content.Profiles)
         {
             if (string.IsNullOrWhiteSpace(code) || profile.SkillUseChancePercent is < 0 or > 100 ||
                 profile.Skills.Any(skill => skill.Weight <= 0 || !_skills.ContainsKey(skill.Code)) ||
@@ -41,35 +46,33 @@ public sealed class MonsterCombatCatalog
                 throw new InvalidOperationException($"Invalid monster combat profile: {code}");
         }
 
-        // Temporary attacks exercise cumulative depth loading; the themed mechanics are not implemented yet.
-        string[] names = ["深层核心试击（占位）", "深层压力试击（占位）", "深层循环试击（占位）"];
-        for (var depth = 2; depth <= 4; depth++)
+        foreach (var (code, stages) in _source.DepthProgressions)
         {
-            var code = $"depth-placeholder-lv{depth}";
-            if (!_skills.TryAdd(code, new MonsterSkillOptions
-                {
-                    Code = code,
-                    Name = names[depth - 2],
-                    Description = $"LV{depth} 逐层装载验证：对前排造成101%攻击伤害。真实核心、压力及循环机制尚未实现。",
-                    DamagePowerPercent = 101,
-                    CooldownRounds = 3,
-                    ForcedPriority = 102 - depth
-                }))
-                throw new InvalidOperationException($"Reserved depth skill code: {code}");
+            if (string.IsNullOrWhiteSpace(code) || stages.Count == 0 ||
+                stages.Select(stage => stage.Depth).Distinct().Count() != stages.Count ||
+                stages.Any(stage => stage.Depth is < 2 or > 100 ||
+                    stage.ReplacementProfileCode is not null && !_profiles.ContainsKey(stage.ReplacementProfileCode) ||
+                    stage.AddedSkills.Any(skill => skill.Weight <= 0 || !_skills.ContainsKey(skill.Code))))
+                throw new InvalidOperationException($"Invalid monster depth progression: {code}");
         }
         foreach (var (baseCode, baseProfile) in _profiles.ToArray())
         {
-            for (var depth = 2; depth <= 4; depth++)
+            if (baseProfile.DepthProgressionCode is null) continue;
+            if (!_source.DepthProgressions.TryGetValue(baseProfile.DepthProgressionCode, out var progression))
+                throw new InvalidOperationException($"Unknown monster depth progression for {baseCode}: {baseProfile.DepthProgressionCode}");
+            var stages = progression.OrderBy(stage => stage.Depth).ToArray();
+            _depthStages.Add(baseCode, stages.Select(stage => stage.Depth).ToArray());
+            var current = CopyProfile(baseProfile);
+            foreach (var stage in stages)
             {
-                var code = DepthProfileCode(baseCode, depth);
-                if (!_profiles.TryAdd(code, new MonsterCombatProfileOptions
-                    {
-                        SkillUseChancePercent = baseProfile.SkillUseChancePercent,
-                        Skills = baseProfile.Skills.Select(skill => new MonsterProfileSkillOptions
-                            { Code = skill.Code, Weight = skill.Weight })
-                            .Concat(Enumerable.Range(2, depth - 1).Select(level => new MonsterProfileSkillOptions
-                                { Code = $"depth-placeholder-lv{level}" })).ToList()
-                    }))
+                if (stage.ReplacementProfileCode is not null)
+                    current = CopyProfile(_source.Profiles[stage.ReplacementProfileCode]);
+                current.Skills.AddRange(stage.AddedSkills.Select(skill => new MonsterProfileSkillOptions
+                    { Code = skill.Code, Weight = skill.Weight }));
+                if (current.Skills.Select(skill => skill.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() != current.Skills.Count)
+                    throw new InvalidOperationException($"Duplicate skill in monster depth progression: {baseCode}, LV{stage.Depth}");
+                var code = DepthProfileCode(baseCode, stage.Depth);
+                if (!_profiles.TryAdd(code, CopyProfile(current)))
                     throw new InvalidOperationException($"Reserved depth profile code: {code}");
             }
         }
@@ -97,11 +100,38 @@ public sealed class MonsterCombatCatalog
         };
     }
 
-    public string ResolveDepthProfile(string baseProfileCode, int depth) => depth <= 1
-        ? baseProfileCode
-        : _profiles.ContainsKey(DepthProfileCode(baseProfileCode, Math.Min(depth, 4)))
-            ? DepthProfileCode(baseProfileCode, Math.Min(depth, 4))
-            : baseProfileCode;
+    public string ResolveDepthProfile(string baseProfileCode, int depth)
+    {
+        if (depth <= 1 || !_depthStages.TryGetValue(baseProfileCode, out var stages)) return baseProfileCode;
+        var stage = stages.LastOrDefault(level => level <= depth);
+        return stage == 0 ? baseProfileCode : DepthProfileCode(baseProfileCode, stage);
+    }
+
+    public IReadOnlyList<string> GetAddedMechanics(string baseProfileCode, int depth)
+    {
+        if (!_profiles.TryGetValue(baseProfileCode, out var original)) return [];
+        var resolved = ResolveProfile(ResolveDepthProfile(baseProfileCode, depth));
+        var originalCodes = original.Skills.Select(skill => skill.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return resolved is null ? [] : resolved.Skills.Where(skill => !originalCodes.Contains(skill.Code))
+            .Select(skill => _definitions[skill.Code].Name).Distinct().ToArray();
+    }
+
+    // Export authored declarations, never the generated profiles, so rebuilding cannot generate twice.
+    public MonsterCombatOptions ExportOptions() => Copy(_source);
+
+    private static MonsterCombatOptions Copy(MonsterCombatOptions source)
+    {
+        var copy = JsonSerializer.Deserialize<MonsterCombatOptions>(JsonSerializer.Serialize(source))!;
+        copy.Profiles = new(copy.Profiles, StringComparer.OrdinalIgnoreCase);
+        copy.DepthProgressions = new(copy.DepthProgressions, StringComparer.OrdinalIgnoreCase);
+        return copy;
+    }
+
+    private static MonsterCombatProfileOptions CopyProfile(MonsterCombatProfileOptions source) => new()
+    {
+        SkillUseChancePercent = source.SkillUseChancePercent,
+        Skills = source.Skills.Select(skill => new MonsterProfileSkillOptions { Code = skill.Code, Weight = skill.Weight }).ToList()
+    };
 
     private static string DepthProfileCode(string baseProfileCode, int depth) => $"{baseProfileCode}:depth-lv{depth}";
 

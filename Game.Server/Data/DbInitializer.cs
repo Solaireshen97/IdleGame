@@ -20,7 +20,7 @@ public static class DbInitializer
         await AdoptLegacyEnsureCreatedDatabaseAsync(dbContext);
         await dbContext.Database.MigrateAsync();
         world ??= WorldCatalog.LoadDefault();
-        await EnsureDefaultDungeonsAsync(dbContext, world);
+        await EnsureDefaultDungeonsAsync(dbContext, world, encounters);
         await SynchronizeRegionalMonstersAsync(dbContext, world, encounters);
         if (weaponCatalog is not null)
         {
@@ -40,7 +40,8 @@ public static class DbInitializer
         var entries = await (from room in dbContext.Rooms
             join dungeon in dbContext.Dungeons on room.DungeonId equals dungeon.Id
             from monster in dbContext.Monsters
-            where dungeon.IsVisible && (monster.RoomId == room.Id ||
+            where dungeon.IsVisible && !dbContext.DungeonRunRuleSnapshots.Any(snapshot => snapshot.RoomId == room.Id) &&
+                (monster.RoomId == room.Id ||
                 monster.RoomId == null && monster.Id == room.MonsterId)
             select new { Room = room, Monster = monster, Dungeon = dungeon }).ToListAsync();
         var changedRooms = new Dictionary<int, Room>();
@@ -109,9 +110,7 @@ public static class DbInitializer
         foreach (var character in await dbContext.Characters.Where(character => characterIds.Contains(character.Id)).ToListAsync())
         {
             var owned = weapons.Where(weapon => weapon.CharacterId == character.Id).ToList();
-            character.Attack = owned.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.Attack);
-            character.MaxHp = owned.Where(weapon => weapon.EquippedSlotIndex.HasValue).Sum(weapon => weapon.MaxHp);
-            catalog.ApplyBonuses(character, owned);
+            catalog.RecalculateEquipmentStats(character, owned);
             character.Hp = Math.Min(character.Hp, TalentRules.EffectiveMaxHp(character));
             character.Version++;
         }
@@ -138,13 +137,15 @@ public static class DbInitializer
         await dbContext.SaveChangesAsync();
     }
 
-    public static async Task EnsureDefaultDungeonsAsync(GameDbContext dbContext, WorldCatalog? world = null)
+    public static async Task EnsureDefaultDungeonsAsync(GameDbContext dbContext, WorldCatalog? world = null,
+        DungeonEncounterCatalog? encounters = null)
     {
         var defaults = (world ?? WorldCatalog.LoadDefault()).Dungeons;
 
         var existing = await dbContext.Dungeons.ToDictionaryAsync(dungeon => dungeon.Code, StringComparer.OrdinalIgnoreCase);
         foreach (var definition in defaults)
         {
+            encounters?.PopulateRepresentativeStats(definition);
             if (!existing.TryGetValue(definition.Code, out var dungeon))
             {
                 var created = new Dungeon();

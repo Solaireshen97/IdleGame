@@ -20,7 +20,7 @@ public sealed class SkillBattleSnapshotFactory(GameDbContext db, SkillCatalog sk
         var effects = monsters is null ? [] : await monsters.Statuses.GetActiveAsync(room, "Character", ids);
         var targets = party.Select(entry => new SkillBattleActor(entry.Character.Id, entry.Slot.SlotIndex,
             entry.Character.Hp, TalentRules.EffectiveMaxHp(entry.Character), effects.Any(effect =>
-                effect.TargetId == entry.Character.Id && monsters!.Statuses.IsRemovable(effect, false)))).ToImmutableArray();
+                effect.TargetId == entry.Character.Id && monsters!.Statuses.IsRemovable(room, effect, false)))).ToImmutableArray();
         var caster = party.Single(entry => entry.Character.Id == casterId).Character;
         professionLevels ??= (await db.CharacterCombatProfessions.Where(entry => entry.CharacterId == casterId).ToListAsync())
             .ToDictionary(entry => entry.ProfessionCode, entry => entry.Level, StringComparer.OrdinalIgnoreCase);
@@ -39,7 +39,7 @@ public sealed class SkillBattleSnapshotFactory(GameDbContext db, SkillCatalog sk
             monsters is not null && await monsters.Statuses.HasRemovableAsync(room, "Monster", [monster.Id], true),
             monsters is not null && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && room.ClosedAtUtc is null &&
                 (canInterruptCurrentIntent ?? await monsters.CanInterruptCurrentIntentAsync(room, monster)),
-            monsters?.HasAnyInterruptibleSkill(monster) == true, damageSkills);
+            monsters?.HasAnyInterruptibleSkill(monster, room) == true, damageSkills);
         return ForSkill(snapshot, skill, mechanics);
     }
 

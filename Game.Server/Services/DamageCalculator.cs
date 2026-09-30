@@ -38,8 +38,10 @@ public static class DamageCalculator
 public static class WeaponCombatRules
 {
     public static decimal AttackBonusPercent(Character character, int roundNumber) =>
-        Math.Clamp(character.WeaponAttackBonusPercent + character.TemporaryWeaponAttackBonusPercent +
-            character.CombatWeaponRampAttackPerRoundPercent * Math.Min(10, Math.Max(1, roundNumber + 1)), 0m, 300m);
+        AttackBonusPercent(CharacterCombatStatSnapshot.Capture(character), roundNumber);
+
+    public static decimal AttackBonusPercent(CharacterCombatStatSnapshot stats, int roundNumber) =>
+        Math.Clamp(stats.AttackPercent + stats.RampAttackPerRoundPercent * Math.Min(10, Math.Max(1, roundNumber + 1)), 0m, 300m);
 
     public static decimal ElementAttackPercent(ElementType? attacker, ElementType defender, decimal advantagePercent)
     {
@@ -48,16 +50,21 @@ public static class WeaponCombatRules
     }
 
     public static decimal WeaponReductionPercent(Character character)
+        => WeaponReductionPercent(CharacterCombatStatSnapshot.Capture(character), character.Hp);
+
+    public static decimal WeaponReductionPercent(CharacterCombatStatSnapshot stats, int hp)
     {
-        var maxHp = TalentRules.EffectiveMaxHp(character);
-        var lowHpFactor = maxHp <= 0 ? 0m : Math.Clamp((.5m - character.Hp / (decimal)maxHp) / .5m, 0m, 1m);
-        return Math.Clamp(character.CombatWeaponDirectReductionPercent +
-            character.CombatWeaponLowHpReductionPercent * lowHpFactor, 0m, 50m);
+        var maxHp = stats.MaxHp;
+        var lowHpFactor = maxHp <= 0 ? 0m : Math.Clamp((.5m - hp / (decimal)maxHp) / .5m, 0m, 1m);
+        return Math.Clamp(stats.DirectReductionPercent + stats.LowHpReductionPercent * lowHpFactor, 0m, 50m);
     }
 
     public static decimal CombinedDirectReductionPercent(decimal otherReduction, Character character)
+        => CombinedDirectReductionPercent(otherReduction, CharacterCombatStatSnapshot.Capture(character), character.Hp);
+
+    public static decimal CombinedDirectReductionPercent(decimal otherReduction, CharacterCombatStatSnapshot stats, int hp)
     {
-        var weapon = WeaponReductionPercent(character);
+        var weapon = WeaponReductionPercent(stats, hp);
         var combined = 100m * (1m - (1m - otherReduction / 100m) * (1m - weapon / 100m));
         return Math.Min(BattleRules.MaxTotalDamageReductionPercent, combined);
     }

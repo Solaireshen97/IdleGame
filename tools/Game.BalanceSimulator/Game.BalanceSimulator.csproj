@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Tests/**/*.cs" />
     <ProjectReference Include="../../Game.Server/Game.Server.csproj" />
   </ItemGroup>
 </Project>

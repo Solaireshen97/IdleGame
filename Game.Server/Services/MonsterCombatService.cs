@@ -11,17 +11,19 @@ namespace Game.Server.Services;
 
 public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatCatalog catalog, Random? random = null,
     BattleStatusService? statuses = null, SkillCatalog? characterSkills = null, BattleEffectExecutor? battleEffects = null,
-    SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null)
+    SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
 {
     private readonly SkillInformationService _information = skillInformation ?? new(catalog.Statuses, mechanics);
-    public BattleStatusService Statuses { get; } = statuses ?? new BattleStatusService(dbContext, catalog.Statuses, mechanics: mechanics);
+    public BattleStatusService Statuses { get; } = statuses ?? new BattleStatusService(dbContext, catalog.Statuses, mechanics: mechanics, runRules: runRules);
     private BattleGuardService? _guards = battleEffects?.Guards;
     private BattleGuardService Guards => _guards ??= new(Statuses);
     private BattleEffectExecutor? _effects = battleEffects;
     private BattleEffectExecutor Effects => _effects ??= new(characterSkills ?? new SkillCatalog(Options.Create(new SkillOptions())),
         Statuses, Guards, new BattleDamageService(Statuses, Guards, random));
+    private MonsterCombatCatalog CatalogFor(Room room) => runRules?.CombatFor(room) ?? catalog;
     public async Task<MonsterIntent> EnsureIntentAsync(Room room, Monster monster)
     {
+        if (runRules is not null) await runRules.EnsureAsync(room);
         var existing = dbContext.MonsterIntents.Local.FirstOrDefault(intent =>
                 intent.RoomId == room.Id && intent.RunSequence == room.RunSequence &&
                 intent.RoundNumber == room.RoundNumber && intent.MonsterId == monster.Id)
@@ -38,7 +40,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var selectedSkill = await SelectSkillAsync(room, monster);
         var silenced = selectedSkill?.IsInterruptible == true &&
             (await GetActiveEffectsAsync(room, "Monster", [monster.Id])).Any(effect =>
-                catalog.FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
+                CatalogFor(room).FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
                 effect.AppliedRound < room.RoundNumber);
         var targetType = selectedSkill?.TargetType ?? "Front";
         var intent = new MonsterIntent
@@ -62,7 +64,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         if (room.Status == RoomStatus.BattleOver || monster.Hp <= 0) return null;
         var intent = await EnsureIntentAsync(room, monster);
-        var skill = catalog.ResolveSkill(intent.SkillCode);
+        var skill = CatalogFor(room).ResolveSkill(intent.SkillCode);
         var targetLabel = intent.TargetType switch
         {
             "Self" => monster.Name,
@@ -81,7 +83,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             IsInterruptible = skill?.IsInterruptible == true,
             IsInterrupted = intent.IsInterrupted,
             DangerLevel = skill?.DangerLevel ?? "Normal",
-            Effects = skill is null ? [] : _information.Effects(skill)
+            Effects = skill is null ? [] : (runRules is null ? _information : new SkillInformationService(CatalogFor(room).Statuses, mechanics)).Effects(skill)
         };
     }
 
@@ -89,13 +91,14 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         var intent = await EnsureIntentAsync(room, monster);
         return intent.ActionType == "Skill" && !intent.IsInterrupted &&
-               catalog.ResolveSkill(intent.SkillCode)?.IsInterruptible == true;
+               CatalogFor(room).ResolveSkill(intent.SkillCode)?.IsInterruptible == true;
     }
 
-    public bool HasAnyInterruptibleSkill(Monster monster)
+    public bool HasAnyInterruptibleSkill(Monster monster, Room? room = null)
     {
-        var profile = catalog.ResolveProfile(monster.CombatProfileCode);
-        return profile?.Skills.Any(entry => catalog.ResolveSkill(entry.Code) is { IsInterruptible: true } skill &&
+        var definitions = room is null ? catalog : CatalogFor(room);
+        var profile = definitions.ResolveProfile(monster.CombatProfileCode);
+        return profile?.Skills.Any(entry => definitions.ResolveSkill(entry.Code) is { IsInterruptible: true } skill &&
             (profile.SkillUseChancePercent > 0 || skill.ForcedPriority > 0)) == true;
     }
 
@@ -103,7 +106,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         var intent = await EnsureIntentAsync(room, monster);
         if (intent.ActionType != "Skill" || intent.IsInterrupted ||
-            catalog.ResolveSkill(intent.SkillCode)?.IsInterruptible != true) return false;
+            CatalogFor(room).ResolveSkill(intent.SkillCode)?.IsInterruptible != true) return false;
         intent.IsInterrupted = true;
         return true;
     }
@@ -145,12 +148,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             operationBonuses ?? new Dictionary<int, OperationPotionBonuses>(), logs);
         var intent = await EnsureIntentAsync(room, monster);
         dbContext.MonsterIntents.Remove(intent);
-        var skill = intent.ActionType == "Skill" ? catalog.ResolveSkill(intent.SkillCode) : null;
+        var skill = intent.ActionType == "Skill" ? CatalogFor(room).ResolveSkill(intent.SkillCode) : null;
         if (intent.IsInterrupted)
         {
             if (skill is not null) await StartCooldownAsync(room, monster, skill);
             var wasSilenced = (await GetActiveEffectsAsync(room, "Monster", [monster.Id])).Any(effect =>
-                catalog.FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
+                CatalogFor(room).FindStatus(effect.EffectCode)?.EffectType == "SilenceNextIntent" &&
                 effect.AppliedRound < room.RoundNumber);
             logs.Add(wasSilenced
                 ? $"{monster.Name} 受到沉默影响，{skill?.Name ?? "行动"} 被自动打断，本回合行动取消。"
@@ -247,14 +250,14 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     private async Task<MonsterSkillDefinition?> SelectSkillAsync(Room room, Monster monster)
     {
-        var profile = catalog.ResolveProfile(monster.CombatProfileCode);
+        var profile = CatalogFor(room).ResolveProfile(monster.CombatProfileCode);
         if (profile is null || profile.Skills.Length == 0) return null;
         var cooldowns = await dbContext.BattleMonsterSkillCooldowns.Where(entry =>
             entry.RoomId == room.Id && entry.MonsterId == monster.Id).ToListAsync();
         foreach (var local in dbContext.BattleMonsterSkillCooldowns.Local.Where(entry =>
                      entry.RoomId == room.Id && entry.MonsterId == monster.Id))
             if (!cooldowns.Contains(local)) cooldowns.Add(local);
-        var eligible = profile.Skills.Select(entry => (Entry: entry, Skill: catalog.ResolveSkill(entry.Code)))
+        var eligible = profile.Skills.Select(entry => (Entry: entry, Skill: CatalogFor(room).ResolveSkill(entry.Code)))
             .Where(candidate => candidate.Skill is not null && candidate.Skill.InitialCooldownRounds <= room.RoundNumber &&
                 (candidate.Skill.SelfHpBelowPercent is null ||
                  (long)monster.Hp * 100 <= (long)monster.MaxHp * candidate.Skill.SelfHpBelowPercent) &&

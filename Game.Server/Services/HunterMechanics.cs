@@ -18,8 +18,8 @@ public sealed class HunterMechanics(ProfessionMechanicCatalog? mechanics = null)
     public override BattleSkillEffect TransformEffect(BattleCastExecution cast, BattleSkillEffect effect, BattleEffectExecutor executor)
     {
         if (!_marked || effect.Kind != BattleEffectKind.ApplyStatus ||
-            executor.Statuses?.Catalog.Find(effect.StatusCode)?.Mechanic != BattleStatusMechanic.HunterCoordinated) return effect;
-        var definition = _mechanics.TryHunterCoordinatedStatus(executor.Statuses.Catalog, cast.CharacterSkill!.Level);
+            executor.Statuses?.CatalogFor(cast.Battle.Room).Find(effect.StatusCode)?.Mechanic != BattleStatusMechanic.HunterCoordinated) return effect;
+        var definition = _mechanics.TryHunterCoordinatedStatus(executor.Statuses.CatalogFor(cast.Battle.Room), cast.CharacterSkill!.Level);
         return definition is null ? effect : effect with { StatusCode = definition.Code };
     }
 
@@ -28,7 +28,7 @@ public sealed class HunterMechanics(ProfessionMechanicCatalog? mechanics = null)
         if (!_marked || executor.Statuses is not { } statuses) return;
         if (cast.Skill.Code == "hunter-expose-shot" && cast.Battle.Monster.Hp > 0)
         {
-            var definition = _mechanics.TryHunterVulnerabilityStatus(statuses.Catalog, cast.CharacterSkill!.Level);
+            var definition = _mechanics.TryHunterVulnerabilityStatus(statuses.CatalogFor(cast.Battle.Room), cast.CharacterSkill!.Level);
             if (definition is not null) cast.Result.Outcomes.Add(await executor.ApplyStatusAsync(cast,
                 new(BattleEffectKind.ApplyStatus, BattleEffectTarget.ForCharacter("Monster"), AttackPowerPercent: 0, StatusCode: definition.Code, DurationRounds: _mechanics.Hunter.VulnerabilityDurationRounds),
                 cast.Battle.Enemy));

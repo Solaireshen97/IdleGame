@@ -56,7 +56,7 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
             await DisorderStacksAsync(statuses, battle.Room, source.Id, battle.Monster.Id) < mechanics.Mage.EchoRequiredStacks) return;
         using var action = executor.Events.ActionScope(source, skillCode ?? "mage-disorder", "失序回响", BattleActionKind.Mechanic);
         await ConsumeDisorderAsync(statuses, battle.Room, source.Id, battle.Monster.Id, mechanics);
-        var used = statuses.Catalog.FindMechanic(BattleStatusMechanic.MageEchoUsed)!;
+        var used = statuses.CatalogFor(battle.Room).FindMechanic(BattleStatusMechanic.MageEchoUsed)!;
         await statuses.SetCounterAsync(battle.Room, "Character", source.Id, used.Code, 1, new("Character", source.Id, skillCode));
         var rank = await DomainRankAsync(statuses, battle.Room, source.Id);
         var hit = await executor.Damage.CharacterDamageAsync(battle, source,
@@ -64,7 +64,7 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
         battle.Logs.Add($"{source.Label} 触发失序回响，对 {battle.Monster.Name} 造成 {hit.CalculatedAmount} 点伤害。");
         if (battle.Monster.Hp > 0)
         {
-            var disruption = mechanics.TryMageDisruptionStatus(statuses.Catalog, rank);
+            var disruption = mechanics.TryMageDisruptionStatus(statuses.CatalogFor(battle.Room), rank);
             if (disruption is not null) await statuses.ApplyAsync(battle.Room, "Monster", battle.Monster.Id, disruption.Code, 0,
                 battle.Logs, battle.Monster.Name, source: new("Character", source.Id, skillCode));
         }
@@ -77,7 +77,7 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
     public static async Task<int> AddDisorderAsync(BattleStatusService statuses, Room room, int id, int monsterId, List<string> logs,
         string label, string? skillCode = null, ProfessionMechanicCatalog? mechanics = null, int? gain = null)
     {
-        var definition = statuses.Catalog.FindMechanic(BattleStatusMechanic.MageDisorder);
+        var definition = statuses.CatalogFor(room).FindMechanic(BattleStatusMechanic.MageDisorder);
         if (definition is null) return 0;
         var current = await DisorderStacksAsync(statuses, room, id, monsterId);
         var state = await statuses.SetCounterAsync(room, "Character", id, definition.Code,
@@ -93,12 +93,12 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
         var required = (mechanics ?? ProfessionMechanicCatalog.Default).Mage.EchoRequiredStacks;
         var current = await DisorderStacksAsync(statuses, room, id, monsterId);
         if (current < required) return 0;
-        var definition = statuses.Catalog.FindMechanic(BattleStatusMechanic.MageDisorder)!;
+        var definition = statuses.CatalogFor(room).FindMechanic(BattleStatusMechanic.MageDisorder)!;
         await statuses.ConsumeAsync(room, "Character", id, definition.Code, required);
         return current - required;
     }
 
     public static async Task<int> DomainRankAsync(BattleStatusService statuses, Room room, int id) =>
         (await statuses.MechanicStatesAsync(room, "Character", id, BattleStatusMechanic.MageDomain))
-            .Select(effect => statuses.Catalog.Find(effect.EffectCode)!.MechanicLevel).DefaultIfEmpty(0).Max();
+            .Select(effect => statuses.CatalogFor(room).Find(effect.EffectCode)!.MechanicLevel).DefaultIfEmpty(0).Max();
 }

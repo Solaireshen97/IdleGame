@@ -163,9 +163,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
         if (error is not null) return (null, error);
-        var character = await dbContext.Characters.SingleOrDefaultAsync(item => item.Id == characterId);
-        if (character is null) return (null, "CharacterNotFound");
-        return character.UserId == user!.Id ? (character, null) : (null, "NotOwner");
+        return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
     private async Task<string?> GetLoadoutLockErrorAsync(int characterId)

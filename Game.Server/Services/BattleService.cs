@@ -9,14 +9,14 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null)
+public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
 {
-    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default);
+    private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default, runRules);
     private readonly SkillBattleSnapshotFactory _skillSnapshots = new(dbContext, skillCatalog, monsterCombatService, mechanics);
     private readonly BattleEventCollector _events = battleEffects?.Events ?? monsterCombatService?.Statuses.Events ?? new();
     private BattleStatusService? _statusService;
     private BattleStatusService Statuses => _statusService ??= _effectExecutor?.Statuses ?? monsterCombatService?.Statuses ??
-        new BattleStatusService(dbContext, new BattleStatusCatalog(Options.Create(new MonsterCombatOptions())), _events, mechanics);
+        new BattleStatusService(dbContext, new BattleStatusCatalog(Options.Create(new MonsterCombatOptions())), _events, mechanics, runRules);
     private BattleGuardService? _guardService;
     private BattleGuardService _guards => _guardService ??= _effectExecutor?.Guards ?? new(Statuses);
     private BattleEffectExecutor? _effectExecutor = battleEffects;
@@ -152,26 +152,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             room.BattleEndedAtUtc is DateTime endedAt && now >= endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds))
         {
             var respawnAt = endedAt.AddSeconds(BattleRules.RepeatBattleDelaySeconds);
-            monster = await GetDungeonRunService().ResetEncounterAsync(room);
-            foreach (var entry in slots)
-            {
-                BattleConsumableBonusCalculator.Apply(entry.Character, null);
-                entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
-            }
-            await ResetConsumableCooldownsAsync(room.Id);
-            await ResetOperationPotionStatesAsync(room.Id);
-            await ResetSkillCooldownsAsync(room.Id);
-            ClearRoundState(room, slots);
-            ResetRunParticipation(slots);
-            room.RoundNumber = 0;
-            room.RunSequence++;
-            room.Status = RoomStatus.WaveTransition;
-            room.NextRoundAvailableAtUtc = respawnAt;
-            room.RoundCooldownDurationSeconds = BattleRules.RepeatBattleDelaySeconds;
-            room.PreparationStartedAtUtc = null;
-            room.BattleEndedAtUtc = null;
-            await _partyScaling.SynchronizeAsync(room, slots.Select(entry => entry.Slot).ToList());
-            if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
+            monster = await RunLifecycle.BeginNextRunAsync(room, slots, respawnAt, automatic: true);
             restartedBattle = true;
         }
 
@@ -458,26 +439,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         if (room.Status != RoomStatus.BattleOver) return (false, "BattleNotOver");
         if (room.ClosedAtUtc.HasValue) return (false, "RoomClosed");
         if (room.IsRepeatBattle && monster!.Hp <= 0) return (false, "RepeatBattlePending");
-        monster = await GetDungeonRunService().ResetEncounterAsync(room);
-        foreach (var entry in slots!)
-        {
-            BattleConsumableBonusCalculator.Apply(entry.Character, null);
-            entry.Character.Hp = TalentRules.EffectiveMaxHp(entry.Character);
-        }
-        await ResetConsumableCooldownsAsync(room.Id);
-        await ResetOperationPotionStatesAsync(room.Id);
-        await ResetSkillCooldownsAsync(room.Id);
-        ClearRoundState(room, slots);
-        ResetRunParticipation(slots);
-        room.RoundNumber = 0;
-        room.RunSequence++;
-        room.Status = RoomStatus.NotStarted;
-        room.NextRoundAvailableAtUtc = null;
-        room.RoundCooldownDurationSeconds = null;
-        room.PreparationStartedAtUtc = room.IsPreparationTimeoutEnabled ? DateTime.UtcNow : null;
-        room.BattleEndedAtUtc = null;
-        await _partyScaling.SynchronizeAsync(room, slots.Select(entry => entry.Slot).ToList());
-        if (monsterCombatService is not null) await monsterCombatService.EnsureIntentAsync(room, monster);
+        await RunLifecycle.BeginNextRunAsync(room, slots!, DateTime.UtcNow, automatic: false);
         room.Version++;
         var save = await SaveAsync();
         if (save.Success) battleLogStore?.Clear(room.Id);
@@ -551,30 +513,6 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         return SkillBattlePolicy.HasApplicableEffect(skill, snapshot, chosenTargetId);
     }
 
-    private async Task ResetConsumableCooldownsAsync(int roomId)
-    {
-        foreach (var cooldown in await dbContext.BattleConsumableCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync())
-            cooldown.ReadyAtRound = 0;
-    }
-
-    private async Task ResetOperationPotionStatesAsync(int roomId)
-    {
-        dbContext.BattleOperationPotionStates.RemoveRange(await dbContext.BattleOperationPotionStates
-            .Where(state => state.RoomId == roomId).ToListAsync());
-        dbContext.BattleConsumableBuffs.RemoveRange(await dbContext.BattleConsumableBuffs
-            .Where(buff => buff.RoomId == roomId).ToListAsync());
-    }
-
-    private async Task ResetSkillCooldownsAsync(int roomId)
-    {
-        var cooldowns = await dbContext.BattleSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync();
-        dbContext.BattleSkillCooldowns.RemoveRange(cooldowns.Where(entry =>
-            entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix)));
-        foreach (var cooldown in cooldowns.Where(entry =>
-                     !entry.SkillCode.StartsWith(SoulImprintRules.CooldownPrefix)))
-            cooldown.ReadyAtRound = 0;
-    }
-
     private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<BattleParticipant> slots, Monster monster, DateTime now, List<string> logs, bool resetLog = false)
     {
         room.Version++;
@@ -618,10 +556,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             .Select(milestone => milestone.CharacterId).ToListAsync();
     }
 
-    private static void ClearRoundState(Room room, IEnumerable<BattleParticipant> slots) { room.PreparationStartedAtUtc = null; foreach (var entry in slots) { entry.Slot.IsConfirmed = false; entry.Slot.IsTemporaryAuto = false; entry.Slot.PendingConsumableSlotMask = 0; SkillQueueRules.Clear(entry.Slot); entry.Slot.IsSoulImprintQueued = false; } }
-    private static void ResetRunParticipation(IEnumerable<BattleParticipant> slots) { foreach (var entry in slots) { entry.Slot.HasParticipatedInRun = false; entry.Slot.LastParticipatedMonsterId = null; } }
+    private static void ClearRoundState(Room room, IEnumerable<BattleParticipant> slots) => DungeonRunLifecycleService.ClearRoundState(room, slots);
     private static void SetBattleOver(Room room, DateTime now) { room.Status = RoomStatus.BattleOver; room.NextRoundAvailableAtUtc = null; room.RoundCooldownDurationSeconds = null; room.PreparationStartedAtUtc = null; room.BattleEndedAtUtc = now; }
-    private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService, battleMilestones);
+    private DungeonRunService GetDungeonRunService() => dungeonRunService ?? new DungeonRunService(dbContext, rewardService, monsterCombatService, battleMilestones, runRules: runRules);
+    private DungeonRunLifecycleService RunLifecycle => new(dbContext, GetDungeonRunService(), _partyScaling, monsterCombatService, runRules);
     private static BattleResult BuildResult(Room room, List<BattleParticipant> slots, Monster monster, DateTime now, List<string> logs) => new() { RoomId = room.Id, CharacterHp = slots.OrderBy(x => x.Slot.SlotIndex).FirstOrDefault()?.Character.Hp ?? 0, CharacterMaxHp = slots.OrderBy(x => x.Slot.SlotIndex).Select(x => TalentRules.EffectiveMaxHp(x.Character)).FirstOrDefault(), MonsterHp = monster.Hp, MonsterMaxHp = monster.MaxHp, CurrentWaveNumber = room.CurrentWaveNumber, TotalWaveCount = room.TotalWaveCount, RoomStatus = room.Status, NextRoundAvailableAtUtc = room.NextRoundAvailableAtUtc, BattleEndedAtUtc = room.BattleEndedAtUtc, ServerTimeUtc = now, CanExecuteRound = room.Status == RoomStatus.Preparing && slots.Where(x => x.Character.Hp > 0).All(x => x.Slot.IsConfirmed) && monster.Hp > 0, IsVictory = room.Status == RoomStatus.BattleOver && monster.Hp <= 0, IsCharacterDead = !slots.Any(x => x.Character.Hp > 0), Logs = logs };
 
     private async Task<(Room? Room, List<BattleParticipant>? Slots, Monster? Monster, User? User, string? Error)> GetBattleContextAsync(int roomId, string? token)

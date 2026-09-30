@@ -15,10 +15,15 @@ public readonly record struct BattleStatusSource(string ActorType, int ActorId, 
 /// applying, consuming or displaying a status never saves the database independently.
 /// </summary>
 public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog catalog, BattleEventCollector? events = null,
-    ProfessionMechanicCatalog? mechanics = null)
+    ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
 {
     private readonly ProfessionMechanicDescription _mechanicDescriptions = new(mechanics ?? ProfessionMechanicCatalog.Default);
     public BattleStatusCatalog Catalog => catalog;
+    public BattleStatusCatalog CatalogFor(Room room) => runRules?.CombatFor(room).Statuses ?? catalog;
+    public async Task PrepareAsync(Room room)
+    {
+        if (runRules is not null) await runRules.EnsureAsync(room);
+    }
     public BattleEventCollector Events { get; } = events ?? new();
     private SettlementScope? _settlement;
     private ReadSnapshotScope? _readSnapshot;
@@ -26,6 +31,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     /// <summary>Captures one request's display state without tracking new status entities.</summary>
     public async Task<IDisposable> BeginReadSnapshotAsync(Room room)
     {
+        await PrepareAsync(room);
         if (_readSnapshot is not null) throw new InvalidOperationException("A battle status read snapshot is already active.");
         var effects = SettlementStates(room);
         if (effects is null)
@@ -77,6 +83,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     /// </summary>
     public async Task<IDisposable> BeginSettlementAsync(Room room)
     {
+        await PrepareAsync(room);
         if (_settlement is not null) throw new InvalidOperationException("A battle status settlement is already active.");
         var scope = new SettlementScope(this, room.Id, room.RunSequence);
         _settlement = scope;
@@ -124,22 +131,23 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         FindMechanicStatesAsync(room, actorType, actorId, mechanic);
 
     private async Task<List<BattleStatusEffect>> FindMechanicStatesAsync(Room room, string actorType, int actorId, BattleStatusMechanic mechanic) =>
-        (await GetActiveAsync(room, actorType, [actorId])).Where(effect => catalog.Find(effect.EffectCode)?.Mechanic == mechanic).ToList();
+        (await GetActiveAsync(room, actorType, [actorId])).Where(effect => CatalogFor(room).Find(effect.EffectCode)?.Mechanic == mechanic).ToList();
 
     public async Task<decimal> MechanicPowerAsync(Room room, string actorType, int actorId, BattleStatusMechanic mechanic) =>
         (await FindMechanicStatesAsync(room, actorType, actorId, mechanic)).Select(effect =>
-            Math.Abs(effect.MagnitudeSnapshot ?? catalog.Find(effect.EffectCode)!.FamilyStrength)).DefaultIfEmpty(0).Max();
+            Math.Abs(effect.MagnitudeSnapshot ?? CatalogFor(room).Find(effect.EffectCode)!.FamilyStrength)).DefaultIfEmpty(0).Max();
 
     public async Task<decimal> ConsumeMechanicPowerAsync(Room room, string actorType, int actorId, BattleStatusMechanic mechanic)
     {
         var effects = await FindMechanicStatesAsync(room, actorType, actorId, mechanic);
-        var power = effects.Select(effect => Math.Abs(effect.MagnitudeSnapshot ?? catalog.Find(effect.EffectCode)!.FamilyStrength)).DefaultIfEmpty(0).Max();
+        var power = effects.Select(effect => Math.Abs(effect.MagnitudeSnapshot ?? CatalogFor(room).Find(effect.EffectCode)!.FamilyStrength)).DefaultIfEmpty(0).Max();
         RemoveStates(room, effects, BattleStatusChange.Consumed);
         return power;
     }
     public async Task<List<BattleStatusEffect>> GetActiveAsync(Room room, string targetType,
         IReadOnlyCollection<int> targetIds)
     {
+        await PrepareAsync(room);
         if (SettlementStates(room) is { } loaded)
             return loaded.Where(effect => effect.TargetType == targetType && targetIds.Contains(effect.TargetId) &&
                 effect.ExpiresAfterRound >= room.RoundNumber && db.Entry(effect).State != EntityState.Deleted).ToList();
@@ -168,10 +176,13 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
 
     public async Task<bool> HasRemovableAsync(Room room, string targetType,
         IReadOnlyCollection<int> targetIds, bool positive) =>
-        (await GetActiveAsync(room, targetType, targetIds)).Any(effect => IsRemovable(effect, positive));
+        (await GetActiveAsync(room, targetType, targetIds)).Any(effect => IsRemovable(room, effect, positive));
 
     public bool IsRemovable(BattleStatusEffect effect, bool positive) =>
         catalog.Find(effect.EffectCode) is { } definition && definition.IsPositive == positive && definition.IsDispellable;
+
+    public bool IsRemovable(Room room, BattleStatusEffect effect, bool positive) =>
+        CatalogFor(room).Find(effect.EffectCode) is { } definition && definition.IsPositive == positive && definition.IsDispellable;
 
     public async Task RemoveAsync(Room room, string targetType, int targetId, string code)
     {
@@ -189,10 +200,10 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         var order = targetIds.Select((id, index) => (id, index)).ToDictionary(entry => entry.id, entry => entry.index);
         var effect = (await GetActiveAsync(room, targetType, targetIds))
             .OrderBy(effect => order.GetValueOrDefault(effect.TargetId, int.MaxValue)).ThenBy(effect => effect.Id)
-            .FirstOrDefault(effect => catalog.Find(effect.EffectCode) is { } definition &&
+            .FirstOrDefault(effect => CatalogFor(room).Find(effect.EffectCode) is { } definition &&
                 definition.IsPositive == positive && definition.IsDispellable);
         if (effect is null) return null;
-        var definition = catalog.Find(effect.EffectCode)!;
+        var definition = CatalogFor(room).Find(effect.EffectCode)!;
         CaptureStatus(room, effect, BattleStatusChange.Removed, effect.Stacks, 0,
             positive ? BattleEventKind.Dispel : BattleEventKind.Cleanse);
         db.BattleStatusEffects.Remove(effect);
@@ -201,7 +212,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
 
     public async Task<decimal> ModifierAsync(Room room, string targetType, int targetId, string effectType) =>
         (await GetActiveAsync(room, targetType, [targetId])).Sum(effect =>
-            catalog.Find(effect.EffectCode) is { } definition && definition.EffectType == effectType
+            CatalogFor(room).Find(effect.EffectCode) is { } definition && definition.EffectType == effectType
                 ? (effect.MagnitudeSnapshot ?? definition.ValuePerStack) * effect.Stacks : 0m);
 
     public async Task<bool> ApplyAsync(Room room, string targetType, int targetId, string code,
@@ -209,7 +220,8 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         BattleStatusSource? source = null, string? boundTargetType = null, int? boundTargetId = null,
         decimal? magnitudeSnapshot = null, int? counterCount = null)
     {
-        var definition = catalog.Find(code);
+        await PrepareAsync(room);
+        var definition = CatalogFor(room).Find(code);
         if (definition is null) return false;
         if (counterCount.HasValue && (counterCount < 1 || counterCount > definition.MaxStacks)) throw new ArgumentOutOfRangeException(nameof(counterCount));
         if (perTickValue is <= 0) throw new ArgumentOutOfRangeException(nameof(perTickValue));
@@ -225,9 +237,9 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         if (definition.FamilyCode is not null)
         {
             var family = (await GetActiveAsync(room, targetType, [targetId])).Where(entry =>
-                catalog.Find(entry.EffectCode)?.FamilyCode == definition.FamilyCode).ToList();
-            var stronger = family.OrderByDescending(entry => Math.Abs(entry.MagnitudeSnapshot ?? catalog.Find(entry.EffectCode)!.FamilyStrength))
-                .FirstOrDefault(entry => Math.Abs(entry.MagnitudeSnapshot ?? catalog.Find(entry.EffectCode)!.FamilyStrength) > Math.Abs(magnitudeSnapshot ?? definition.FamilyStrength));
+                CatalogFor(room).Find(entry.EffectCode)?.FamilyCode == definition.FamilyCode).ToList();
+            var stronger = family.OrderByDescending(entry => Math.Abs(entry.MagnitudeSnapshot ?? CatalogFor(room).Find(entry.EffectCode)!.FamilyStrength))
+                .FirstOrDefault(entry => Math.Abs(entry.MagnitudeSnapshot ?? CatalogFor(room).Find(entry.EffectCode)!.FamilyStrength) > Math.Abs(magnitudeSnapshot ?? definition.FamilyStrength));
             if (definition.FamilyRefresh == BattleStatusFamilyRefresh.KeepStronger && stronger is not null)
             {
                 CaptureStatus(room, stronger, BattleStatusChange.Retained, stronger.Stacks, stronger.Stacks);
@@ -311,7 +323,8 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         string code, int count, BattleStatusSource? source = null,
         string? boundTargetType = null, int? boundTargetId = null)
     {
-        var definition = catalog.Find(code) ?? throw new InvalidOperationException($"Missing battle status: {code}");
+        await PrepareAsync(room);
+        var definition = CatalogFor(room).Find(code) ?? throw new InvalidOperationException($"Missing battle status: {code}");
         if (count < 1 || count > definition.MaxStacks) throw new ArgumentOutOfRangeException(nameof(count));
         await ApplyAsync(room, targetType, targetId, code, 0, [], string.Empty,
             source: source, boundTargetType: boundTargetType, boundTargetId: boundTargetId, counterCount: count);
@@ -345,6 +358,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null,
         bool healingOnly = false)
     {
+        await PrepareAsync(room);
         var effects = SettlementStates(room)?.ToList() ?? await db.BattleStatusEffects.Where(effect =>
             effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
         effects.RemoveAll(effect => db.Entry(effect).State == EntityState.Deleted);
@@ -354,7 +368,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         foreach (var effect in effects.Where(effect => effect.AppliedRound < room.RoundNumber &&
                      effect.ExpiresAfterRound >= room.RoundNumber))
         {
-            var definition = catalog.Find(effect.EffectCode);
+            var definition = CatalogFor(room).Find(effect.EffectCode);
             if (healingOnly && definition?.EffectType != "HealOverTime") continue;
             if (definition?.EffectType == "HealOverTime")
             {
@@ -404,6 +418,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
 
     public async Task ClearRunAsync(Room room)
     {
+        await PrepareAsync(room);
         var effects = SettlementStates(room)?.ToList() ?? await db.BattleStatusEffects.Where(effect => effect.RoomId == room.Id && effect.RunSequence == room.RunSequence).ToListAsync();
         effects.AddRange(db.BattleStatusEffects.Local.Where(effect => effect.RoomId == room.Id && effect.RunSequence == room.RunSequence && !effects.Contains(effect)));
         RemoveStates(room, effects, BattleStatusChange.Removed);
@@ -420,7 +435,11 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         foreach (var effect in effects.Where(effect => db.Entry(effect).State != EntityState.Deleted))
         {
             var room = db.Rooms.Local.FirstOrDefault(entry => entry.Id == roomId);
-            if (room is not null) CaptureStatus(room, effect, BattleStatusChange.Removed, effect.Stacks, 0);
+            if (room is not null)
+            {
+                await PrepareAsync(room);
+                CaptureStatus(room, effect, BattleStatusChange.Removed, effect.Stacks, 0);
+            }
             db.BattleStatusEffects.Remove(effect);
         }
     }
@@ -443,7 +462,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
                 .ToDictionaryAsync(monster => monster.Id, monster => monster.Name));
         var byTarget = effects.ToLookup(effect => effect.TargetId);
         return targetIds.Distinct().ToDictionary(id => id, id => byTarget[id].OrderBy(effect => effect.Id)
-            .Select(effect => Snapshot(effect, room.RoundNumber,
+            .Select(effect => Snapshot(room, effect, room.RoundNumber,
                 effect.BoundTargetType == "Monster" && effect.BoundTargetId is int boundId ? names.GetValueOrDefault(boundId) : null)?.ToResponse())
             .OfType<BattleStatusEffectResponse>().ToList());
     }
@@ -463,13 +482,13 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     private void CaptureStatus(Room room, BattleStatusEffect effect, BattleStatusChange change, int before, int after,
         BattleEventKind kind = BattleEventKind.Status)
     {
-        if (Snapshot(effect, room.RoundNumber, Events.ActorName(effect.BoundTargetType, effect.BoundTargetId)) is { } snapshot)
+        if (Snapshot(room, effect, room.RoundNumber, Events.ActorName(effect.BoundTargetType, effect.BoundTargetId)) is { } snapshot)
             Events.Status(room, effect.TargetType, effect.TargetId, snapshot, change, before, after, kind);
     }
 
-    private BattleStatusSnapshot? Snapshot(BattleStatusEffect effect, int round, string? boundName = null)
+    private BattleStatusSnapshot? Snapshot(Room room, BattleStatusEffect effect, int round, string? boundName = null)
     {
-        var definition = catalog.Find(effect.EffectCode);
+        var definition = CatalogFor(room).Find(effect.EffectCode);
         if (definition is null) return null;
         var rounds = effect.Lifetime == BattleStatusLifetime.Rounds
             ? (int)Math.Clamp((long)effect.ExpiresAfterRound - round + 1, 0, int.MaxValue) : 0;
