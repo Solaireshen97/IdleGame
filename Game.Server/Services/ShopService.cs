@@ -11,10 +11,9 @@ namespace Game.Server.Services;
 public sealed class ShopService(GameDbContext dbContext, UserService userService, ShopCatalog shopCatalog,
     ConsumableCatalog consumables, WeaponCatalog weapons, MaterialCatalog materials,
     DungeonExchangeCatalog dungeonExchanges, SoulImprintCatalog? soulImprints = null,
-    CharacterSlotCatalog? characterSlotCatalog = null, ProductionService? production = null,
+    ProductionService? production = null,
     PlantingCatalog? plants = null, WorldCatalog? world = null)
 {
-    private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
 
     public async Task<(ShopResponse? Response, string? Error)> GetAsync(string? token)
     {
@@ -223,31 +222,6 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
 
     private sealed record ExchangeReceipt(string Name, int Quantity, string WeaponName);
 
-    public async Task<(ShopResponse? Response, string? Error)> PurchaseCharacterSlotAsync(string? token)
-    {
-        var (user, character, error) = await userService.GetCurrentUserAndActiveCharacterAsync(token);
-        if (error is not null) return (null, error);
-
-        var cost = CharacterSlots.GetNextUnlockCost(user!.CharacterSlotLimit);
-        if (cost is null) return (null, "MaximumCharacterSlotsReached");
-        if (character!.Gold < cost.Value) return (null, "InsufficientGold");
-
-        character.Gold -= cost.Value;
-        character.Version++;
-        user.CharacterSlotLimit++;
-        user.Version++;
-        try
-        {
-            await dbContext.SaveChangesAsync();
-        }
-        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
-        {
-            return (null, "ConcurrencyConflict");
-        }
-
-        return (await BuildResponseAsync(user, character!), null);
-    }
-
     private async Task<ShopResponse> BuildResponseAsync(User user, Character character)
     {
         var stocks = await dbContext.CharacterItemStacks.Where(item => item.CharacterId == character.Id).ToListAsync();
@@ -267,9 +241,9 @@ public sealed class ShopService(GameDbContext dbContext, UserService userService
         {
             CharacterId = character.Id, CharacterName = character.Name, Gold = character.Gold,
             CharacterCount = characterCount,
-            CharacterSlotLimit = user.CharacterSlotLimit,
-            MaximumCharacterSlots = CharacterSlots.MaximumSlots,
-            NextCharacterSlotCost = CharacterSlots.GetNextUnlockCost(user.CharacterSlotLimit),
+            CharacterSlotLimit = CharacterSlotRules.SlotsPerAccount,
+            MaximumCharacterSlots = CharacterSlotRules.SlotsPerAccount,
+            NextCharacterSlotCost = null,
             Materials = materials.Items.Select(material => new ShopMaterialResponse
             {
                 Code = material.Code, Name = material.Name, Description = material.Description,

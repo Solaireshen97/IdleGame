@@ -48,9 +48,7 @@ public sealed class DungeonRunRulesService(GameDbContext db, MonsterCombatCatalo
                 Combat = combat.ExportOptions(),
                 Rewards = rewards.CaptureRules(dungeon.Code, monsters.Select(monster =>
                     string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? dungeon.Code : monster.RewardProfileCode)),
-                RareSeeds = plants?.Plants.Where(plant => plant.IsRare &&
-                        (plant.UnlockTargetCode == dungeon.Code || plant.AlternativeUnlockTargetCodes.Contains(dungeon.Code)))
-                    .Select(plant => new DungeonSeedDrop(plant.SeedCode, plant.DropChancePercent)).ToList() ?? []
+                RareSeeds = plants?.SeedDropsFor(dungeon.Code, room.DepthLevel).ToList() ?? []
             };
             // Round-trip detaches all mutable configuration collections from singleton catalogs.
             var json = JsonSerializer.Serialize(definition);

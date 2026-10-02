@@ -11,8 +11,8 @@
 
 <div class="garden-page">
     <header class="garden-intro">
-        <div><span class="garden-eyebrow">HERB GARDEN</span><h1>营地药田</h1><p>播下一粒种子，为下一场冒险积蓄力量。</p></div>
-        <a class="garden-shop-link" href="/shop">购买种子 <span aria-hidden="true">↗</span></a>
+        <h1>营地药田</h1>
+        <nav class="garden-shortcuts" aria-label="药田相关页面"><a href="/inventory?characterId=@ActiveCharacters.Current?.CharacterId&amp;category=planting">仓库</a><a class="garden-shop-link" href="/shop">买种子 <span aria-hidden="true">↗</span></a></nav>
     </header>
     @if (_notice is not null)
     {
@@ -26,7 +26,7 @@
     else
     {
         <section class="garden-field" aria-labelledby="garden-field-title">
-            <div class="garden-field-heading"><div><span class="garden-eyebrow">YOUR PLOTS</span><h2 id="garden-field-title">@_overview.CharacterName 的药田</h2></div><button type="button" class="garden-refresh" disabled="@IsWorking" @onclick="LoadAsync" aria-label="刷新药田" title="刷新药田">↻</button></div>
+            <div class="garden-field-heading"><h2 id="garden-field-title" class="garden-visually-hidden">四块药田</h2><button type="button" class="garden-refresh" disabled="@IsWorking" @onclick="LoadAsync" aria-label="刷新药田" title="刷新药田">↻</button></div>
             <div class="garden-summary" aria-label="药田状态">
                 <span><i class="garden-dot garden-dot--empty"></i>空置 <b>@EmptyPlots.Count()</b></span>
                 <span><i class="garden-dot garden-dot--growing"></i>生长中 <b>@GrowingCount</b></span>
@@ -55,10 +55,10 @@
                                 @if (mature) { <span class="garden-spark garden-spark--one">✦</span><span class="garden-spark garden-spark--two">✧</span> }
                             }
                         </div>
-                        <div class="garden-plot-label"><h3>@(empty ? "留一方新绿" : plot.PlantName)</h3><span>@(empty ? "选择地块，再挑选种子" : $"{(rare ? "稀有草药 · " : "")}预计收获 {plot.HarvestQuantity} 株")</span></div>
+                        <div class="garden-plot-label"><h3>@(empty ? "空地" : plot.PlantName)</h3>@if (!empty) { <span>@(rare ? "稀有 · " : "")@plot.HarvestQuantity 株</span> }</div>
                         @if (empty)
                         {
-                            <button type="button" class="garden-plot-action" disabled="@IsWorking" aria-pressed="@(selected ? "true" : "false")" aria-label="@($"{(selected ? "取消选择" : "选择")} {plot.PlotIndex + 1} 号药田")" @onclick="() => TogglePlot(plot.PlotIndex)"><span aria-hidden="true">@(selected ? "✓" : "+")</span> @(selected ? "已选中这块药田" : "选择这块药田")</button>
+                            <button type="button" class="garden-plot-action" disabled="@IsWorking" aria-pressed="@(selected ? "true" : "false")" aria-label="@($"{(selected ? "取消选择" : "选择")} {plot.PlotIndex + 1} 号药田")" @onclick="() => TogglePlot(plot.PlotIndex)"><span aria-hidden="true">@(selected ? "✓" : "+")</span> @(selected ? "已选中" : "选择空地")</button>
                         }
                         else if (mature)
                         {
@@ -75,27 +75,30 @@
                 <button type="button" class="garden-select-all" disabled="@(IsWorking || !EmptyPlots.Any())" @onclick="ToggleAllPlots">@(_selected.Count > 0 && _selected.Count == EmptyPlots.Count() ? "取消全选" : "选择全部空地")</button>
                 <button type="button" class="garden-button garden-button--secondary" disabled="@(IsWorking || !MaturePlots.Any())" @onclick="HarvestAllAsync">一键收获 <span>@MaturePlots.Count()</span></button>
             </div>
-            <p class="garden-field-note">离线也会生长 · 成熟后保留，收获后手动补种</p>
         </section>
 
         <section class="garden-seed-section" aria-labelledby="garden-seed-title">
-            <div class="garden-section-heading"><div><span class="garden-eyebrow">SOW &amp; GROW</span><h2 id="garden-seed-title">挑选种子</h2></div><span class="garden-selection-count">已选 <b>@_selected.Count</b> / 4 块地</span></div>
+            <div class="garden-section-heading"><h2 id="garden-seed-title">播种 <span class="garden-selection-count">已选 <b>@_selected.Count</b> 块地</span></h2><button type="button" class="garden-seed-toggle" @ref="_seedPickerToggle" aria-expanded="@(_seedLibraryOpen ? "true" : "false")" aria-controls="garden-seed-library" @onclick="() => _seedLibraryOpen = !_seedLibraryOpen">更换种子 <span aria-hidden="true">@(_seedLibraryOpen ? "−" : "+")</span></button></div>
             @if (SelectedSeed is { } seed)
             {
                 <div class="garden-sowing @(seed.IsRare ? "garden-sowing--rare" : null)">
                     <div class="garden-sowing-main">
                         <img src="@ItemArt.ForCode(seed.MaterialCode)" alt="" />
-                        <div><small>本次种植</small><h3>@seed.Name</h3><p>@(seed.IsRare ? "稀有草药" : "普通草药") · @Hours(seed.GrowthSeconds) 小时成熟</p></div>
+                        <div><h3>@seed.Name</h3><p>@(seed.IsRare ? "稀有 · " : "")@Hours(seed.GrowthSeconds) 小时成熟</p></div>
                         <button type="button" class="garden-button garden-button--primary" disabled="@(!CanPlant(seed))" @onclick="() => PlantAsync(seed)">@PlantButtonLabel(seed)</button>
                     </div>
-                    <div class="garden-sowing-stats"><span>种子 <b>@seed.SeedQuantity</b><small> / 需 @_selected.Count 颗</small></span><span>预计收获 <b>@((long)_selected.Count * seed.HarvestQuantity)</b> 株</span></div>
-                    <p class="garden-seed-source">@SeedSource(seed)</p>
+                    <div class="garden-sowing-stats"><span>种子 <b>@seed.SeedQuantity</b> · 消耗 <b>@_selected.Count</b> 颗 · 收获 <b>@((long)_selected.Count * seed.HarvestQuantity)</b> 株</span></div>
+                    @if (!seed.IsUnlocked) { <p class="garden-seed-source">@SeedSource(seed)</p> }
                     @if (seed.SeedQuantity < Math.Max(1, _selected.Count) && !seed.IsRare && seed.IsUnlocked)
                     {
                         <a class="garden-replenish" href="/shop">种子不足，前往商店补充 <span aria-hidden="true">↗</span></a>
                     }
                 </div>
             }
+            @if (_seedLibraryOpen)
+            {
+            <div id="garden-seed-library" class="garden-seed-library">
+            @if (SelectedSeed is { } sourceSeed) { <p class="garden-seed-source">@SeedSource(sourceSeed)</p> }
             <div class="garden-seed-filters" role="group" aria-label="筛选种子">
                 @foreach (var filter in SeedFilters)
                 {
@@ -109,20 +112,28 @@
                         <span class="garden-seed-image"><img src="@ItemArt.ForCode(plant.MaterialCode)" alt="" loading="lazy" /></span>
                         <span class="garden-seed-title"><strong>@plant.Name</strong><small>@Hours(plant.GrowthSeconds) 小时 <span>·</span> @plant.HarvestQuantity 株</small></span>
                         <span class="garden-seed-stock @(plant.SeedQuantity > 0 ? "garden-seed-stock--owned" : null)">×@plant.SeedQuantity</span>
-                        <span class="garden-seed-footer"><span>@(plant.IsRare ? "精英掉落" : $"{plant.SeedPrice} 金 / 颗")</span><span>@(!plant.IsUnlocked ? "未解锁" : plant.IsRare ? "稀有" : plant.Code == _selectedSeedCode ? "已选" : "普通")</span></span>
+                        <span class="garden-seed-footer"><span>@(plant.IsRare ? "深层通关掉落" : $"{plant.SeedPrice} 金 / 颗")</span><span>@(!plant.IsUnlocked ? "未解锁" : plant.IsRare ? "稀有" : plant.Code == _selectedSeedCode ? "已选" : "普通")</span></span>
                     </button>
                 }
             </div>
             @if (!VisibleSeeds.Any())
             {
-                <div class="garden-empty-seeds"><strong>背包里还没有种子</strong><p>普通种子可以在商店购买，稀有种子来自精英掉落。</p><a href="/shop">去商店看看 ↗</a></div>
+                <div class="garden-empty-seeds"><strong>背包里还没有种子</strong><p>普通种子解锁后可在商店购买，稀有种子来自对应地区的深层通关。</p><a href="/shop">去商店看看 ↗</a></div>
             }
-            <a class="garden-alchemy-link" href="/production"><span>收获的草药，可以继续炼制药剂</span><strong>前往炼金 <span aria-hidden="true">→</span></strong></a>
+            <p class="garden-field-note">离线也会生长 · 成熟后保留，收获后手动补种</p>
+            </div>
+            }
+            <a class="garden-alchemy-link" href="/production"><strong>前往炼金 <span aria-hidden="true">→</span></strong></a>
         </section>
     }
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "item")] public string? RequestedItemCode { get; set; }
+    private bool _locatedItem;
+    private bool _seedLibraryOpen;
+    private bool _focusSeedPicker;
+    private ElementReference _seedPickerToggle;
     private PlantingOverviewResponse? _overview;
     private readonly HashSet<int> _selected = [];
     private readonly CancellationTokenSource _clockCancellation = new();
@@ -195,6 +206,7 @@
     private void ApplyOverview(PlantingOverviewResponse value)
     {
         _overview = value;
+        if (!_locatedItem && RequestedItemCode is not null && value.Plants.FirstOrDefault(plant => plant.SeedCode == RequestedItemCode || plant.MaterialCode == RequestedItemCode) is { } requested) { _locatedItem = true; _selectedSeedCode = requested.Code; _filter = "all"; }
         _serverOffset = value.ServerTimeUtc - DateTime.UtcNow;
         _selected.IntersectWith(EmptyPlots.Select(plot => plot.PlotIndex));
         if (SelectedSeed is null)
@@ -218,7 +230,13 @@
         if (_selected.SetEquals(empty)) _selected.Clear(); else _selected.UnionWith(empty);
         _pendingPlant = null;
     }
-    private void SelectSeed(string code) { if (_selectedSeedCode != code) _pendingPlant = null; _selectedSeedCode = code; }
+    private void SelectSeed(string code) { if (_selectedSeedCode != code) _pendingPlant = null; _selectedSeedCode = code; _seedLibraryOpen = false; _focusSeedPicker = true; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusSeedPicker || _overview is null || _disposed) return;
+        _focusSeedPicker = false;
+        await _seedPickerToggle.FocusAsync(preventScroll: true);
+    }
     private static bool MatchesFilter(PlantDto plant, string filter) => filter switch { "owned" => plant.SeedQuantity > 0, "ordinary" => !plant.IsRare, "rare" => plant.IsRare, _ => true };
     private int FilterCount(string filter) => _overview?.Plants.Count(plant => MatchesFilter(plant, filter)) ?? 0;
     private static string Hours(int seconds) => (seconds / 3600d).ToString("0.#");
@@ -230,7 +248,8 @@
         var minutes = Math.Max(1, (int)Math.Ceiling((plot.MaturesAtUtc!.Value - ServerNow).TotalMinutes));
         return minutes >= 60 ? $"{minutes / 60} 小时 {minutes % 60:00} 分" : $"{minutes} 分钟";
     }
-    private string SeedSource(PlantDto seed) => seed.IsRare ? $"种子来源：{seed.UnlockTargetName} · 精英掉落"
+    private string SeedSource(PlantDto seed) => seed.IsRare
+        ? $"种子来源：{seed.UnlockTargetName} · {(seed.FirstClearGuaranteed ? "每名角色首次通关保底 1 颗；" : "")}LV1 掉率 {seed.DropChancePercent}%{(seed.DropChancePerDepthPercent > 0 ? $"，每升一级增加 {seed.DropChancePerDepthPercent} 个百分点" : "") }"
         : seed.IsUnlocked ? $"商店售价 {seed.SeedPrice} 金 / 颗 · 每块地消耗 1 颗种子"
         : $"尚未解锁：{seed.UnlockTargetName} · 战斗进度 {seed.Progress}/{seed.RequiredCount}";
     private bool CanPlant(PlantDto seed) => !IsWorking && _selected.Count > 0 && seed.IsUnlocked && seed.SeedQuantity >= _selected.Count;

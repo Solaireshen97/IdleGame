@@ -22,4 +22,6 @@ public sealed class PlantOptions
     public int RequiredCount { get; set; } = 1;
     public int MinimumCharacterLevel { get; set; } = 1;
     public int DropChancePercent { get; set; } = 20;
+    public int DropChancePerDepthPercent { get; set; }
+    public bool FirstClearGuaranteed { get; set; }
 }

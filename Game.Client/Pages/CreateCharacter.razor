@@ -3,15 +3,14 @@
 @inject ApiService ApiService
 @inject ActiveCharacterState ActiveCharacters
 @inject NavigationManager Navigation
+@inject UserSessionService Session
 
 <PageTitle>创建第一个角色</PageTitle>
 
 <div class="character-creation-page">
     <header class="character-creation-page__header">
         <div>
-            <span>开始冒险</span>
-            <h1>创建你的第一个角色</h1>
-            <p>为角色取个名字，并选择你想体验的职业。</p>
+            <h1>创建角色</h1>
         </div>
         <button type="button" class="character-creation-page__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut">退出登录</button>
     </header>
@@ -23,6 +22,12 @@
     {
         <GameStateCard Compact="true" Title="正在准备创建角色" Detail="马上为你载入可选职业。" />
     }
+    else if (_accountError is not null)
+    {
+        <GameStateCard Compact="true" Tone="error" Title="暂时无法确认账号" Detail="@_accountError">
+            <Actions><button type="button" class="button button--primary" @onclick="CheckAccountAsync">重试</button></Actions>
+        </GameStateCard>
+    }
     else
     {
         <CurrentCharacterPanel FirstCharacterCreation="true" OnCreated="EnterLobby" />
@@ -33,13 +38,30 @@
     private bool _isCheckingAccount = true;
     private bool _isLoggingOut;
     private string? _error;
+    private string? _accountError;
+    private bool _checking;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => CheckAccountAsync();
+
+    private async Task CheckAccountAsync()
     {
-        var user = await ApiService.GetCurrentUserAsync();
-        if (user is null) { Navigation.NavigateTo("/login", replace: true); return; }
-        if (user.CharacterCount > 0) { EnterLobby(); return; }
-        _isCheckingAccount = false;
+        if (_checking) return;
+        _checking = true;
+        _isCheckingAccount = true;
+        _accountError = null;
+        try
+        {
+            var hadToken = await Session.IsLoggedIn();
+            var user = await ApiService.GetCurrentUserAsync(forceRefresh: true);
+            if (user is null)
+            {
+                if (await Session.IsLoggedIn()) _accountError = "请检查网络后重试。确认账号后再继续创建角色。";
+                else Navigation.NavigateTo(hadToken || Session.Revision > 1 ? "/login?notice=session-expired" : "/login", replace: true);
+                return;
+            }
+            if (user.CharacterCount > 0) { EnterLobby(); return; }
+        }
+        finally { _isCheckingAccount = false; _checking = false; }
     }
 
     private void EnterLobby() => Navigation.NavigateTo("/rooms", replace: true);

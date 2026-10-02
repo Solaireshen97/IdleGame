@@ -40,10 +40,10 @@ public sealed class FormationService(GameDbContext db, UserService users, Combat
     {
         var (character, error) = await OwnedAsync(token, characterId);
         if (error is not null) return (null, error);
+        await using var transaction = await db.Database.BeginTransactionAsync();
         var definition = request.FromCurrent ? await loadouts.CaptureAsync(characterId) : request.Loadout;
         error = await ValidateSaveAsync(character!, request.Name, request.GroupElement, request.Position, definition);
         if (error is not null) return (null, error);
-        await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
             var formation = new CharacterBattleFormation { CharacterId = characterId };
@@ -51,6 +51,9 @@ public sealed class FormationService(GameDbContext db, UserService users, Combat
             SetChildren(formation, definition);
             db.CharacterBattleFormations.Add(formation);
             character!.Version++;
+            await db.SaveChangesAsync();
+            await StoryProgressService.RecordAsync(db, characterId, "FormationSaved", "",
+                $"formation:{formation.Id}:{formation.Version}", 1, DateTime.UtcNow);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await ResponseAsync(character!, formation), null);
@@ -83,6 +86,8 @@ public sealed class FormationService(GameDbContext db, UserService users, Combat
             SetChildren(formation, request.Loadout);
             formation.Version++;
             character!.Version++;
+            await StoryProgressService.RecordAsync(db, characterId, "FormationSaved", "",
+                $"formation:{formation.Id}:{formation.Version}", 1, DateTime.UtcNow);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await ResponseAsync(character!, formation), null);
@@ -272,7 +277,8 @@ public sealed class FormationService(GameDbContext db, UserService users, Combat
         }).ToList(),
         Consumables = formation.Consumables.OrderBy(x => x.SlotIndex).Select(x => new FormationConsumableChoice
         {
-            SlotIndex = x.SlotIndex, ItemCode = x.ItemCode, AutoUseEnabled = x.AutoUseEnabled, AutoHpThresholdPercent = x.AutoHpThresholdPercent
+            SlotIndex = x.SlotIndex, ItemCode = x.ItemCode, AutoUseEnabled = x.AutoUseEnabled,
+            AutoConditionOverride = x.AutoConditionOverride, AutoHpThresholdPercent = x.AutoHpThresholdPercent
         }).ToList()
     };
 
@@ -295,7 +301,7 @@ public sealed class FormationService(GameDbContext db, UserService users, Combat
         formation.Consumables = definition.Consumables.Select(x => new FormationConsumableSlot
         {
             FormationId = formation.Id, SlotIndex = x.SlotIndex, ItemCode = x.ItemCode,
-            AutoUseEnabled = x.AutoUseEnabled, AutoHpThresholdPercent = x.AutoHpThresholdPercent
+            AutoUseEnabled = x.AutoUseEnabled, AutoConditionOverride = SkillAutoRules.Normalize(x.AutoConditionOverride), AutoHpThresholdPercent = x.AutoHpThresholdPercent
         }).ToList();
     }
     private async Task<string?> ValidateSaveAsync(Character character, string name, ElementType group, int position, CombatLoadoutDefinition definition)

@@ -44,6 +44,7 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
             {
                 var s = potionSlots[character.Id].FirstOrDefault(s => s.SlotIndex == i);
                 return new FormationConsumableChoice { SlotIndex = i, ItemCode = s?.ItemCode, AutoUseEnabled = s?.AutoUseEnabled ?? false,
+                    AutoConditionOverride = s?.AutoConditionOverride,
                     AutoHpThresholdPercent = s?.AutoHpThresholdPercent ?? ConsumableRules.DefaultAutoHpThresholdPercent };
             }).ToList(),
             SoulImprintId = soulsByCharacter.GetValueOrDefault(character.Id)?.Id,
@@ -61,7 +62,7 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
         Skills = value.Skills.Select(x => new FormationSkillChoice { SlotIndex = x.SlotIndex, SkillCode = x.SkillCode,
             AutoUseEnabled = x.AutoUseEnabled, AutoConditionOverride = x.AutoConditionOverride, AutoHpThresholdPercent = x.AutoHpThresholdPercent }).ToList(),
         Consumables = value.Consumables.Select(x => new FormationConsumableChoice { SlotIndex = x.SlotIndex, ItemCode = x.ItemCode,
-            AutoUseEnabled = x.AutoUseEnabled, AutoHpThresholdPercent = x.AutoHpThresholdPercent }).ToList()
+            AutoUseEnabled = x.AutoUseEnabled, AutoConditionOverride = x.AutoConditionOverride, AutoHpThresholdPercent = x.AutoHpThresholdPercent }).ToList()
     };
 
     private sealed record PreviewData(Dictionary<string, int> Levels, List<CharacterWeapon> Weapons,
@@ -82,6 +83,44 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
         var data = await ReadPreviewDataAsync(character.Id);
         return definitions.Select(item => Preview(character, item.Definition, item.Group, data)).ToList();
     }
+
+    private List<FormationSkillLibraryEntry> BuildSkillLibrary(Character actor, IReadOnlyDictionary<string, int> levels)
+    {
+        var entries = new List<FormationSkillLibraryEntry>();
+        foreach (var source in skills.BaseProfessions)
+        {
+            var native = string.Equals(source.Code, actor.ProfessionCode, StringComparison.OrdinalIgnoreCase);
+            var definitions = native
+                ? skills.SkillsAtLevel(source.Code, int.MaxValue)
+                : source.SharedSkillCode is { } sharedCode ? skills.SkillLevelPreviews(sharedCode, shared: true) : [];
+            foreach (var definition in definitions)
+            {
+                var previews = skills.SkillLevelPreviews(definition.Code, shared: !native);
+                var current = native ? previews[SkillCatalog.RankFor(definition, actor.Level) - 1] : previews[0];
+                var entry = DescribeLibrarySkill<FormationSkillLibraryEntry>(current);
+                entry.SourceProfessionName = source.Name;
+                entry.SourceProfessionLevel = native ? actor.Level : levels.GetValueOrDefault(source.Code, 1);
+                entry.RequiredProfessionLevel = native ? definition.UnlockLevel : SkillRules.SharedSkillUnlockLevel;
+                entry.RequiredCurrentProfessionLevel = native ? definition.UnlockLevel : SkillRules.SharedSkillEquipLevel;
+                entry.IsUnlocked = entry.SourceProfessionLevel >= entry.RequiredProfessionLevel;
+                entry.CanEquip = skills.Resolve(actor, definition.Code, levels) is not null;
+                entry.LevelPreviews = previews.Select(DescribeLibrarySkill<LearnedSkillResponse>).ToList();
+                entries.Add(entry);
+            }
+        }
+        return entries;
+    }
+
+    private T DescribeLibrarySkill<T>(CharacterSkillDefinition definition) where T : LearnedSkillResponse, new() => new()
+    {
+        Code = definition.Code, Name = definition.Name, Description = _information.Description(definition),
+        EffectType = SkillCatalog.PrimaryEffectType(definition), Power = SkillCatalog.PrimaryPower(definition),
+        Level = definition.Level, IsShared = definition.IsShared, SourceProfessionCode = definition.ProfessionCode,
+        AutoCondition = SkillCatalog.AutoConditionFor(definition), UnlockLevel = definition.UnlockLevel,
+        Level2UnlockLevel = definition.Level2UnlockLevel, Level3UnlockLevel = definition.Level3UnlockLevel,
+        CooldownRounds = definition.CooldownRounds, InitialCooldownRounds = definition.InitialCooldownRounds,
+        Effects = _information.Effects(definition)
+    };
 
     private FormationPreviewResponse Preview(Character character, CombatLoadoutDefinition value, ElementType? group, PreviewData data)
     {
@@ -129,6 +168,7 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
                 UnlockLevel = s.UnlockLevel, Level2UnlockLevel = s.Level2UnlockLevel, Level3UnlockLevel = s.Level3UnlockLevel,
                 CooldownRounds = s.CooldownRounds, InitialCooldownRounds = s.InitialCooldownRounds, Effects = _information.Effects(s)
             }).ToList();
+            result.SkillLibrary = BuildSkillLibrary(actor, levels);
         }
         if (validSkills)
         {
@@ -163,8 +203,33 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
             var main = selected.FirstOrDefault(w => w.EquippedSlotIndex == WeaponRules.MainSlotIndex);
             if (main is null) Issue("MainWeaponRequired", "Weapons", "出战需要配置主武器。", WeaponRules.MainSlotIndex);
             result.MainElement = main?.Element;
+            if (main is not null)
+            {
+                var ownedMain = inventory.First(w => w.Id == main.Id);
+                result.MainWeapon = new FormationMainWeaponResponse
+                {
+                    WeaponId = ownedMain.Id, Code = ownedMain.WeaponCode, Name = ownedMain.Name,
+                    Element = ownedMain.Element, QualityRank = ownedMain.QualityRank
+                };
+            }
             if (main is not null && group.HasValue && main.Element != group.Value) Issue("GroupElementMismatch", "Weapons", "主武器属性与编队分类不同，战斗仍按实际主武器属性计算。", 1, true);
-            weapons.RecalculateEquipmentStats(actor, selected);
+            var equipment = weapons.RecalculateEquipmentStats(actor, selected);
+            result.WeaponAttack = equipment.Attack;
+            result.WeaponMaxHp = equipment.MaxHp;
+            result.WeaponAttackBonusPercent = equipment.Bonuses.AttackPercent;
+            result.WeaponHealthBonusPercent = equipment.Bonuses.HealthPercent;
+            result.WeaponCriticalChancePercent = equipment.Bonuses.CriticalChancePercent;
+            result.WeaponSkills = equipment.Bonuses.ActiveSkills.Select(skill => new ActiveWeaponSkillResponse
+            {
+                SkillCode = skill.Code, Name = skill.Name, Level = skill.Level,
+                TotalPercent = skill.TotalPercent, Description = skill.Description
+            }).ToList();
+            result.WeaponEffects = equipment.Bonuses.Effects.Select(effect => new WeaponEffectResponse
+            {
+                EffectType = effect.EffectType, Name = WeaponEffectLabels.Name(effect.EffectType),
+                Description = WeaponEffectLabels.Description(effect.EffectType),
+                EffectiveLevel = effect.EffectiveLevel, TotalPercent = effect.TotalPercent
+            }).ToList();
             result.Attack = TalentRules.EffectiveAttack(actor); result.MaxHp = TalentRules.EffectiveMaxHp(actor);
         }
         if (validPotions)
@@ -174,6 +239,8 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
             foreach (var s in value.Consumables)
             {
                 if (s.AutoHpThresholdPercent is < 1 or > 100) Issue("InvalidHpThreshold", "Consumables", "血量阈值必须在 1～100 之间。", s.SlotIndex);
+                if (!SkillAutoRules.IsValidOverride(SkillAutoRules.Normalize(s.AutoConditionOverride)))
+                    Issue("InvalidAutoCondition", "Consumables", "自动条件无效。", s.SlotIndex);
                 if (s.ItemCode is null) continue;
                 var item = consumables.FindItem(s.ItemCode.Trim());
                 if (item is null) Issue("UnknownConsumable", "Consumables", "该补给已不存在。", s.SlotIndex);
@@ -245,6 +312,7 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
             if (slot is null) { slot = new() { CharacterId = character.Id, SlotIndex = index }; db.CharacterConsumableSlots.Add(slot); }
             var item = source?.ItemCode is null ? null : consumables.FindItem(source.ItemCode.Trim());
             slot.ItemCode = item?.Code; slot.AutoUseEnabled = item is { Kind: "Healing" or "CombatBuff" } && source!.AutoUseEnabled;
+            slot.AutoConditionOverride = item is { Kind: "Healing" or "CombatBuff" } ? SkillAutoRules.Normalize(source!.AutoConditionOverride) : null;
             slot.AutoHpThresholdPercent = source?.AutoHpThresholdPercent ?? ConsumableRules.DefaultAutoHpThresholdPercent; slot.Version++;
         }
         if (value.SoulImprintId is { } id)
@@ -256,6 +324,7 @@ public sealed class CombatLoadoutService(GameDbContext db, SkillCatalog skills, 
         }
         weapons.RecalculateEquipmentStats(character, inventory);
         character.Hp = Math.Min(oldHp, TalentRules.EffectiveMaxHp(character));
+        await StoryProgressService.RefreshAsync(db, character.Id, DateTime.UtcNow);
         await db.SaveChangesAsync();
         return null;
     }

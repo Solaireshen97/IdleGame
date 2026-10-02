@@ -34,13 +34,17 @@
                         {
                             <span class="battle-supplies__quota @(Character.HealingPotionUsesRemaining == 0 ? "is-exhausted" : null)">剩余 <b>@Character.HealingPotionUsesRemaining/@Character.HealingPotionUsesLimit</b> 次</span>
                         }
+                        else
+                        {
+                            <span class="battle-supplies__quota @(Character.BuffPotionUsesRemaining == 0 ? "is-exhausted" : null)">剩余 <b>@Character.BuffPotionUsesRemaining/@Character.BuffPotionUsesLimit</b> 次</span>
+                        }
                         @if (supply.ItemCode is null)
                         {
                             <span>在补给页配置</span>
                         }
                         else
                         {
-                            <span class="battle-supplies__mode">@(supply.AutoUseEnabled ? healing ? $"自动≤{supply.AutoHpThresholdPercent}%" : "自动" : "手动")</span>
+                            <span class="battle-supplies__mode">@(supply.AutoUseEnabled ? $"自动 · {SkillAutoRules.Describe(supply.AutoCondition, supply.AutoHpThresholdPercent)}" : "手动")</span>
                         }
                     </span>
                 </span>
@@ -52,6 +56,20 @@
                     }
                 </span>
             </button>
+            @if (supply.ItemCode is not null && Character.IsCurrentUserCharacter && OnAutoChanged.HasDelegate)
+            {
+                <details class="battle-supplies__auto-settings">
+                    <summary>@(healing ? "治疗" : "强化")药剂自动设置</summary>
+                    <label><input type="checkbox" checked="@supply.AutoUseEnabled" disabled="@IsBusy"
+                        @onchange="e => ChangeAutoAsync(supply, e.Value is true, supply.AutoConditionOverride, supply.AutoHpThresholdPercent)" /> 自动使用</label>
+                    <SkillAutoConditionPicker ConditionOverride="@supply.AutoConditionOverride"
+                        DefaultCondition="@supply.DefaultAutoCondition" DefaultLabel="药剂默认"
+                        Threshold="@supply.AutoHpThresholdPercent" Disabled="@IsBusy"
+                        OnConditionChanged="condition => ChangeAutoAsync(supply, supply.AutoUseEnabled, condition, supply.AutoHpThresholdPercent)"
+                        OnThresholdChanged="threshold => ChangeAutoAsync(supply, supply.AutoUseEnabled, supply.AutoConditionOverride, threshold)" />
+                    <small>条件决定使用时机，药效只作用于自己。</small>
+                </details>
+            }
         }
     </div>
     @if (Character.OperationPotion is { } flask)
@@ -72,13 +90,18 @@
     [Parameter] public bool IsBattleOver { get; set; }
     [Parameter] public Func<RoomConsumableSlotResponse, bool>? CanQueue { get; set; }
     [Parameter] public EventCallback<RoomConsumableSlotResponse> OnToggle { get; set; }
+    [Parameter] public EventCallback<AutoChange> OnAutoChanged { get; set; }
+    public sealed record AutoChange(RoomConsumableSlotResponse Supply, bool Enabled, string? Condition, int Threshold);
+    private Task ChangeAutoAsync(RoomConsumableSlotResponse supply, bool enabled, string? condition, int threshold) =>
+        OnAutoChanged.InvokeAsync(new AutoChange(supply, enabled, condition, threshold));
 
     private string Details(RoomConsumableSlotResponse supply)
     {
         var quota = supply.SlotIndex == ConsumableRules.HealingPotionSlotIndex
-            ? $"，本轮剩余 {Character.HealingPotionUsesRemaining}/{Character.HealingPotionUsesLimit} 次" : string.Empty;
+            ? $"，本轮剩余 {Character.HealingPotionUsesRemaining}/{Character.HealingPotionUsesLimit} 次"
+            : $"，本轮剩余 {Character.BuffPotionUsesRemaining}/{Character.BuffPotionUsesLimit} 次";
         var mode = supply.AutoUseEnabled
-            ? supply.Kind == "Healing" ? $"HP ≤ {supply.AutoHpThresholdPercent}% 时自动使用" : "自动使用"
+            ? $"自动 · {SkillAutoRules.Describe(supply.AutoCondition, supply.AutoHpThresholdPercent)}"
             : "手动使用";
         return $"库存 {supply.Quantity}{quota}，冷却 {supply.CooldownRoundsRemaining} 回合，{mode}";
     }
@@ -89,7 +112,7 @@
         if (selected) return "取消排队";
         return supply.UnavailableReason switch
         {
-            "HealingPotionLimitReached" => "次数用完",
+            "HealingPotionLimitReached" or "BuffPotionLimitReached" => "次数用完",
             "HpFull" => "已满血",
             "OutOfStock" => "无库存",
             "ConsumableCooldown" => $"冷却 {supply.CooldownRoundsRemaining} 回合",

@@ -74,23 +74,42 @@
 .profession-board__item > button:disabled { opacity: .45; cursor: not-allowed; }
 .profession-board__error { color: #efa2a9; font-size: .8rem; }
 
+.profession-board__rules { margin-bottom: .5rem; }
+.profession-board__rules > summary { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 44px; cursor: pointer; list-style: none; }
+.profession-board__rules h2 { margin: 0; font: 700 1.2rem Georgia, serif; }
+.profession-board__rules summary > span { color: #d5b77e; font-size: .75rem; }
+.profession-board__rules p { margin: .25rem 0 .6rem; color: #b4c7d4; font-size: .8rem; line-height: 1.6; }
+.profession-board__busy { margin: 0 0 .5rem; color: #cdb788; font-size: .75rem; }
+.profession-board__content > summary { display: grid; align-content: center; min-height: 44px; list-style: none; cursor: pointer; }
+.profession-board__content > summary::-webkit-details-marker,
+.profession-board__rules > summary::-webkit-details-marker { display: none; }
+.profession-board__content > summary:focus-visible,
+.profession-board__rules > summary:focus-visible,
+.profession-board__item > button:focus-visible { outline: 2px solid #e3ba72; outline-offset: 3px; border-radius: .3rem; }
+.profession-board__title > strong { font-size: .9rem; }
+.profession-board__title i { margin-left: auto; color: #a3b7c5; font-style: normal; }
+.profession-board__content[open] .profession-board__title i { transform: rotate(180deg); }
+.profession-board__level { margin-top: .25rem; font-size: .72rem; }
+.profession-board__shared { display: block; margin-top: .2rem; color: #85d3ba; font-size: .68rem; }
+
 @container game-shell (max-width: 560px) {
     .profession-board__header { display: block; }
     .profession-board__header p { max-width: none; margin-top: .2rem; text-align: left; }
     .profession-board__item {
-        grid-template-columns: 2.75rem minmax(0, 1fr);
-        grid-template-areas: "art content" ". action";
-        align-items: start;
-        gap: .35rem .6rem;
-        padding: .65rem;
+        grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+        grid-template-areas: "art content action";
+        align-items: center;
+        gap: .4rem;
+        padding: .5rem;
     }
-    .profession-board__item--active { grid-template-areas: "art content"; }
+    .profession-board__item--active { grid-template-columns: 2.75rem minmax(0, 1fr); grid-template-areas: "art content"; }
     .profession-board__item > img { width: 2.75rem; height: 2.75rem; }
-    .profession-board__item > button { justify-self: end; }
+    .profession-board__item > button { min-width: 52px; padding-inline: .4rem; }
 }
 
 @container game-shell (max-width: 360px) {
     .profession-board { padding: .65rem; }
-    .profession-board__item { grid-template-columns: 2.4rem minmax(0, 1fr); gap: .3rem .5rem; }
+    .profession-board__item { grid-template-columns: 2.4rem minmax(0, 1fr) auto; gap: .3rem .5rem; }
+    .profession-board__item--active { grid-template-columns: 2.4rem minmax(0, 1fr); }
     .profession-board__item > img { width: 2.4rem; height: 2.4rem; }
 }

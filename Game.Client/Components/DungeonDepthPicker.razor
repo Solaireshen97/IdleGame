@@ -39,14 +39,6 @@
             <div class="depth-brief__copy">
                 <div class="depth-brief__title"><strong>@DepthName(selected.DepthLevel)</strong><span>@(selected.IsUnlocked ? "已开放" : "未开放")</span></div>
                 <p>@SelectionReward</p>
-                <div class="depth-brief__stats">
-                    @if (selected.IsChallenge)
-                    {
-                        <span>相对 LV@(selected.StatBaseDepth)：生命 <b>×@selected.StatMultiplier.ToString("0.##")</b> / 攻击 <b>×@selected.AttackMultiplier.ToString("0.##")</b></span>
-                    }
-                    else { <span>生命 / 攻击 <b>@(selected.UsesExplicitStats ? "按本层配置" : $"×{selected.StatMultiplier:0.##}")</b></span> }
-                    <span>@(selected.IsChallenge ? "沿用 LV4 机制" : $"新增机制 {selected.AddedMechanics.Count} 项")</span>
-                </div>
                 @if (selected.IsChallenge && Dungeon.RewardPreview.FirstOrDefault(item => item.Source == "挑战首通及补领") is { } firstClear)
                 {
                     <p>本角色尚未领取的首通奖励：@firstClear.Name ×@firstClear.Quantity</p>
@@ -54,18 +46,29 @@
             </div>
         </section>
     }
-    <div class="depth-benefits" aria-label="当前角色的精通收益">
-        <span>已享收益</span>
-        <span>金币 <b>+@Dungeon.GoldBonusPercent.ToString("0.##")%</b></span>
-        <span>击杀追加 <b>@Dungeon.KillExtraRollChancePercent.ToString("0.##")%</b></span>
-        <span>通关追加 <b>@Dungeon.ClearExtraRollChancePercent.ToString("0.##")%</b></span>
-    </div>
     <button type="button" class="depth-rules-toggle" aria-expanded="@(_showRules ? "true" : "false")" aria-controls="depth-rules" @onclick="() => _showRules = !_showRules">
         <span>机制与收益说明 <small>@(Dungeon.UsesPlaceholderBalance ? "技能暂为占位" : "查看详情")</small></span><span aria-hidden="true">@(_showRules ? "−" : "+")</span>
     </button>
     @if (_showRules)
     {
         <div id="depth-rules" class="depth-rules">
+            <div class="depth-benefits" aria-label="当前角色的精通收益">
+                <span>已享收益</span>
+                <span>金币 <b>+@Dungeon.GoldBonusPercent.ToString("0.##")%</b></span>
+                <span>击杀追加 <b>@Dungeon.KillExtraRollChancePercent.ToString("0.##")%</b></span>
+                <span>通关追加 <b>@Dungeon.ClearExtraRollChancePercent.ToString("0.##")%</b></span>
+            </div>
+            @if (SelectedDepth is { } ruleDepth)
+            {
+                <div class="depth-brief__stats">
+                    @if (ruleDepth.IsChallenge)
+                    {
+                        <span>相对 LV@(ruleDepth.StatBaseDepth)：生命 <b>×@ruleDepth.StatMultiplier.ToString("0.##")</b> / 攻击 <b>×@ruleDepth.AttackMultiplier.ToString("0.##")</b></span>
+                    }
+                    else { <span>生命 / 攻击 <b>@(ruleDepth.UsesExplicitStats ? "按本层配置" : $"×{ruleDepth.StatMultiplier:0.##}")</b></span> }
+                    <span>@(ruleDepth.IsChallenge ? "沿用 LV4 机制" : $"新增机制 {ruleDepth.AddedMechanics.Count} 项")</span>
+                </div>
+            }
             <p>账号已开放 LV@(Dungeon.UnlockedDepth) · @(Dungeon.CharacterHighestDepth > 0 ? $"本角色最高通关 LV{Dungeon.CharacterHighestDepth}" : "本角色尚未通关")。</p>
             @if (SelectedDepth?.AddedMechanics.Count > 0)
             {
@@ -91,7 +94,7 @@
     private bool _showRules;
     private DungeonDepthPreviewResponse? SelectedDepth => Dungeon.Depths.FirstOrDefault(item => item.DepthLevel == Dungeon.DepthLevel);
     private string SelectionReward => SelectedDepth?.IsUnlocked == false
-        ? $"账号通关 LV{Dungeon.DepthLevel - 1} 后开放；可提前查看敌情。"
+        ? Dungeon.DepthLevel <= 1 ? Dungeon.LockReason ?? "完成副本前置挑战后开放；可提前查看敌情。" : $"账号通关 LV{Dungeon.DepthLevel - 1} 后开放；可提前查看敌情。"
         : Dungeon.DepthLevel >= 5
             ? Dungeon.RewardPreview.FirstOrDefault(item => item.Source is "挑战额外奖励" or "挑战奖励") is { } reward
                 ? reward.ChancePercent == 100

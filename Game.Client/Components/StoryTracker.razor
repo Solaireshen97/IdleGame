@@ -1,0 +1,37 @@
+@using Game.Shared.Dtos.Story
+@using Game.Client.Services
+@inject ApiService Api
+@implements IDisposable
+
+<aside class="story-tracker" aria-label="剧情追踪">
+    <div><small>冒险日志</small>@if (_story?.CurrentQuest is { } quest) { <strong>@quest.Name</strong><span>@(quest.Status == "ReadyToTurnIn" ? $"可向{quest.NpcName}回报" : $"{quest.Summary} · {quest.Progress}/{quest.RequiredCount}")</span> } else { <strong>@(_story?.ChapterCompleted == true ? "章节已完成" : "林间驿站的委托")</strong><span>@(_error ? "剧情暂时未能读取，可进入日志重试。" : "遇见营地人物，继续你的冒险。")</span> }</div>
+    <a class="button button--secondary" href="/story">@(_story?.CurrentQuest?.Status == "ReadyToTurnIn" ? "回报委托" : "查看故事")</a>
+</aside>
+
+@code {
+    private StoryOverviewResponse? _story;
+    private bool _disposed, _error, _loading, _reloadPending;
+    private readonly CancellationTokenSource _cancel = new();
+    protected override async Task OnInitializedAsync() { Api.ContextChanged += ContextChanged; await LoadAsync(true); _ = PollAsync(); }
+    private async Task LoadAsync(bool initialize = false)
+    {
+        if (_loading || _disposed) return;
+        _loading = true;
+        try
+        {
+            await Api.EnsureContextAsync(); var context = Api.DataRevision;
+            var response = initialize ? (await Api.InitializeStoryAsync()).Response : await Api.GetStoryAsync();
+            if (_disposed || context != Api.DataRevision) return;
+            _story = response; _error = response is null;
+        }
+        catch { if (!_disposed) _error = true; }
+        finally { _loading = false; if (_reloadPending && !_disposed) { _reloadPending = false; await LoadAsync(true); } }
+    }
+    private async Task PollAsync()
+    {
+        try { using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30)); while (await timer.WaitForNextTickAsync(_cancel.Token)) await InvokeAsync(async () => { await LoadAsync(); if (!_disposed) StateHasChanged(); }); }
+        catch (OperationCanceledException) { }
+    }
+    private void ContextChanged() { _story = null; _reloadPending = _loading; _ = InvokeAsync(async () => { await LoadAsync(true); if (!_disposed) StateHasChanged(); }); }
+    public void Dispose() { _disposed = true; Api.ContextChanged -= ContextChanged; _cancel.Cancel(); _cancel.Dispose(); }
+}

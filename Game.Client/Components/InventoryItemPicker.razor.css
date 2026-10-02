@@ -1,0 +1,33 @@
+.item-picker-trigger { display: flex; justify-content: space-between; align-items: center; gap: .8rem; width: 100%; min-height: 44px; text-align: left; border: 1px solid #496173; border-radius: .45rem; padding: .55rem .7rem; background: #193041; color: #d6e2e6; cursor: pointer; }.item-picker-trigger > span { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }.item-picker-trigger strong { font-size: .76rem; font-weight: 650; }.item-picker-trigger small { font-size: .65rem; color: #91a8b9; }.item-picker-trigger b { color: #c5aa77; }.item-picker-trigger:disabled { opacity: .45; cursor: not-allowed; }
+.item-picker-backdrop { position: fixed; z-index: 1500; inset: 0; display: grid; place-items: center; background: #07121bd4; backdrop-filter: blur(5px); padding: 1rem; }.item-picker-dialog { display: flex; flex-direction: column; width: min(560px,100%); max-height: 85dvh; border: 1px solid #597181; border-radius: .9rem; padding: 1rem; background: #1c3141; color: #e2e7e6; box-shadow: 0 20px 80px #0008; }.item-picker-dialog header { display: flex; gap: 1rem; justify-content: space-between; }.item-picker-dialog header small { color: #c5a675; font-size: .65rem; }.item-picker-dialog h3 { font-size: 1.1rem; color: #eadfc7; margin: .3rem 0; }.item-picker-dialog p { color: #9db2c1; font-size: .74rem; line-height: 1.6; }.item-picker-dialog header button { background: transparent; color: #a6bcc8; border: 0; font-size: 1.5rem; padding: .3rem; align-self: start; }.item-picker-dialog > input { color: #d7e2e9; background: #102737; border: 1px solid #456374; border-radius: .45rem; padding: .65rem; font-size: .8rem; margin-bottom: .6rem; }.item-picker-list { max-height: 50dvh; min-height: 130px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #344e60; border-radius: .5rem; background: #152b3b; }.item-picker-list button { display: flex; align-items: center; gap: .7rem; width: 100%; min-height: 76px; padding: .65rem; border: 0; border-bottom: 1px solid #314b5b; color: #d6e1e5; background: transparent; text-align: left; cursor: pointer; }.item-picker-list button:hover,.item-picker-list .is-selected { background: #314a52; }.item-picker-list button:disabled { opacity: .4; cursor: not-allowed; }.item-picker-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: .4rem; background: #263f4a; border: 1px solid #4e6370; color: #b9c4ae; }.item-picker-icon img { width: 100%; height: 100%; object-fit: contain; }.item-picker-list button > span:nth-child(2) { display: flex; flex-direction: column; flex: 1; gap: .3rem; min-width: 0; }.item-picker-list strong { font-size: .8rem; }.item-picker-list small { font-size: .64rem; color: #a1b4be; overflow-wrap: anywhere; }.item-picker-list b { font-size: .64rem; color: #c6b684; font-weight: 500; }.item-picker-empty { padding: 1rem; text-align: center; }.item-picker-dialog footer { display: flex; justify-content: space-between; align-items: center; gap: .6rem; margin-top: .8rem; }.item-picker-dialog footer a { color: #dfc38c; font-size: .72rem; text-decoration: none; }.item-picker-dialog footer button { color: #c9d9e0; background: #2d485b; border: 1px solid #4c677c; border-radius: .4rem; padding: .5rem .8rem; font-size: .74rem; }.item-picker-dialog button:focus-visible,.item-picker-trigger:focus-visible { outline: 2px solid #edc982; outline-offset: 2px; }
+@media(max-width:640px) { .item-picker-backdrop { padding: .6rem; }.item-picker-dialog { max-height: 88dvh; }.item-picker-list { max-height: 58dvh; } }
+.item-picker-list .item-picker-option { box-sizing:border-box; display:grid; grid-template-columns:42px minmax(0,1fr) auto; grid-template-rows:42px minmax(0,1fr); gap:.25rem .5rem; padding:.55rem; height:6.5rem; min-height:6.5rem; max-height:6.5rem; overflow:hidden; }
+.item-picker-list .item-picker-option > span:nth-child(2) { display:contents; }
+.item-picker-option > .item-picker-icon { grid-column:1; grid-row:1; }
+.item-picker-option strong { grid-column:2; grid-row:1; }
+.item-picker-option small { grid-column:1 / -1; grid-row:2; align-self:start; }
+.item-picker-option > b { grid-column:3; grid-row:1; }
+.item-picker-option strong,.item-picker-option small { display: block; width: 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-picker-option strong { line-height:1.3; }
+.item-picker-option small { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; white-space:normal; line-height:1.45; font-size:.68rem; }
+.item-picker-search { display:flex; gap:.4rem; flex:0 0 auto; margin-bottom:.6rem; }
+.item-picker-search input { flex:1; min-width:0; min-height:44px; padding:.6rem; font-size:.8rem; border:1px solid #456374; border-radius:.45rem; background:#102737; color:#d7e2e9; }
+.item-picker-search button { flex:0 0 auto; min-width:44px; min-height:44px; border:1px solid #526b7c; border-radius:.45rem; background:#293f4e; color:#ddc58e; font-size:.75rem; }
+.item-picker-hint summary { min-height:44px; align-content:center; font-size:.72rem; color:#c5b28e; cursor:pointer; }
+.item-picker-hint p { margin:0 0 .5rem; }
+.item-picker-dialog footer button { flex:0 0 auto; white-space:nowrap; }
+
+.item-picker-dialog { overflow:hidden; max-height:calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+.item-picker-dialog > header, .item-picker-dialog > input, .item-picker-dialog > footer { flex:0 0 auto; }
+.item-picker-dialog header > div { min-width:0; overflow-wrap:anywhere; }
+.item-picker-dialog header > button { flex:0 0 44px; width:44px; min-height:44px; }
+.item-picker-dialog > input { min-height:44px; }
+.item-picker-list { flex:1 1 auto; min-height:0; }
+.item-picker-dialog footer :is(a,button) { display:flex; align-items:center; justify-content:center; min-height:44px; }
+.item-picker-dialog footer a { padding:0 .35rem; }
+@media(pointer:coarse) { .item-picker-search input { font-size:max(16px,1rem); } }
+@media(max-height:500px) {
+ .item-picker-dialog { padding:.6rem; }
+ .item-picker-dialog header small { display:none; }
+ .item-picker-dialog footer { margin-top:.4rem; }
+}

@@ -223,8 +223,12 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                     output.Quantity += produced;
                     output.Version++;
                 }
+                var oldCompletedCycles = task.CompletedCycles;
                 task.CompletedCycles += cycles;
                 task.TotalQuantity += produced;
+                await StoryProgressService.RecordAsync(db, task.CharacterId, "Produce", task.OutputCode,
+                    $"production:{task.Id}:{oldCompletedCycles}:{task.CompletedCycles}", produced, now);
+                await StoryProgressService.RefreshAsync(db, task.CharacterId, now);
 
                 task.NextCycleAtUtc = task.NextCycleAtUtc.AddSeconds((long)cycles * task.CycleSeconds);
 
@@ -280,13 +284,15 @@ public sealed class ProductionService(GameDbContext db, UserService users, Produ
                 CycleSeconds = recipe.CycleSeconds,
                 MinimumCharacterLevel = recipe.MinimumCharacterLevel,
                 UnlockDescription = recipe.AlternativeUnlockTargetCodes.Count > 0
-                    ? $"击败以下任一怪物 {recipe.RequiredCount} 次：{string.Join("、", world.Dungeons.Where(dungeon => unlockTargets.Contains(dungeon.Code)).Select(dungeon => dungeon.MonsterName))}"
+                    ? recipe.UnlockKind == BattleMilestoneService.MonsterKillKind
+                        ? $"击败以下任一怪物 {recipe.RequiredCount} 次：{string.Join("、", world.Dungeons.Where(dungeon => unlockTargets.Contains(dungeon.Code)).Select(dungeon => dungeon.MonsterName))}"
+                        : $"通关以下任一副本 {recipe.RequiredCount} 次：{string.Join("、", world.Dungeons.Where(dungeon => unlockTargets.Contains(dungeon.Code)).Select(dungeon => dungeon.Name))}"
                     : recipe.UnlockKind == BattleMilestoneService.MonsterKillKind
                     ? $"击败 {source.MonsterName} {recipe.RequiredCount} 次"
                     : $"通关 {source.Name} {recipe.RequiredCount} 次",
                 UnlockProgress = Math.Min(count, recipe.RequiredCount),
                 UnlockRequired = recipe.RequiredCount,
-                IsUnlocked = count >= recipe.RequiredCount,
+                IsUnlocked = character.Level >= recipe.MinimumCharacterLevel && count >= recipe.RequiredCount,
                 Ingredients = recipe.Ingredients.Select(item => new ProductionIngredientResponse
                 {
                     Code = item.Code, Name = materials.FindItem(item.Code)!.Name,

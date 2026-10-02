@@ -6,6 +6,63 @@
     const isCovered = root => root.closest(".battle-page--panel-open") !== null;
     const number = value => value.toLocaleString("zh-CN");
     const isSkill = event => event.isSkill === true;
+    const actionIs = (event, code, name) => event.actionKind === code || event.actionKind?.toString().toLowerCase() === name;
+    const recurring = event => actionIs(event, 5, "periodic");
+    // Stable skill codes select art; labels and actor names remain display-only.
+    const abilityArt = {
+        "sword-slash": ["knight", "crosscut", "#ffe1a2"],
+        "knight-faith-barrier": ["knight", "shield", "#ffe6a2"],
+        "knight-rebuke": ["knight", "seal", "#ffdb86"],
+        "knight-invigorate": ["knight", "rally", "#a4efbb"],
+        "knight-holy-aura": ["knight", "halo", "#ffe6a2"],
+        "acolyte-holy-bolt": ["cleric", "radiance", "#fff2bb"],
+        "acolyte-heal": ["cleric", "blossom", "#aaf1d2"],
+        "acolyte-purify": ["cleric", "cleanse", "#c7fff4"],
+        "acolyte-group-heal": ["cleric", "prayer", "#9eeed3"],
+        "acolyte-revelation": ["cleric", "judgement", "#fff1b7"],
+        "mage-arcane-bolt": ["mage", "arcane", "#c6a8ff"],
+        "mage-frost-bolt": ["mage", "frost", "#a9eaff"],
+        "mage-scorch": ["mage", "fire", "#ffb16e"],
+        "mage-spellbreak": ["mage", "shatter", "#d1b6ff"],
+        "mage-arcane-domain": ["mage", "domain", "#beacff"],
+        "hunter-tracking-shot": ["hunter", "mark", "#baf1b5"],
+        "hunter-precision-shot": ["hunter", "arrow", "#e5f5ad"],
+        "hunter-expose-shot": ["hunter", "pierce", "#e6df9a"],
+        "hunter-hunting-signal": ["hunter", "volley", "#a8edbc"],
+        "hunter-eagle-eye": ["hunter", "eagle", "#dcf5b6"],
+        "rogue-shadow-strike": ["rogue", "shadow", "#c4b3fb"],
+        "rogue-execution-slash": ["rogue", "execution", "#efacc5"],
+        "rogue-poisoned-blade": ["rogue", "venom", "#b8e68b"],
+        "rogue-adrenaline": ["rogue", "haste", "#e7acc8"],
+        "rogue-blade-flurry": ["rogue", "flurry", "#d1bdff"]
+    };
+    const abilityPaths = {
+        crosscut: ["M28 12 L104 78 L88 74 L18 32 Z", "M109 14 L33 80 L40 63 L92 15 Z"],
+        shield: ["M80 8 L117 23 L110 63 Q103 81 80 93 Q57 81 50 63 L43 23 Z", "M80 23 V73 M62 45 H98", "M34 31 L27 50 L35 69 M126 31 L133 50 L125 69"],
+        seal: ["M80 8 L117 50 L80 92 L43 50 Z", "M80 28 V56 M80 68 V72", "M25 28 L38 36 M135 28 L122 36 M25 72 L38 64 M135 72 L122 64"],
+        rally: ["M80 12 L101 38 L92 38 L92 82 L68 82 L68 38 L59 38 Z", "M33 62 Q52 88 80 90 Q108 88 127 62"],
+        halo: ["M32 53 A48 30 0 1 0 96 0 A48 30 0 1 0 -96 0", "M48 51 L80 15 L112 51 M80 15 V84", "M22 35 L33 39 M127 39 L138 35"],
+        radiance: ["M80 4 L88 38 L126 47 L88 56 L80 94 L72 56 L34 47 L72 38 Z", "M48 18 L61 31 M112 18 L99 31 M48 80 L61 67 M112 80 L99 67"],
+        blossom: ["M80 72 C34 69 34 31 60 40 C56 7 103 7 100 40 C126 31 126 69 80 72 Z", "M80 35 V77 M61 56 H99", "M41 77 Q80 95 119 77"],
+        cleanse: ["M80 10 C75 29 50 42 50 60 A30 30 0 0 0 60 0 C110 42 85 29 80 10 Z", "M63 60 L76 72 L99 47", "M24 45 L31 36 M129 36 L136 45"],
+        prayer: ["M77 60 Q40 8 20 34 Q45 39 54 62 Q34 51 28 62 Q50 81 76 75", "M83 60 Q120 8 140 34 Q115 39 106 62 Q126 51 132 62 Q110 81 84 75", "M80 18 V85 M68 40 H92"],
+        judgement: ["M70 4 L70 54 L56 54 L80 94 L104 54 L90 54 L90 4 Z", "M28 68 Q80 100 132 68", "M38 13 V43 M122 13 V43"],
+        arcane: ["M80 8 L117 30 L117 70 L80 92 L43 70 L43 30 Z", "M80 24 L105 65 L55 65 Z M80 78 L55 35 L105 35 Z", "M20 50 H34 M126 50 H140"],
+        frost: ["M80 4 V96 M40 26 L120 74 M40 74 L120 26", "M68 14 L80 27 L92 14 M68 86 L80 73 L92 86", "M43 42 L58 38 L57 24 M117 58 L102 62 L103 76 M43 58 L58 62 L57 76 M117 42 L102 38 L103 24"],
+        fire: ["M81 5 C93 29 68 32 91 50 C95 34 108 33 109 21 C138 61 115 94 81 94 C40 95 25 61 50 35 C52 54 68 48 65 37 C59 20 74 16 81 5 Z", "M81 48 C67 65 64 78 81 87 C99 76 91 62 81 48 Z"],
+        shatter: ["M72 12 L43 29 L45 68 L71 85 M88 12 L117 29 L115 68 L89 85", "M83 17 L69 40 L93 51 L73 76", "M28 29 L18 20 M132 29 L142 20 M28 72 L18 81 M132 72 L142 81"],
+        domain: ["M27 50 A53 35 0 1 0 106 0 A53 35 0 1 0 -106 0", "M80 13 L120 74 L40 74 Z", "M42 29 L118 71 M42 71 L118 29 M80 13 V87"],
+        mark: ["M54 16 H37 V33 M106 16 H123 V33 M37 67 V84 H54 M123 67 V84 H106", "M55 50 A25 25 0 1 0 50 0 A25 25 0 1 0 -50 0", "M80 35 V65 M65 50 H95"],
+        arrow: ["M18 50 H136 M110 28 L136 50 L110 72", "M23 36 L43 50 L23 64", "M48 30 H87 M40 70 H95"],
+        pierce: ["M8 50 H149 M119 21 L149 50 L119 79", "M64 12 L54 34 M54 66 L64 88 M97 12 L87 34 M87 66 L97 88"],
+        volley: ["M15 28 H129 M114 17 L129 28 L114 39", "M25 50 H145 M129 38 L145 50 L129 62", "M15 72 H129 M114 61 L129 72 L114 83"],
+        eagle: ["M80 48 Q50 9 13 19 L39 43 L26 43 L52 65 L75 66", "M80 48 Q110 9 147 19 L121 43 L134 43 L108 65 L85 66", "M66 43 L80 32 L94 43 L80 76 Z"],
+        shadow: ["M30 88 Q54 24 121 12 L105 32 Q64 39 30 88 Z", "M47 88 Q69 38 137 27", "M24 56 L34 35 M119 77 L132 57"],
+        execution: ["M22 14 L117 84 L105 57 Z", "M138 14 L43 84 L55 57 Z", "M80 17 V35 M80 80 V95"],
+        venom: ["M31 84 Q62 22 120 12 L104 35 Q65 38 31 84 Z", "M117 51 C111 65 101 68 106 79 C112 91 129 82 127 72 Z", "M37 22 L42 29 M78 85 L81 91"],
+        haste: ["M90 7 L51 53 H77 L67 92 L111 43 H85 Z", "M30 32 L19 50 L30 68 M130 32 L141 50 L130 68"],
+        flurry: ["M22 79 Q52 16 119 12", "M37 88 Q71 27 137 26", "M56 94 Q91 48 147 45"]
+    };
     const spriteLoads = new WeakMap();
     const sprites = root => [...root.querySelectorAll(".fighter__portrait img, .battle-field__enemy-art img, .battle-field__backdrop img")];
 
@@ -43,7 +100,7 @@
 
     function cancel(root) { sessions.get(root)?.abort(); }
 
-    async function play(root, plan) {
+    async function play(root, plan, options = {}) {
         cancel(root);
         if (!(root instanceof HTMLElement) || !root.isConnected || document.hidden || isCovered(root)) return;
         const field = root.querySelector(".battle-field");
@@ -63,7 +120,7 @@
         let hitCount = 0;
         let total = 0;
         let index = 0;
-        const isReduced = reducedMotion();
+        const isReduced = reducedMotion() || options.reducedMotion === true;
         const numberDuration = 2200;
         const numberLanes = new Map();
         const effectCards = [];
@@ -126,6 +183,93 @@
                 top += (box.height - height) * (parseFloat(position) / 100 || 0);
             }
             return { x: box.left + box.width * .5 - bounds.left, y: top + height * .48 - bounds.top };
+        };
+        const castsSeen = new Set();
+        const landedAbilities = new Set();
+        const castKeyOf = (event, eventIndex) => event.castKey || `${eventIndex}:${event.source}:${event.skillCode ?? ""}`;
+        const artFor = event => abilityArt[event.skillCode];
+        const variantFor = (event, art) => {
+            if (event.kind === "heal") return ["rally", "prayer", "blossom"].includes(art[1]) ? art[1] : "blossom";
+            if (event.kind === "cleanse") return "cleanse";
+            if (event.kind === "interrupt") return "seal";
+            if (event.kind === "dispel") return "shatter";
+            if (event.kind === "buff" && (/guard|shield|damagereduction/i.test(event.statusEffectType ?? "") ||
+                ["battle-round-guard", "battle-guard-counter-permission"].includes(event.status?.code))) return "shield";
+            return art[1];
+        };
+        const abilityNode = (event, unit, art, variant, phase = "impact") => {
+            const point = pointOf(unit);
+            const bounds = field.getBoundingClientRect();
+            const image = portrait(unit)?.getBoundingClientRect();
+            const health = unit?.element.querySelector(".combat-health")?.getBoundingClientRect();
+            const safeTop = Math.max(0, (health?.bottom ?? bounds.top) - bounds.top + 3);
+            const available = Math.max(0, field.clientHeight - safeTop - 3);
+            if (available < 10) return null;
+            const width = Math.min(phase === "cast" ? 62 : 100, Math.max(34, (image?.width ?? 60) * 1.25));
+            const height = Math.min(available, phase === "cast" ? 48 : 80, Math.max(30, image?.height ?? 60));
+            point.y = Math.max(safeTop + height / 2, Math.min(field.clientHeight - height / 2 - 3, point.y));
+            point.x = Math.max(width / 2 + 2, Math.min(field.clientWidth - width / 2 - 2, point.x));
+            const node = vector(`combat-ability combat-ability--${art[0]} combat-ability--${variant} combat-ability--${phase}`, point, art[2], abilityPaths[variant] ?? abilityPaths.arcane);
+            node.style.width = `${width}px`; node.style.height = `${height}px`;
+            node.dataset.skillCode = event.skillCode ?? "";
+            node.dataset.combatSource = event.source;
+            node.dataset.combatTarget = event.target;
+            node.dataset.castKey = event.castKey ?? "";
+            return node;
+        };
+        const castAbility = (event, source, art) => {
+            if (!source) return;
+            const crest = ({ knight: "shield", cleric: "prayer", mage: "domain", hunter: "eagle", rogue: "shadow" })[art[0]];
+            const node = abilityNode(event, source, art, crest, "cast");
+            animate(node, [
+                { transform: "translate(-50%,-50%) scale(.35)", opacity: 0 },
+                { transform: "translate(-50%,-50%) scale(.95)", opacity: .85, offset: .24 },
+                { transform: "translate(-50%,-50%) scale(1)", opacity: 0 }
+            ], { duration: 400 }, true);
+            // The caster is identified by its slot key, never its display name.
+            animate(portrait(source), [
+                { transform: "translateY(0)", filter: "brightness(1)" },
+                { transform: "translateY(-3px)", filter: `brightness(1.3) drop-shadow(0 0 3px ${art[2]})`, offset: .35 },
+                { transform: "translateY(0)", filter: "brightness(1)" }
+            ], { duration: 330 });
+        };
+        const abilityFlight = (event, source, target, art, duration) => {
+            if (!source || source === target) return;
+            const from = pointOf(source), to = pointOf(target);
+            const angle = Math.atan2(to.y - from.y, to.x - from.x);
+            const flight = make(`combat-ability-flight combat-ability-flight--${art[0]} combat-ability-flight--${art[1]}`, from, art[2]);
+            flight.dataset.combatSource = event.source;
+            flight.dataset.combatTarget = event.target;
+            animate(flight, [
+                { transform: `translate(-50%,-50%) rotate(${angle}rad) scale(.5)`, opacity: 0 },
+                { transform: `translate(-50%,-50%) rotate(${angle}rad) scale(1)`, opacity: .9, offset: .1 },
+                { transform: `translate(calc(-50% + ${to.x - from.x}px),calc(-50% + ${to.y - from.y}px)) rotate(${angle}rad) scale(.75)`, opacity: .8 }
+            ], { duration, easing: "cubic-bezier(.4,0,.8,.6)" }, true);
+        };
+        const landAbility = (event, target, art, key) => {
+            const variant = variantFor(event, art);
+            const landingKey = `${key}:${event.target}:${variant}`;
+            // A compound damage+status fact can share art; separate damage hits cannot.
+            if (event.amount <= 0 && landedAbilities.has(landingKey)) return;
+            landedAbilities.add(landingKey);
+            const node = abilityNode(event, target, art, variant);
+            const slash = ["crosscut", "shadow", "execution", "flurry", "venom", "arrow", "pierce", "volley"].includes(variant);
+            const rotate = ["arcane", "domain", "shatter"].includes(variant);
+            animate(node, [
+                { transform: `translate(-50%,-50%) scale(${slash ? ".35,.8" : ".35"}) rotate(0deg)`, opacity: 0 },
+                { transform: "translate(-50%,-50%) scale(1)", opacity: 1, offset: .2 },
+                { transform: `translate(-50%,-50%) scale(${slash ? ".9,.75" : ".95"}) rotate(0deg)`, opacity: .75, offset: .55 },
+                { transform: `translate(-50%,-50%) scale(.8) rotate(0deg)`, opacity: 0 }
+            ], { duration: slash ? 360 : 540 }, true);
+            if (rotate && node) animate(node.querySelector("svg"), [
+                { transform: "rotate(-25deg)" }, { transform: "rotate(35deg)" }
+            ], { duration: 540 });
+        };
+        const recurringImpact = (event, target, art) => {
+            const variant = event.kind === "heal" ? "blossom" : art?.[1] === "venom" ? "venom" : "fire";
+            const node = abilityNode(event, target, art ?? ["mage", variant, tones[event.tone] ?? tones.neutral], variant, "tick");
+            animate(node, [{ transform: "translate(-50%,-50%) scale(.38)", opacity: .75 },
+                { transform: "translate(-50%,-50%) scale(.55)", opacity: 0 }], { duration: 220 }, true);
         };
         const updateHp = (unit, hp, max = unit.max, immediate = false) => {
             unit.hp = Math.max(0, Math.min(max, hp));
@@ -477,6 +621,8 @@
         const onVisibility = () => { if (document.hidden) controller.abort(); };
         const observer = new MutationObserver(() => { if (!root.isConnected || isCovered(root)) controller.abort(); });
         observer.observe(document.body, { childList: true, subtree: true });
+        const pageHost = root.closest(".battle-page");
+        if (pageHost) observer.observe(pageHost, { attributes: true, attributeFilter: ["class"] });
         document.addEventListener("visibilitychange", onVisibility);
         root.classList.add("combat-preparing");
         root.dataset.combatPhase = "loading";
@@ -501,7 +647,8 @@
             }
             // Preserve a legible minimum spacing even for long skill chains.
             const actionCount = plan.events.filter(event => !event.isFollowUp).length;
-            const step = Math.max(180, Math.min(460, 1900 / Math.max(1, actionCount)));
+            const step = Math.max(110, Math.min(460, 1900 / Math.max(1, actionCount)));
+            const utilityStep = Math.max(65, Math.min(220, 1600 / Math.max(1, actionCount)));
             for (let eventIndex = 0; eventIndex < plan.events.length; eventIndex++) {
                 const event = plan.events[eventIndex];
                 if (signal.aborted || !root.isConnected) break;
@@ -511,12 +658,30 @@
                 index++;
                 const color = tones[event.tone] ?? tones.neutral;
                 const point = pointOf(target);
+                const art = artFor(event);
+                const castKey = castKeyOf(event, eventIndex);
+                const activeArt = art && isSkill(event) && !recurring(event);
+                const firstCast = isSkill(event) && !castsSeen.has(castKey);
+                if (firstCast) {
+                    castsSeen.add(castKey);
+                    // The readout already names this action; do not cover tiny
+                    // phone sprites and their skill art with another text card.
+                    if (!activeArt) showEffect(event.label, "skill", color, source ?? target);
+                    if (activeArt) castAbility(event, source, art);
+                }
                 if (event.amount <= 0) {
                     applyStatus(event);
-                    if (actionText) actionText.textContent = event.label;
-                    showEffect(event.label, event.kind, color, target);
-                    impact(event, point, color);
-                    await wait(300);
+                    if (actionText) actionText.textContent = `${source?.element.dataset.combatName ?? ""} · ${event.label}`.replace(/^ · /, "");
+                    if (!firstCast && !activeArt) showEffect(event.label, event.kind, color, target);
+                    if (activeArt) {
+                        const landingKey = `${castKey}:${event.target}:${variantFor(event, art)}`;
+                        if (!landedAbilities.has(landingKey)) abilityFlight(event, source, target, art, utilityStep * .4);
+                        await wait(utilityStep * .4);
+                        if (signal.aborted) break;
+                        landAbility(event, target, art, castKey);
+                    } else if (recurring(event)) recurringImpact(event, target, art);
+                    else impact(event, point, color);
+                    await wait(activeArt ? utilityStep * .6 : utilityStep);
                     continue;
                 }
                 // Reserve the main hit and echo together without waiting for
@@ -527,13 +692,14 @@
                 if (!lane || signal.aborted) break;
                 if (actionText) actionText.textContent = `${source?.element.dataset.combatName ?? ""} · ${event.label}`.replace(/^ · /, "");
                 root.dataset.combatTone = event.target === "enemy" ? "friendly" : event.kind === "damage" ? "hostile" : "heal";
-                if (isSkill(event))
-                    showEffect(event.label, "skill", color, source ?? target);
-                launch(event, source, target, step, color);
+                if (activeArt) abilityFlight(event, source, target, art, step * .42);
+                else if (!recurring(event)) launch(event, source, target, step, color);
                 await wait(step * .42);
                 if (signal.aborted) break;
-                impact(event, point, color);
-                applyHit(event, target, lane, color);
+                if (activeArt) landAbility(event, target, art, castKey);
+                else if (recurring(event)) recurringImpact(event, target, art);
+                else impact(event, point, color);
+                applyHit(event, target, lane, art?.[2] ?? color);
                 const sprite = portrait(target)?.querySelector("img");
                 if (event.kind === "damage") {
                     const direction = event.target === "enemy" ? 1 : -1;

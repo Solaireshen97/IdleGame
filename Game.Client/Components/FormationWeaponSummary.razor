@@ -1,0 +1,38 @@
+@using Game.Shared
+@using Game.Shared.Dtos.Formations
+@using Game.Shared.Enums
+
+<section class="formation-weapon-summary" aria-label="编队武器加成" aria-busy="@(Loading ? "true" : "false")">
+    @if (Preview is null)
+    {
+        <p role="status">@(Loading ? "正在计算武器加成…" : "武器加成预览暂不可用")</p>
+    }
+    else
+    {
+        <div class="weapon-preview-stats"><span>武器攻击 <strong>@Preview.WeaponAttack.ToString("N0")</strong></span><span>武器生命 <strong>@Preview.WeaponMaxHp.ToString("N0")</strong></span></div>
+        <details class="weapon-preview-effects">
+            <summary><strong>技能与加成</strong><span>@(Loading ? "更新中…" : $"{Preview.WeaponEffects.Count} 项生效")</span></summary>
+            <div class="weapon-preview-bonuses"><span>攻击 +@Preview.WeaponAttackBonusPercent.ToString("0.##")%</span><span>生命 +@Preview.WeaponHealthBonusPercent.ToString("0.##")%</span><span>暴击 +@Preview.WeaponCriticalChancePercent.ToString("0.##")%</span></div>
+            @if (Preview.WeaponEffects.Count == 0) { <p>暂无生效加成。武器技能需与主武器属性一致。</p> }
+            @foreach (var effect in Preview.WeaponEffects)
+            {
+                <details class="weapon-preview-effect">
+                    <summary><strong>@effect.Name</strong><span>@(effect.EffectType is WeaponSkillEffectType.StaminaPercent or WeaponSkillEffectType.EnmityPercent or WeaponSkillEffectType.LowHpDamageReductionPercent ? "最高 " : "+")@effect.TotalPercent.ToString("0.##")%@(effect.EffectType == WeaponSkillEffectType.RampAttackPercent ? " / 回合" : null)</span></summary>
+                    <p>@effect.Description</p>
+                </details>
+            }
+            @if (Preview.WeaponSkills.Count > 0)
+            {
+                <details class="weapon-preview-sources"><summary>生效武器技能 · @Preview.WeaponSkills.Count</summary>
+                    @foreach (var skill in Preview.WeaponSkills) { <p><strong>@skill.Name · 合计 Lv.@skill.Level</strong><br />@skill.Description</p> }
+                </details>
+            }
+            <details class="weapon-preview-rules"><summary>计算规则</summary><p>全部十槽的基础攻击与生命计入。技能只计算与主武器属性一致的已配置武器，各效果上限由预览统一计算。</p></details>
+        </details>
+    }
+</section>
+
+@code {
+    [Parameter] public FormationPreviewResponse? Preview { get; set; }
+    [Parameter] public bool Loading { get; set; }
+}

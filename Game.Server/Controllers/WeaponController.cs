@@ -60,6 +60,7 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
     public async Task<ActionResult<CharacterWeaponsResponse>> UpgradeQuality(
         int characterId, int weaponId, [FromBody] UpgradeWeaponQualityRequest request)
     {
+        if (!Guid.TryParse(request.RequestId, out var requestId) || requestId == Guid.Empty) return BadRequest("InvalidRequestId");
         var (response, error) = await weaponService.UpgradeQualityAsync(
             GetToken(), characterId, weaponId, request);
         return error is null ? Ok(response) : ToError(error);
@@ -69,6 +70,7 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
     public async Task<ActionResult<CharacterWeaponsResponse>> CraftBreakthroughStone(
         int characterId, [FromBody] CraftWeaponBreakthroughStoneRequest request)
     {
+        if (!Guid.TryParse(request.RequestId, out var requestId) || requestId == Guid.Empty) return BadRequest("InvalidRequestId");
         var (response, error) = await weaponService.CraftBreakthroughStoneAsync(GetToken(), characterId, request);
         return error is null ? Ok(response) : ToError(error);
     }
@@ -86,7 +88,7 @@ public sealed class WeaponController(WeaponService weaponService) : ControllerBa
         "Unauthorized" => Unauthorized(error),
         "CharacterNotFound" => NotFound(error),
         "NotOwner" => StatusCode(StatusCodes.Status403Forbidden, error),
-        "LoadoutLocked" or "ConcurrencyConflict" or "WeaponEquipped" or "WeaponLocked" => Conflict(error),
+        "LoadoutLocked" or "ConcurrencyConflict" or "WeaponEquipped" or "WeaponLocked" or "InventoryPreviewChanged" or "InventoryFull" => Conflict(error),
         _ => BadRequest(error)
     };
 }

@@ -8,14 +8,22 @@
 @inject NavigationManager Navigation
 @inject ActiveCharacterState ActiveCharacters
 @inject IJSRuntime Js
+@inject UserSessionService Session
 @implements IAsyncDisposable
 
 <PageTitle>副本大厅</PageTitle>
 
 <div class="rooms-page" @ref="_root">
+<h1 class="rooms-page__title" tabindex="-1">副本大厅</h1>
 @if (_isCheckingLoginState)
 {
     <GameStateCard Compact="true" Title="正在确认冒险者身份" Detail="马上为你载入可用副本。" />
+}
+else if (_accountError is not null)
+{
+    <GameStateCard Compact="true" Tone="error" Title="暂时无法进入大厅" Detail="@_accountError">
+        <Actions><button type="button" class="button button--primary" @onclick="InitializeLobbyAsync">重试</button></Actions>
+    </GameStateCard>
 }
 else
 {
@@ -23,6 +31,7 @@ else
     {
         <p class="notice-message" role="status">@(NavigationNotice == "room-unavailable" ? "原战斗房间已失效或无法访问，已返回大厅。" : "原页面无法打开，已返回大厅。")</p>
     }
+    <StoryTracker />
     <nav class="lobby-tabs" role="tablist" aria-label="副本大厅模式">
         <button type="button" id="current-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Current ? "true" : "false")" aria-controls="current-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Current ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Current)">
@@ -30,7 +39,7 @@ else
         </button>
         <button type="button" id="create-battle-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Create ? "true" : "false")" aria-controls="create-battle-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Create ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Create)">
-            <span class="lobby-tab__icon" aria-hidden="true">＋</span><span><strong>创建战斗</strong><small>选择地区与挑战</small></span>
+            <span class="lobby-tab__icon" aria-hidden="true">＋</span><span><strong>创建战斗</strong></span>
         </button>
         <button type="button" id="join-room-tab" role="tab" aria-selected="@(_activeLobbyTab == LobbyTab.Join ? "true" : "false")" aria-controls="join-room-panel"
                 class="lobby-tab @(_activeLobbyTab == LobbyTab.Join ? "lobby-tab--active" : null)" @onclick="() => SwitchLobbyTab(LobbyTab.Join)">
@@ -45,7 +54,7 @@ else
         var hasRooms = (isCurrent ? CurrentRoomCount : JoinableRoomCount) > 0;
         <section @key="_activeLobbyTab" id="@(isCurrent ? "current-battle-panel" : "join-room-panel")" class="lobby-panel lobby-panel--rooms" role="tabpanel" aria-labelledby="@(isCurrent ? "current-battle-tab" : "join-room-tab")">
             <header class="lobby-heading">
-                <div><span class="section-kicker">@(isCurrent ? "YOUR BATTLES" : "PUBLIC ROOMS")</span><h2>@(isCurrent ? "战斗与记录" : "寻找同行队伍") <small>@visibleRooms.Count 个</small></h2></div>
+                <div><h2>@(isCurrent ? "战斗与记录" : "公开房间") <small>@visibleRooms.Count 个</small></h2></div>
                 <button type="button" class="lobby-refresh" @onclick="() => LoadRoomsAsync()" disabled="@_isRefreshing" aria-label="刷新房间">@(_isRefreshing ? "刷新中…" : "↻ 刷新")</button>
             </header>
             @if (isCurrent)
@@ -69,11 +78,9 @@ else
                 {
                     <article class="room-card @(room.ClosedAtUtc.HasValue ? "room-card--closed" : null)" @key="room.RoomId">
                         <div class="room-card__topline"><span>#@room.RoomId · @room.RegionName</span><span class="status-badge status-badge--@(room.ClosedAtUtc.HasValue ? "warning" : RoomStatusTone(room.RoomStatus))">@(room.ClosedAtUtc.HasValue ? "任务已结束" : RoomStatusName(room.RoomStatus))</span></div>
-                        <div class="room-card__identity"><h3>@room.DungeonName</h3><p>@room.MonsterName · 第 @room.CurrentWaveNumber / @room.TotalWaveCount 波</p></div>
-                        @if (room.PendingOperationCount > 0)
-                        {
-                            <span class="status-badge">@room.PendingOperationCount 项队伍操作待执行</span>
-                        }
+                        <div class="room-card__identity"><h3>@room.DungeonName</h3><p>@room.MonsterName · @room.CurrentWaveNumber/@room.TotalWaveCount 波</p>
+                            @if (room.PendingOperationCount > 0) { <small class="room-card__pending">@room.PendingOperationCount 项操作待执行</small> }
+                        </div>
                         <button type="button" class="button button--primary room-card__enter" aria-label="@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗")：@room.DungeonName" @onclick="() => EnterRoom(room.RoomId)">@(room.ClosedAtUtc.HasValue ? "查看结算" : isCurrent ? "返回战斗" : "加入战斗") <span aria-hidden="true">→</span></button>
                         <div class="room-card__bottom"><span class="room-card__rules">@(room.IsPublic ? "公开" : "私人") · @(room.IsRepeatBattle ? "循环" : "单次") · @(room.IsPreparationTimeoutEnabled ? "准备超时" : "手动准备")</span><span class="room-card__hp">HP @room.MonsterHp / @room.MonsterMaxHp</span></div>
                         <progress class="health-bar" value="@room.MonsterHp" max="@Math.Max(1, room.MonsterMaxHp)" aria-label="@room.MonsterName 的剩余生命"></progress>
@@ -98,18 +105,28 @@ else
     else
     {
         <section @key="_activeLobbyTab" id="create-battle-panel" class="lobby-panel lobby-panel--create" role="tabpanel" aria-labelledby="create-battle-tab">
+            @if (_catalogError is not null)
+            {
+                <div class="lobby-catalog-error" role="alert"><span>@_catalogError</span><button type="button" class="button button--secondary" @onclick="ReloadCatalogAsync" disabled="@_isReloadingCatalog">@(_isReloadingCatalog ? "正在读取…" : "重新读取挑战")</button></div>
+            }
             <section class="region-picker" aria-label="选择冒险地区">
-                <div class="region-picker__heading"><h2>选择地区</h2><span>六大地区 · 自由探索</span></div>
-                <div class="region-picker__grid">
+                <button type="button" class="region-picker__toggle" @ref="_regionPickerToggle" aria-expanded="@(_isRegionPickerOpen ? "true" : "false")" aria-controls="region-picker-options" @onclick="() => _isRegionPickerOpen = !_isRegionPickerOpen">
+                    <span><small>冒险地区</small><strong>@(_selectedRegion?.Name ?? "选择地区")</strong></span>
+                    <span>切换地区 <span aria-hidden="true">@(_isRegionPickerOpen ? "⌃" : "⌄")</span></span>
+                </button>
+                @if (_isRegionPickerOpen)
+                {
+                <div id="region-picker-options" class="region-picker__grid">
                     @foreach (var region in _regions)
                     {
-                        <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)" aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegion(region.Code)">
+                        <button type="button" class="region-card region-card--@region.FeaturedElement.ToString().ToLowerInvariant() @(region.Code == _selectedRegionCode ? "region-card--selected" : null)" aria-pressed="@(region.Code == _selectedRegionCode ? "true" : "false")" @onclick="() => SelectRegionFromPicker(region.Code)">
                             <strong>@region.Name</strong><span><b>@WeaponRules.ElementName(region.FeaturedElement)</b> Lv.@region.MinimumLevel–@region.MaximumLevel</span>
                         </button>
                     }
                 </div>
+                }
             </section>
-            <header class="lobby-heading dungeon-heading"><div><h2>@(_selectedRegion?.Name ?? "地区挑战") <small>@ResultCount 项挑战</small></h2></div><button type="button" class="region-info-trigger" @ref="_regionTrigger" @onclick="OpenRegionInfo" disabled="@(_selectedRegion is null)" aria-haspopup="dialog">地区情报 ›</button></header>
+            <header class="lobby-heading dungeon-heading"><div><h2>选择挑战 <small>@ResultCount 项</small></h2></div><button type="button" class="region-info-trigger" @ref="_regionTrigger" @onclick="OpenRegionInfo" disabled="@(_selectedRegion is null)" aria-haspopup="dialog">地区情报 ›</button></header>
             <div class="dungeon-toolbar">
                 <div class="lobby-segments" role="group" aria-label="筛选挑战类型">
                     <button type="button" class="@(_dungeonKind == "" ? "active" : null)" aria-pressed="@(_dungeonKind == "" ? "true" : "false")" @onclick='() => SetDungeonKind("")'>全部</button>
@@ -128,18 +145,21 @@ else
                         <span class="dungeon-card__bottom"><span class="monster-attribute monster-attribute--@dungeon.MonsterElement.ToString().ToLowerInvariant()">@WeaponRules.ElementName(dungeon.MonsterElement)属性</span><small>@(!dungeon.CanEnter ? "需要解锁 ›" : dungeon.IsClearedByCurrentUser ? "已通关 ›" : "查看挑战 ›")</small></span>
                     </button>
                 }
-                @if (ResultCount == 0)
+                @if (ResultCount == 0 && _catalogError is null)
                 {
                     <div class="empty-state"><strong>暂无符合条件的挑战</strong><span>切换地区或放宽筛选条件。</span><button type="button" class="button button--secondary" @onclick='() => { _dungeonKind = ""; _onlyAvailable = false; GoToPage(1); }'>查看全部挑战</button></div>
                 }
             </div>
         </section>
     }
+    @if (PageCount > 1)
+    {
     <nav class="lobby-pager" aria-label="@(_activeLobbyTab == LobbyTab.Create ? "挑战分页" : "房间分页")">
         <button type="button" @onclick="() => GoToPage(CurrentPage - 1)" disabled="@(CurrentPage <= 1)" aria-label="上一页">←</button>
         <select value="@Math.Clamp(CurrentPage, 1, PageCount)" @onchange="OnPageChanged" aria-label="跳转页码">@for (var pageNumber = 1; pageNumber <= PageCount; pageNumber++) { <option value="@pageNumber">第 @pageNumber / @PageCount 页 · 共 @ResultCount @(_activeLobbyTab == LobbyTab.Create ? "项" : "个")</option> }</select>
         <button type="button" @onclick="() => GoToPage(CurrentPage + 1)" disabled="@(CurrentPage >= PageCount)" aria-label="下一页">→</button>
     </nav>
+    }
 }
 
 @if (_showRegionInfo && _selectedRegion is { } info)
@@ -154,7 +174,7 @@ else
 }
 @if (_isCreateDialogOpen && _selectedDungeon is { } inspectedDungeon)
 {
-    <MonsterDetailDialog @key="inspectedDungeon.DungeonId" Dungeon="inspectedDungeon" Character="ActiveCharacters.Current" IsCreating="_isLoading" CreateError="@_message" OnCreate="CreateRoomAsync" OnClose="CloseCreateDialog" />
+    <MonsterDetailDialog @key="inspectedDungeon.DungeonId" Dungeon="inspectedDungeon" Character="ActiveCharacters.Current" InitialDepth="_initialDepth" IsCreating="_isLoading" CreateError="@_message" OnCreate="CreateRoomAsync" OnClose="CloseCreateDialog" />
 }
 @if (_message is not null && !_isCreateDialogOpen) { <p class="notice-message" role="alert">@_message</p> }
 </div>
@@ -162,10 +182,18 @@ else
 @code {
     [SupplyParameterFromQuery(Name = "notice")]
     public string? NavigationNotice { get; set; }
+    [SupplyParameterFromQuery(Name = "dungeonId")] public int? RequestedDungeonId { get; set; }
+    [SupplyParameterFromQuery(Name = "depth")] public int? RequestedDepth { get; set; }
+    private int? _initialDepth;
+    private bool _restoredRequestedDungeon;
 
     private List<RoomSummaryResponse>? _rooms;
     private bool _isCheckingLoginState = true;
+    private bool _checkingAccount, _lobbyStarted;
+    private string? _accountError;
     private bool _isLoading;
+    private bool _isReloadingCatalog;
+    private string? _catalogError;
     private string? _message;
     private List<DungeonSummaryResponse> _dungeons = new();
     private List<RegionSummaryResponse> _regions = new();
@@ -184,6 +212,9 @@ else
     private string _dungeonKind = "";
     private bool _onlyAvailable;
     private bool _showRegionInfo;
+    private bool _isRegionPickerOpen;
+    private bool _focusRegionPicker;
+    private ElementReference _regionPickerToggle;
     private bool _focusRegionInfo;
     private bool _focusRegionTrigger;
     private bool _restoreDungeonFocus;
@@ -238,26 +269,41 @@ else
         _message = null;
     }
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (await ApiService.GetCurrentUserAsync() is null)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
+    protected override Task OnInitializedAsync() => InitializeLobbyAsync();
 
-        await ActiveCharacters.EnsureLoadedAsync();
-        ActiveCharacters.Changed += OnActiveCharacterChanged;
+    private async Task InitializeLobbyAsync()
+    {
+        if (_checkingAccount) return;
+        _checkingAccount = true;
+        _isCheckingLoginState = true;
+        _accountError = null;
         try
         {
-            _regions = await ApiService.GetRegionsAsync() ?? [];
-            _selectedRegionCode = _regions.FirstOrDefault()?.Code ?? "";
-            await LoadDungeonsAsync();
+            var hadToken = await Session.IsLoggedIn();
+            var user = await ApiService.GetCurrentUserAsync(forceRefresh: true);
+            if (user is null)
+            {
+                if (await Session.IsLoggedIn()) _accountError = "暂时无法确认登录状态，请检查网络后重试。";
+                else Navigation.NavigateTo(hadToken || Session.Revision > 1 ? "/login?notice=session-expired" : "/login", replace: true);
+                return;
+            }
+            if (user.CharacterCount == 0) { Navigation.NavigateTo("/characters/create", replace: true); return; }
+            await ActiveCharacters.EnsureLoadedAsync();
+            if (!_lobbyStarted) ActiveCharacters.Changed += OnActiveCharacterChanged;
+            await ReloadCatalogAsync();
             await LoadRoomsAsync(selectInitialTab: true);
+            if (!_lobbyStarted)
+            {
+                _lobbyStarted = true;
+                _ = RefreshProgressAsync(_progressCancellation.Token);
+            }
         }
-        catch { _message = "地区信息读取失败，请刷新页面重试。"; }
-        finally { _isCheckingLoginState = false; }
-        _ = RefreshProgressAsync(_progressCancellation.Token);
+        catch (HttpRequestException)
+        {
+            _accountError = "连接中断，请检查网络后重试。";
+        }
+        catch (TaskCanceledException) { if (!_disposed) _accountError = "连接超时，请重试。"; }
+        finally { _isCheckingLoginState = false; _checkingAccount = false; }
     }
 
     private async Task RefreshProgressAsync(CancellationToken cancellationToken)
@@ -269,13 +315,35 @@ else
             {
                 await InvokeAsync(async () =>
                 {
-                    try { await LoadDungeonsAsync(); }
-                    catch { /* Preserve the last valid catalog and retry at the next check. */ }
+                    if (_regions.Count == 0) await ReloadCatalogAsync();
+                    else
+                    {
+                        try { await LoadDungeonsAsync(); }
+                        catch { _catalogError = "挑战信息更新失败，请重新读取。"; }
+                    }
                     if (!_disposed) StateHasChanged();
                 });
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    private async Task ReloadCatalogAsync()
+    {
+        if (_isReloadingCatalog) return;
+        _isReloadingCatalog = true;
+        try
+        {
+            var regions = await ApiService.GetRegionsAsync();
+            if (_disposed) return;
+            if (regions is null || regions.Count == 0) { _catalogError = "地区信息读取失败，请重新读取。"; return; }
+            _regions = regions;
+            if (!_regions.Any(region => region.Code == _selectedRegionCode))
+                _selectedRegionCode = _regions[0].Code;
+            await LoadDungeonsAsync();
+        }
+        catch { if (!_disposed) _catalogError = "挑战信息读取失败，请重新读取。"; }
+        finally { _isReloadingCatalog = false; }
     }
 
     private async Task LoadDungeonsAsync()
@@ -286,10 +354,12 @@ else
         var character = (ActiveCharacters.Current?.CharacterId, ActiveCharacters.Current?.Level);
         var dungeons = await ApiService.GetDungeonsAsync();
         if (_disposed || request != _catalogRequest || context != ApiService.DataRevision) return;
-        if (dungeons is null) return;
+        if (dungeons is null) { _catalogError = "挑战信息读取失败，请重新读取。"; return; }
         _dungeons = dungeons;
+        _catalogError = null;
         _loadedCharacter = character;
         if (!RegionDungeons.Any(dungeon => dungeon.DungeonId == _selectedDungeonId)) SelectRegion(_selectedRegionCode);
+        RestoreRequestedDungeon();
     }
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(async () =>
@@ -309,6 +379,13 @@ else
         _message = null;
     }
 
+    private void SelectRegionFromPicker(string code)
+    {
+        SelectRegion(code);
+        _isRegionPickerOpen = false;
+        _focusRegionPicker = true;
+    }
+
     private async Task LoadRoomsAsync(bool selectInitialTab = false)
     {
         if (_isRefreshing) return;
@@ -320,7 +397,7 @@ else
             if (_disposed) return;
             if (rooms is null) { _roomLoadError = "房间读取失败，请重试。"; return; }
             _rooms = rooms;
-            if (selectInitialTab && CurrentRoomCount > 0) _activeLobbyTab = LobbyTab.Current;
+            if (selectInitialTab && CurrentRoomCount > 0 && !_isCreateDialogOpen) _activeLobbyTab = LobbyTab.Current;
             _pages[_activeLobbyTab] = Math.Clamp(CurrentPage, 1, PageCount);
         }
         catch { _roomLoadError = "连接失败，请稍后刷新房间。"; }
@@ -329,6 +406,7 @@ else
 
     private async Task CreateRoomAsync(CreateRoomRequest options)
     {
+        if (_isLoading) return;
         _isLoading = true;
         _message = null;
         if (options.DungeonId is null || _selectedDungeon is null || options.DungeonId != _selectedDungeon.DungeonId || !_selectedDungeon.CanEnter)
@@ -367,9 +445,24 @@ else
 
     private void SelectDungeon(int dungeonId)
     {
+        _initialDepth = null;
         _selectedDungeonId = dungeonId;
         _message = null;
         _isCreateDialogOpen = _selectedDungeon is not null;
+    }
+
+    private void RestoreRequestedDungeon()
+    {
+        if (_restoredRequestedDungeon || RequestedDungeonId is not > 0 || _dungeons.Count == 0) return;
+        _restoredRequestedDungeon = true;
+        var dungeon = _dungeons.FirstOrDefault(item => item.DungeonId == RequestedDungeonId);
+        if (dungeon is null) return;
+        _activeLobbyTab = LobbyTab.Create;
+        SelectRegion(dungeon.RegionCode);
+        SelectDungeon(dungeon.DungeonId);
+        _initialDepth = RequestedDepth is > 0 ? RequestedDepth : null;
+        var index = FilteredDungeons.ToList().FindIndex(item => item.DungeonId == dungeon.DungeonId);
+        _pages[LobbyTab.Create] = Math.Max(0, index) / PageSize + 1;
     }
 
     private static string DungeonKindName(string kind) => kind switch
@@ -399,6 +492,11 @@ else
         if (_disposed || _isCheckingLoginState) return;
         _reference ??= DotNetObjectReference.Create(this);
         await Js.InvokeVoidAsync("lobbyUi.observe", _root, _list, _reference, _activeLobbyTab.ToString());
+        if (_focusRegionPicker)
+        {
+            _focusRegionPicker = false;
+            await _regionPickerToggle.FocusAsync(preventScroll: true);
+        }
         if (_restoreDungeonFocus)
         {
             _restoreDungeonFocus = false;

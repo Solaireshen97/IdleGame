@@ -22,6 +22,8 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         if (error is not null) return (null, error);
         if (slotIndex < 1 || slotIndex > ConsumableRules.OperationPotionSlotIndex) return (null, "InvalidSlotIndex");
         if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
+        var condition = SkillAutoRules.Normalize(request.AutoConditionOverride);
+        if (!SkillAutoRules.IsValidOverride(condition)) return (null, "InvalidAutoCondition");
 
         var item = request.ItemCode is null ? null : catalog.FindItem(request.ItemCode.Trim());
         if (request.ItemCode is not null && item is null) return (null, "UnknownConsumable");
@@ -49,11 +51,13 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         }
         slotToUpdate.ItemCode = item?.Code;
         slotToUpdate.AutoUseEnabled = item is { Kind: "Healing" or "CombatBuff" } && request.AutoUseEnabled;
+        slotToUpdate.AutoConditionOverride = item is { Kind: "Healing" or "CombatBuff" } ? condition : null;
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
 
         try
         {
+            await StoryProgressService.RefreshAsync(dbContext, characterId, DateTime.UtcNow);
             await dbContext.SaveChangesAsync();
             return (await BuildResponseAsync(character), null);
         }
@@ -70,6 +74,48 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
+    public async Task<(CharacterConsumablesResponse? Response, string? Error)> SetAutoAsync(
+        string? token, int characterId, int slotIndex, SetConsumableAutoRequest request)
+    {
+        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is not null) return (null, error);
+        if (ConsumableRules.SlotMask(slotIndex) == 0) return (null, "InvalidSlotIndex");
+        if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
+        var condition = SkillAutoRules.Normalize(request.AutoConditionOverride);
+        if (!SkillAutoRules.IsValidOverride(condition)) return (null, "InvalidAutoCondition");
+        var target = await dbContext.CharacterConsumableSlots.SingleOrDefaultAsync(slot =>
+            slot.CharacterId == characterId && slot.SlotIndex == slotIndex);
+        if (target is null || catalog.FindItem(target.ItemCode) is not { } item ||
+            !ConsumableRules.CanEquip(slotIndex, item.Kind)) return (null, "NoConsumableEquipped");
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is not null)
+        {
+            if (BattleAutoPolicyResolver.ValidationError(roomSlot) is { } snapshotError) return (null, snapshotError);
+            var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+            if (room is null) return (null, "NotFound");
+            roomSlot.AutoPolicyOverridesJson = BattleAutoPolicyResolver.WithConsumable(roomSlot, slotIndex,
+                request.AutoUseEnabled, condition, request.AutoHpThresholdPercent);
+            room.Version++;
+        }
+        else
+        {
+            target.AutoUseEnabled = request.AutoUseEnabled;
+            target.AutoConditionOverride = condition;
+            target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
+            target.Version++;
+            character!.Version++;
+        }
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            return (await BuildResponseAsync(character!), null);
+        }
+        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
+        {
+            return (null, "ConcurrencyConflict");
+        }
+    }
+
     private async Task<CharacterConsumablesResponse> BuildResponseAsync(Character character)
     {
         var inventory = await dbContext.CharacterItemStacks
@@ -78,12 +124,16 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         var equipped = await dbContext.CharacterConsumableSlots
             .Where(slot => slot.CharacterId == character.Id)
             .ToDictionaryAsync(slot => slot.SlotIndex);
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == character.Id);
+        if (roomSlot is not null)
+            equipped = equipped.ToDictionary(pair => pair.Key, pair => BattleAutoPolicyResolver.Consumable(roomSlot, pair.Value));
 
         return new CharacterConsumablesResponse
         {
             CharacterId = character.Id,
             CharacterName = character.Name,
             HealingPotionUsesLimit = ConsumableRules.HealingPotionUsesPerRun,
+            BuffPotionUsesLimit = ConsumableRules.BuffPotionUsesPerRun,
             Items = catalog.Items.OrderBy(item => item.Code).Select(item => new ConsumableItemResponse
             {
                 Code = item.Code,
@@ -95,16 +145,22 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
                 Tier = item.Tier,
                 Description = ConsumableCatalog.Description(item, character.Level),
                 WeaponSkillCode = item.WeaponSkillCode,
+                DefaultAutoCondition = ConsumableCatalog.DefaultAutoCondition(item),
+                DefaultAutoHpThresholdPercent = ConsumableCatalog.DefaultAutoHpThreshold(item),
                 Quantity = inventory.GetValueOrDefault(item.Code)
             }).ToList(),
             Slots = Enumerable.Range(1, ConsumableRules.OperationPotionSlotIndex).Select(index =>
             {
                 equipped.TryGetValue(index, out var slot);
+                var item = catalog.FindItem(slot?.ItemCode);
                 return new ConsumableSlotResponse
                 {
                     SlotIndex = index,
                     ItemCode = slot?.ItemCode,
                     AutoUseEnabled = slot?.AutoUseEnabled ?? false,
+                    AutoCondition = slot?.AutoConditionOverride ?? ConsumableCatalog.DefaultAutoCondition(item),
+                    DefaultAutoCondition = ConsumableCatalog.DefaultAutoCondition(item),
+                    AutoConditionOverride = slot?.AutoConditionOverride,
                     AutoHpThresholdPercent = slot?.AutoHpThresholdPercent ?? ConsumableRules.DefaultAutoHpThresholdPercent
                 };
             }).ToList()

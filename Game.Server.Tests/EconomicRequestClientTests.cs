@@ -13,6 +13,8 @@ public partial class ApiRequestScopeTests
     [Theory]
     [InlineData("enhance")]
     [InlineData("exchange")]
+    [InlineData("upgrade")]
+    [InlineData("craft")]
     public async Task UncertainEconomicCommandReusesIdUntilSuccessAndThenStartsANewCommand(string command)
     {
         var ids = new List<string>();
@@ -21,13 +23,15 @@ public partial class ApiRequestScopeTests
             using var body = await JsonDocument.ParseAsync(await request.Content!.ReadAsStreamAsync());
             ids.Add(body.RootElement.GetProperty("requestId").GetString()!);
             if (ids.Count == 1) throw new HttpRequestException("response was lost after commit");
-            return command == "enhance" ? Ok(new CharacterWeaponsResponse { CharacterId = 1 }) :
+            return command != "exchange" ? Ok(new CharacterWeaponsResponse { CharacterId = 1 }) :
                 Ok(new DungeonExchangeResultResponse { Shop = new ShopResponse { CharacterId = 1 }, RewardDisplayName = "reward" });
         });
         using var api = new ApiService(client, new UserSessionService(new Storage()));
         async Task Send()
         {
             if (command == "enhance") Assert.NotNull((await api.EnhanceWeaponSkillAsync(1, 2, 1)).Response);
+            else if (command == "upgrade") Assert.NotNull((await api.UpgradeWeaponQualityAsync(1, 2, 3)).Response);
+            else if (command == "craft") Assert.NotNull((await api.CraftWeaponBreakthroughStoneAsync(1, 1, 2)).Response);
             else Assert.NotNull((await api.ExchangeDungeonRewardAsync(1, "offer")).Response);
         }
         await Assert.ThrowsAsync<HttpRequestException>(Send);

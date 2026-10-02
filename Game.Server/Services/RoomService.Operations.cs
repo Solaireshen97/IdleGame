@@ -202,6 +202,8 @@ public partial class RoomService
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return "DungeonNotFound";
         var depthError = await _depthProgress.AdmissionErrorAsync(operation.UserId, dungeon, room.DepthLevel);
+        var storyError = await new CampaignAccessService(dbContext, _depthCatalog).AdmissionErrorAsync(operation.UserId, dungeon);
+        if (storyError is not null) return storyError;
         if (depthError is not null) return depthError;
         if (operation.Kind == RoomOperationKind.Join)
         {
@@ -304,6 +306,7 @@ public partial class RoomService
         "RoomPrivate" => "房主已关闭加入。",
         "CharacterAlreadyInRoom" => "角色正在其他房间或任务中。",
         "DungeonDepthLocked" => "账号尚未开放这个深层等级。",
+        "StoryMapLocked" => "账号尚未完成此地图的前置剧情。",
         "InvalidDungeonDepth" => "这个深层等级暂未开放。",
         "NotOwner" or "NotCharacterOwner" => "已无权执行此操作。",
         "NotRoomParticipant" or "AlreadyInRoom" => "角色的组队状态已变化。",

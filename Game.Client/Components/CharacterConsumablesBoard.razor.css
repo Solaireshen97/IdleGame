@@ -120,3 +120,24 @@
 @media (prefers-reduced-motion: reduce) {
     .supply-loadout, .inventory-item { transition: none; }
 }
+.consumables-board__warehouse-link { color: #91a9b8; font-size: .76rem; line-height: 1.7; padding: .7rem 0; }
+.consumables-board__warehouse-link a { color: #debc80; }
+
+/* The three equipped slots are the primary view; rules open when needed. */
+.consumables-board { padding: .75rem; }
+.consumables-board__header { min-height: 44px; margin-bottom: .6rem; padding-bottom: .5rem; gap: .5rem; }
+.consumables-board h2 { margin: 0; font-size: 1.1rem; letter-spacing: 0; }
+.consumables-board__header-tools { display: flex; align-items: center; gap: .6rem; }
+.consumables-board__header button { min-width: 44px; min-height: 44px; padding-inline: .6rem; font-size: .75rem; }
+.consumables-board__loadout { gap: .5rem; }
+.supply-loadout__heading { padding-block: .3rem; }
+.supply-loadout__main { padding: .5rem .65rem; gap: .6rem; }
+.supply-loadout__body { gap: .2rem; }
+.consumables-board__tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .5rem; margin-top: .5rem; }
+.consumables-board__tools > a, .consumables-board__rules > summary { display: flex; align-items: center; min-height: 44px; color: #debc80; font-size: .78rem; text-decoration: none; cursor: pointer; }
+.consumables-board__tools > a { padding-inline: .5rem; }
+.consumables-board__rules > summary { list-style: none; }
+.consumables-board__rules > summary::-webkit-details-marker { display: none; }
+.consumables-board__rules[open] { grid-column: 1 / -1; }
+.consumables-board__rules p { margin: .3rem 0 .6rem; color: #a9bfce; font-size: .78rem; line-height: 1.6; }
+.consumables-board__tools > a:focus-visible, .consumables-board__rules > summary:focus-visible { outline: 2px solid #e3ba72; outline-offset: 2px; border-radius: .35rem; }

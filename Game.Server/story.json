@@ -1,0 +1,391 @@
+{
+  "Story": {
+    "MapNodes": [
+      {
+        "Description": "幼狼闯入农场，驿站的第一份巡查委托。",
+        "Name": "农场外围",
+        "DungeonCode": "northshire-wolves",
+        "RegionCode": "elwynn",
+        "IsPreview": true,
+        "Code": "northshire-wolves",
+        "RequiredQuestCode": "ch01-01"
+      },
+      {
+        "Description": "受惊的野猪阻挡货车，路旁留着翻倒的运矿车。",
+        "Name": "旧商路",
+        "DungeonCode": "stone-tusk-boars",
+        "RegionCode": "elwynn",
+        "IsPreview": true,
+        "Code": "stone-tusk-boars",
+        "RequiredQuestCode": "ch01-06"
+      },
+      {
+        "Description": "停工矿道再次亮起灯火，采掘者仍在挖掘。",
+        "Name": "废弃矿道口",
+        "DungeonCode": "kobold-miners",
+        "RegionCode": "elwynn",
+        "IsPreview": true,
+        "Code": "kobold-miners",
+        "RequiredQuestCode": "ch01-08"
+      },
+      {
+        "Description": "连续守卫之后，砾牙矿主收集着异常晶核。",
+        "Name": "烛井矿窟",
+        "DungeonCode": "kobold-mine",
+        "RegionCode": "elwynn",
+        "IsPreview": true,
+        "Code": "kobold-mine",
+        "RequiredQuestCode": "ch01-10"
+      },
+      {
+        "Description": "本地深层调查入口；仍需满足普通本首通、精通及深层资格。",
+        "Name": "矿窟深处",
+        "DungeonCode": "kobold-mine-depths",
+        "RegionCode": "elwynn",
+        "IsPreview": true,
+        "Code": "kobold-mine-depths",
+        "RequiredQuestCode": "ch01-11"
+      },
+      {
+        "Description": "远方求援带来的新路线。后续章节委托仍在筹备。",
+        "Name": "长风原野起始路线",
+        "DungeonCode": "mulgore-plainstrider-chick",
+        "RegionCode": "mulgore",
+        "IsPreview": true,
+        "Code": "mulgore-plainstrider-chick",
+        "RequiredQuestCode": "ch01-12"
+      },
+      {
+        "Description": "冻结泉水的消息指向雪境。后续章节委托仍在筹备。",
+        "Name": "雾凇雪境起始路线",
+        "DungeonCode": "dun-morogh-snow-hare",
+        "RegionCode": "dun-morogh",
+        "IsPreview": true,
+        "Code": "dun-morogh-snow-hare",
+        "RequiredQuestCode": "ch01-12"
+      }
+    ],
+    "Quests": [
+      {
+        "RewardGold": 0,
+        "NextQuestCode": "ch01-02",
+        "TargetCode": "",
+        "StartDialogue": "你就是今天到的冒险者？这里没有轻松的活，但每份委托都有报酬。先在名册上留下名字吧。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "你随最后一辆货车来到林间驿站。向洛恩登记，接下第一份委托。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-01",
+        "Destination": "/story",
+        "ChapterCode": "ch01",
+        "Name": "无名的来客",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 1,
+        "Rewards": [],
+        "ObjectiveType": "Dialogue",
+        "UnlockMapNodeCodes": [
+          "northshire-wolves"
+        ],
+        "TurnInDialogue": "登记好了。农场外有几只幼狼咬破了粮袋，替我赶走它们；别追进陌生的树林。"
+      },
+      {
+        "RewardGold": 20,
+        "NextQuestCode": "ch01-03",
+        "TargetCode": "northshire-wolves",
+        "StartDialogue": "农场外有几只幼狼，昨夜咬破了货车上的粮袋。先替我赶走它们，报酬不会少你。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "清理农场外的幼狼，让货车能够继续卸货。有效参与并通关岩芽幼狼讨伐一次。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-02",
+        "Destination": "/rooms?dungeonCode=northshire-wolves",
+        "ChapterCode": "ch01",
+        "Name": "农场外的动静",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 2,
+        "Rewards": [
+          {
+            "Code": "weapon-fragment-t1",
+            "Quantity": 2
+          }
+        ],
+        "ObjectiveType": "DungeonClear",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "这是说好的报酬。它们以前很少靠近农场……矿道那边一直有敲击声？我会让人去查。先找布兰看看战利品。"
+      },
+      {
+        "RewardGold": 10,
+        "NextQuestCode": "ch01-04",
+        "TargetCode": "",
+        "StartDialogue": "先把武器拿来。冒险者挣到的第一笔钱，最好花在能让自己活着回来的东西上。看看属性，选个合适的位置。",
+        "StartNpcCode": "bran",
+        "Revision": 1,
+        "Summary": "将首猎得到的武器装入武器盘任意合法位置。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-03",
+        "Destination": "/inventory",
+        "ChapterCode": "ch01",
+        "Name": "比练习武器好一些",
+        "TurnInNpcCode": "bran",
+        "RequiredCount": 1,
+        "Order": 3,
+        "Rewards": [],
+        "ObjectiveType": "EquipLootWeapon",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "这样顺手多了。不同武器带着不同技能，别只盯着主手；接下来把常用技能打磨一下。"
+      },
+      {
+        "RewardGold": 0,
+        "NextQuestCode": "ch01-05",
+        "TargetCode": "",
+        "StartDialogue": "用那两枚强化碎片打磨常用武器的技能，二级就够。出发前多准备一点，总比受伤后后悔强。",
+        "StartNpcCode": "bran",
+        "Revision": 1,
+        "Summary": "让任意武器技能达到二级。前一份委托的两枚强化碎片足够完成第一次打磨。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-04",
+        "Destination": "/weapons",
+        "ChapterCode": "ch01",
+        "Name": "出发前磨一磨",
+        "TurnInNpcCode": "bran",
+        "RequiredCount": 2,
+        "Order": 4,
+        "Rewards": [
+          {
+            "Code": "seed-peacebloom",
+            "Quantity": 1
+          }
+        ],
+        "ObjectiveType": "WeaponSkillLevel",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "手艺不错。拿这颗宁神花种子去找米娅，她正在为下一批伤员备药。"
+      },
+      {
+        "RewardGold": 0,
+        "NextQuestCode": "ch01-06",
+        "TargetCode": "peacebloom",
+        "StartDialogue": "这块药圃交给你。种下宁神花，四小时后回来看看；现在配药用的草药，我会另给你两株。",
+        "StartNpcCode": "mia",
+        "Revision": 1,
+        "Summary": "成功种下一块宁神花，建立下一次出征的补给来源。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-05",
+        "Destination": "/planting",
+        "ChapterCode": "ch01",
+        "Name": "给下一次出征留些准备",
+        "TurnInNpcCode": "mia",
+        "RequiredCount": 1,
+        "Order": 5,
+        "Rewards": [
+          {
+            "Code": "peacebloom",
+            "Quantity": 2
+          }
+        ],
+        "ObjectiveType": "Plant",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "种得很好。作物慢慢长，不用在这里等。这两株晒好的宁神花先拿着，我教你做第一瓶备用药。"
+      },
+      {
+        "RewardGold": 10,
+        "NextQuestCode": "ch01-07",
+        "TargetCode": "minor-healing-potion",
+        "StartDialogue": "用刚给你的两株宁神花制作一瓶治疗药水，再给自己装备上。把它留作备用，不需要为了练习故意受伤。",
+        "StartNpcCode": "mia",
+        "Revision": 1,
+        "Summary": "制作一瓶治疗药水，让同一教学角色装备它并保有至少一瓶库存。",
+        "ActorPolicy": "TutorialCharacter",
+        "Code": "ch01-06",
+        "Destination": "/production",
+        "ChapterCode": "ch01",
+        "Name": "第一瓶备用药",
+        "TurnInNpcCode": "mia",
+        "RequiredCount": 1,
+        "Order": 6,
+        "Rewards": [],
+        "ObjectiveType": "ProduceAndEquipPotion",
+        "UnlockMapNodeCodes": [
+          "stone-tusk-boars"
+        ],
+        "TurnInDialogue": "补给备好了。洛恩收到旧商路的消息：野猪挡住了车队。带上药水去巡查吧。"
+      },
+      {
+        "RewardGold": 30,
+        "NextQuestCode": "ch01-08",
+        "TargetCode": "stone-tusk-boars",
+        "StartDialogue": "车队说野猪冲上了旧商路，像是在逃开什么。清理道路，看看附近有什么不寻常的东西。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "有效参与并通关岩牙野猪讨伐一次，查清旧商路受阻的缘由。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-07",
+        "Destination": "/rooms?dungeonCode=stone-tusk-boars",
+        "ChapterCode": "ch01",
+        "Name": "受惊的兽群",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 7,
+        "Rewards": [
+          {
+            "Code": "weapon-fragment-t1",
+            "Quantity": 2
+          }
+        ],
+        "ObjectiveType": "DungeonClear",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "运矿车翻倒在那里？这块矿石还带着震动。把车上的印记带给布兰，他也许知道是谁运来的。"
+      },
+      {
+        "RewardGold": 0,
+        "NextQuestCode": "ch01-09",
+        "TargetCode": "",
+        "StartDialogue": "这道印记……是烛井矿窟的。那边明明停工很久了，你还看到有人使用的灯火吗？",
+        "StartNpcCode": "bran",
+        "Revision": 1,
+        "Summary": "向布兰报告运矿车的印记，确认矿石的来处。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-08",
+        "Destination": "/story",
+        "ChapterCode": "ch01",
+        "Name": "矿车上的印记",
+        "TurnInNpcCode": "bran",
+        "RequiredCount": 1,
+        "Order": 8,
+        "Rewards": [],
+        "ObjectiveType": "Dialogue",
+        "UnlockMapNodeCodes": [
+          "kobold-miners"
+        ],
+        "TurnInDialogue": "看来有人重新开采了。废弃矿道口就在前方，去确认矿工们在挖什么；小心灯火后面的守卫。"
+      },
+      {
+        "RewardGold": 40,
+        "NextQuestCode": "ch01-10",
+        "TargetCode": "kobold-miners",
+        "StartDialogue": "布兰确认了矿车来源。请去矿道口查一查；如果他们仍在开采，把能说明情况的记录带回来。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "有效参与并通关烛矿采掘者讨伐一次，调查矿道口。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-09",
+        "Destination": "/rooms?dungeonCode=kobold-miners",
+        "ChapterCode": "ch01",
+        "Name": "停工的矿道为何仍有灯火",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 9,
+        "Rewards": [
+          {
+            "Code": "weapon-fragment-t1",
+            "Quantity": 2
+          }
+        ],
+        "ObjectiveType": "DungeonClear",
+        "UnlockMapNodeCodes": [],
+        "TurnInDialogue": "采掘记录说，砾牙矿主正在收集会引起震动的晶核。难怪附近的野兽不断逃离。我们得阻止他。"
+      },
+      {
+        "RewardGold": 0,
+        "NextQuestCode": "ch01-11",
+        "TargetCode": "",
+        "StartDialogue": "矿窟推荐十级，里面有连续守卫。请主动保存好编队，检查武器与药水；可以和其他冒险者协作，也能先回刷养成。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "主动保存一套合法编队，为连续守卫和矿主做好远征准备。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-10",
+        "Destination": "/formations",
+        "ChapterCode": "ch01",
+        "Name": "矿窟里的敌人",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 10,
+        "Rewards": [],
+        "ObjectiveType": "FormationSaved",
+        "UnlockMapNodeCodes": [
+          "kobold-mine"
+        ],
+        "TurnInDialogue": "编队已准备妥当。烛井矿窟的路线标在地图上了；一次失败不会丢掉线索，准备充足再挑战矿主。"
+      },
+      {
+        "RewardGold": 80,
+        "NextQuestCode": "ch01-12",
+        "TargetCode": "kobold-mine",
+        "StartDialogue": "砾牙矿主就在矿窟尽头。阻止他继续开采晶核，让商路和农场恢复平静。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "有效参与并通关烛井矿窟，阻止砾牙矿主继续开采。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-11",
+        "Destination": "/rooms?dungeonCode=kobold-mine",
+        "ChapterCode": "ch01",
+        "Name": "熄灭矿窟的灯",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 11,
+        "Rewards": [
+          {
+            "Code": "weapon-fragment-t1",
+            "Quantity": 4
+          }
+        ],
+        "ObjectiveType": "DungeonClear",
+        "UnlockMapNodeCodes": [
+          "kobold-mine-depths"
+        ],
+        "TurnInDialogue": "矿窟终于安静下来了。这是驿站给你的报酬。深处还有未查明的震动，继续调查要遵守原有深层资格。"
+      },
+      {
+        "RewardGold": 0,
+        "NextQuestCode": null,
+        "TargetCode": "",
+        "StartDialogue": "一封来自长风原野的信说，信使失联了；另一封来自雾凇雪境，提到不会融化的泉水。看来异响不只发生在这里。",
+        "StartNpcCode": "lorn",
+        "Revision": 1,
+        "Summary": "阅读远方来信和章节收尾，发现长风原野与雾凇雪境的起始路线。",
+        "ActorPolicy": "AnyOwnedCharacter",
+        "Code": "ch01-12",
+        "Destination": "/story",
+        "ChapterCode": "ch01",
+        "Name": "来自远方的求援",
+        "TurnInNpcCode": "lorn",
+        "RequiredCount": 1,
+        "Order": 12,
+        "Rewards": [],
+        "ObjectiveType": "Dialogue",
+        "UnlockMapNodeCodes": [
+          "mulgore-plainstrider-chick",
+          "dun-morogh-snow-hare"
+        ],
+        "TurnInDialogue": "你为林地争取了平静。长风和雪境的起始路线已标出，新的章节委托仍在筹备；也可以继续调查本地矿窟深处。"
+      }
+    ],
+    "Chapters": [
+      {
+        "LastQuestCode": "ch01-12",
+        "Name": "林地传来的异响",
+        "Code": "ch01",
+        "FirstQuestCode": "ch01-01"
+      }
+    ],
+    "Npcs": [
+      {
+        "Description": "务实的驿站负责人，关心每位出行者能否平安归来。",
+        "Name": "洛恩",
+        "Code": "lorn"
+      },
+      {
+        "Description": "直率的铁匠，从战利品与金属痕迹中辨认矿区线索。",
+        "Name": "布兰",
+        "Code": "bran"
+      },
+      {
+        "Description": "照顾伤员、管理药圃的药师，帮助冒险者建立补给。",
+        "Name": "米娅",
+        "Code": "mia"
+      }
+    ]
+  }
+}

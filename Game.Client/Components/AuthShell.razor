@@ -11,9 +11,9 @@
 
     <main class="auth-card" aria-busy="@(IsChecking ? "true" : "false")">
         <header class="auth-card__heading">
-            <span>@Kicker</span>
+            @if (!string.IsNullOrWhiteSpace(Kicker)) { <span>@Kicker</span> }
             <h1>@Title</h1>
-            <p>@Description</p>
+            @if (!string.IsNullOrWhiteSpace(Description)) { <p>@Description</p> }
         </header>
 
         @if (IsChecking)
@@ -22,6 +22,13 @@
                 <span aria-hidden="true"></span>
                 <strong>正在确认冒险记录</strong>
                 <small>请稍候，即将进入游戏。</small>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(RecoveryError))
+        {
+            <div class="auth-form">
+                <p class="auth-form__error" role="alert">@RecoveryError</p>
+                <button type="button" class="auth-form__submit" @onclick="OnRetry"><span>重新确认登录</span><span aria-hidden="true">↻</span></button>
             </div>
         }
         else
@@ -33,7 +40,7 @@
 
                 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
                 {
-                    <p class="auth-form__error" role="alert"><span aria-hidden="true">!</span>@ErrorMessage</p>
+                    <p class="auth-form__error" role="alert"><span aria-hidden="true">!</span>@FriendlyErrorMessage</p>
                 }
 
                 <button type="submit" class="auth-form__submit" disabled="@IsSubmitting">
@@ -64,8 +71,22 @@
     [Parameter] public bool IsChecking { get; set; }
     [Parameter] public bool IsSubmitting { get; set; }
     [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public string? RecoveryError { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string? FriendlyErrorMessage => ErrorMessage?.Trim().Trim('"') switch
+    {
+        "UserName cannot be empty." => "请输入用户名。",
+        "Password cannot be empty." => "请输入密码。",
+        "UserName already exists." => "这个用户名已被使用，请换一个。",
+        "Invalid user name or password." => "用户名或密码不正确，请重新输入。",
+        "Registration failed." => "注册失败，请稍后重试。",
+        "Login failed." => "登录失败，请稍后重试。",
+        "Request body is required." => "请填写用户名和密码。",
+        _ => ErrorMessage
+    };
 
     private Task SubmitAsync() => IsSubmitting ? Task.CompletedTask : OnSubmit.InvokeAsync();
 }

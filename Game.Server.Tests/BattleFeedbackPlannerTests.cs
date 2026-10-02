@@ -32,6 +32,7 @@ public class BattleFeedbackPlannerTests
     [InlineData("KNIGHT", "slash")]
     [InlineData("mage", "magic")]
     [InlineData("ACOLYTE", "holy")]
+    [InlineData("CLERIC", "holy")]
     [InlineData("HUNTER", "arrow")]
     [InlineData("ROGUE", "dagger")]
     [InlineData("future-role", "slash")]
@@ -196,6 +197,40 @@ public class BattleFeedbackPlannerTests
         var plan = BattleFeedbackPlanner.Create(Room(0), after)!;
         Assert.Equal(new[] { "2", "1", "2" }, plan.Events.Select(e => e.Target)); Assert.Equal(4, plan.Events[0].Amount);
         Assert.Equal(100, plan.Events[0].HpAfter); Assert.Equal(0, plan.HitCount);
+    }
+
+    [Fact]
+    public void SkillArtUsesFrozenCodesAndSharesWindupWithoutMergingFlurryHits()
+    {
+        var after = Room(1);
+        Add(after, Hit(1, Enemy, 10) with { SkillCode = "rogue-blade-flurry", Source = Actor(1, "ROGUE") },
+            Hit(0, Actor(1), 3) with { Source = Enemy, ActionKind = BattleActionKind.Counter },
+            Hit(1, Enemy, 11) with { SkillCode = "rogue-blade-flurry", Source = Actor(1, "ROGUE") },
+            Hit(1, Enemy, 12) with { SkillCode = "rogue-blade-flurry", Source = Actor(1, "ROGUE") });
+        var plan = BattleFeedbackPlanner.Create(Room(0), after)!;
+        var hits = plan.Events.Where(e => e.Source == "1").ToList();
+        Assert.Equal(3, hits.Count); Assert.Equal(33, plan.TotalDamage); Assert.Equal(3, plan.HitCount);
+        Assert.Single(hits.Select(e => e.CastKey).Distinct());
+        Assert.All(hits, e => { Assert.Equal("rogue-blade-flurry", e.SkillCode); Assert.Equal("ROGUE", e.ProfessionCode); Assert.NotNull(e.CastKey); });
+        Assert.Null(plan.Events[1].CastKey);
+    }
+
+    [Fact]
+    public void GroupUtilityKeepsEveryTargetButPeriodicAndConsumedFactsDoNotRecast()
+    {
+        var after = Room(1);
+        Add(after, new() { Kind = BattleEventKind.Status, Source = Actor(1), Target = Actor(1), SkillCode = "knight-faith-barrier", Status = State(1) with { EffectType = "Guard" }, StatusChange = BattleStatusChange.Added },
+            new() { Kind = BattleEventKind.Status, Source = Actor(1), Target = Actor(2), SkillCode = "knight-faith-barrier", Status = State(1) with { EffectType = "Guard" }, StatusChange = BattleStatusChange.Added },
+            new() { Kind = BattleEventKind.Status, Source = Actor(1), Target = Actor(1), SkillCode = "knight-faith-barrier", Status = State(1), StatusChange = BattleStatusChange.Consumed },
+            new() { Kind = BattleEventKind.Heal, Source = Actor(2, "CLERIC"), Target = Actor(1), SkillCode = "acolyte-group-heal", ActualAmount = 5 },
+            new() { Kind = BattleEventKind.Heal, Source = Actor(2, "CLERIC"), Target = Actor(2), SkillCode = "acolyte-group-heal", ActualAmount = 6 },
+            new() { Kind = BattleEventKind.Heal, Source = Actor(2, "CLERIC"), Target = Actor(1), SkillCode = "acolyte-group-heal", ActualAmount = 2, ActionKind = BattleActionKind.Periodic });
+        var events = BattleFeedbackPlanner.Create(Room(0), after)!.Events;
+        Assert.Equal(events[0].CastKey, events[1].CastKey); Assert.NotNull(events[0].CastKey);
+        Assert.Equal("Guard", events[0].StatusEffectType); Assert.NotEqual(events[0].Target, events[1].Target);
+        Assert.Equal(events[3].CastKey, events[4].CastKey); Assert.True(events[3].IsSkill);
+        Assert.False(events[2].IsSkill); Assert.Null(events[2].CastKey);
+        Assert.False(events[5].IsSkill); Assert.Null(events[5].CastKey);
     }
 
     private static BattleEventActor Actor(int id, string code = "SWORDSMAN") => new("Character", id, id, "同名", code);

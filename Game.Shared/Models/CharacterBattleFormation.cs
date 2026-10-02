@@ -38,7 +38,8 @@ public sealed class FormationConsumableSlot
     public int SlotIndex { get; set; }
     public string? ItemCode { get; set; }
     public bool AutoUseEnabled { get; set; }
-    public int AutoHpThresholdPercent { get; set; } = 50;
+    public string? AutoConditionOverride { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = ConsumableRules.DefaultAutoHpThresholdPercent;
 }
 public sealed class CharacterFormationState
 {

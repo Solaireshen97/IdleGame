@@ -31,6 +31,10 @@ public static class BattleFeedbackPlanner
             if (fact.ActionKind == BattleActionKind.FollowUp && fact.SkillCode == "normal-echo")
                 current = current with { IsFollowUp = previous is { Kind: "damage", ActionKind: BattleActionKind.NormalAttack } &&
                     previous.Source.Length > 0 && previous.Source == current.Source && previous.Target == current.Target };
+            // A queued skill has one windup per actor and round, even when
+            // counter/status facts interleave its targets. Never merge its hits.
+            if (current.IsSkill && current.Source.Length > 0 && current.SkillCode is not null)
+                current = current with { CastKey = $"{after.RoundNumber}:{current.Source}:{(int)current.ActionKind}:{current.SkillCode}" };
             events.Add(current);
         }
         if (events.Count == 0) return null;
@@ -77,13 +81,16 @@ public static class BattleFeedbackPlanner
         { "heal" or "cleanse" => "heal", "buff" or "dispel" or "interrupt" or "cooldown" => "light", "debuff" => "dark", _ => "neutral" };
         var style = !numeric || fact.Kind == BattleEventKind.Heal || source.Length == 0 || fact.ActionKind == BattleActionKind.Periodic
             ? "pulse" : fact.ActionKind == BattleActionKind.SoulImprint ? "magic" : fact.Source?.ProfessionCode?.ToUpperInvariant() switch
-            { "MAGE" => "magic", "ACOLYTE" => "holy", "HUNTER" => "arrow", "ROGUE" => "dagger", _ => "slash" };
+            { "MAGE" => "magic", "ACOLYTE" or "CLERIC" => "holy", "HUNTER" => "arrow", "ROGUE" => "dagger", _ => "slash" };
         var suffix = fact.StatusChange switch
         { BattleStatusChange.Consumed => " · 消耗", BattleStatusChange.Removed => " · 移除", BattleStatusChange.Expired => " · 到期", BattleStatusChange.Retained => " · 保留", _ => "" };
         return new(source, target, numeric ? fact.ActualAmount : 0, kind, style, tone, fact.Label + suffix,
             fact.Kind == BattleEventKind.Damage && fact.IsCritical, (int)decimal.Round(fact.ElementModifier),
-            ActionKind: fact.ActionKind, IsSkill: fact.Kind == BattleEventKind.Damage && fact.ActionKind is BattleActionKind.Skill or BattleActionKind.SoulImprint,
-            HpAfter: fact.HpAfter, TargetMaxHp: fact.TargetMaxHp, Status: status, StatusChange: fact.StatusChange?.ToString(), CountAfter: fact.CountAfter);
+            ActionKind: fact.ActionKind, IsSkill: fact.ActionKind is BattleActionKind.Skill or BattleActionKind.SoulImprint &&
+                (numeric || fact.Kind is BattleEventKind.Cleanse or BattleEventKind.Dispel or BattleEventKind.Interrupt or BattleEventKind.Cooldown ||
+                    fact.Kind == BattleEventKind.Status && fact.StatusChange is BattleStatusChange.Added or BattleStatusChange.Refreshed),
+            HpAfter: fact.HpAfter, TargetMaxHp: fact.TargetMaxHp, Status: status, StatusChange: fact.StatusChange?.ToString(), CountAfter: fact.CountAfter,
+            SkillCode: fact.SkillCode, ProfessionCode: fact.Source?.ProfessionCode, StatusEffectType: fact.Status?.EffectType);
     }
 }
 
@@ -98,7 +105,8 @@ public sealed record BattleFeedbackStatus(string Code, string Name, string Descr
 public sealed record BattleFeedbackEvent(string Source, string Target, int Amount, string Kind,
     string Style, string Tone, string Label, bool Critical, int ElementModifierPercent = 0, bool IsFollowUp = false,
     BattleActionKind ActionKind = BattleActionKind.Skill, bool IsSkill = false, int? HpAfter = null, int? TargetMaxHp = null,
-    BattleFeedbackStatus? Status = null, string? StatusChange = null, int? CountAfter = null);
+    BattleFeedbackStatus? Status = null, string? StatusChange = null, int? CountAfter = null,
+    string? SkillCode = null, string? ProfessionCode = null, string? StatusEffectType = null, string? CastKey = null);
 public sealed record BattleFeedbackVitals(int Hp, int MaxHp);
 public sealed record BattleFeedbackPlan(int Round, List<BattleFeedbackEvent> Events,
     Dictionary<string, BattleFeedbackVitals> FinalVitals, bool Defeated, bool Victory,

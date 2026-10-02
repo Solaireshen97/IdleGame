@@ -18,6 +18,7 @@ public partial class ApiService : IDisposable
     public long SessionRevision => userSessionService.Revision;
     public long CharacterSelectionRevision { get; private set; }
     public event Action? ContextChanged;
+    public event Action<int>? InventoryChanged;
 
     public ApiService(HttpClient httpClient, UserSessionService userSessionService)
     {
@@ -29,6 +30,7 @@ public partial class ApiService : IDisposable
     private void ChangeSessionContext()
     {
         _pendingEconomicRequests.Clear();
+        _pendingInventoryPreviews.Clear();
         ChangeContext();
     }
     private void ChangeCharacterSelection()
@@ -90,7 +92,9 @@ public partial class ApiService : IDisposable
         var mutation = request.Method != HttpMethod.Get && request.Method != HttpMethod.Head;
         var path = request.RequestUri?.OriginalString ?? "";
         // Polling is authoritative state synchronization, not a cache-invalidating user command.
-        var invalidates = mutation && path is not ("api/battle/sync" or "api/battle/snapshot");
+        var invalidates = mutation && path is not ("api/battle/sync" or "api/battle/snapshot") &&
+            !path.Contains("/inventory/actions/preview", StringComparison.Ordinal) &&
+            !path.Contains("/formations/preview", StringComparison.Ordinal);
         if (invalidates) _queries.Invalidate();
         var response = await httpClient.SendAsync(request, cancellationToken);
         response.RequestMessage ??= request;
@@ -105,6 +109,7 @@ public partial class ApiService : IDisposable
         else if (invalidates && response.IsSuccessStatusCode)
         {
             _queries.Invalidate();
+            await NotifyInventoryMutationAsync(request, response);
             if (path == "api/user/character/select" || path == "api/user/characters" ||
                 request.Method == HttpMethod.Delete && path.StartsWith("api/user/characters/", StringComparison.Ordinal))
                 ChangeCharacterSelection();
@@ -123,7 +128,7 @@ public partial class ApiService : IDisposable
 
     // Room requests carry their own room/slot/character IDs. A change of the
     // globally selected character does not change the command's ownership.
-    private enum ApiRequestScope { CurrentCharacter, Account, Room }
+    private enum ApiRequestScope { CurrentCharacter, Account, Room, ExplicitCharacter }
 
     private bool IsRequestContextCurrent(HttpRequestMessage request)
     {
@@ -141,15 +146,16 @@ public partial class ApiService : IDisposable
     };
 
     private async Task<(T? Response, string? ErrorMessage)> ReadCachedResultAsync<T>(string key,
-        Func<Task<(T? Response, string? ErrorMessage)>> read) where T : class
+        Func<Task<(T? Response, string? ErrorMessage)>> read, bool forceRefresh = false) where T : class
     {
+        if (forceRefresh) _queries.Invalidate(key);
         string? error = null;
         var result = await ReadCachedAsync(key, async () =>
         {
             var response = await read();
             error = response.ErrorMessage;
             return response.Response;
-        });
+        }, forceRefresh);
         return (result, result is null ? error ?? "数据暂时无法读取，请重试。" : null);
     }
 

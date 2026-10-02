@@ -32,6 +32,7 @@ public sealed class EntryDungeonIntegrationTests
         var combat = new MonsterCombatCatalog(Bind<MonsterCombatOptions>(MonsterCombatOptions.SectionName));
         var depths = new DungeonDepthCatalog(Bind<DungeonDepthOptions>(DungeonDepthOptions.SectionName));
         var parties = new PartyScalingCatalog(Bind<PartyScalingOptions>(PartyScalingOptions.SectionName));
+        var planting = new PlantingCatalog(Bind<PlantingOptions>(PlantingOptions.SectionName));
         var encounters = new DungeonEncounterCatalog(Bind<DungeonEncounterOptions>(DungeonEncounterOptions.SectionName),
             combat, rewards, depths);
         var world = WorldCatalog.LoadDefault();
@@ -51,21 +52,21 @@ public sealed class EntryDungeonIntegrationTests
             new User { Id = 2, UserName = "spectator", PasswordHash = "x", ActiveCharacterId = 3 },
             survivor, fallen, spectator, dungeon, deep);
         await db.SaveChangesAsync();
-        var rules = new DungeonRunRulesService(db, combat, rewards, parties, depths, encounters: encounters);
+        var rules = new DungeonRunRulesService(db, combat, rewards, parties, depths, plants: planting, encounters: encounters);
         var progress = new DungeonDepthProgressService(db, depths, rules);
         var rewardService = new RewardService(db, rewards, ProgressionTestFactory.Create(), depthProgress: progress, runRules: rules);
-        var runs = new DungeonRunService(db, rewardService, depthProgress: progress, runRules: rules);
+        var runs = new DungeonRunService(db, rewardService, rareSeeds: new RareSeedService(db, planting, rules), depthProgress: progress, runRules: rules);
         var participants = new[] { new RewardParticipant(1, survivor), new RewardParticipant(1, fallen), new RewardParticipant(2, spectator) };
         Assert.Equal("DungeonDepthLocked", await progress.AdmissionErrorAsync(1, deep, 1));
 
         var first = await RunAsync(4, dieBeforeBoss: true);
-        Assert.Equal((300, 275, 0), (survivor.Gold, fallen.Gold, spectator.Gold));
+        Assert.Equal((130, 105, 0), (survivor.Gold, fallen.Gold, spectator.Gold));
         Assert.Equal(250, await db.RewardEntries.Where(entry => entry.RoomId == first.Id && entry.CharacterId == 1 && entry.Kind == "Experience")
             .SumAsync(entry => entry.Quantity));
         foreach (var characterId in new[] { 1, 2 })
         {
             Assert.Equal(32, (await db.CharacterItemStacks.SingleAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "weapon-fragment-t1")).Quantity);
-            Assert.Equal(4, (await db.CharacterItemStacks.SingleAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "minor-healing-potion")).Quantity);
+            Assert.False(await db.CharacterItemStacks.AnyAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "minor-healing-potion"));
             Assert.True(await db.CharacterBattleMilestones.AnyAsync(milestone => milestone.CharacterId == characterId &&
                 milestone.Kind == BattleMilestoneService.DungeonClearKind && milestone.TargetCode == code));
         }
@@ -75,14 +76,16 @@ public sealed class EntryDungeonIntegrationTests
         Assert.Equal("DungeonDepthLocked", await progress.AdmissionErrorAsync(1, deep, 2));
 
         var repeat = await RunAsync(4, dieBeforeBoss: false);
-        Assert.Equal((500, 475, 0), (survivor.Gold, fallen.Gold, spectator.Gold));
+        Assert.Equal((220, 195, 0), (survivor.Gold, fallen.Gold, spectator.Gold));
         Assert.False(await db.RewardEntries.AnyAsync(entry => entry.RoomId == repeat.Id && entry.EventKey == "first-clear"));
         foreach (var characterId in new[] { 1, 2 })
         {
             Assert.Equal(44, (await db.CharacterItemStacks.SingleAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "weapon-fragment-t1")).Quantity);
-            Assert.Equal(5, (await db.CharacterItemStacks.SingleAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "minor-healing-potion")).Quantity);
+            Assert.False(await db.CharacterItemStacks.AnyAsync(stack => stack.CharacterId == characterId && stack.ItemCode == "minor-healing-potion"));
         }
         Assert.Single(await db.UserDungeonClears.ToListAsync());
+        Assert.False(await db.RewardEntries.AnyAsync(entry => entry.Kind == "Consumable"));
+        Assert.False(await db.RewardEntries.AnyAsync(entry => entry.Code.StartsWith("seed-")));
 
         var failed = await RunAsync(3, dieBeforeBoss: false);
         Assert.Equal(45, await db.RewardEntries.Where(entry => entry.RoomId == failed.Id && entry.CharacterId == 1 && entry.Kind == "Gold")

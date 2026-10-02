@@ -60,7 +60,7 @@ public sealed class SoulImprintController(SoulImprintService soulImprints) : Con
         "Unauthorized" => Unauthorized(error),
         "CharacterNotFound" or "SoulImprintNotOwned" => NotFound(error),
         "NotOwner" => StatusCode(StatusCodes.Status403Forbidden, error),
-        "LoadoutLocked" or "ConcurrencyConflict" or "SoulImprintEquipped" or "SoulImprintLocked" => Conflict(error),
+        "LoadoutLocked" or "ConcurrencyConflict" or "SoulImprintEquipped" or "SoulImprintLocked" or "InventoryPreviewChanged" or "InventoryFull" => Conflict(error),
         _ => BadRequest(error)
     };
 }

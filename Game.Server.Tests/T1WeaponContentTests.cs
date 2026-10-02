@@ -109,12 +109,12 @@ public sealed class T1WeaponContentTests
     }
 
     [Theory]
-    [InlineData("swordsman", "t1-shop-fire", ElementType.Fire)]
-    [InlineData("acolyte", "t1-shop-light", ElementType.Light)]
-    [InlineData("mage", "t1-shop-water", ElementType.Water)]
-    [InlineData("hunter", "t1-shop-wind", ElementType.Wind)]
-    [InlineData("rogue", "t1-shop-dark", ElementType.Dark)]
-    public void BaseProfessionsReceiveMatchingShopWeaponsAsStarters(string professionCode, string weaponCode,
+    [InlineData("swordsman", "t1-shop-earth", ElementType.Earth)]
+    [InlineData("acolyte", "t1-shop-earth", ElementType.Earth)]
+    [InlineData("mage", "t1-shop-earth", ElementType.Earth)]
+    [InlineData("hunter", "t1-shop-earth", ElementType.Earth)]
+    [InlineData("rogue", "t1-shop-earth", ElementType.Earth)]
+    public void BaseProfessionsReceiveEarthShopWeaponsAsStarters(string professionCode, string weaponCode,
         ElementType element)
     {
         var weapons = T1WeaponEffectTests.ProductionCatalog().CreateStarterWeapons(7, professionCode);
@@ -125,7 +125,7 @@ public sealed class T1WeaponContentTests
         var weapon = weapons[0];
         Assert.All(weapons, item => Assert.Equal(weaponCode, item.WeaponCode));
         Assert.Equal(weaponCode, weapon.WeaponCode);
-        Assert.Equal(element, weapon.Element);
+        Assert.All(weapons, item => Assert.Equal(element, item.Element));
         Assert.Equal(WeaponRules.MainSlotIndex, weapon.EquippedSlotIndex);
         Assert.Equal(WeaponOrigin.Starter, weapon.Origin);
         Assert.Equal((90, 110, 8), (weapon.Attack, weapon.MaxHp, weapon.SellGold));

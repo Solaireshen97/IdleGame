@@ -1,88 +1,10 @@
 @page "/talents"
 @page "/talents/{CharacterId:int}"
-@using Game.Client.Services
-@inject ActiveCharacterState ActiveCharacters
-@inject NavigationManager Navigation
-@implements IDisposable
-
-<PageTitle>职业与技能</PageTitle>
-<div class="talents-page">
-    @if (_isLoading)
-    {
-        <GameStateCard Compact="true" Title="正在读取当前角色" Detail="准备载入职业成长路线。" />
-    }
-    else if (ActiveCharacters.Current is { } character)
-    {
-        <nav class="talents-page__tabs" aria-label="职业与技能">
-            <button type="button" class="@(_section == "profession" ? "active" : null)" aria-pressed="@(_section == "profession" ? "true" : "false")" @onclick='() => _section = "profession"'>职业</button>
-            <button type="button" class="@(_section == "skills" ? "active" : null)" aria-pressed="@(_section == "skills" ? "true" : "false")" @onclick='() => _section = "skills"'>技能</button>
-            <button type="button" class="@(_section == "soul" ? "active" : null)" aria-pressed="@(_section == "soul" ? "true" : "false")" @onclick='() => _section = "soul"'>魂印</button>
-        </nav>
-        <div class="talents-page__workspace talents-page__workspace--library">
-            @if (_section == "profession")
-            {
-                <CharacterProfessionBoard @key='("profession", character.CharacterId)' CharacterId="@character.CharacterId" OnChanged="RefreshCurrentAsync" />
-            }
-            else if (_section == "skills")
-            {
-                <CharacterSkillBoard @key='("skills", character.CharacterId, _talentRevision)' CharacterId="@character.CharacterId" />
-            }
-            else
-            {
-                <CharacterSoulImprintBoard @key='("soul", character.CharacterId)' CharacterId="@character.CharacterId" />
-            }
-        </div>
-    }
-    else
-    {
-        <GameStateCard Compact="true" Tone="error" Icon="!" Title="角色读取失败" Detail="请返回大厅后重新选择角色。" />
-    }
-</div>
-
+<PageTitle>编队职业与技能</PageTitle>
+<LegacyLoadoutRoute Section="@(RequestedSoulId is not null || RequestedSoulImprintId is not null ? "soul" : RequestedSection is "skills" or "soul" ? RequestedSection : "profession")" InstanceKind="soul" InstanceId="@(RequestedSoulId ?? RequestedSoulImprintId)" />
 @code {
     [Parameter] public int? CharacterId { get; set; }
-    private bool _isLoading = true;
-    private int _talentRevision;
-    private string _section = "profession";
-    private (int CharacterId, string ProfessionCode, int Level)? _skillContext;
-
-    protected override async Task OnInitializedAsync()
-    {
-        ActiveCharacters.Changed += OnActiveCharacterChanged;
-        await ActiveCharacters.EnsureLoadedAsync();
-        UpdateSkillContext();
-        _isLoading = false;
-        if (ActiveCharacters.Current is null) Navigation.NavigateTo("/login", replace: true);
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (CharacterId is not null) Navigation.NavigateTo("/talents", replace: true);
-    }
-
-    private async Task RefreshCurrentAsync()
-    {
-        var revision = _talentRevision;
-        await ActiveCharacters.RefreshAsync();
-        UpdateSkillContext();
-        if (_talentRevision == revision) _talentRevision++;
-    }
-
-    private void OnActiveCharacterChanged() => _ = InvokeAsync(() =>
-    {
-        UpdateSkillContext();
-        StateHasChanged();
-    });
-
-    private void UpdateSkillContext()
-    {
-        var context = ActiveCharacters.Current is { } character
-            ? ((int CharacterId, string ProfessionCode, int Level)?)(character.CharacterId, character.ProfessionCode, character.Level)
-            : null;
-        if (_skillContext == context) return;
-        _skillContext = context;
-        _talentRevision++;
-    }
-
-    public void Dispose() => ActiveCharacters.Changed -= OnActiveCharacterChanged;
+    [SupplyParameterFromQuery(Name = "instanceId")] public int? RequestedSoulId { get; set; }
+    [SupplyParameterFromQuery(Name = "soulImprintId")] public int? RequestedSoulImprintId { get; set; }
+    [SupplyParameterFromQuery(Name = "section")] public string? RequestedSection { get; set; }
 }

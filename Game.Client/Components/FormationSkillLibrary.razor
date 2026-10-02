@@ -1,0 +1,102 @@
+@using Game.Client.Services
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Formations
+@inject IJSRuntime Js
+
+<section class="formation-skill-library" aria-label="技能图鉴">
+    <div class="skill-library-tabs" role="group" aria-label="技能分类">
+        <button type="button" aria-pressed="@(!_shared ? "true" : "false")" @onclick="() => _shared = false">职业技能 <small>@Entries.Count(s => !s.IsShared && s.IsUnlocked)/@Entries.Count(s => !s.IsShared)</small></button>
+        <button type="button" aria-pressed="@(_shared ? "true" : "false")" @onclick="() => _shared = true">共享技能 <small>@Entries.Count(s => s.IsShared && s.IsUnlocked)/@Entries.Count(s => s.IsShared)</small></button>
+    </div>
+    <p class="skill-library-hint">@(_shared ? "来源职业满级解锁 · 最多装备 1 个" : "技能随职业成长 · 灰色技能可预览")</p>
+    <div class="skill-library" aria-label="@(_shared ? "共享技能列表" : "职业技能列表")" aria-busy="@(Loading ? "true" : "false")">
+        @foreach (var skill in Entries.Where(s => s.IsShared == _shared))
+        {
+            var equipped = Loadout.Skills.FirstOrDefault(s => s.SkillCode == skill.Code);
+            <article class="skill-library-item @(!skill.CanEquip ? "is-locked" : null) @(equipped is not null ? "is-equipped" : null)" @key="skill.Code">
+                <button type="button" class="skill-library-pick" disabled="@Busy" aria-label="@(CanChoose(skill) ? $"将{skill.Name}装备至槽位 {SelectedSlot}" : $"预览{skill.Name}：{Requirement(skill)}")" aria-pressed="@(equipped?.SlotIndex == SelectedSlot ? "true" : "false")" @onclick="() => PickOrInspectAsync(skill)">
+                    <span class="library-art">@if (SkillArt.ForCode(skill.Code) is { } art) { <img src="@art" alt="" loading="lazy" /> } else { <span>◇</span> }</span>
+                    <strong>@skill.Name</strong>
+                    <small>@(equipped is not null ? $"✓ 槽位 {equipped.SlotIndex}" : ShortStatus(skill))</small>
+                </button>
+                <button type="button" class="skill-library-details" aria-label="@($"查看{skill.Name}等级效果与获取方式")" @onclick="() => Inspect(skill)">@((skill.IsShared ? "详情 / 获取" : "详情 / 等级")) <span aria-hidden="true">›</span></button>
+            </article>
+        }
+    </div>
+    @if (!Entries.Any(s => s.IsShared == _shared)) { <p class="skill-library-hint">@(Loading ? "正在读取技能…" : "暂无技能信息")</p> }
+</section>
+
+@if (Inspected is { } inspected && PreviewVersion(inspected) is { } version)
+{
+    <div class="skill-preview-backdrop" @onclick="CloseAsync" @onkeydown="KeyDown" @onkeydown:stopPropagation="true">
+        <section class="skill-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="@_titleId" tabindex="-1" @ref="_dialog" @onclick:stopPropagation="true">
+            <header>
+                <span class="library-art @(!inspected.IsUnlocked ? "is-locked-art" : null)">@if (SkillArt.ForCode(inspected.Code) is { } art) { <img src="@art" alt="" /> }</span>
+                <div><small>@(inspected.IsShared ? $"{inspected.SourceProfessionName} · 共享技能" : $"{inspected.SourceProfessionName} · 职业技能")</small><h3 id="@_titleId">@inspected.Name</h3></div>
+                <button type="button" aria-label="关闭技能预览" @onclick="CloseAsync">×</button>
+            </header>
+            <div class="skill-preview-body">
+                <div class="skill-unlock-status @(inspected.CanEquip ? "is-unlocked" : null)">
+                    <strong>@Requirement(inspected)</strong>
+                    @if (inspected.IsShared)
+                    {
+                        <small>使用@(inspected.SourceProfessionName)战斗并提升至 Lv.@(inspected.RequiredProfessionLevel) 后获得；当前职业 Lv.@(inspected.RequiredCurrentProfessionLevel) 可装备。</small>
+                    }
+                    else { <small>提升@(inspected.SourceProfessionName)等级后自动解锁和升级。</small> }
+                </div>
+                @if (!inspected.IsShared && inspected.LevelPreviews.Count > 1)
+                {
+                    <div class="skill-level-tabs" role="group" aria-label="预览技能等级">
+                        @foreach (var level in inspected.LevelPreviews)
+                        {
+                            <button type="button" aria-pressed="@(version.Level == level.Level ? "true" : "false")" @onclick="() => _previewLevel = level.Level"><strong>Lv.@(level.Level)</strong><small>职业 Lv.@(RequiredLevel(level))</small></button>
+                        }
+                    </div>
+                }
+                <div class="skill-version-heading"><strong>@(inspected.IsShared ? "共享版 · 固定效果" : $"技能 Lv.{version.Level}")</strong><span>@(inspected.IsShared ? "不随当前职业等级提升" : inspected.IsUnlocked && inspected.Level == version.Level ? "当前等级" : "效果预览")</span></div>
+                <p class="skill-version-description">@version.Description</p>
+                <ul class="skill-version-effects">@foreach (var effect in version.Effects) { <li>@effect.Summary</li> }</ul>
+                <div class="skill-version-cooldowns"><span>初始冷却 <b>@version.InitialCooldownRounds</b> 回合</span><span>常规冷却 <b>@version.CooldownRounds</b> 回合</span></div>
+                @if (SharedSlotOccupied(inspected)) { <p class="skill-preview-note">共享技能栏位已占用，请选择已装共享技能的槽位进行替换。</p> }
+            </div>
+            <footer><button type="button" class="skill-preview-back" @onclick="CloseAsync">返回</button><button type="button" class="skill-preview-equip" disabled="@(!CanChoose(inspected))" @onclick="() => EquipInspectedAsync(inspected)">@(Loading ? "更新中…" : !inspected.CanEquip ? "尚不可装备" : SharedSlotOccupied(inspected) ? "共享栏位已占用" : inspected.IsShared ? $"装备至槽位 {SelectedSlot}" : $"装备当前 Lv.{inspected.Level} · 槽位 {SelectedSlot}")</button></footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<FormationSkillLibraryEntry> Entries { get; set; } = [];
+    [Parameter, EditorRequired] public CombatLoadoutDefinition Loadout { get; set; } = default!;
+    [Parameter] public int SelectedSlot { get; set; }
+    [Parameter] public int ProfessionLevel { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<string> OnChoose { get; set; }
+    private bool _shared, _focus;
+    private string? _inspectedCode;
+    private int _previewLevel;
+    private string? _professionCode;
+    private ElementReference _dialog;
+    private readonly string _titleId = "skill-preview-" + Guid.NewGuid().ToString("N");
+    private FormationSkillLibraryEntry? Inspected => Entries.FirstOrDefault(s => s.Code == _inspectedCode);
+    protected override void OnParametersSet()
+    {
+        if (_professionCode != Loadout.ProfessionCode) { _professionCode = Loadout.ProfessionCode; _shared = false; _inspectedCode = null; }
+    }
+    private bool SharedSlotOccupied(FormationSkillLibraryEntry skill) => skill.IsShared && Loadout.Skills.Any(slot => slot.SlotIndex != SelectedSlot && slot.SkillCode != skill.Code && Entries.Any(other => other.IsShared && other.Code == slot.SkillCode));
+    private bool CanChoose(FormationSkillLibraryEntry skill) => skill.CanEquip && !SharedSlotOccupied(skill) && !Loading && !Busy;
+    private Task PickOrInspectAsync(FormationSkillLibraryEntry skill) { if (CanChoose(skill)) return OnChoose.InvokeAsync(skill.Code); Inspect(skill); return Task.CompletedTask; }
+    private void Inspect(FormationSkillLibraryEntry skill) { _inspectedCode = skill.Code; _previewLevel = skill.Level; _focus = true; }
+    private async Task CloseAsync() { _inspectedCode = null; await Js.InvokeVoidAsync("inventoryUi.restoreFocus"); }
+    private Task KeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+    private async Task EquipInspectedAsync(FormationSkillLibraryEntry skill) { if (!CanChoose(skill)) return; await CloseAsync(); await OnChoose.InvokeAsync(skill.Code); }
+    private LearnedSkillResponse PreviewVersion(FormationSkillLibraryEntry skill) => skill.LevelPreviews.FirstOrDefault(v => v.Level == _previewLevel) ?? skill.LevelPreviews.FirstOrDefault() ?? skill;
+    private static int RequiredLevel(LearnedSkillResponse skill) => skill.Level switch { 3 => skill.Level3UnlockLevel, 2 => skill.Level2UnlockLevel, _ => skill.UnlockLevel };
+    private string ShortStatus(FormationSkillLibraryEntry skill) => !skill.IsUnlocked ? skill.IsShared ? $"{skill.SourceProfessionName} Lv.{skill.RequiredProfessionLevel}" : $"Lv.{skill.RequiredProfessionLevel} 解锁"
+        : !skill.CanEquip ? $"职业 Lv.{skill.RequiredCurrentProfessionLevel} 可用" : SharedSlotOccupied(skill) ? "共享栏位已占用" : skill.IsShared ? "已解锁 · 共享" : $"Lv.{skill.Level}";
+    private string Requirement(FormationSkillLibraryEntry skill) => !skill.IsUnlocked
+        ? $"{skill.SourceProfessionName} Lv.{skill.RequiredProfessionLevel} 解锁 · 当前 Lv.{skill.SourceProfessionLevel}"
+        : !skill.CanEquip ? $"已解锁 · 当前职业需 Lv.{skill.RequiredCurrentProfessionLevel}（现 Lv.{ProfessionLevel}）"
+        : skill.IsShared ? $"已解锁 · {skill.SourceProfessionName} Lv.{skill.SourceProfessionLevel}" : $"已解锁 · 当前技能 Lv.{skill.Level}";
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (_focus) { _focus = false; await Js.InvokeVoidAsync("inventoryUi.focusDialog", _dialog, true); } }
+}

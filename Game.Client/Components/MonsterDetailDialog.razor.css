@@ -65,12 +65,17 @@
 .monster-detail-tabs--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .monster-detail-tabs button { min-height: 44px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #96aab6; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .monster-detail-tabs button.monster-detail-tabs__active { border-color: #73807655; background: #30414c; color: #f3dfb0; box-shadow: 0 2px 6px #0003; }
-.monster-detail-body { display: grid; align-content: start; gap: 14px; min-height: 0; overflow-y: auto; padding: 18px 24px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #63717a #182530; }
+.monster-detail-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #63717a #182530; }
+.monster-detail-body { display: grid; align-content: start; gap: 14px; padding: 18px 24px; }
 .monster-detail-body--difficulty { padding-bottom: 6px; }
 .monster-depth-return { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; background: #a78d5014; color: #b6c2ca; border: 1px solid #a78d504d; border-radius: 6px; font-size: .73rem; cursor: pointer; }
 .monster-depth-return b { margin-right: 8px; color: #e7c882; }
 .monster-depth-return > span:last-child { color: #dfc88f; }
-.monster-create-panel { display: grid; gap: 6px; flex: 0 0 auto; padding: 12px 24px 18px; border-top: 1px solid #64705e66; background: #10202c; box-shadow: 0 -8px 22px #07121b44; }
+.monster-create-panel { display: grid; gap: 6px; padding: 12px 24px; border-top: 1px solid #64705e66; background: #10202c; }
+.monster-create-action { display: grid; gap: .5rem; flex: 0 0 auto; padding: 10px 24px 16px; border-top: 1px solid #64705e66; background: #10202c; box-shadow: 0 -8px 22px #07121b44; }
+.monster-detail-note { border-top: 1px solid #455b6b; }
+.monster-detail-note summary { min-height: 44px; align-content: center; color: #c5c9bc; font-size: .75rem; cursor: pointer; }
+.monster-detail-note .monster-weapon-note { padding-bottom: .5rem; }
 .monster-create-character { display: flex; align-items: baseline; gap: 7px; min-width: 0; font-size: .7rem; }
 .monster-create-character > span { color: #a8bdca; }
 .monster-create-character > strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #e0d7c1; }
@@ -146,6 +151,7 @@
     .monster-detail-body { gap: 12px; padding: 14px 16px; }
     .monster-detail-body--difficulty { padding-bottom: 0; }
     .monster-create-panel { padding: 10px 16px 14px; gap: 4px; }
+    .monster-create-action { padding: 8px 16px 10px; }
     .monster-create-character { font-size: .64rem; gap: 6px; }
     .monster-create-character > span { white-space: nowrap; }
     .monster-create-character > small { font-size: .58rem; }
@@ -161,6 +167,8 @@
     .monster-detail-header h2 { margin: 4px 0; }
     .monster-detail-banner-art { width: 68px; height: 68px; top: 8px; }
     .monster-detail-body { padding-top: 6px; }
+    .monster-detail-dialog--single .monster-detail-body { gap: 8px; padding-bottom: 8px; }
+    .monster-detail-dialog--single .monster-detail-identity-art { width: 48px; height: 48px; flex-basis: 48px; }
     .monster-create-panel { padding-top: 8px; padding-bottom: 10px; gap: 2px; }
 }
 @media (max-width: 350px) {
@@ -178,4 +186,18 @@
     .monster-detail-tabs { padding: 0; }
     .monster-detail-body { padding-top: 6px; }
     .monster-create-panel { padding-top: 6px; padding-bottom: 8px; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+    .monster-detail-overlay { padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+    .monster-detail-dialog { width: min(100%, 680px); border-radius: 10px; }
+    .monster-detail-header { min-height: 76px; padding: 9px 116px 8px 16px; }
+    .monster-detail-header h2 { margin: 3px 0; font-size: 1.2rem; }
+    .monster-detail-header p { font-size: .65rem; }
+    .monster-detail-banner-art { top: 4px; right: 48px; width: 72px; height: 72px; }
+    .monster-detail-close { top: 6px; right: 6px; }
+    .monster-detail-tabs { margin-inline: 16px; }
+    .monster-detail-body { padding: 10px 16px; gap: 10px; }
+    .monster-create-panel { padding: 10px 16px; }
+    .monster-create-action { padding: 6px 16px 8px; }
 }

@@ -1,3 +1,4 @@
+.rooms-page__title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .rooms-page {
     display: flex; flex-direction: column; gap: .5rem; min-width: 0;
     height: min(900px, calc(100dvh - 9.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
@@ -45,6 +46,13 @@
 .health-bar::-webkit-progress-value { background: linear-gradient(90deg, #c8686c, #ed9a87); }
 .health-bar::-moz-progress-bar { background: #e28b7b; }
 .region-picker { flex: 0 0 auto; margin: 0; padding: .5rem; border: 1px solid #3e566b; border-radius: .8rem; background: #132638; }
+.region-picker__toggle { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 44px; padding: .15rem .25rem; border: 0; background: transparent; text-align: left; color: #dec18c; }
+.region-picker__toggle > span:first-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: .5rem; }
+.region-picker__toggle small { color: #91aabb; font-size: .7rem; }
+.region-picker__toggle strong { color: #f0dfc0; font-size: .88rem; }
+.region-picker__toggle > span:last-child { flex-shrink: 0; font-size: .73rem; }
+.region-picker__toggle + .region-picker__grid { margin-top: .5rem; }
+.room-card__pending { display: block; margin-top: .15rem; color: #dec18c; font-size: .65rem; }
 .region-picker__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; gap: .35rem; }
 .region-picker__heading h2 { margin: 0; color: #c9d9e4; font-size: .74rem; }
 .region-picker__heading > span { color: #819dac; font-size: .59rem; }
@@ -139,3 +147,71 @@
     .empty-state__icon { display: none; }
     .dungeon-grid .empty-state > span { display: none; }
 }
+/* Keep one page scroll on phones; pagination still limits the number of cards. */
+@media (max-width: 600px) {
+    .rooms-page { height: auto; min-height: 0; gap: .5rem; }
+    .lobby-panel { flex: 0 0 auto; gap: .5rem; }
+    .lobby-tab { min-height: 48px; }
+    .lobby-tab strong { font-size: .8rem; }
+    .lobby-tab small { font-size: .65rem; }
+    .lobby-tab__icon { display: none; }
+    .lobby-heading h2, .dungeon-heading h2 { font-size: .92rem; }
+    .lobby-heading h2 small { font-size: .7rem; }
+    .lobby-refresh, .region-info-trigger { min-height: 44px; font-size: .75rem; }
+    .lobby-segments button { min-height: 44px; font-size: .76rem; }
+    .lobby-room-search { grid-template-columns: minmax(0, 1fr) 106px; }
+    .lobby-room-search input, .lobby-room-search select { min-height: 44px; font-size: 16px; }
+    .lobby-room-search input { font-size: 16px; }
+    .lobby-results { flex: 0 0 auto; overflow: visible; overscroll-behavior: auto; }
+    .dungeon-grid { --lobby-columns: 1; --lobby-row-height: 112; height: calc(336px + 1rem + .3rem); }
+    .room-grid { --lobby-row-height: 148; height: calc(296px + .5rem + .3rem); }
+    .lobby-results:has(.empty-state) { height: 190px; }
+    .region-picker { padding: .35rem .5rem; }
+    .region-card { min-height: 56px; }
+    .region-card strong { font-size: .75rem; }
+    .region-card > span { font-size: .64rem; }
+    .dungeon-toolbar { gap: .35rem; }
+    .dungeon-toolbar label { min-height: 48px; padding-inline: .2rem; font-size: .74rem; }
+    .dungeon-toolbar input { width: 18px; height: 18px; margin: 0 .15rem 0 0; }
+    .dungeon-card { padding: .55rem .7rem; gap: .25rem; }
+    .dungeon-card > strong { font-size: .88rem; }
+    .dungeon-card__topline, .dungeon-card__summary, .monster-attribute, .dungeon-card__bottom small { font-size: .7rem; }
+    .room-card { grid-template-columns: minmax(0, 1fr) 90px; grid-template-rows: 24px minmax(0, 1fr) 22px 4px; padding: .5rem; }
+    .room-card h3 { font-size: .87rem; }
+    .room-card p, .room-card__topline { font-size: .7rem; }
+    .room-card__enter { min-height: 48px; font-size: .73rem; }
+    .room-card__bottom { font-size: .63rem; }
+    .room-card__hp { display: none; }
+    .status-badge { font-size: .65rem; }
+    .lobby-pager select { font-size: .76rem; }
+    .empty-state .button { min-height: 44px; }
+}
+
+@media (max-width: 600px) and (max-height: 740px) {
+    .rooms-page, .lobby-panel { gap: .4rem; }
+    .lobby-tab { min-height: 44px; }
+    .region-picker { padding-block: 0; }
+    .dungeon-grid { height: calc(224px + .5rem + .3rem); }
+}
+
+@media (max-width: 950px) and (max-height: 500px) and (orientation: landscape) {
+    .rooms-page { height: auto; min-height: 0; gap: .5rem; }
+    .lobby-panel { flex: 0 0 auto; gap: .5rem; }
+    .lobby-tab { min-height: 44px; }.lobby-tab strong { font-size: .8rem; }.lobby-tab small { font-size: .65rem; }
+    .lobby-refresh, .region-info-trigger, .lobby-segments button, .dungeon-toolbar label { min-height: 44px; font-size: .75rem; }
+    .lobby-room-search input, .lobby-room-search select { min-height: 44px; font-size: 16px; }
+    .dungeon-toolbar input { width: 18px; height: 18px; }
+    .lobby-results { flex: 0 0 auto; overflow: visible; overscroll-behavior: auto; }
+    .dungeon-grid { --lobby-columns: 2; --lobby-row-height: 112; height: calc(112px + .3rem); }
+    .room-grid { --lobby-columns: 2; --lobby-row-height: 148; height: calc(148px + .3rem); }
+    .lobby-results:has(.empty-state) { height: 160px; }
+    .dungeon-card { padding: .55rem .65rem; gap: .25rem; }
+    .dungeon-card > strong { font-size: .86rem; }
+    .dungeon-card__topline, .dungeon-card__summary, .dungeon-card__bottom small, .monster-attribute { font-size: .7rem; }
+    .room-card { grid-template-columns: minmax(0, 1fr) 90px; grid-template-rows: 24px minmax(0, 1fr) 22px 4px; padding: .5rem; }
+    .room-card h3 { font-size: .85rem; }.room-card p, .room-card__topline { font-size: .7rem; }
+    .room-card__enter { min-height: 48px; font-size: .73rem; }.room-card__bottom { font-size: .63rem; }.room-card__hp { display: none; }
+    .empty-state .button { min-height: 44px; }
+}
+.lobby-catalog-error { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; padding:.6rem .7rem; border:1px solid #806747; border-radius:.55rem; background:#332f27; color:#e6c99b; font-size:.8125rem; }
+.lobby-catalog-error button { min-height:44px; flex-shrink:0; }

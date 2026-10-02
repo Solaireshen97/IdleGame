@@ -1,6 +1,7 @@
 @using Game.Shared.Dtos
 @using Game.Client.Services
 @inject ApiService ApiService
+@inject IJSRuntime Js
 @implements IDisposable
 
 <div class="battle-information">
@@ -48,19 +49,19 @@
             }
             @if (_statistics is { } data)
             {
-                <p class="information-heading">@(data.Scope == "room" ? "房间累计" : $"第 {data.RunSequence} 次挑战") · 已记录 @data.RecordedRounds 回合 · @OutcomeText(data.Outcome)</p>
-                <p class="information-hint">@CoverageText(data)</p>
+                <p class="information-heading">@(data.Scope == "room" ? "房间累计" : $"第 {data.RunSequence} 次") · @data.RecordedRounds 回合 · @OutcomeText(data.Outcome)</p>
+                <p class="information-hint information-coverage">@CoverageText(data)</p>
                 @if (data.Scope == "room") { <p class="information-hint">已完成 @data.CompletedRuns 次挑战 · 已记录 @data.RecordedRuns 次 · 缺失 @data.MissingRuns 次 · 部分记录 @data.PartialRuns 次</p> }
                 @if (data.Coverage != "Unrecorded")
                 {
                     <div class="information-totals"><div><small>全队实际伤害</small><strong>@data.Totals.DamageDealt.ToString("N0")</strong></div><div><small>有效治疗</small><strong>@data.Totals.HealingDone.ToString("N0")</strong></div><div><small>阵亡</small><strong>@data.Totals.Deaths</strong></div></div>
                     @if (data.UnattributedDamage > 0 || data.UnattributedHealing > 0) { <p class="information-hint">环境或未归属：伤害 @data.UnattributedDamage.ToString("N0") · 治疗 @data.UnattributedHealing.ToString("N0")</p> }
-                    <BattleStatisticsBoard Actors="data.Actors" Historical="@(data.Scope != "current" || data.IsClosed)" Mode="@_mode" ModeChanged="ChangeMode" SelectedCharacterId="_characterId" CharacterSelected="SelectCharacterAsync" />
+                    <div @ref="_actorsAnchor"><BattleStatisticsBoard Actors="data.Actors" Historical="@(data.Scope != "current" || data.IsClosed)" Mode="@_mode" ModeChanged="ChangeMode" SelectedCharacterId="_characterId" CharacterSelected="SelectCharacterAsync" /></div>
                     @if (data.Actors.Count == 0) { <p>当前范围没有已记录的参战角色。</p> }
-                    @if (_detail is { } detail) { <BattleActorStatisticsDetail Actor="detail" /><p class="information-hint">@(_scopeChoice == "room" ? $"角色明细累计覆盖 {_detailRecordedRounds} 回合" : $"角色明细截至第 {_detailRound} 回合结算")</p> }
+                    @if (_detail is { } detail) { <div @ref="_detailAnchor"><button type="button" @onclick="ReturnToActorsAsync">← 返回成员列表</button><BattleActorStatisticsDetail Actor="detail" /><p class="information-hint">@(_scopeChoice == "room" ? $"角色明细累计覆盖 {_detailRecordedRounds} 回合" : $"角色明细截至第 {_detailRound} 回合结算")</p></div> }
                     @if (_detailLoading) { <p role="status">正在读取角色来源明细…</p> }
                     @if (_detailError is not null) { <p class="information-error" role="alert">@_detailError</p><button type="button" @onclick="LoadDetailAsync">重试角色明细</button> }
-                    <p class="information-hint">@(data.Scope == "room" ? $"累计已记录 {data.RecordedRounds} 回合 · 均伤按所有已记录回合计算" : $"数据截至第 {data.LastRoundNumber} 回合结算 · 均伤按此范围已记录回合计算")</p>
+                    <details class="information-rules"><summary tabindex="0">统计口径</summary><p class="information-hint">@(data.Scope == "room" ? $"累计已记录 {data.RecordedRounds} 回合 · 均伤按所有已记录回合计算" : $"数据截至第 {data.LastRoundNumber} 回合结算 · 均伤按此范围已记录回合计算")</p></details>
                 }
             }
             else if (_error is null) { <p role="status">正在读取战斗统计…</p> }
@@ -78,6 +79,8 @@
     private readonly BattleStatisticsLoadCoordinator _detailCoordinator = new();
     private CancellationTokenSource? _lootCancellation;
     private ElementReference _statisticsTab, _lootTab;
+    private ElementReference _actorsAnchor, _detailAnchor;
+    private int? _revealDetailCharacterId;
     private string _tab = "statistics", _scopeChoice = "current", _mode = "damage";
     private int? _fixedRun, _monsterId, _characterId;
     private BattleStatisticsResponse? _statistics;
@@ -134,6 +137,15 @@
         if (tab == "loot") await RefreshLootAsync(); else await RefreshStatisticsAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!IsActive || _tab != "statistics" || _detailLoading || _detailError is not null || _detail is null || _revealDetailCharacterId != _detail.CharacterId) return;
+        _revealDetailCharacterId = null;
+        await Js.InvokeVoidAsync("battleUi.revealStatisticsSection", _detailAnchor, false);
+    }
+
+    private Task ReturnToActorsAsync() => Js.InvokeVoidAsync("battleUi.revealStatisticsSection", _actorsAnchor, true).AsTask();
+
     private async Task HandleTabKeys(KeyboardEventArgs args)
     {
         if (args.Key is not ("ArrowLeft" or "ArrowRight" or "Home" or "End")) return;
@@ -163,6 +175,7 @@
         _listCoordinator.Cancel(); _detailCoordinator.Cancel();
         _loading = _detailLoading = _pending = false;
         _statistics = null; _detail = null; _error = _detailError = null; _characterId = null;
+        _revealDetailCharacterId = null;
         if (!keepEncounters) _encounters = [];
     }
 
@@ -203,6 +216,7 @@
     private async Task SelectCharacterAsync(int characterId)
     {
         if (_characterId != characterId) { _detail = null; _detailError = null; }
+        _revealDetailCharacterId = characterId;
         _characterId = characterId; await LoadDetailAsync();
     }
     private async Task LoadDetailAsync()
@@ -240,9 +254,10 @@
             var response = await ApiService.GetRoomRewardsAsync(roomId, token);
             if (!IsActive || _tab != "loot" || generation != _lootGeneration || session != ApiService.SessionRevision || Room.RoomId != roomId) return;
             if (response is null || response.RoomVersion < _lootVersion) { _lootError = "掉落更新失败，请重试。"; return; }
+            // Keep the last list (and its open item detail) during an incomplete refresh.
+            if (response.CumulativeRewards is null) { _lootError = "当前账号暂无可读取的累计掉落。"; return; }
             _rewards = response.CumulativeRewards; _lootVersion = response.RoomVersion;
             if (response.RoomVersion < Room.RoomVersion) _lootPending = true;
-            if (_rewards is null) _lootError = "当前账号暂无可读取的累计掉落。";
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         { if (generation == _lootGeneration && !token.IsCancellationRequested) _lootError = "掉落更新失败，请重试。"; }
@@ -261,6 +276,7 @@
 
     private void CancelAll()
     {
+        _revealDetailCharacterId = null;
         _listCoordinator.Cancel(); _detailCoordinator.Cancel(); _lootGeneration++;
         _lootCancellation?.Cancel(); _lootCancellation?.Dispose(); _lootCancellation = null;
         _loading = _detailLoading = _lootLoading = _pending = _lootPending = false;

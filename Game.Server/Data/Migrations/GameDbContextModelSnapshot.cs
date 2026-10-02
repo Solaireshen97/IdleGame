@@ -270,6 +270,7 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("SlotIndex").HasColumnType("INTEGER");
                     b.Property<string>("ItemCode").HasColumnType("TEXT");
                     b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<string>("AutoConditionOverride").HasColumnType("TEXT");
                     b.Property<int>("AutoHpThresholdPercent").HasColumnType("INTEGER");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("Id");
@@ -311,9 +312,14 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("RunSequence").HasColumnType("INTEGER");
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<int>("UsesUsed").HasColumnType("INTEGER");
+                    b.Property<int>("BuffUsesUsed").HasColumnType("INTEGER");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
                     b.HasKey("RoomId", "RunSequence", "CharacterId");
-                    b.ToTable("BattleHealingPotionStates", t => t.HasCheckConstraint("CK_BattleHealingPotionStates_Uses", "UsesUsed BETWEEN 0 AND 2"));
+                    b.ToTable("BattleHealingPotionStates", t =>
+                    {
+                        t.HasCheckConstraint("CK_BattleHealingPotionStates_Uses", "UsesUsed BETWEEN 0 AND 2");
+                        t.HasCheckConstraint("CK_BattleHealingPotionStates_BuffUses", "BuffUsesUsed BETWEEN 0 AND 2");
+                    });
                 });
 
             modelBuilder.Entity("Game.Shared.Models.BattleOperationPotionState", b =>
@@ -968,6 +974,7 @@ namespace Game.Server.Data.Migrations
                 });
             AddFormations(modelBuilder);
             AddStatistics(modelBuilder);
+            AddStory(modelBuilder);
 #pragma warning restore 612, 618
         }
     }

@@ -1,0 +1,55 @@
+@using Game.Shared
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Inventory
+
+@if (Detail.Weapon is { } weapon)
+{
+    <section class="growth-panel" aria-label="武器养成">
+        <h3>武器技能</h3>
+        @foreach (var skill in weapon.Skills)
+        {
+            var quantity = Detail.Fragments.FirstOrDefault(fragment => fragment.Tier == weapon.FragmentTier)?.Quantity ?? 0;
+            <div class="growth-skill">
+                <div><strong>@skill.Name <small>Lv.@skill.Level</small></strong><p>@skill.Description</p><small>强化 @skill.EnhancementLevel / @skill.MaximumEnhancementLevel · T@(weapon.FragmentTier) 碎片 @quantity</small></div>
+                <button type="button" disabled="@(Busy || !Allowed("enhance") || skill.NextEnhancementCost is null || quantity < skill.NextEnhancementCost)" @onclick="() => OnEnhance.InvokeAsync(skill.SlotIndex)">@(skill.NextEnhancementCost is int cost ? $"强化 · {cost} 碎片" : skill.Description == "未知技能" ? "定义不可用" : "已满级")</button>
+            </div>
+        }
+        @foreach (var skill in weapon.LockedSkills)
+        {
+            <p class="growth-note">突破 @skill.UnlockQualityRank 解锁：@skill.Name · @skill.Description</p>
+        }
+        <h3>品质突破 <WeaponQualityCrystals Rank="@weapon.QualityRank" /></h3>
+        <p class="growth-note">同名武器或对应阶段通用突破石可点亮下一枚水晶。素材会被消耗，基础攻击与生命不变。</p>
+        @if (weapon.QualityRank >= WeaponRules.MaxQualityBonusLevels)
+        {
+            <p class="growth-note">水晶已全部点亮。</p>
+        }
+        else
+        {
+            @if (Detail.BreakthroughMaterials.FirstOrDefault(material => material.Tier == weapon.BreakthroughTier) is { } stone)
+            {
+                <button type="button" disabled="@(Busy || !Allowed("upgrade") || stone.StoneQuantity < 1)" @onclick="() => OnUpgrade.InvokeAsync(0)">使用 @stone.StoneName · 持有 @stone.StoneQuantity</button>
+            }
+            <button type="button" disabled="@(Busy || !Allowed("upgrade"))" @onclick="OnChooseMaterial">选择同名武器素材</button>
+        }
+    </section>
+}
+@foreach (var material in Detail.BreakthroughMaterials.Where(material => Detail.Entry.Code == material.FragmentCode || Detail.Entry.Code == material.StoneCode))
+{
+    <section class="growth-panel" aria-label="突破石合成">
+        <h3>合成 @material.StoneName</h3>
+        <p class="growth-note">@material.FragmentsPerStone 枚 @material.FragmentName → 1 枚突破石</p>
+        <p class="growth-note">碎片 @material.FragmentQuantity · 突破石 @material.StoneQuantity · 可合成 @material.CanCraftQuantity 枚</p>
+        <button type="button" disabled="@(Busy || !Allowed("craft") || material.CanCraftQuantity < 1 || !Detail.Entry.IsDefinitionKnown || Detail.Entry.HasCodeConflict)" @onclick="() => OnCraft.InvokeAsync(material.Tier)">合成 1 枚</button>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public InventoryItemDetailDto Detail { get; set; } = new();
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<int> OnEnhance { get; set; }
+    [Parameter] public EventCallback<int> OnUpgrade { get; set; }
+    [Parameter] public EventCallback<int> OnCraft { get; set; }
+    [Parameter] public EventCallback OnChooseMaterial { get; set; }
+    private bool Allowed(string action) => Detail.Entry.Actions.Any(candidate => candidate.Action == action && candidate.Allowed);
+}

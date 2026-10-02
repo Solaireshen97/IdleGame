@@ -111,3 +111,79 @@
     .garden-seed { grid-template-columns: 29px minmax(0, 1fr) auto; column-gap: .25rem; padding: .5rem .45rem 0; }.garden-seed-image { width: 29px; height: 37px; }.garden-seed-title strong { font-size: .66rem; }.garden-seed-title small { font-size: .55rem; }.garden-seed-stock { font-size: .57rem; }.garden-seed-footer { font-size: .55rem; }
 }
 @media (prefers-reduced-motion: reduce) { .garden-page *, .garden-page *::before, .garden-page *::after { transition: none !important; } }
+.garden-warehouse-link { color: #89a4a6; font-size: .73rem; margin: .7rem 0; }
+.garden-warehouse-link a { color: #c6bd8e; }
+
+.garden-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.garden-shortcuts { display: flex; align-items: center; gap: .45rem; }
+.garden-shortcuts a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: #e8c788; font-size: .75rem; text-decoration: none; }
+.garden-shortcuts .garden-shop-link { margin: 0; }
+.garden-field-heading { height: 0; }
+.garden-refresh { position: absolute; top: .35rem; right: .5rem; width: 44px; height: 44px; }
+.garden-summary { min-height: 44px; align-items: center; margin: 0 48px .4rem 0; gap: .55rem; }
+.garden-section-heading { align-items: center; margin: .4rem 0; min-height: 44px; }
+.garden-section-heading h2 { margin: 0; font-size: .92rem; }
+.garden-section-heading .garden-selection-count { margin-left: .4rem; font-weight: 400; }
+.garden-seed-toggle { min-height: 44px; padding: .3rem .55rem; border: 1px solid #536b76; border-radius: .45rem; background: #19303b; color: #e6c791; font-size: .75rem !important; }
+.garden-seed-library { margin-top: .6rem; padding: .5rem; border: 1px solid #3c5364; border-radius: .6rem; }
+.garden-sowing { position: static; }
+.garden-seed-filters button, .garden-button, .garden-select-all, .garden-plot-action { min-height: 44px; }
+.garden-notice button { min-width: 44px; min-height: 44px; }
+@media (max-width: 600px) {
+    .garden-page { padding: 0 0 .5rem; }
+    .garden-intro { align-items: center; margin: 0 0 .45rem; min-height: 44px; }
+    .garden-intro h1 { margin: 0; font-size: 1.3rem; }
+    .garden-field { padding: .35rem .5rem .5rem; }
+    .garden-summary { font-size: .66rem; gap: .5rem; margin-bottom: .3rem; }
+    .garden-summary > span { gap: .2rem; }
+    .garden-plots { gap: .4rem; }
+    .garden-plot { display: grid; grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: 20px 36px 44px; gap: .2rem .25rem; padding: .35rem; }
+    .garden-plot-top { grid-column: 1 / -1; }
+    .garden-plot-number { font-size: .75rem; }
+    .garden-plot-number small { font-size: .56rem; }
+    .garden-status { font-size: .59rem; }
+    .garden-plot-scene { height: 36px; width: 44px; margin: 0; }
+    .garden-soil { height: 13px; width: 44px; bottom: 1px; }
+    .garden-sprout { width: 36px; height: 36px; margin-top: -2px; }
+    .garden-crop--main { width: 36px; height: 36px; top: -2px; }
+    .garden-crop--left { width: 21px; height: 23px; left: -3px; bottom: 2px; }
+    .garden-crop--right { width: 22px; height: 25px; right: -4px; bottom: 1px; }
+    .garden-spark--one { top: 0; right: 0; }.garden-spark--two { top: 20px; left: 0; }
+    .garden-plot-label { align-self: center; text-align: left; margin: 0; min-width: 0; }
+    .garden-plot-label h3, .garden-plot--empty .garden-plot-label h3 { font-size: .72rem; line-height: 1.3; overflow-wrap: anywhere; }
+    .garden-plot-label > span { margin-top: .1rem; font-size: .61rem; }
+    .garden-plot-action, .garden-growth { grid-column: 1 / -1; margin: 0; min-height: 44px; }
+    .garden-plot-action { font-size: .72rem !important; padding: .25rem; }
+    .garden-growth { gap: .25rem; }
+    .garden-growth > div:first-child { font-size: .58rem; }
+    .garden-growth strong { font-size: .64rem; }
+    .garden-field-footer { margin-top: .35rem; }
+    .garden-select-all { font-size: .74rem !important; }
+    .garden-sowing { padding: .5rem .6rem; }
+    .garden-sowing-main { gap: .4rem; }
+    .garden-sowing-main > img { flex-basis: 30px; width: 30px; height: 38px; }
+    .garden-sowing-main h3 { margin: 0 0 .2rem; font-size: .8rem; }
+    .garden-sowing-main p { font-size: .66rem; }
+    .garden-sowing-main > button { min-width: 94px; font-size: .73rem !important; }
+    .garden-sowing-stats { margin-top: .3rem; padding-top: .3rem; font-size: .69rem; }
+    .garden-replenish { min-height: 32px; font-size: .7rem; }
+    .garden-seeds { grid-template-columns: 1fr; }
+    .garden-seed { grid-template-columns: 36px minmax(0, 1fr) auto; padding: .5rem .65rem 0; }
+    .garden-seed-title strong { font-size: .8rem; }
+    .garden-seed-title small, .garden-seed-stock, .garden-seed-footer { font-size: .68rem; }
+    .garden-seed-source { font-size: .72rem; }
+    .garden-alchemy-link { justify-content: flex-end; margin-top: .35rem; padding: .25rem 0; min-height: 44px; border: 0; }
+}
+
+@media (max-width: 600px) and (max-height: 740px) {
+    .garden-intro { margin-bottom: .2rem; }
+    .garden-plot { grid-template-rows: 20px 28px 44px; gap: .1rem .25rem; padding: .25rem; }
+    .garden-plot-scene { height: 28px; }
+    .garden-sprout { width: 28px; height: 28px; }
+    .garden-crop--main { width: 28px; height: 28px; top: -1px; }
+    .garden-crop--left { width: 18px; height: 20px; left: 1px; }
+    .garden-crop--right { width: 19px; height: 21px; right: 0; }
+    .garden-spark--two { top: 14px; }
+    .garden-section-heading { margin-block: .2rem; }
+    .garden-sowing-stats { gap: 0; margin-top: .25rem; padding-top: .25rem; }
+}

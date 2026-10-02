@@ -6,8 +6,8 @@
 
 <section class="skill-board" aria-labelledby="skill-board-title">
     <header class="skill-board__header">
-        <div><span class="skill-board__eyebrow">CLASS SKILLS</span><h2 id="skill-board-title">职业技能</h2></div>
-        @if (_skills is not null) { <span>@_skills.ProfessionName · 最多 @SkillRules.SlotCount 个技能</span> }
+        <div><h2 id="skill-board-title">职业技能</h2></div>
+        @if (_skills is not null) { <span>@_skills.ProfessionName · @_skills.Slots.Count(slot => slot.SkillCode is not null) / @SkillRules.SlotCount</span> }
     </header>
 
     @if (_isLoading)
@@ -24,12 +24,6 @@
     {
         var selectedSlot = _skills.Slots.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex) ?? _skills.Slots.OrderBy(slot => slot.SlotIndex).First();
         var selectedSkill = FindSkill(selectedSlot.SkillCode);
-        var equippedCount = _skills.Slots.Count(slot => slot.SkillCode is not null);
-
-        <div class="skill-board__loadout-heading">
-            <div><span class="skill-board__eyebrow">SKILL LOADOUT</span><h3>技能编成</h3></div>
-            <p><strong>@equippedCount / @SkillRules.SlotCount</strong> 已装备 · 从左到右决定 Auto 优先级</p>
-        </div>
 
         <div class="skill-board__slot-strip" role="group" aria-label="技能槽位">
             @foreach (var slot in _skills.Slots.OrderBy(slot => slot.SlotIndex))
@@ -55,6 +49,7 @@
         <details class="skill-board__settings">
             <summary>槽位 @_selectedSlotIndex 设置 · @(selectedSkill?.Name ?? "空槽位")</summary>
             <div class="skill-board__settings-content">
+                <p class="skill-board__empty-hint">从左到右决定自动使用优先级；技能随职业等级自动提升。</p>
                 <div class="skill-board__settings-tools">
                     <div class="skill-board__reorder" aria-label="调整技能优先级">
                         <button type="button" title="优先级上移" aria-label="@_selectedSlotIndex 号位上移" disabled="@(_isSaving || _selectedSlotIndex == 1)" @onclick="() => MoveAsync(_selectedSlotIndex, _selectedSlotIndex - 1)">←</button>
@@ -85,7 +80,7 @@
         </details>
 
         <section class="skill-board__library" aria-labelledby="learned-skills-title">
-            <header><div><span class="skill-board__eyebrow">LEARNED SKILLS</span><h3 id="learned-skills-title">已学技能</h3></div><small>技能随职业等级自动提升 · 点击装备至槽位 @_selectedSlotIndex</small></header>
+            <header><div><h3 id="learned-skills-title">已学技能</h3></div><small>点选装备至 @_selectedSlotIndex 号位</small></header>
             <div class="skill-board__learned">
                 @foreach (var skill in _skills.LearnedSkills)
                 {
@@ -110,7 +105,7 @@
         @if (_skills.SharedSkills.Count > 0)
         {
             <section class="skill-board__library" aria-labelledby="shared-skills-title">
-                <header><div><span class="skill-board__eyebrow">SHARED SKILLS</span><h3 id="shared-skills-title">共享技能</h3></div><small>当前职业达到 10 级后可装备；最多替换一格</small></header>
+                <header><div><h3 id="shared-skills-title">共享技能</h3></div><small>职业 10 级解锁 · 最多一格</small></header>
                 <div class="skill-board__learned">
                     @foreach (var skill in _skills.SharedSkills)
                     {

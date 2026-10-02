@@ -5,6 +5,8 @@
     <h3>@BattleStatisticsPresentation.ActorName(Actor) <small>@BattleStatisticsPresentation.Profession(Actor.ProfessionCode) · @BattleStatisticsPresentation.Element(Actor.Element)</small></h3>
     @if (Actor.HasUnknownIdentity) { <p>部分来源身份未能记录。</p> }
     @if (Actor.HasMixedConfigurations) { <p>本范围使用过多个配置，以下数值为合计。</p> }
+    <details class="actor-detail__full">
+    <summary tabindex="0">完整战况与参战配置</summary>
     @foreach (var configuration in Actor.Configurations)
     {
         <p class="actor-detail__configuration">@BattleStatisticsPresentation.Profession(configuration.ProfessionCode) · @(configuration.FormationName ?? "未使用编队") @(configuration.FormationVersion is int version ? $"v{version}" : "")</p>
@@ -19,6 +21,7 @@
         <div><dt>阵亡次数</dt><dd>@Actor.Metrics.Deaths</dd></div>
         <div><dt>净化 / 驱散 / 打断</dt><dd>@Actor.Metrics.Cleanses / @Actor.Metrics.Dispels / @Actor.Metrics.Interrupts</dd></div>
     </dl>
+    </details>
     <h4>伤害与治疗来源</h4>
     <div class="actor-source-mode"><button type="button" aria-pressed="@(!_healing ? "true" : "false")" @onclick="() => _healing = false">按伤害</button><button type="button" aria-pressed="@(_healing ? "true" : "false")" @onclick="() => _healing = true">按治疗</button></div>
     @if (Actor.Abilities.Count == 0)

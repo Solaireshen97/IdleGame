@@ -31,6 +31,7 @@ internal static class RewardTestFactory
         }));
         return new RewardCatalog(Options.Create(new RewardOptions
         {
+            AllowConsumableDrops = true, // Historical fixture exercises generic stack reward settlement.
             MonsterKills = new Dictionary<string, RewardBundleOptions>
             {
                 ["slime-field"] = new RewardBundleOptions

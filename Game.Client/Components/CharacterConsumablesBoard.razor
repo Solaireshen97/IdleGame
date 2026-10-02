@@ -5,16 +5,14 @@
 <section class="consumables-board" aria-labelledby="consumables-title">
     <header class="consumables-board__header">
         <div>
-            <span class="consumables-board__eyebrow">COMBAT SUPPLIES</span>
             <h2 id="consumables-title">战斗补给</h2>
-            <p>为下一场战斗，做好准备。</p>
         </div>
         <div class="consumables-board__header-tools">
             @if (_data is not null)
             {
                 <span class="consumables-board__summary">已配置 <strong>@_data.Slots.Count(slot => slot.ItemCode is not null) / @_data.Slots.Count</strong></span>
             }
-            <button type="button" class="button button--quiet" @onclick="LoadAsync" disabled="@(_isLoading || _isSaving)" aria-label="刷新补给数据">刷新</button>
+            <button type="button" class="button button--quiet" @onclick="RefreshAsync" disabled="@(_isLoading || _isSaving)" aria-label="刷新补给数据">刷新</button>
         </div>
     </header>
 
@@ -25,7 +23,7 @@
     else if (_data is null)
     {
         <GameStateCard Compact="true" Tone="error" Icon="!" Title="背包读取失败" Detail="@(_error ?? "暂时无法读取背包。")">
-            <Actions><button type="button" class="button button--secondary" @onclick="LoadAsync">重试</button></Actions>
+            <Actions><button type="button" class="button button--secondary" @onclick="RefreshAsync">重试</button></Actions>
         </GameStateCard>
     }
     else
@@ -33,10 +31,6 @@
         var selectedSlot = _drafts.FirstOrDefault(slot => slot.SlotIndex == _selectedSlotIndex) ?? _drafts.OrderBy(slot => slot.SlotIndex).First();
         var selectedItem = _data.Items.FirstOrDefault(item => item.Code == selectedSlot.ItemCode);
 
-        <div class="consumables-board__section-heading">
-            <h3>出战配置</h3>
-            <small>治疗与强化可同回合使用</small>
-        </div>
         <div class="consumables-board__loadout" role="group" aria-label="战斗补给配置">
             @foreach (var slot in _drafts.OrderBy(slot => slot.SlotIndex))
             {
@@ -71,38 +65,14 @@
                 </button>
             }
         </div>
-        <p class="consumables-board__loadout-note">战斗进行时无法更换补给，可提前设置自动使用条件。</p>
-
-        <section class="consumables-board__inventory-section" aria-labelledby="inventory-title">
-            <header class="consumables-board__section-heading">
-                <h3 id="inventory-title">药剂背包</h3>
-                <small>点选药剂即可配置</small>
-            </header>
-            <div class="consumables-board__filters" role="group" aria-label="按药剂用途筛选">
-                @foreach (var filter in InventoryFilters)
-                {
-                    <button type="button" class="@(_inventoryFilter == filter.Kind ? "is-active" : null)"
-                            aria-pressed="@(_inventoryFilter == filter.Kind ? "true" : "false")"
-                            @onclick="() => _inventoryFilter = filter.Kind">@filter.Label</button>
-                }
-            </div>
-            <div class="consumables-board__inventory">
-                @if (!VisibleItems().Any())
-                {
-                    <div class="consumables-board__inventory-empty"><span aria-hidden="true">◇</span><strong>暂无@(_inventoryFilter == "All" ? "药剂" : InventoryFilters.First(filter => filter.Kind == _inventoryFilter).Label + "药剂")</strong><p>可以通过炼金制作，或前往商店补充。</p></div>
-                }
-                @foreach (var item in VisibleItems())
-                {
-                    var equipped = _drafts.Any(slot => slot.ItemCode == item.Code);
-                    <button type="button" class="inventory-item @(equipped ? "inventory-item--equipped" : null)"
-                            disabled="@_isSaving" @onclick="() => ChooseItem(item.Code)" @key="item.Code">
-                        <span class="inventory-item__icon" aria-hidden="true"><img src="@ItemArt.ForCode(item.Code)" alt="" loading="lazy" /></span>
-                        <span class="inventory-item__body"><strong>@item.Name</strong><small>@item.Description</small></span>
-                        <span class="inventory-item__meta"><b>× @item.Quantity</b><small>@(equipped ? "已配置" : "配置 ›")</small></span>
-                    </button>
-                }
-            </div>
-        </section>
+        <div class="consumables-board__tools">
+            <details class="consumables-board__rules">
+                <summary>使用规则 ⌄</summary>
+                <p>点击出战槽选择药剂和自动使用条件；治疗与强化可同回合使用。战斗进行时无法更换补给。</p>
+                <p>每名角色独立拥有库存。库存耗尽后保留配置，不会自动换药或购买。药剂与材料保存在角色仓库。</p>
+            </details>
+            <a href="/inventory?characterId=@CharacterId&amp;category=supplies">药剂仓库 ↗</a>
+        </div>
         @if (_isEditorOpen)
         {
             <div class="consumables-board__editor-backdrop" @onclick="CloseEditor">
@@ -117,15 +87,7 @@
                     </header>
                     <label class="consumable-slot__field">
                         装备道具
-                        <select value="@(selectedSlot.ItemCode ?? string.Empty)" @onchange="e => UpdateItem(selectedSlot, e.Value?.ToString())" disabled="@_isSaving">
-                            <option value="">不装备</option>
-                            @foreach (var item in _data.Items.Where(item =>
-                                Game.Shared.ConsumableRules.CanEquip(selectedSlot.SlotIndex, item.Kind) &&
-                                (item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code))))
-                            {
-                                <option value="@item.Code" disabled="@IsUsedInOtherSlot(item.Code, selectedSlot.SlotIndex)">@item.Name（库存 @item.Quantity）</option>
-                            }
-                        </select>
+                        <InventoryItemPicker Options="@SupplyOptions(selectedSlot)" Value="@selectedSlot.ItemCode" OnPick="code => UpdateItem(selectedSlot, code)" Title="@($"选择{Game.Shared.ConsumableRules.SlotName(selectedSlot.SlotIndex)}")" Hint="选择只修改草稿，点击保存后生效。" Disabled="@_isSaving" WarehouseRoute="@($"/inventory?characterId={CharacterId}&category=supplies")" />
                     </label>
                     @if (selectedItem is null)
                     {
@@ -144,16 +106,14 @@
                         <div class="consumables-board__automation">
                             <label class="consumable-slot__toggle">
                                 <input type="checkbox" checked="@selectedSlot.AutoUseEnabled" @onchange="e => UpdateAuto(selectedSlot, e.Value is true)" disabled="@_isSaving" />
-                                <span><strong>自动使用</strong><small>@(selectedItem.Kind == "Healing" ? "生命低于设定阈值时" : selectedItem.WeaponSkillCode == "weapon-enmity" ? "生命不高于 50%、效果结束且冷却就绪时" : "效果结束且冷却就绪时")</small></span>
+                                <span><strong>自动使用</strong><small>条件满足、次数和冷却允许时使用</small></span>
                             </label>
-                            @if (selectedItem.Kind == "Healing")
-                            {
-                                <label class="consumable-slot__threshold">
-                                    <span>HP ≤</span>
-                                    <input type="number" min="1" max="100" value="@selectedSlot.AutoHpThresholdPercent" @onchange="e => UpdateThreshold(selectedSlot, e.Value?.ToString())" disabled="@_isSaving" />
-                                    <span>%</span>
-                                </label>
-                            }
+                            <SkillAutoConditionPicker ConditionOverride="@selectedSlot.AutoConditionOverride"
+                                DefaultCondition="@selectedItem.DefaultAutoCondition" DefaultLabel="药剂默认"
+                                Threshold="@selectedSlot.AutoHpThresholdPercent" Disabled="@_isSaving"
+                                OnConditionChanged="condition => selectedSlot.AutoConditionOverride = condition"
+                                OnThresholdChanged="threshold => selectedSlot.AutoHpThresholdPercent = threshold" />
+                            <small>条件决定使用时机，药效只作用于自己。</small>
                         </div>
                         }
                     }
@@ -172,29 +132,26 @@
 
         @if (_error is not null && !_isEditorOpen) { <p class="consumables-board__error" role="alert">@_error</p> }
         @if (_notice is not null) { <p class="consumables-board__success" role="status">@_notice</p> }
-        <p class="consumables-board__footnote">每名角色独立拥有药剂库存。库存耗尽后保留配置，不会自动换药或购买。</p>
     }
 </section>
 
 @code {
     [Parameter, EditorRequired]
     public int CharacterId { get; set; }
+    [Parameter] public string? InitialItemCode { get; set; }
+    private bool _initialItemApplied;
+    private IReadOnlyList<InventoryItemPicker.Option> SupplyOptions(SlotDraft slot) => (_data?.Items ?? []).Where(item => Game.Shared.ConsumableRules.CanEquip(slot.SlotIndex, item.Kind) && (item.Quantity > 0 || _drafts.Any(draft => draft.ItemCode == item.Code))).Select(item => new InventoryItemPicker.Option(item.Code, item.Name, $"库存 {item.Quantity} · {item.Description}", ItemArt.ForCode(item.Code), IsUsedInOtherSlot(item.Code, slot.SlotIndex))).ToList();
 
-    private string _inventoryFilter = "All";
-    private static readonly (string Kind, string Label)[] InventoryFilters = [("All", "全部"), ("Healing", "治疗"), ("CombatBuff", "强化"), ("OperationPotion", "合剂")];
-    private IEnumerable<ConsumableItemResponse> VisibleItems() => (_data?.Items ?? [])
-        .Where(item => (item.Quantity > 0 || _drafts.Any(slot => slot.ItemCode == item.Code)) &&
-            (_inventoryFilter == "All" || item.Kind == _inventoryFilter));
     private static string SlotTone(int index) => index switch { 1 => "healing", 2 => "buff", _ => "flask" };
     private string SlotRule(int index) => index switch
     {
         1 => $"每轮副本 {_data?.HealingPotionUsesLimit} 次",
-        2 => "短时增益 · 按冷却使用",
+        2 => $"每轮副本 {_data?.BuffPotionUsesLimit} 次 · 短时增益",
         _ => "首次参战使用 · 整轮生效"
     };
     private static string SlotMode(SlotDraft slot, ConsumableItemResponse item) => item.Kind == "OperationPotion"
         ? "首次参战自动使用" : !slot.AutoUseEnabled ? "手动使用"
-        : item.Kind == "Healing" ? $"自动 · HP ≤ {slot.AutoHpThresholdPercent}%" : "自动使用";
+        : $"自动 · {Game.Shared.SkillAutoRules.Describe(slot.AutoConditionOverride ?? item.DefaultAutoCondition, slot.AutoHpThresholdPercent)}";
     private CharacterConsumablesResponse? _data;
     private readonly List<SlotDraft> _drafts = [];
     private bool _isLoading = true;
@@ -215,20 +172,23 @@
         await _editorDialog.FocusAsync();
     }
 
-    private async Task LoadAsync()
+    private Task LoadAsync() => ReadAsync(false);
+    private Task RefreshAsync() => ReadAsync(true);
+    private async Task ReadAsync(bool forceRefresh)
     {
         _isLoading = true;
         _error = null;
         _notice = null;
         try
         {
-            var (response, error) = await ApiService.GetCharacterConsumablesAsync(CharacterId);
+            var (response, error) = await ApiService.GetCharacterConsumablesAsync(CharacterId, forceRefresh);
             _data = response;
             _error = GetError(error);
             if (response is not null)
             {
                 SetDrafts(response);
                 _isEditorOpen = false;
+                if (!_initialItemApplied && InitialItemCode is not null) { _initialItemApplied = true; ChooseItem(InitialItemCode); }
             }
         }
         catch
@@ -250,6 +210,7 @@
             SlotIndex = slot.SlotIndex,
             ItemCode = slot.ItemCode,
             AutoUseEnabled = slot.AutoUseEnabled,
+            AutoConditionOverride = slot.AutoConditionOverride,
             AutoHpThresholdPercent = slot.AutoHpThresholdPercent
         }));
         if (_drafts.All(slot => slot.SlotIndex != _selectedSlotIndex))
@@ -276,11 +237,17 @@
 
     private void UpdateItem(SlotDraft slot, string? code)
     {
+        if (slot.ItemCode != code)
+        {
+            var item = _data?.Items.FirstOrDefault(item => item.Code == code);
+            slot.AutoConditionOverride = null;
+            slot.AutoHpThresholdPercent = item?.DefaultAutoHpThresholdPercent ?? Game.Shared.ConsumableRules.DefaultAutoHpThresholdPercent;
+        }
         slot.ItemCode = string.IsNullOrEmpty(code) ? null : code;
         if (slot.ItemCode is null)
         {
             slot.AutoUseEnabled = false;
-            if (slot.AutoHpThresholdPercent is < 1 or > 100) slot.AutoHpThresholdPercent = 50;
+            if (slot.AutoHpThresholdPercent is < 1 or > 100) slot.AutoHpThresholdPercent = Game.Shared.ConsumableRules.DefaultAutoHpThresholdPercent;
         }
         _error = null;
         _notice = null;
@@ -334,6 +301,7 @@
         var saved = _data?.Slots.FirstOrDefault(slot => slot.SlotIndex == draft.SlotIndex);
         return saved is not null && (saved.ItemCode != draft.ItemCode ||
             saved.AutoUseEnabled != draft.AutoUseEnabled ||
+            saved.AutoConditionOverride != draft.AutoConditionOverride ||
             saved.AutoHpThresholdPercent != draft.AutoHpThresholdPercent);
     }
 
@@ -350,6 +318,7 @@
                 {
                     ItemCode = slot.ItemCode,
                     AutoUseEnabled = slot.AutoUseEnabled,
+                    AutoConditionOverride = slot.AutoConditionOverride,
                     AutoHpThresholdPercent = slot.AutoHpThresholdPercent
                 });
             if (response is null)
@@ -361,6 +330,7 @@
             var saved = response.Slots.Single(item => item.SlotIndex == slot.SlotIndex);
             slot.ItemCode = saved.ItemCode;
             slot.AutoUseEnabled = saved.AutoUseEnabled;
+            slot.AutoConditionOverride = saved.AutoConditionOverride;
             slot.AutoHpThresholdPercent = saved.AutoHpThresholdPercent;
             _notice = $"{Game.Shared.ConsumableRules.SlotName(slot.SlotIndex)}槽已保存。";
             _isEditorOpen = false;
@@ -381,6 +351,7 @@
         "LoadoutLocked" => "角色已入场，请先离场或移出角色后再调整补给槽。",
         "ConsumableAlreadyEquipped" => "该道具已装备在另一个补给槽。",
         "InvalidHpThreshold" => "HP 阈值必须在 1%～100% 之间。",
+        "InvalidAutoCondition" => "请选择有效的自动使用条件。",
         "UnknownConsumable" => "道具不存在，请刷新背包。",
         "WrongConsumableSlot" => "治疗药水、强化药水与合剂必须装备到各自的固定槽位。",
         "ConcurrencyConflict" => "角色或房间状态已变化，请刷新后重试。",
@@ -393,6 +364,7 @@
         public int SlotIndex { get; init; }
         public string? ItemCode { get; set; }
         public bool AutoUseEnabled { get; set; }
+        public string? AutoConditionOverride { get; set; }
         public int AutoHpThresholdPercent { get; set; }
     }
 }

@@ -23,6 +23,7 @@ public sealed class DungeonMasteryRewardTests
         }));
         var catalog = new RewardCatalog(Options.Create(new RewardOptions
         {
+            AllowConsumableDrops = true,
             MonsterKills = new() { ["slime-field"] = new()
             {
                 Drops = [new() { Kind = "Consumable", Code = "minor-healing-potion", ChancePercent = 25 }]

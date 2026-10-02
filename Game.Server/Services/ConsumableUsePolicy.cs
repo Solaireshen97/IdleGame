@@ -8,7 +8,7 @@ namespace Game.Server.Services;
 public static class ConsumableUsePolicy
 {
     public static string? UnavailableReason(Room room, Character character, int slotIndex,
-        ConsumableItemOptions? item, int quantity, int cooldownRemaining, int healingUses, bool buffActive)
+        ConsumableItemOptions? item, int quantity, int cooldownRemaining, int healingUses, bool buffActive, int buffUses = 0)
     {
         if (room.ClosedAtUtc.HasValue || room.Status == RoomStatus.BattleOver) return "BattleOver";
         if (character.Hp <= 0) return "CharacterDead";
@@ -16,6 +16,8 @@ public static class ConsumableUsePolicy
         if (!ConsumableRules.CanEquip(slotIndex, item.Kind)) return "WrongConsumableSlot";
         if (item.Kind == "Healing" && healingUses >= ConsumableRules.HealingPotionUsesPerRun)
             return "HealingPotionLimitReached";
+        if (item.Kind == "CombatBuff" && buffUses >= ConsumableRules.BuffPotionUsesPerRun)
+            return "BuffPotionLimitReached";
         if (character.Level < (item.Tier - 1) * 10 + 1 ||
             ConsumableRules.EffectScalePercent(item.Tier, character.Level) == 0) return "ConsumableIneffective";
         if (item.Kind == "Healing" && character.Hp >= TalentRules.EffectiveMaxHp(character)) return "HpFull";

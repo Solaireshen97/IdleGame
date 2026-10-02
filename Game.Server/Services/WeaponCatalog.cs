@@ -207,6 +207,7 @@ public sealed class WeaponCatalog
     }
 
     public int MaxFragmentTier => _items.Values.Select(item => WeaponRules.FragmentTier(item.ItemLevel)).DefaultIfEmpty(1).Max();
+    public IEnumerable<int> FragmentTiers => _items.Values.Select(item => WeaponRules.FragmentTier(item.ItemLevel)).Append(1).Distinct();
 
     public int EnhancementCost(int completedEnhancements) =>
         completedEnhancements is >= 0 and < WeaponRules.MaxEnhancementWithQuality

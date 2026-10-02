@@ -22,6 +22,7 @@ public sealed class CharacterWeaponsResponse
     public List<WeaponFragmentResponse> Fragments { get; set; } = [];
     public List<WeaponBreakthroughMaterialResponse> BreakthroughMaterials { get; set; } = [];
     public List<CharacterWeaponResponse> Weapons { get; set; } = [];
+    public Game.Shared.Dtos.Inventory.InventoryOperationResult? OperationResult { get; set; }
 }
 
 public sealed class CharacterWeaponResponse

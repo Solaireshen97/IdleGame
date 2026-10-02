@@ -51,14 +51,14 @@ button:disabled { opacity: .5; cursor: wait; }
 @media (max-width: 600px) {
     .depth-picker { gap: 8px; }
     .depth-picker__mastery { gap: 6px; }
-    .depth-step { min-height: 76px; gap: 7px; }
+    .depth-step { min-height: 64px; gap: 5px; padding-block: 7px; }
     .depth-step__top strong { font-size: 1.6rem; }
     .depth-step__reward { font-size: .68rem; }
     .depth-brief { padding: 11px; gap: 11px; }
     .depth-brief__emblem { flex-basis: 39px; height: 50px; }
     .depth-brief__title strong { font-size: .86rem; }
     .depth-brief p { font-size: .69rem; }
-    .depth-benefits { font-size: .61rem; gap: 4px; }
+    .depth-benefits { flex-wrap: wrap; justify-content: flex-start; font-size: .7rem; gap: 4px 10px; }
     .depth-benefits > span:first-child { color: #9bacb6; }
 }
 @media (max-width: 600px) and (max-height: 720px) {

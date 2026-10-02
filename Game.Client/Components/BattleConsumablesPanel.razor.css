@@ -1,5 +1,8 @@
 .battle-supplies { display: grid; min-width: 0; gap: 4px; }
 .battle-supplies__potions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.battle-supplies__auto-settings { min-width: 0; padding: .25rem .5rem; border-radius: .3rem; background: #132b3b; color: #b6c7d0; font-size: .7rem; }
+.battle-supplies__auto-settings summary { cursor: pointer; }
+.battle-supplies__auto-settings label { display: flex; align-items: center; gap: .3rem; margin-block: .4rem; }
 /* Keep both potion targets at thumb size without growing the battle command area. */
 .battle-supplies__potion { --supply-accent: #98d2bf; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: .45rem; width: 100%; min-width: 0; height: 44px; padding: 4px .5rem; border: 1px solid #3c5a6d; border-left: 2px solid var(--supply-accent); border-radius: .45rem; background: #132b3b; color: #e5edf1; text-align: left; cursor: pointer; }
 .battle-supplies__potion--buff { --supply-accent: #c0b1de; background: #192b3e; }

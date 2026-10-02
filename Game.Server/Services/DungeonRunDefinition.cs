@@ -22,7 +22,7 @@ public sealed class DungeonRunDefinition
     public List<DungeonSeedDrop> RareSeeds { get; set; } = [];
 }
 
-public sealed record DungeonSeedDrop(string SeedCode, decimal DropChancePercent);
+public sealed record DungeonSeedDrop(string SeedCode, decimal DropChancePercent, bool FirstClearGuaranteed = false);
 public sealed record DungeonMonsterDefinition(int WaveNumber, int Position, string Name,
     ElementType Element, int MaxHp, int Attack, int Defense, string CombatProfileCode,
     string RewardProfileCode, bool IsBoss)

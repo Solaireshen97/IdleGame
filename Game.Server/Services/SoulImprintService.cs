@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class SoulImprintService(GameDbContext dbContext, UserService userService,
+public sealed partial class SoulImprintService(GameDbContext dbContext, UserService userService,
     SoulImprintCatalog catalog)
 {
     public async Task<(CharacterSoulImprintsResponse? Response, string? Error)> GetAsync(
@@ -33,6 +33,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             ? imprints.SingleOrDefault(item => item.Id == request.SoulImprintId.Value)
             : null;
         if (request.SoulImprintId.HasValue && selected is null) return (null, "SoulImprintNotOwned");
+        if (selected is not null && catalog.Find(selected.SoulImprintCode) is null) return (null, "UnknownSoulImprint");
         var equipped = imprints.SingleOrDefault(item => item.EquippedSlotIndex == 1);
         if (equipped?.Id == selected?.Id) return (await BuildResponseAsync(character!), null);
 
@@ -134,62 +135,9 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
         }
     }
 
-    public async Task<(CharacterSoulImprintsResponse? Response, string? Error)> DismantleAsync(
-        string? token, int characterId, SoulImprintBatchRequest request)
-    {
-        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
-        if (error is not null) return (null, error);
-        var ids = request.SoulImprintIds.Distinct().ToList();
-        if (ids.Count is < 1 or > 100 || ids.Count != request.SoulImprintIds.Count || ids.Any(id => id <= 0))
-            return (null, "InvalidSoulImprintSelection");
-        if (await GetLoadoutLockErrorAsync(characterId) is { } lockError) return (null, lockError);
-        var imprints = await dbContext.CharacterSoulImprints.Where(item =>
-            item.CharacterId == characterId && ids.Contains(item.Id)).ToListAsync();
-        if (imprints.Count != ids.Count) return (null, "SoulImprintNotOwned");
-        if (imprints.Any(item => item.EquippedSlotIndex.HasValue)) return (null, "SoulImprintEquipped");
-        if (imprints.Any(item => item.IsLocked)) return (null, "SoulImprintLocked");
-        if (await FormationItemReferencePolicy.SoulImprintsAsync(dbContext, characterId, ids) is { } referenceError)
-            return (null, referenceError);
-
-        var returns = imprints.Select(item => catalog.Find(item.SoulImprintCode)!)
-            .GroupBy(item => item.Tier)
-            .ToDictionary(group => group.Key, group => group.Sum(item => item.DismantleFragments));
-        var fragmentCodes = returns.Keys.Select(WeaponRules.FragmentCode).ToList();
-        var stacks = await dbContext.CharacterItemStacks.Where(stack =>
-            stack.CharacterId == characterId && fragmentCodes.Contains(stack.ItemCode)).ToListAsync();
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            foreach (var (tier, quantity) in returns)
-            {
-                var code = WeaponRules.FragmentCode(tier);
-                var stack = stacks.SingleOrDefault(item => item.ItemCode == code);
-                if (stack is null)
-                {
-                    dbContext.CharacterItemStacks.Add(new CharacterItemStack
-                    {
-                        CharacterId = characterId, ItemCode = code, Quantity = quantity
-                    });
-                }
-                else
-                {
-                    stack.Quantity = checked(stack.Quantity + quantity);
-                    stack.Version++;
-                }
-            }
-            character!.Version++;
-            dbContext.CharacterSoulImprints.RemoveRange(imprints);
-            await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return (await BuildResponseAsync(character), null);
-        }
-        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
-        {
-            return (null, "ConcurrencyConflict");
-        }
-    }
-
+    public Task<(CharacterSoulImprintsResponse? Response, string? Error)> DismantleAsync(
+        string? token, int characterId, SoulImprintBatchRequest request) =>
+        ExecuteInventoryBatchAsync(token, characterId, request);
     private async Task<(Character? Character, string? Error)> GetOwnedCharacterAsync(string? token, int characterId)
     {
         var (user, error) = await userService.GetCurrentUserEntityAsync(token);
@@ -221,7 +169,8 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             }).ToList(),
             SoulImprints = imprints.Select(item =>
             {
-                var definition = catalog.Find(item.SoulImprintCode)!;
+                var definition = catalog.Find(item.SoulImprintCode);
+                if (definition is null) return InventoryItemProjection.Soul(item, catalog);
                 var policy = roomSlot is not null && item.EquippedSlotIndex == 1
                     ? BattleAutoPolicyResolver.Soul(roomSlot, item)
                     : new(item.AutoUseEnabled, item.AutoConditionOverride, item.AutoHpThresholdPercent);

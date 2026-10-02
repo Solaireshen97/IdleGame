@@ -1,6 +1,7 @@
 <Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
-        <ErrorBoundary @key="routeData">
+        @* Warehouse filters and details update the query string without replacing its page state. *@
+        <ErrorBoundary @key="(routeData.PageType == typeof(Game.Client.Pages.Inventory) ? (object)routeData.PageType : routeData)">
             <ChildContent>
                 <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
             </ChildContent>

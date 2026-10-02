@@ -21,6 +21,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Update="world.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="story.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="story.json" />
   </ItemGroup>
 
 </Project>

@@ -3,48 +3,66 @@
 @using Game.Shared.Dtos.Formations
 @using Game.Client.Services
 @inject ApiService Api
+@inject IJSRuntime Js
+@inject ActiveCharacterState ActiveCharacters
+@inject NavigationManager Navigation
 
 <section class="formation-selector" aria-label="出战编队">
-    <fieldset disabled="@Disabled">
-    <strong>出战编队</strong>
+    <fieldset disabled="@(Disabled || _choosing)">
     @if (_loading) { <p>正在读取角色编队…</p> }
     else if (_error is not null) { <p role="alert">@_error</p><button type="button" class="button button--secondary" @onclick="ReloadAsync">重试</button> }
     else if (_overview is not null)
     {
-        <button type="button" class="button button--secondary" @onclick="() => _expanded = !_expanded">@SelectionLabel · 更换</button>
+        @if (_overview.Formations.Count == 0)
+        {
+            <div class="formation-empty"><p>@TargetCharacterName 还没有保存的出战编队。</p><button type="button" class="button button--secondary" @onclick="ManageAsync">先创建编队</button></div>
+        }
+        else
+        {
+        <button type="button" class="formation-choice" @ref="_choiceButton" aria-expanded="@(_expanded ? "true" : "false")" aria-controls="@_selectorId" @onclick="() => _expanded = !_expanded">
+            <span class="formation-choice-heading"><small>出战编队</small><span>@(_expanded ? "收起" : "更换") <span aria-hidden="true">@(_expanded ? "−" : "+")</span></span></span>
+            @if (SelectedFormation is { } selected) { <FormationLoadoutPreview Formation="selected" /> }
+            else { <strong class="formation-choice-empty">请选择已保存编队</strong> }
+        </button>
         @if (_expanded)
         {
+            <div id="@_selectorId" class="formation-options">
             <div class="formation-elements">
                 @foreach (var element in Enum.GetValues<ElementType>())
                 { <button type="button" class="button button--secondary" aria-pressed="@(_element == element)" @onclick="() => _element = element">@WeaponRules.ElementName(element)</button> }
             </div>
-            <button type="button" class="button button--secondary" @onclick="() => ChooseAsync(null)">当前角色配置</button>
             @foreach (var formation in _overview.Formations.Where(f => f.GroupElement == _element).OrderBy(f => f.Position))
             {
-                <button type="button" class="button button--secondary" disabled="@(!formation.Preview.CanDeploy)" @onclick="() => ChooseAsync(formation)">
-                    @formation.Position · @formation.Name · @formation.Preview.ProfessionName Lv.@formation.Preview.Level · @(formation.Preview.CanDeploy ? "可出战" : "不可出战")
+                <button type="button" class="formation-option" aria-pressed="@(formation.Id == _selection.FormationId ? "true" : "false")" disabled="@(!formation.Preview.CanDeploy)" @onclick="() => ChooseAsync(formation)">
+                    <span class="formation-option-heading"><small>预设 @formation.Position</small><span>@(!formation.Preview.CanDeploy ? "待完善" : formation.Id == _selection.FormationId ? "✓ 当前选择" : "选择")</span></span>
+                    <FormationLoadoutPreview Formation="formation" />
                 </button>
                 @if (!formation.Preview.CanDeploy) { <small>@string.Join("；", formation.Preview.Issues.Select(i => i.Message))</small> }
             }
-            <a href="/formations">管理编队</a>
+            @if (!_overview.Formations.Any(f => f.GroupElement == _element)) { <small>此属性还没有保存的编队。</small> }
+            <button type="button" class="formation-manage" @onclick="ManageAsync">编辑 @TargetCharacterName 的编队 ›</button>
+            <label><input type="checkbox" @bind="_remember" @bind:after="NotifyAsync" /> 记住用于本挑战</label>
+            @if (!string.IsNullOrWhiteSpace(DungeonCode)) { <button type="button" class="button button--secondary" @onclick="ClearMemoryAsync">清除本挑战记忆</button> }
+            </div>
         }
         @if (_preview is not null)
         {
-            <p>@_preview.ProfessionName Lv.@_preview.Level · 攻击 @_preview.Attack · 生命 @_preview.MaxHp</p>
             @foreach (var issue in _preview.Issues) { <p role="status">@FormationPresentation.SectionName(issue.Section) @(issue.SlotIndex is int index ? $"{index}号位" : "")：@issue.Message</p> }
         }
         @foreach (var issue in _recommendationIssues) { <p role="status">@issue.Message</p> }
-        <label><input type="checkbox" @bind="_remember" @bind:after="NotifyAsync" /> 记住用于本挑战</label>
-        @if (!string.IsNullOrWhiteSpace(DungeonCode)) { <button type="button" class="button button--secondary" @onclick="ClearMemoryAsync">清除本挑战记忆</button> }
+        }
+        @if (_managementError is not null) { <p role="alert">@_managementError</p> }
     }
     </fieldset>
 </section>
 
 @code {
     [Parameter] public int CharacterId { get; set; }
+    [Parameter] public string? CharacterName { get; set; }
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public string DungeonCode { get; set; } = "";
     [Parameter] public int DepthLevel { get; set; } = 1;
+    [Parameter] public int DungeonId { get; set; }
     [Parameter] public EventCallback<LoadoutSelection> SelectionChanged { get; set; }
     [Parameter] public EventCallback<bool> ValidityChanged { get; set; }
     private FormationOverviewResponse? _overview;
@@ -53,9 +71,17 @@
     private LoadoutSelection _selection = new();
     private ElementType _element;
     private string? _key, _error;
+    private string? _loadedCharacterName, _managementError;
+    private string TargetCharacterName => CharacterName ?? _loadedCharacterName ?? $"角色 #{CharacterId}";
     private int _generation, _choiceGeneration;
-    private bool _loading, _expanded, _remember = true;
-    private string SelectionLabel => _overview?.Formations.FirstOrDefault(f => f.Id == _selection.FormationId) is { } f ? $"{WeaponRules.ElementName(f.GroupElement)} · {f.Name} / 版本 {f.Version}" : "当前角色配置";
+    private bool _loading, _choosing, _expanded, _remember = true;
+    private readonly string _selectorId = $"formation-options-{Guid.NewGuid():N}";
+    private ElementReference _choiceButton;
+    private bool _focusChoice;
+    private FormationResponse? SelectedFormation => _overview?.Formations.FirstOrDefault(f => f.Id == _selection.FormationId);
+    private string StorageKey => $"battle-formation-choice:{CharacterId}:{DungeonCode}:{DepthLevel}";
+    private string ManageHref => "/formations?section=weapons" + (_selection.FormationId is int id ? $"&formationId={id}" : "") +
+        (DungeonId > 0 ? $"&return=rooms&dungeonId={DungeonId}&depth={DepthLevel}" : "");
     protected override async Task OnParametersSetAsync()
     {
         var key = $"{CharacterId}:{DungeonCode}:{DepthLevel}";
@@ -68,15 +94,39 @@
         var generation = ++_generation;
         var characterId = CharacterId;
         _loading = true; _overview = null; _preview = null; _error = null;
+        _managementError = null;
         await ValidityChanged.InvokeAsync(false);
         try
         {
             var (overview, error) = await Api.GetFormationsAsync(characterId);
             if (generation != _generation) return;
             _overview = overview; _error = error;
-            if (overview is null) return;
+            if (overview is null) { _error ??= "编队读取失败，请重试。"; return; }
+            _loadedCharacterName = ActiveCharacters.Current?.CharacterId == characterId ? ActiveCharacters.Current.Name : null;
+            if (CharacterName is null && _loadedCharacterName is null)
+            {
+                try
+                {
+                    var roster = await Api.GetCurrentCharactersAsync();
+                    _loadedCharacterName = roster?.FirstOrDefault(character => character.CharacterId == characterId)?.Name;
+                }
+                catch (HttpRequestException) { }
+                catch (TaskCanceledException) { }
+                if (generation != _generation) return;
+            }
+            _selection = new();
+            _recommendationIssues = [];
+            _remember = true;
+            string? remembered = null;
+            try { remembered = await Js.InvokeAsync<string?>("sessionStorage.getItem", StorageKey); }
+            catch (JSException) { }
+            if (generation != _generation) return;
+            var choice = remembered?.Split(':');
+            var chosen = choice is { Length: 2 } && int.TryParse(choice[0], out var storedId)
+                ? overview.Formations.FirstOrDefault(f => f.Id == storedId) : null;
+            if (chosen is not null) _remember = choice![1] == "1";
             FormationRecommendationResponse? recommendation = null;
-            if (!string.IsNullOrWhiteSpace(DungeonCode))
+            if (chosen is null && overview.Formations.Count > 0 && !string.IsNullOrWhiteSpace(DungeonCode))
             {
                 var result = await Api.RecommendFormationAsync(characterId, DungeonCode, DepthLevel);
                 if (generation != _generation) return;
@@ -85,39 +135,97 @@
             }
             if (generation != _generation) return;
             _recommendationIssues = recommendation?.Issues ?? [];
-            _selection = recommendation?.Selection ?? new();
-            _remember = true;
-            var chosen = overview.Formations.FirstOrDefault(f => f.Id == _selection.FormationId);
-            if (chosen is not null) _element = chosen.GroupElement;
-            _preview = chosen?.Preview ?? (await Api.PreviewFormationAsync(characterId, overview.CurrentLoadout, _element)).Response;
+            chosen ??= overview.Formations.FirstOrDefault(f => f.Id == recommendation?.Selection.FormationId);
+            if (chosen is null)
+            {
+                _expanded = true;
+                return;
+            }
+            _selection = new() { Mode = "SavedFormation", FormationId = chosen.Id, ExpectedVersion = chosen.Version };
+            _element = chosen.GroupElement;
+            _preview = chosen.Preview;
             if (generation != _generation) return;
             await NotifyAsync();
         }
         catch { if (generation == _generation) _error = "读取编队失败，请重试。"; }
         finally { if (generation == _generation) _loading = false; }
     }
-    private async Task ChooseAsync(FormationResponse? formation)
+    private async Task ChooseAsync(FormationResponse formation)
     {
+        if (Disabled || _choosing) return;
         var generation = _generation;
         var choiceGeneration = ++_choiceGeneration;
+        _choosing = true;
         await ValidityChanged.InvokeAsync(false);
-        _selection = formation is null ? new() : new() { Mode = "SavedFormation", FormationId = formation.Id, ExpectedVersion = formation.Version };
-        _preview = formation?.Preview ?? (await Api.PreviewFormationAsync(CharacterId, _overview!.CurrentLoadout, _element)).Response;
-        if (generation != _generation || choiceGeneration != _choiceGeneration) return;
-        await NotifyAsync();
+        try
+        {
+            _selection = new() { Mode = "SavedFormation", FormationId = formation.Id, ExpectedVersion = formation.Version };
+            _preview = formation.Preview;
+            if (generation != _generation || choiceGeneration != _choiceGeneration) return;
+            _expanded = false;
+            _focusChoice = true;
+            await NotifyAsync();
+        }
+        catch { if (generation == _generation && choiceGeneration == _choiceGeneration) _error = "切换编队失败，请重试。"; }
+        finally { _choosing = false; }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusChoice || _loading || _choosing || _error is not null) return;
+        _focusChoice = false;
+        await _choiceButton.FocusAsync(preventScroll: true);
     }
     private async Task NotifyAsync()
     {
         _selection.RememberForEncounter = _remember;
+        if (_selection.FormationId is int id)
+        {
+            try { await Js.InvokeVoidAsync("sessionStorage.setItem", StorageKey, $"{id}:{(_remember ? 1 : 0)}"); }
+            catch (JSException) { }
+        }
         await SelectionChanged.InvokeAsync(_selection);
         await ValidityChanged.InvokeAsync(_preview?.CanDeploy == true);
     }
     private async Task ClearMemoryAsync()
     {
+        if (Disabled || _choosing) return;
         var generation = _generation;
-        var (_, error) = await Api.ClearFormationMemoryAsync(CharacterId, DungeonCode, DepthLevel);
-        if (generation != _generation) return;
-        if (error is not null) _error = error;
-        else await ReloadAsync();
+        _choosing = true;
+        try
+        {
+            var (_, error) = await Api.ClearFormationMemoryAsync(CharacterId, DungeonCode, DepthLevel);
+            if (generation != _generation) return;
+            if (error is not null) _error = error;
+            else
+            {
+                try { await Js.InvokeVoidAsync("sessionStorage.removeItem", StorageKey); }
+                catch (JSException) { }
+                await ReloadAsync();
+            }
+        }
+        catch { if (generation == _generation) _error = "清除挑战记忆失败，请重试。"; }
+        finally { _choosing = false; }
+    }
+
+    private async Task ManageAsync()
+    {
+        if (Disabled || _choosing) return;
+        _choosing = true;
+        _managementError = null;
+        var characterId = CharacterId;
+        var href = ManageHref;
+        try
+        {
+            if (ActiveCharacters.Current?.CharacterId != characterId)
+            {
+                var (character, error) = await Api.SelectCurrentCharacterAsync(characterId);
+                if (character is null) { _managementError = error ?? "切换角色失败，请重试。"; return; }
+                await ActiveCharacters.RefreshAsync();
+                if (ActiveCharacters.Current?.CharacterId != characterId) { _managementError = "角色信息尚未同步，请重试。"; return; }
+            }
+            Navigation.NavigateTo(href);
+        }
+        catch { _managementError = "暂时无法打开此角色的编队，请重试。"; }
+        finally { _choosing = false; }
     }
 }

@@ -10,6 +10,7 @@ public sealed class ShopResponse
     public int CharacterCount { get; set; }
     public int CharacterSlotLimit { get; set; }
     public int MaximumCharacterSlots { get; set; }
+    // Kept as null for clients from before all five slots became free.
     public int? NextCharacterSlotCost { get; set; }
     public List<ShopItemResponse> Items { get; set; } = [];
     public List<ShopMaterialResponse> Materials { get; set; } = [];

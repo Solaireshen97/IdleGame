@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "test": "node --test battle-combat.test.cjs"
+    "test": "node --test *.test.cjs"
   },
   "engines": {
     "node": ">=22.13"

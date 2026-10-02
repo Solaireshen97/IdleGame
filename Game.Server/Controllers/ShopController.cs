@@ -33,11 +33,9 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
     }
 
     [HttpPost("character-slot")]
-    public async Task<ActionResult<ShopResponse>> PurchaseCharacterSlot()
-    {
-        var (response, error) = await shopService.PurchaseCharacterSlotAsync(GetToken());
-        return error is null ? Ok(response) : ToError(error);
-    }
+    public ActionResult<ShopResponse> PurchaseCharacterSlot() =>
+        // Retire the old route explicitly so cached clients can never spend gold on slots.
+        StatusCode(StatusCodes.Status410Gone, "CharacterSlotsIncluded");
 
     private string? GetToken()
     {
@@ -51,7 +49,7 @@ public sealed class ShopController(ShopService shopService) : ControllerBase
     {
         "Unauthorized" => Unauthorized(error),
         "UserNotFound" or "CharacterNotFound" or "ProductNotFound" or "ExchangeOfferNotFound" => NotFound(error),
-        "ActiveCharacterChanged" or "ConcurrencyConflict" or "MaximumCharacterSlotsReached" => Conflict(error),
+        "ActiveCharacterChanged" or "ConcurrencyConflict" => Conflict(error),
         _ => BadRequest(error)
     };
 }

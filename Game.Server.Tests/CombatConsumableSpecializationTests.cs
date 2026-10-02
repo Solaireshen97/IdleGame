@@ -112,10 +112,11 @@ public partial class BattleServiceTests
         Assert.Equal(3, (await test.Db.RoomSlots.SingleAsync()).PendingConsumableSlotMask);
         var result = await service.StartPreparationAsync(test.Room.Id, test.Token);
         Assert.Null(result.Error);
-        Assert.Contains(result.Result!.Logs, log => log.Contains("使用 小型治疗药水"));
+        Assert.Contains(result.Result!.Logs, log => log.Contains("使用 治疗药水"));
         Assert.All(await test.Db.CharacterItemStacks.ToListAsync(), stack => Assert.Equal(1, stack.Quantity));
         Assert.Single(await test.Db.BattleConsumableBuffs.ToListAsync());
         Assert.Equal(1, (await test.Db.BattleHealingPotionStates.SingleAsync()).UsesUsed);
+        Assert.Equal(1, (await test.Db.BattleHealingPotionStates.SingleAsync()).BuffUsesUsed);
         Assert.Equal(0, (await test.Db.RoomSlots.SingleAsync()).PendingConsumableSlotMask);
     }
 

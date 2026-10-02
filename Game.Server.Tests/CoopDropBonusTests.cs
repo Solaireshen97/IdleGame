@@ -332,6 +332,7 @@ public sealed class CoopDropBonusTests
         };
         return new(Options.Create(new RewardOptions
         {
+            AllowConsumableDrops = true,
             CoopDropBonus = new() { PercentPerAdditionalUser = perAdditionalUser, MaximumPercent = maximum },
             MonsterKills = new() { [DungeonCode] = Bundle() },
             DungeonClears = new() { [DungeonCode] = Bundle(), [DungeonCode + "-first-clear"] = Bundle() }

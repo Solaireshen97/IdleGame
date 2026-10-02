@@ -33,15 +33,15 @@
   },
   {
     "code": "knight-invigorate",
-    "file": "priest-group-heal.png",
-    "subject": "a warm healing radiance shared with allies",
-    "palette": "warm gold, ivory and emerald"
+    "file": "knight-invigorate.png",
+    "subject": "INVIGORATE SPIRIT, a knight's supportive healing skill for self and one ally. One large steel-blue armored gauntlet held palm-up, cradling a bright small emerald life-spark; two symmetrical upward curling golden light trails end in two bold ivory four-point stars above the palm. Palette steel blue armor, warm gold, emerald green and ivory. The gauntlet is the dominant readable shape, no swords, no shield, no potion bottle, no letters. Uplifting, protective, compact silhouette.",
+    "palette": "steel blue, warm gold, emerald and ivory"
   },
   {
     "code": "knight-holy-aura",
-    "file": "acolyte-radiant-flare.png",
-    "subject": "a bright holy aura radiating from the center",
-    "palette": "white, warm gold and orange"
+    "file": "knight-holy-aura.png",
+    "subject": "HOLY AURA, a knight's persistent radiant aura that heals allies and burns enemies. A bold upright ivory-gold sunburst emblem floating just above a wide elliptical golden ring on the ground, with three small rising golden light pillars around the ring and two tiny emerald healing sparks inside. The central sun has four broad rays, not a face, not lettering. Palette warm gold, ivory, steel blue accents and very small emerald accents. Read as a protective area aura, distinct from a shield or a single explosive bolt.",
+    "palette": "warm gold, ivory, steel blue and emerald"
   },
   {
     "code": "acolyte-holy-bolt",
@@ -85,26 +85,124 @@
     "subject": "three small emerald hearts gathered beneath one broad white-gold healing halo and descending light rays",
     "palette": "emerald green, ivory, pale cyan and warm gold"
   },
-  {"code":"mage-arcane-bolt","subject":"one luminous violet arcane dart with a pointed gold rune trail","palette":"violet, cobalt blue and warm gold"},
-  {"code":"mage-frost-bolt","file":"mage-frost-ward.png","subject":"a sharp icy blue frost bolt with a white snowflake trail","palette":"ice blue, pale cyan and ivory"},
-  {"code":"mage-scorch","file":"elementalist-pyroblast.png","subject":"a compact orange flame burning a marked target","palette":"orange, ember red and warm gold"},
-  {"code":"mage-spellbreak","subject":"a fractured violet spell rune pierced by a blue crystal shard","palette":"violet, crystal blue and ivory"},
-  {"code":"mage-arcane-domain","file":"mage-arcane-suppression.png","subject":"a glowing violet arcane circle radiating sustained energy","palette":"indigo, violet and muted gold"},
-  {"code":"hunter-tracking-shot","file":"hunter-marked-shot.png","subject":"a feathered arrow striking a red crossed target mark with one impact spark","palette":"forest green, scarlet and amber"},
-  {"code":"hunter-precision-shot","file":"hunter-quick-shot.png","subject":"a compact drawn hunting bow releasing a single fast amber arrow","palette":"forest green, amber and dark brown"},
-  {"code":"hunter-expose-shot","file":"hunter-venom-arrow.png","subject":"a sharp arrowhead piercing a monster's weak point","palette":"forest green, dark steel and amber"},
-  {"code":"hunter-hunting-signal","file":"beastmaster-coordinated-assault.png","subject":"a hunting signal calling allies to strike together","palette":"forest green, amber and warm gold"},
-  {"code":"hunter-eagle-eye","file":"marksman-sniper-shot.png","subject":"a focused hunter eye sighting through a bow toward a distant target","palette":"forest green, pale gold and steel blue"},
-  {"code":"rogue-shadow-strike","subject":"a dark curved dagger emerging from a bold violet shadow slash","palette":"near black, violet and cold silver"},
-  {"code":"rogue-execution-slash","file":"rogue-gouge.png","subject":"a hooked short dagger making one jagged red impact spark on dark armor","palette":"scarlet, charcoal and silver"},
-  {"code":"rogue-blade-flurry","subject":"two short crossing curved daggers surrounded by crisp crimson slash trails","palette":"dark steel, crimson and ivory"},
-  {"code":"rogue-poisoned-blade","subject":"a dark dagger with emerald venom along its edge and two falling drops","palette":"dark steel, emerald and muted violet"},
-  {"code":"rogue-adrenaline","file":"rogue-evasion.png","subject":"a single dark boot sidestepping a pale blade streak with teal motion squares","palette":"dark navy, teal and ivory"},
-  {"code":"inquisitor-condemn","subject":"a gold judgment mace crushing a black sigil beneath a white sunburst","palette":"warm gold, ivory and charcoal"},
-  {"code":"elementalist-pyroblast","subject":"a dense orange-red fireball erupting into angular flames with a bright yellow core","palette":"ember red, flame orange and yellow"},
-  {"code":"arcanist-overcharge","subject":"an overfilled purple arcane crystal crackling with blue runic lightning","palette":"violet, electric blue and silver"},
-  {"code":"marksman-sniper-shot","subject":"a long steel-tipped arrow piercing a tiny gold precision star with a straight motion trail","palette":"forest green, steel blue and warm gold"},
-  {"code":"beastmaster-coordinated-assault","subject":"a hunting spear tip alongside one broad beast claw slash converging on a bright impact","palette":"moss green, tawny brown and amber"},
-  {"code":"assassin-deathblow","subject":"a crimson-edged dagger descending into a dark heart-shaped shadow with one sharp impact glint","palette":"deep crimson, near black and silver"},
-  {"code":"trickster-smoke-bomb","subject":"a small violet smoke bomb bursting open into chunky teal and purple smoke curls","palette":"violet, teal and charcoal"}
+  {
+    "code": "mage-arcane-bolt",
+    "subject": "one luminous violet arcane dart with a pointed gold rune trail",
+    "palette": "violet, cobalt blue and warm gold"
+  },
+  {
+    "code": "mage-frost-bolt",
+    "file": "mage-frost-bolt.png",
+    "subject": "FROST BOLT, one large sharply pointed icy arrowhead/comet flying diagonally from lower-left toward upper-right, with a compact cyan crystalline tail and three separate little ice shards behind. This is an offensive cold projectile, not a shield.",
+    "palette": "icy cyan, cobalt blue and ivory"
+  },
+  {
+    "code": "mage-scorch",
+    "file": "elementalist-pyroblast.png",
+    "subject": "a compact orange flame burning a marked target",
+    "palette": "orange, ember red and warm gold"
+  },
+  {
+    "code": "mage-spellbreak",
+    "subject": "a fractured violet spell rune pierced by a blue crystal shard",
+    "palette": "violet, crystal blue and ivory"
+  },
+  {
+    "code": "mage-arcane-domain",
+    "file": "mage-arcane-domain.png",
+    "subject": "ARCANE DOMAIN, an area of controlled magical disorder. A large violet faceted crystal suspended above two bold concentric elliptical arcane rings, with three small floating crystal fragments orbiting it. The rings are composed of thick angular geometric segments with cyan notches, no written runes or letters. Compact, symmetric, luminous magical field silhouette. Palette deep violet, lavender, electric cyan and ivory, thick navy edges. No shield, no chained prisoner, no weapon; represent a persistent area of arcane magic.",
+    "palette": "deep violet, lavender, cyan and ivory"
+  },
+  {
+    "code": "hunter-tracking-shot",
+    "file": "hunter-marked-shot.png",
+    "subject": "a feathered arrow striking a red crossed target mark with one impact spark",
+    "palette": "forest green, scarlet and amber"
+  },
+  {
+    "code": "hunter-precision-shot",
+    "file": "hunter-quick-shot.png",
+    "subject": "a compact drawn hunting bow releasing a single fast amber arrow",
+    "palette": "forest green, amber and dark brown"
+  },
+  {
+    "code": "hunter-expose-shot",
+    "file": "hunter-expose-shot.png",
+    "subject": "EXPOSE WEAKNESS SHOT. A single steel-tipped golden arrow flies diagonally from lower-left to upper-right through a small broken steel armor plate. The armor plate has a clearly visible central crack, with two chunky metal fragments separating outward and one tiny gold impact spark. Use ivory steel, muted slate blue, warm amber and a small red crack. Absolutely no green poison, no skull; this depicts piercing a weak point.",
+    "palette": "ivory steel, slate blue, amber and crimson"
+  },
+  {
+    "code": "hunter-hunting-signal",
+    "file": "hunter-hunting-signal.png",
+    "subject": "COORDINATED HUNT SIGNAL. One large compact curved ivory hunting horn with a brass rim and dark forest-green leather wrap; three thick mint-green angular sound rays fan outward from its bell, representing a signal to the whole party. Horn silhouette runs from lower-left toward upper-right. Palette ivory, warm brass gold, emerald green and dark navy. Strong simple readable shape, no animal head, no dog or wolf, no bow or arrow.",
+    "palette": "ivory, brass gold and emerald"
+  },
+  {
+    "code": "hunter-eagle-eye",
+    "file": "hunter-eagle-eye.png",
+    "subject": "EAGLE EYE FOCUS. One large stylized eagle eye in a sharp brow silhouette, an amber iris with dark pupil, framed by a simple small mint-green targeting reticle of four thick corner marks. The eye itself is the clear dominant symbol; eagle head feathers only as two or three angular pixel tufts on each end. Palette warm amber gold, ivory, hunter forest-green, mint and dark navy. This is heightened perception and a target mark, not an arrow or a weapon.",
+    "palette": "amber gold, ivory, forest green and mint"
+  },
+  {
+    "code": "rogue-shadow-strike",
+    "subject": "a dark curved dagger emerging from a bold violet shadow slash",
+    "palette": "near black, violet and cold silver"
+  },
+  {
+    "code": "rogue-execution-slash",
+    "file": "rogue-gouge.png",
+    "subject": "a hooked short dagger making one jagged red impact spark on dark armor",
+    "palette": "scarlet, charcoal and silver"
+  },
+  {
+    "code": "rogue-blade-flurry",
+    "subject": "two short crossing curved daggers surrounded by crisp crimson slash trails",
+    "palette": "dark steel, crimson and ivory"
+  },
+  {
+    "code": "rogue-poisoned-blade",
+    "subject": "a dark dagger with emerald venom along its edge and two falling drops",
+    "palette": "dark steel, emerald and muted violet"
+  },
+  {
+    "code": "rogue-adrenaline",
+    "file": "rogue-adrenaline.png",
+    "subject": "ADRENALINE SURGE. A clenched dark leather-gloved rogue fist gripping a short dagger upright, surrounded by two compact sharp scarlet speed streaks and a small amber lightning bolt. Strong energetic diagonal composition, the clenched hand and dagger are one unified silhouette. Palette charcoal leather, ivory steel edge, deep scarlet red and bright warm amber. This means a burst of attack speed, not a potion, not healing, not dodging.",
+    "palette": "charcoal, ivory steel, scarlet and amber"
+  },
+  {
+    "code": "inquisitor-condemn",
+    "subject": "a gold judgment mace crushing a black sigil beneath a white sunburst",
+    "palette": "warm gold, ivory and charcoal"
+  },
+  {
+    "code": "elementalist-pyroblast",
+    "subject": "a dense orange-red fireball erupting into angular flames with a bright yellow core",
+    "palette": "ember red, flame orange and yellow"
+  },
+  {
+    "code": "arcanist-overcharge",
+    "subject": "an overfilled purple arcane crystal crackling with blue runic lightning",
+    "palette": "violet, electric blue and silver"
+  },
+  {
+    "code": "marksman-sniper-shot",
+    "subject": "a long steel-tipped arrow piercing a tiny gold precision star with a straight motion trail",
+    "palette": "forest green, steel blue and warm gold"
+  },
+  {
+    "code": "beastmaster-coordinated-assault",
+    "subject": "a hunting spear tip alongside one broad beast claw slash converging on a bright impact",
+    "palette": "moss green, tawny brown and amber"
+  },
+  {
+    "code": "assassin-deathblow",
+    "subject": "a crimson-edged dagger descending into a dark heart-shaped shadow with one sharp impact glint",
+    "palette": "deep crimson, near black and silver"
+  },
+  {
+    "code": "trickster-smoke-bomb",
+    "subject": "a small violet smoke bomb bursting open into chunky teal and purple smoke curls",
+    "palette": "violet, teal and charcoal"
+  }
 ]

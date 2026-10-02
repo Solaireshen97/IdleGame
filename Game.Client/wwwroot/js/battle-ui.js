@@ -20,6 +20,22 @@
             if (dialogHosts.delete(owner)) syncDialogState();
         },
 
+        configureCharacterTabs(container) {
+            if (!(container instanceof HTMLElement) || container.dataset.keyboardTabs) return;
+            container.dataset.keyboardTabs = "true";
+            container.addEventListener("keydown", event => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                const tabs = [...container.querySelectorAll('button[role="tab"]')].filter(tab => !tab.disabled);
+                const current = tabs.indexOf(document.activeElement);
+                if (current < 0 || tabs.length === 0) return;
+                event.preventDefault();
+                const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+                    : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+                tabs[next].focus({ preventScroll: true });
+                tabs[next].click();
+            });
+        },
+
         trapDialogFocus(dialog) {
             if (!(dialog instanceof HTMLElement) || dialog.dataset.focusTrap) return;
             dialog.dataset.focusTrap = "true";
@@ -37,6 +53,20 @@
                     first?.focus({ preventScroll: true });
                 }
             });
+        },
+
+        revealStatisticsSection(target, returnToMembers) {
+            if (!(target instanceof HTMLElement)) return;
+            const container = target.closest(".battle-reward-dialog__content");
+            if (!container) return;
+            const tabs = container.querySelector(".information-tabs");
+            const clearance = (tabs?.getBoundingClientRect().height ?? 0) + 8;
+            const top = container.scrollTop + target.getBoundingClientRect().top
+                - container.getBoundingClientRect().top - clearance;
+            container.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+            if (returnToMembers) {
+                target.querySelector('.statistics-actor[aria-pressed="true"]')?.focus({ preventScroll: true });
+            }
         },
 
         scrollBelowSticky(target, stickyPanel) {

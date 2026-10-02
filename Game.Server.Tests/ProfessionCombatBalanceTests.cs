@@ -60,7 +60,7 @@ public partial class BattleServiceTests
     [Theory]
     [InlineData(75, "soul-frost-guard", 0, 100)]
     [InlineData(75, null, 0, 250)]
-    [InlineData(0, "soul-frost-guard", 0, 500)]
+    [InlineData(0, "soul-frost-guard", 0, 700)]
     [InlineData(75, "warrior-fury-risk", 0, 400)]
     [InlineData(75, null, 15, 400)]
     [InlineData(0, "warrior-fury-risk", 15, 1300)]

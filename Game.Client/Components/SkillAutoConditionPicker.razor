@@ -2,7 +2,7 @@
 
 <div class="skill-auto-picker">
     <label class="skill-auto-picker__condition">
-        <span>Auto 释放条件</span>
+        <span>自动释放条件</span>
         <select value="@_condition" disabled="@Disabled" @onchange="ChangeConditionAsync">
             <option value="">@DefaultLabel</option>
             @foreach (var condition in SkillAutoRules.Conditions)
@@ -19,7 +19,7 @@
             <span>%</span>
         </label>
     }
-    <p class="skill-auto-picker__hint">仅选择一个释放条件，不改变作用目标；仍需冷却结束且有有效目标。手动释放不受此条件限制。</p>
+    <p class="skill-auto-picker__hint">仅限制自动触发，不改变目标；仍需技能就绪和有效目标。</p>
 </div>
 
 @code {

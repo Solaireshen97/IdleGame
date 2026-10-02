@@ -73,12 +73,12 @@ public sealed class T1CombatScalingTests
         var users = new UserService(db, progression, skills);
         var (preview, previewError) = await new ConsumableService(db, users, potions).GetAsync("test", 1);
         Assert.Null(previewError);
-        Assert.Equal(68, preview!.Items.Single(item => item.Code == "minor-healing-potion").HealAmount);
+        Assert.Equal(180, preview!.Items.Single(item => item.Code == "minor-healing-potion").HealAmount);
         var battle = new BattleService(db, users, potions, skills, RewardTestFactory.CreateService(db, progression));
         var (result, error) = await battle.StartPreparationAsync(1, "test");
         Assert.Null(error);
         Assert.Equal(9799, result!.MonsterHp); // 120 normal + 81 skill
-        Assert.Equal(239, character.Hp); // 100 + 72 heal + 68 potion - 1 incoming
+        Assert.Equal(351, character.Hp); // 100 + 72 heal + 180 potion - 1 incoming
         Assert.Equal(1, (await db.CharacterItemStacks.SingleAsync()).Quantity);
         Assert.Equal(2, await db.BattleSkillCooldowns.CountAsync());
         Assert.Single(await db.BattleConsumableCooldowns.ToListAsync());

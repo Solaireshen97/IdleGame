@@ -1,0 +1,16 @@
+.formation-weapon-summary { margin-top:.65rem; border:1px solid #3c5668; border-radius:.6rem; padding:.35rem .65rem; background:#102534; color:#b2c6d2; }
+.weapon-preview-stats { display:flex; flex-wrap:wrap; gap:.35rem 1rem; padding:.3rem 0; font-size:.74rem; }
+.weapon-preview-stats strong { color:#efe2bd; font-size:.85rem; font-variant-numeric:tabular-nums; }
+summary { min-height:44px; align-content:center; cursor:pointer; font-size:.76rem; }
+summary:focus-visible { outline:2px solid #e9c381; outline-offset:2px; }
+.weapon-preview-effects > summary,.weapon-preview-effect > summary { display:flex; align-items:center; gap:.5rem; list-style:none; }
+.weapon-preview-effects > summary::-webkit-details-marker,.weapon-preview-effect > summary::-webkit-details-marker { display:none; }
+.weapon-preview-effects > summary::after,.weapon-preview-effect > summary::after { content:"+"; flex:0 0 auto; color:#d8bc82; }
+.weapon-preview-effects[open] > summary::after,.weapon-preview-effect[open] > summary::after { content:"−"; }
+summary strong { min-width:0; overflow-wrap:anywhere; color:#dbe4e9; }
+summary span { margin-left:auto; color:#ddc18d; font-size:.72rem; white-space:nowrap; }
+.weapon-preview-bonuses { display:flex; flex-wrap:wrap; gap:.3rem .75rem; font-size:.73rem; padding:.4rem 0; }
+.weapon-preview-effect { border-top:1px solid #3c566866; }
+p { margin:.25rem 0 .7rem; font-size:.75rem; line-height:1.6; overflow-wrap:anywhere; }
+.weapon-preview-sources p { padding:.4rem .5rem; background:#193344; border-radius:.4rem; }
+.weapon-preview-rules { color:#91aaba; }

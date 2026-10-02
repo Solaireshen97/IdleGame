@@ -17,6 +17,8 @@ public sealed class RewardCatalog
     private readonly MaterialCatalog? _materials;
     private readonly SoulImprintCatalog? _soulImprints;
     private readonly bool _grantFirstHuntWeapon;
+    private readonly bool _allowConsumableDrops;
+    private readonly bool _useLiveGoldRewards;
     private readonly CoopDropBonusOptions _coopDropBonus;
     private readonly Random _random;
 
@@ -28,6 +30,8 @@ public sealed class RewardCatalog
         _materials = materials;
         _soulImprints = soulImprints;
         _grantFirstHuntWeapon = options.Value.GrantFirstHuntWeapon;
+        _allowConsumableDrops = options.Value.AllowConsumableDrops;
+        _useLiveGoldRewards = options.Value.UseLiveGoldRewards;
         var coop = options.Value.CoopDropBonus;
         if (coop is null || coop.PercentPerAdditionalUser is < 0 or > 100 || coop.MaximumPercent is < 0 or > 400)
             throw new InvalidOperationException("Invalid cooperative drop bonus configuration.");
@@ -83,10 +87,14 @@ public sealed class RewardCatalog
         var bundles = frozen is null ? isClear ? _clears : _kills : isClear ? frozen.Clears : frozen.Kills;
         if (!bundles.TryGetValue(dungeonCode, out var bundle)) return [];
         var entries = new List<RewardEntry>();
-        if (bundle.Gold > 0) entries.Add(NewEntry("Gold", "", bundle.Gold));
+        var gold = _useLiveGoldRewards && (isClear ? _clears : _kills).TryGetValue(dungeonCode, out var current)
+            ? current.Gold : bundle.Gold;
+        if (gold > 0) entries.Add(NewEntry("Gold", "", gold));
         if (bundle.Experience > 0) entries.Add(NewEntry("Experience", "", bundle.Experience));
         foreach (var drop in bundle.Drops)
         {
+            // Existing rooms retain their loot snapshots, but retired supply sources stop immediately.
+            if (drop.Kind == "Consumable" && !_allowConsumableDrops) continue;
             var chance = CoopDropBonusRules.ApplyToChance(drop.ChancePercent, dropChanceBonusPercent);
             if (chance <= 0 || chance < 100 &&
                 (decimal)_random.NextDouble() * 100 >= chance) continue;
@@ -118,7 +126,8 @@ public sealed class RewardCatalog
     {
         var bundles = isClear ? _clears : _kills;
         if (!bundles.TryGetValue(rewardCode, out var bundle)) return [];
-        return bundle.Drops.Select(drop => new RewardDropPreview(
+        return bundle.Drops.Where(drop => drop.Kind != "Consumable" || _allowConsumableDrops)
+            .Select(drop => new RewardDropPreview(
             drop.Kind,
             drop.Code,
             drop.Kind switch

@@ -49,9 +49,28 @@ public partial class ApiService
         {
             "ConcurrencyConflict" or "FormationVersionConflict" => "编队或角色已有更新，请重新载入后再操作。",
             "FormationPositionOccupied" => "该位置已保存其他编队，请选择空位置。",
+            "InvalidFormationName" => "编队名称需填写 1～40 个字符。",
+            "InvalidFormationPosition" => "请选择有效的属性分组和保存位置。",
+            "FormationNotFound" => "这套编队已不存在，请返回选择其他编队。",
+            "InvalidProfession" => "请选择可用的职业。",
+            "MainWeaponRequired" => "编队缺少主武器，请先配置主武器。",
+            "WeaponNotOwned" => "部分武器已不在角色仓库，请重新选择武器。",
+            "WeaponAlreadyEquipped" => "同一把武器不能占用多个槽位。",
+            "SkillNotLearned" or "UnknownSkill" => "部分技能不适用于当前职业，请调整技能栏。",
+            "SkillAlreadyEquipped" => "同一技能不能重复装配。",
+            "SharedSkillLimitReached" => "一套编队最多装配一个共享技能。",
+            "UnknownConsumable" => "部分补给已不可用，请重新选择。",
+            "WrongConsumableSlot" => "补给类型与槽位不符，请重新选择。",
+            "ConsumableAlreadyEquipped" => "同一补给不能重复装配。",
+            "SoulImprintNotOwned" or "SoulImprintUnavailable" => "魂印已不可用，请重新选择魂印。",
+            "InvalidHpThreshold" => "自动使用的血量条件需在 1%～100% 之间。",
+            "InvalidAutoCondition" => "自动使用条件已失效，请重新设置。",
+            "InvalidSlotIndex" or "InvalidLoadout" => "编队槽位配置有误，请重新打开编队检查。",
+            "UnsupportedLoadoutVersion" or "UnsupportedLoadoutSnapshot" or "UnsupportedSkillLoadoutVersion" => "编队数据版本已更新，请刷新页面后重试。",
+            "InvalidRequestId" or "RequestIdConflict" or "InvalidRequestReceipt" => "本次操作信息已变化，请返回编队后重试。",
             "InvalidEncounter" => "副本信息已失效，请重新打开挑战详情。",
             "LoadoutLocked" or "CharacterBusy" or "CombatLoadoutLocked" => "角色正在活动中，保存草稿后可在离场或移出角色时应用。",
-            _ => string.IsNullOrWhiteSpace(error) ? "编队操作失败，请稍后重试。" : error
+            _ => response.StatusCode == HttpStatusCode.Unauthorized ? "登录已过期，请重新登录。" : "编队操作未完成，请稍后重试。"
         });
     }
 }

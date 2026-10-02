@@ -7,6 +7,11 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService(options => options.ServiceName = "IdleGame");
 builder.Configuration.AddJsonFile("world.json", optional: false, reloadOnChange: false);
+builder.Configuration.AddJsonFile("story.json", optional: false, reloadOnChange: false);
+builder.Services.Configure<StoryOptions>(builder.Configuration.GetSection(StoryOptions.SectionName));
+builder.Services.AddSingleton<StoryQuestCatalog>();
+builder.Services.AddScoped<StoryService>();
+builder.Services.AddScoped<CampaignAccessService>();
 
 builder.Services.AddControllers();
 builder.Services.AddExceptionHandler<DatabaseExceptionHandler>();
@@ -40,6 +45,8 @@ builder.Services.AddScoped<CombatProfessionService>();
 builder.Services.AddFormationServices();
 builder.Services.Configure<FormationOptions>(builder.Configuration.GetSection("Formations"));
 builder.Services.AddScoped<WeaponService>();
+builder.Services.AddScoped<InventoryQuery>();
+builder.Services.AddSingleton<ItemDefinitionCatalog>();
 builder.Services.AddScoped<SoulImprintService>();
 builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<PlantingService>();
@@ -64,9 +71,10 @@ builder.Services.Configure<PartyScalingOptions>(builder.Configuration.GetSection
 builder.Services.Configure<MonsterCombatOptions>(builder.Configuration.GetSection(MonsterCombatOptions.SectionName));
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 builder.Services.Configure<MaterialOptions>(builder.Configuration.GetSection(MaterialOptions.SectionName));
+// Legacy gathering metadata classifies old herbs; this does not enable the retired activity endpoints.
+builder.Services.Configure<GatheringOptions>(builder.Configuration.GetSection(GatheringOptions.SectionName));
 builder.Services.Configure<DungeonExchangeOptions>(builder.Configuration.GetSection(DungeonExchangeOptions.SectionName));
 builder.Services.Configure<WorldOptions>(builder.Configuration.GetSection(WorldOptions.SectionName));
-builder.Services.Configure<CharacterSlotOptions>(builder.Configuration.GetSection(CharacterSlotOptions.SectionName));
 builder.Services.Configure<ActivityOptions>(builder.Configuration.GetSection(ActivityOptions.SectionName));
 builder.Services.Configure<PlantingOptions>(builder.Configuration.GetSection(PlantingOptions.SectionName));
 builder.Services.Configure<ProductionOptions>(builder.Configuration.GetSection(ProductionOptions.SectionName));
@@ -86,13 +94,13 @@ builder.Services.AddSingleton(_ => ProfessionMechanicCatalog.Default);
 builder.Services.AddSingleton<SkillInformationService>();
 builder.Services.AddSingleton<ShopCatalog>();
 builder.Services.AddSingleton<MaterialCatalog>();
+builder.Services.AddSingleton<GatheringCatalog>();
 builder.Services.AddSingleton<PlantingCatalog>();
 builder.Services.AddSingleton<ProductionCatalog>();
 builder.Services.AddSingleton<DungeonExchangeCatalog>();
 builder.Services.AddSingleton<WorldCatalog>();
 builder.Services.AddSingleton<DungeonContentValidator>();
 builder.Services.AddSingleton<ContentCatalogStore>();
-builder.Services.AddSingleton<CharacterSlotCatalog>();
 builder.Services.AddSingleton<BattleLogStore>();
 builder.Services.AddHostedService<RoomCycleService>();
 builder.Services.AddHostedService<ProductionCycleService>();
@@ -115,12 +123,15 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider.GetRequiredService<SkillCatalog>(), scope.ServiceProvider.GetRequiredService<BattleStatusCatalog>());
     var dbContext = scope.ServiceProvider.GetRequiredService<GameDbContext>();
     var world = scope.ServiceProvider.GetRequiredService<WorldCatalog>();
+    scope.ServiceProvider.GetRequiredService<StoryQuestCatalog>().ValidateAgainstWorld(world,
+        scope.ServiceProvider.GetRequiredService<MaterialCatalog>());
     var weapons = scope.ServiceProvider.GetRequiredService<WeaponCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<SoulImprintCatalog>();
     var encounters = scope.ServiceProvider.GetRequiredService<DungeonEncounterCatalog>();
     scope.ServiceProvider.GetRequiredService<DungeonContentValidator>().Validate();
     _ = scope.ServiceProvider.GetRequiredService<PlantingCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
+    _ = scope.ServiceProvider.GetRequiredService<ItemDefinitionCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world, encounters);
     await scope.ServiceProvider.GetRequiredService<FormationBackfillService>().BackfillAsync();
     // Finish the legacy cutover before background cycles or HTTP requests can claim a snapshot.

@@ -191,6 +191,13 @@ public class UserController(UserService userService, ConsumableService consumabl
         _ => BadRequest(error)
     };
 
+    [HttpPut("characters/{characterId:int}/consumables/{slotIndex:int}/auto")]
+    public async Task<IActionResult> SetConsumableAuto(int characterId, int slotIndex, [FromBody] SetConsumableAutoRequest request)
+    {
+        var (response, error) = await consumableService.SetAutoAsync(GetBearerToken(), characterId, slotIndex, request);
+        return ConsumableResult(response, error);
+    }
+
     [HttpGet("characters/{characterId:int}/skills")]
     public async Task<IActionResult> GetSkills(int characterId)
     {

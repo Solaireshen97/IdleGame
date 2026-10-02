@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Services;
 
-public sealed class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog, WeaponCatalog weaponCatalog,
+public sealed partial class WeaponService(GameDbContext dbContext, UserService userService, SkillCatalog skillCatalog, WeaponCatalog weaponCatalog,
     WeaponBreakthroughCatalog? breakthroughCatalog = null)
 {
     private readonly WeaponBreakthroughCatalog _breakthroughCatalog = breakthroughCatalog ??
@@ -23,6 +23,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         if (slotIndex is < 1 or > WeaponRules.SlotCount) return (null, "InvalidSlotIndex");
         if (slotIndex == WeaponRules.MainSlotIndex && request.WeaponId is null) return (null, "MainWeaponRequired");
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
@@ -38,7 +39,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             return (await BuildResponseAsync(character!), null);
 
         var previousSlot = selected?.EquippedSlotIndex;
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
         try
         {
             // Release the two unique slot values before assigning their new owners.
@@ -63,6 +64,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             RecalculateCharacter(character!, weapons);
             var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(roomSlot => roomSlot.CharacterId == characterId);
             if (roomSlot is not null && await dbContext.Rooms.FindAsync(roomSlot.RoomId) is { } room) room.Version++;
+            await StoryProgressService.RefreshAsync(dbContext, characterId, DateTime.UtcNow);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
@@ -95,90 +97,19 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         }
     }
 
-    public async Task<(CharacterWeaponsResponse? Response, string? Error)> SellAsync(
-        string? token, int characterId, WeaponBatchRequest request)
-    {
-        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
-        if (error is not null) return (null, error);
-        if (!TryValidateSelection(request.WeaponIds, out var ids)) return (null, "InvalidWeaponSelection");
-        if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
-        var weapons = await LoadSelectedWeaponsAsync(characterId, ids);
-        if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
-        if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
-        if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
-        if (await FormationItemReferencePolicy.WeaponsAsync(dbContext, characterId, ids) is { } referenceError)
-            return (null, referenceError);
-        var gold = weapons.Sum(weapon => weapon.SellGold);
+    public Task<(CharacterWeaponsResponse? Response, string? Error)> SellAsync(
+        string? token, int characterId, WeaponBatchRequest request) =>
+        ExecuteInventoryBatchAsync(token, characterId, request, "sell");
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            character!.Gold = checked(character.Gold + gold);
-            character!.Version++;
-            dbContext.CharacterWeapons.RemoveRange(weapons);
-            await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return (await BuildResponseAsync(character!), null);
-        }
-        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
-        {
-            return (null, "ConcurrencyConflict");
-        }
-    }
-
-    public async Task<(CharacterWeaponsResponse? Response, string? Error)> DismantleAsync(
-        string? token, int characterId, WeaponBatchRequest request)
-    {
-        var (character, error) = await GetOwnedCharacterAsync(token, characterId);
-        if (error is not null) return (null, error);
-        if (!TryValidateSelection(request.WeaponIds, out var ids)) return (null, "InvalidWeaponSelection");
-        if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
-        var weapons = await LoadSelectedWeaponsAsync(characterId, ids);
-        if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
-        if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
-        if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
-        if (await FormationItemReferencePolicy.WeaponsAsync(dbContext, characterId, ids) is { } referenceError)
-            return (null, referenceError);
-        if (weapons.Any(weapon => !weaponCatalog.CanDismantle(weapon)))
-            return (null, "WeaponCannotBeDismantled");
-        var returns = weapons.GroupBy(weapon => WeaponRules.FragmentTier(weapon.ItemLevel))
-            .ToDictionary(group => group.Key, group => group.Sum(weaponCatalog.DismantleReturn));
-        var codes = returns.Keys.Select(WeaponRules.FragmentCode).ToList();
-        var stacks = await dbContext.CharacterItemStacks.Where(stack =>
-            stack.CharacterId == characterId && codes.Contains(stack.ItemCode)).ToListAsync();
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
-        try
-        {
-            foreach (var (tier, quantity) in returns.Where(pair => pair.Value > 0))
-            {
-                var code = WeaponRules.FragmentCode(tier);
-                var stack = stacks.SingleOrDefault(item => item.ItemCode == code);
-                if (stack is null)
-                {
-                    stack = new CharacterItemStack { CharacterId = characterId, ItemCode = code };
-                    dbContext.CharacterItemStacks.Add(stack);
-                }
-                else stack.Version++;
-                stack.Quantity = checked(stack.Quantity + quantity);
-            }
-            character!.Version++;
-            dbContext.CharacterWeapons.RemoveRange(weapons);
-            await dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return (await BuildResponseAsync(character!), null);
-        }
-        catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
-        {
-            return (null, "ConcurrencyConflict");
-        }
-    }
-
+    public Task<(CharacterWeaponsResponse? Response, string? Error)> DismantleAsync(
+        string? token, int characterId, WeaponBatchRequest request) =>
+        ExecuteInventoryBatchAsync(token, characterId, request, "dismantle");
     public async Task<(CharacterWeaponsResponse? Response, string? Error)> EnhanceSkillAsync(
         string? token, int characterId, int weaponId, int skillSlotIndex, string? requestId = null)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         if (!Guid.TryParse(requestId, out var requestGuid) || requestGuid == Guid.Empty)
             return (null, "InvalidRequestId");
         requestId = requestGuid.ToString("N");
@@ -199,6 +130,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapon is null) return (null, "WeaponNotOwned");
         var skill = weapon.Skills.SingleOrDefault(item => item.SlotIndex == skillSlotIndex);
         if (skill is null) return (null, "WeaponSkillNotFound");
+        if (weaponCatalog.FindSkill(skill.SkillCode) is null) return (null, "UnknownWeaponSkill");
         if (skill.EnhancementLevel >= WeaponRules.EnhancementLimit(weapon.QualityRank, skill.BaseLevel))
             return (null, "WeaponSkillAtMaximum");
         var tier = WeaponRules.FragmentTier(weapon.ItemLevel);
@@ -208,7 +140,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             item.CharacterId == characterId && item.ItemCode == fragmentCode);
         if (stack is null || stack.Quantity < cost) return (null, "InsufficientWeaponFragments");
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
         try
         {
             stack.Quantity -= cost;
@@ -220,6 +152,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             RecalculateCharacter(character!, weapons);
             dbContext.LogisticsRequests.Add(new LogisticsRequest { CharacterId = characterId, RequestId = requestId,
                 Kind = "WeaponEnhancement", Fingerprint = fingerprint, CompletedAtUtc = DateTime.UtcNow });
+            await StoryProgressService.RefreshAsync(dbContext, characterId, DateTime.UtcNow);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
@@ -242,7 +175,18 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         var materialWeaponId = request.MaterialWeaponId;
+        string? requestId = null;
+        if (request.RequestId is not null)
+        {
+            if (!Guid.TryParse(request.RequestId, out var guid) || guid == Guid.Empty) return (null, "InvalidRequestId");
+            requestId = guid.ToString("N");
+            var prior = await dbContext.LogisticsRequests.AsNoTracking().SingleOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId);
+            if (prior is not null)
+                return prior.Kind == "WeaponQuality" && prior.Fingerprint == $"{weaponId}:{materialWeaponId}:{request.UseUniversalStone}"
+                    ? (await BuildResponseAsync(character!), null) : (null, "RequestIdReused");
+        }
         if (request.UseUniversalStone ? materialWeaponId != 0 : weaponId == materialWeaponId || materialWeaponId <= 0)
             return (null, "InvalidQualityMaterial");
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
@@ -273,7 +217,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             if (material.Origin == WeaponOrigin.Starter) return (null, "StarterWeaponCannotBeConsumed");
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
         try
         {
             target.QualityRank++;
@@ -287,6 +231,13 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             }
             else dbContext.CharacterWeapons.Remove(material!);
             if (target.EquippedSlotIndex.HasValue) RecalculateCharacter(character!, weapons.Where(weapon => weapon != material).ToList());
+            if (requestId is not null) dbContext.LogisticsRequests.Add(new LogisticsRequest
+            {
+                CharacterId = characterId, RequestId = requestId, Kind = "WeaponQuality",
+                Fingerprint = $"{weaponId}:{materialWeaponId}:{request.UseUniversalStone}", CompletedAtUtc = DateTime.UtcNow,
+                ResultJson = System.Text.Json.JsonSerializer.Serialize(new { WeaponId = weaponId, target.QualityRank })
+            });
+            await StoryProgressService.RefreshAsync(dbContext, characterId, DateTime.UtcNow);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character!), null);
@@ -302,20 +253,35 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync();
         var recipe = _breakthroughCatalog.FindTier(request.Tier);
+        string? requestId = null;
+        if (request.RequestId is not null)
+        {
+            if (!Guid.TryParse(request.RequestId, out var guid) || guid == Guid.Empty) return (null, "InvalidRequestId");
+            requestId = guid.ToString("N");
+            var prior = await dbContext.LogisticsRequests.AsNoTracking().SingleOrDefaultAsync(r => r.CharacterId == characterId && r.RequestId == requestId);
+            if (prior is not null)
+                return prior.Kind == "BreakthroughCraft" && prior.Fingerprint == $"{request.Tier}:{request.Quantity}"
+                    ? (await BuildResponseAsync(character!), null) : (null, "RequestIdReused");
+        }
         if (recipe is null || request.Quantity <= 0) return (null, "InvalidBreakthroughCraftRequest");
         var cost = (long)recipe.FragmentsPerStone * request.Quantity;
         if (cost > int.MaxValue) return (null, "InvalidBreakthroughCraftRequest");
         if (await GetArmoryLockErrorAsync(characterId) is { } lockError) return (null, lockError);
         var stacks = await dbContext.CharacterItemStacks.Where(stack => stack.CharacterId == characterId &&
-            (stack.ItemCode == recipe.FragmentCode || stack.ItemCode == recipe.StoneCode)).ToListAsync();
+            (EF.Functions.Collate(stack.ItemCode, "NOCASE") == recipe.FragmentCode ||
+             EF.Functions.Collate(stack.ItemCode, "NOCASE") == recipe.StoneCode)).ToListAsync();
+        if (stacks.Any(stack => stack.ItemCode != recipe.FragmentCode && stack.ItemCode != recipe.StoneCode) ||
+            stacks.GroupBy(stack => stack.ItemCode, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+            return (null, "InventoryCodeConflict");
         var fragments = stacks.SingleOrDefault(stack => stack.ItemCode == recipe.FragmentCode);
         if (fragments is null || fragments.Quantity < cost) return (null, "InsufficientBreakthroughFragments");
         var stones = stacks.SingleOrDefault(stack => stack.ItemCode == recipe.StoneCode);
         if ((long)(stones?.Quantity ?? 0) + request.Quantity > int.MaxValue)
             return (null, "InvalidBreakthroughCraftRequest");
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+
         try
         {
             fragments.Quantity -= (int)cost;
@@ -328,6 +294,12 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             else stones.Version++;
             stones.Quantity += request.Quantity;
             character!.Version++;
+            if (requestId is not null) dbContext.LogisticsRequests.Add(new LogisticsRequest
+            {
+                CharacterId = characterId, RequestId = requestId, Kind = "BreakthroughCraft",
+                Fingerprint = $"{request.Tier}:{request.Quantity}", CompletedAtUtc = DateTime.UtcNow,
+                ResultJson = System.Text.Json.JsonSerializer.Serialize(new { recipe.StoneCode, request.Quantity })
+            });
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             return (await BuildResponseAsync(character), null);
@@ -378,8 +350,11 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
             stack.CharacterId == character.Id && breakthroughCodes.Contains(stack.ItemCode)).ToListAsync();
         var main = weapons.SingleOrDefault(item => item.EquippedSlotIndex == WeaponRules.MainSlotIndex);
         var bonuses = weaponCatalog.CalculateBonuses(weapons);
-        var highestStackTier = fragmentStacks.Select(stack => ParseFragmentTier(stack.ItemCode)).DefaultIfEmpty(1).Max();
-        var maximumTier = Math.Max(weaponCatalog.MaxFragmentTier, highestStackTier);
+        // A sparse legacy/future tier must not allocate every intermediate tier.
+        var fragmentTiers = weaponCatalog.FragmentTiers
+            .Concat(weapons.Select(item => WeaponRules.FragmentTier(item.ItemLevel)))
+            .Concat(fragmentStacks.Select(stack => ParseFragmentTier(stack.ItemCode)))
+            .Append(1).Distinct().Order().ToList();
         return new CharacterWeaponsResponse
         {
             CharacterId = character.Id,
@@ -406,7 +381,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                 Description = WeaponEffectLabels.Description(effect.EffectType),
                 EffectiveLevel = effect.EffectiveLevel, TotalPercent = effect.TotalPercent
             }).ToList(),
-            Fragments = Enumerable.Range(1, maximumTier).Select(tier => new WeaponFragmentResponse
+            Fragments = fragmentTiers.Select(tier => new WeaponFragmentResponse
             {
                 Tier = tier,
                 Code = WeaponRules.FragmentCode(tier),
@@ -425,58 +400,7 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                     CanCraftQuantity = Math.Min(fragments / recipe.FragmentsPerStone, int.MaxValue - stones)
                 };
             }).ToList(),
-            Weapons = weapons.Select(item => new CharacterWeaponResponse
-            {
-                Id = item.Id,
-                WeaponCode = item.WeaponCode,
-                Name = item.Name,
-                Element = item.Element,
-                Attack = item.Attack,
-                MaxHp = item.MaxHp,
-                ItemLevel = item.ItemLevel,
-                FragmentTier = WeaponRules.FragmentTier(item.ItemLevel),
-                BreakthroughTier = _breakthroughCatalog.FindForWeapon(item.ItemLevel)?.Tier,
-                SellGold = item.SellGold,
-                CanSell = true,
-                Origin = item.Origin,
-                DismantleFragments = WeaponCatalog.BaseDismantleReturn(item),
-                DismantleReturnQuantity = weaponCatalog.DismantleReturn(item),
-                CanDismantle = weaponCatalog.CanDismantle(item),
-                QualityRank = item.QualityRank,
-                QualityName = WeaponRules.QualityName(item.QualityRank),
-                QualityCode = WeaponRules.QualityCode(item.QualityRank),
-                IsLocked = item.IsLocked,
-                EquippedSlotIndex = item.EquippedSlotIndex,
-                LockedSkills = (weaponCatalog.FindItem(item.WeaponCode)?.Skills ?? [])
-                    .Where((grant, index) => grant.UnlockQualityRank > item.QualityRank &&
-                        item.Skills.All(skill => skill.SlotIndex != index + 1))
-                    .Select(grant => new LockedWeaponSkillResponse
-                    {
-                        Name = weaponCatalog.FindSkill(grant.Code)?.Name ?? grant.Code,
-                        UnlockQualityRank = grant.UnlockQualityRank,
-                        Description = weaponCatalog.FindSkill(grant.Code) is { } definition
-                            ? weaponCatalog.DescribeSkill(definition, grant.Level) : string.Empty
-                    }).ToList(),
-                Skills = item.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
-                {
-                    var definition = weaponCatalog.FindSkill(skill.SkillCode);
-                    return new WeaponSkillResponse
-                    {
-                        SlotIndex = skill.SlotIndex,
-                        SkillCode = skill.SkillCode,
-                        Name = definition?.Name ?? skill.SkillCode,
-                        Level = skill.Level,
-                        BaseLevel = skill.BaseLevel,
-                        EnhancementLevel = skill.EnhancementLevel,
-                        MaximumEnhancementLevel = WeaponRules.EnhancementLimit(item.QualityRank, skill.BaseLevel),
-                        NextEnhancementCost = skill.EnhancementLevel < WeaponRules.EnhancementLimit(item.QualityRank, skill.BaseLevel)
-                            ? weaponCatalog.EnhancementCost(skill.EnhancementLevel) : null,
-                        TotalPercent = definition is null ? 0 : weaponCatalog.CalculateSkillPercent(definition, skill.Level),
-                        Description = definition is null ? "未知技能" : weaponCatalog.DescribeSkill(definition, skill.Level),
-                        IsActive = definition is not null && item.EquippedSlotIndex.HasValue && item.Element == main?.Element
-                    };
-                }).ToList()
-            }).ToList()
+            Weapons = weapons.Select(item => InventoryItemProjection.Weapon(item, weaponCatalog, _breakthroughCatalog, main?.Element)).ToList()
         };
     }
 

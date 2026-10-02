@@ -147,3 +147,81 @@
 }
 @keyframes alchemy-glow { 50% { opacity: .55; box-shadow: 0 0 3px #edc97a33; } }
 @media (prefers-reduced-motion: reduce) { .alchemy-page *, .alchemy-page *::before, .alchemy-page *::after { transition: none !important; animation: none !important; } }
+.alchemy-warehouse-link { color: #91aabb; font-size: .73rem; margin: .7rem 0; }
+.alchemy-warehouse-link a { color: #cfbc8b; }
+
+.alchemy-shortcuts { display: flex; align-items: center; gap: .45rem; }
+.alchemy-shortcuts a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: #e8c788; font-size: .75rem; text-decoration: none; }
+.alchemy-shortcuts .alchemy-garden-link { margin: 0; }
+.alchemy-pager { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: .5rem; margin-top: .55rem; }
+.alchemy-pager button { min-height: 44px; border: 1px solid #506777; border-radius: .45rem; color: #e5c68d; background: #19303f; }
+.alchemy-pager button:disabled { opacity: .4; }
+.alchemy-pager > span { color: #a5bac7; text-align: center; font-size: .75rem; }
+.alchemy-filters button, .alchemy-stop, .alchemy-quick button { min-height: 44px; }
+.alchemy-dialog-header { flex: 0 0 auto; }
+.alchemy-dialog-close { flex-basis: 44px; height: 44px; }
+.alchemy-stepper { grid-template-columns: 44px 70px 44px; }
+.alchemy-stepper button { min-height: 44px; }
+.alchemy-stepper input { font-size: 16px; }
+.alchemy-notice button { min-width: 44px; min-height: 44px; }
+@media (max-width: 600px) {
+    .alchemy-page { padding: 0 0 .5rem; }
+    .alchemy-intro { align-items: center; min-height: 44px; margin: 0 0 .45rem; }
+    .alchemy-intro h1 { margin: 0; font-size: 1.3rem; }
+    .alchemy-bench { padding: .55rem .65rem; }
+    .alchemy-bench-heading h2 { margin: 0; font-size: .85rem; }
+    .alchemy-bench:not(.alchemy-bench--working) .alchemy-bench-heading { position: absolute; top: .65rem; right: .65rem; }
+    .alchemy-bench:not(.alchemy-bench--working) .alchemy-bench-heading h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .alchemy-idle { min-height: 52px; padding: 0 3rem 0 0; gap: .55rem; }
+    .alchemy-idle h3 { margin: 0 0 .25rem; font-size: .8rem; }
+    .alchemy-idle p { font-size: .64rem; }
+    .alchemy-vessel { flex-basis: 44px; width: 44px; height: 44px; }
+    .alchemy-vessel img { width: 32px; height: 36px; }
+    .alchemy-vessel::before { inset: 4px; }.alchemy-vessel > span { inset: 8px; }
+    .alchemy-bench-main { padding: .5rem 0; gap: .5rem; }
+    .alchemy-bench-product h3 { margin: .15rem 0; font-size: .85rem; }
+    .alchemy-bench-product p, .alchemy-bench-product > small { font-size: .66rem; }
+    .alchemy-next strong { font-size: 1.15rem; }
+    .alchemy-bench-stats { margin: .6rem 0; }
+    .alchemy-bench-stats > div { gap: .2rem; }
+    .alchemy-bench-stats span { font-size: .64rem; }
+    .alchemy-bench-stats strong { font-size: .96rem; }
+    .alchemy-bench-footer { padding-top: .35rem; }
+    .alchemy-bench-footer p { font-size: .65rem; }
+    .alchemy-section-heading { margin: .65rem 0 .45rem; min-height: 28px; align-items: center; }
+    .alchemy-section-heading h2 { margin: 0; font-size: .95rem; }
+    .alchemy-filters { margin-bottom: .45rem; }
+    .alchemy-filters button { font-size: .74rem; }
+    .alchemy-recipe-list { gap: .4rem; }
+    .alchemy-recipe { grid-template-columns: 36px minmax(0, 1fr) auto; padding: .55rem; gap: .5rem; min-height: 80px; }
+    .alchemy-recipe-icon { width: 36px; height: 44px; }
+    .alchemy-recipe-icon img { width: 30px; height: 36px; }
+    .alchemy-recipe-copy { gap: .2rem; }
+    .alchemy-recipe-title strong { font-size: .8rem; }
+    .alchemy-recipe-effect { font-size: .68rem; }
+    .alchemy-recipe-meta { font-size: .62rem; }
+    .alchemy-recipe-state b { font-size: .64rem; }
+    .alchemy-recipe-state small { font-size: .6rem; }
+    .alchemy-history { margin-top: .75rem; }
+    .alchemy-dialog-header { padding: .55rem .8rem; }
+    .alchemy-dialog-header h2 { margin: 0; }
+    .alchemy-dialog-body { padding: .65rem .8rem; }
+    .alchemy-product { padding-bottom: .65rem; }
+    .alchemy-product-icon { flex-basis: 46px; width: 46px; height: 54px; }
+    .alchemy-product-icon img { width: 38px; height: 46px; }
+    .alchemy-product p { margin-top: .2rem; font-size: .72rem; line-height: 1.5; }
+    .alchemy-mode-heading { margin: .65rem 0 .45rem; }
+    .alchemy-modes button { padding: .6rem; min-height: 60px; }
+    .alchemy-modes small { font-size: .64rem; }
+    .alchemy-quick { justify-content: stretch; }.alchemy-quick button { flex: 1; padding-inline: .35rem; font-size: .69rem; }
+    .alchemy-estimate { margin: .65rem 0; }
+    .alchemy-estimate span { font-size: .63rem; }
+    .alchemy-ingredients { padding: .65rem; margin-top: .6rem; }
+}
+
+@media (max-width: 600px) and (max-height: 740px) {
+    .alchemy-intro { margin-bottom: .2rem; }
+    .alchemy-idle { min-height: 44px; }
+    .alchemy-section-heading { margin-block: .4rem .25rem; }
+    .alchemy-pager { margin-top: .4rem; }
+}

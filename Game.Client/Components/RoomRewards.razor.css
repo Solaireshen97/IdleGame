@@ -19,12 +19,33 @@ p.room-loot__pending { margin: .3rem 0 0; line-height: 1.5; }
 .room-loot__character-totals > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .5rem; min-width: 0; }
 .room-loot__character-totals strong { color: #f2c979; font-size: .9rem; overflow-wrap: anywhere; }
 .room-loot__character-totals .room-loot__pending { flex-basis: 100%; }
-.room-loot__items { list-style: none; margin: .65rem 0 0; padding: 0; }
-.room-loot__items li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem 0; border-top: 1px solid rgba(122, 161, 184, .18); }
-.room-loot__items li > span { display: grid; gap: .2rem; min-width: 0; }
-.room-loot__items strong { font-size: .85rem; overflow-wrap: anywhere; }
-.room-loot__quantity { flex: none; text-align: right; }
-.room-loot__quantity b { color: #f2c979; font-size: .9rem; }
-.room-loot__quantity small { max-width: 8rem; }
+.room-loot__source { margin-top: .85rem; }
+.room-loot__source h4 { margin: 0 0 .45rem; color: #e7ce96; font-size: .8rem; }
+.room-loot__items { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: .45rem; }
+.room-loot__item, .room-loot__inspection-art { position: relative; display: grid; place-items: center; border: 1px solid #587182; border-radius: .65rem; background: radial-gradient(circle at 50% 35%, #345064, #101f2c); color: #d8e2eb; }
+.room-loot__item { min-width: 0; min-height: 60px; aspect-ratio: 1; padding: .3rem .3rem 1rem; overflow: hidden; }
+.room-loot__item--weapon { border-color: #a78255; background: radial-gradient(circle at 50% 35%, #574b42, #182531); }
+.room-loot__item--soulimprint { border-color: #9277af; background: radial-gradient(circle at 50% 35%, #4c426a, #182531); }
+.room-loot__item:hover { border-color: #f0c77f; filter: brightness(1.15); }
+.room-loot__item:focus-visible { outline: 2px solid #f0c77f; outline-offset: 2px; }
+.room-loot__item img { width: 100%; height: 100%; min-height: 0; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+.room-loot__fallback { font-size: 1.8rem; line-height: 1; color: #e4c794; }
+.room-loot__quantity { position: absolute; inset: auto 0 0; padding: .12rem .3rem; background: linear-gradient(transparent, #07101af2 35%); color: #f2d292; font-size: .72rem; line-height: 1.25; text-align: right; font-variant-numeric: tabular-nums; }
+.room-loot__pending-dot { position: absolute; top: .3rem; right: .3rem; width: .45rem; height: .45rem; border-radius: 50%; background: #f4c571; box-shadow: 0 0 0 2px #182531; }
+.room-loot ::deep .room-loot-dialog { inset: 0; width: min(360px, calc(100% - 1.5rem)); margin: auto; padding: 1rem; border: 1px solid #a98a57; border-radius: .9rem; }
+.room-loot__inspection-header { display: grid; grid-template-columns: 64px minmax(0, 1fr) 44px; align-items: center; gap: .6rem; }
+.room-loot__inspection-art { width: 64px; height: 64px; padding: .3rem; }
+.room-loot__inspection-art img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.room-loot__inspection-header h3 { margin: .2rem 0 0; font-size: 1rem; color: #f3e4c7; overflow-wrap: anywhere; }
+.room-loot__close { align-self: start; width: 44px; height: 44px; padding: 0; border: 1px solid #587182; border-radius: .6rem; background: #112432; color: #dce5ee; font-size: 1.4rem; }
+.room-loot__facts { margin: .85rem 0 0; padding-top: .5rem; border-top: 1px solid #405a6f; }
+.room-loot__facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .4rem 0; }
+.room-loot__facts dt { flex: none; color: #9fb3c1; font-size: .8rem; font-weight: 400; }
+.room-loot__facts dd { margin: 0; font-size: .85rem; text-align: right; overflow-wrap: anywhere; }
+.room-loot__facts .room-loot__received { color: #f2c979; font-size: 1.1rem; font-weight: 700; }
 .room-loot__empty { margin: .8rem 0 0; padding: 1rem .5rem; border: 1px dashed #49657a; border-radius: .65rem; color: #9fb3c1; font-size: .8rem; text-align: center; line-height: 1.6; }
-.room-loot__items li.room-loot__source { padding: .85rem 0 .35rem; color: #e7ce96; border-top: 0; }
+.room-loot__totals > div { padding: .6rem; }
+.room-loot__characters { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; padding-bottom: .3rem; margin-block: .65rem .45rem; }
+.room-loot__character { flex: 0 0 auto; min-width: 88px; min-height: 48px; padding: .4rem .6rem; }
+.room-loot__character strong { max-width: 10rem; }
+.room-loot__detail { padding: .65rem; }

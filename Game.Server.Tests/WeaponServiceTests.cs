@@ -45,7 +45,7 @@ public sealed partial class WeaponServiceTests
         Assert.Equal(0, bonuses.AttackPercent);
         Assert.Equal(20, bonuses.HealthPercent);
         Assert.Equal(1, Assert.Single(starters.Single(weapon => weapon.EquippedSlotIndex == 1).Skills).Level);
-        Assert.Equal("t1-shop-fire", starters[0].WeaponCode);
+        Assert.Equal("t1-shop-earth", starters[0].WeaponCode);
         Assert.Equal((90, 110), (starters[0].Attack, starters[0].MaxHp));
     }
 
@@ -282,14 +282,16 @@ public sealed partial class WeaponServiceTests
         await using var test = await WeaponTestContext.CreateAsync();
         var wind = test.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
         wind.SellGold = 15;
+        await test.Db.SaveChangesAsync();
         var (sold, sellError) = await test.Service.SellAsync(test.Token, 1,
-            new WeaponBatchRequest { WeaponIds = [wind.Id] });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Catalog, 1, "sell", wind.Id));
 
-        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        var water = await test.Db.CharacterWeapons.SingleAsync(weapon => weapon.WeaponCode == "tide-saber");
         water.ItemLevel = 12;
         water.DismantleFragments = 3;
+        await test.Db.SaveChangesAsync();
         var (dismantled, dismantleError) = await test.Service.DismantleAsync(test.Token, 1,
-            new WeaponBatchRequest { WeaponIds = [water.Id] });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Catalog, 1, "dismantle", water.Id));
 
         Assert.Null(sellError);
         Assert.Equal(15, sold!.Gold);
@@ -308,9 +310,10 @@ public sealed partial class WeaponServiceTests
         var sellWeapons = sellTest.Weapons.Where(weapon => weapon.EquippedSlotIndex is null).ToList();
         sellWeapons[0].SellGold = 11;
         sellWeapons[1].SellGold = 17;
+        await sellTest.Db.SaveChangesAsync();
 
         var (sold, sellError) = await sellTest.Service.SellAsync(sellTest.Token, 1,
-            new WeaponBatchRequest { WeaponIds = sellWeapons.Select(weapon => weapon.Id).ToList() });
+            await InventoryTestRequests.WeaponsAsync(sellTest.Db, sellTest.Catalog, 1, "sell", sellWeapons.Select(weapon => weapon.Id).ToArray()));
 
         Assert.Null(sellError);
         Assert.Equal(28, sold!.Gold);
@@ -323,9 +326,10 @@ public sealed partial class WeaponServiceTests
         var tierTwo = dismantleTest.Weapons.Single(weapon => weapon.WeaponCode == "gale-bow");
         tierTwo.ItemLevel = 11;
         tierTwo.DismantleFragments = 3;
+        await dismantleTest.Db.SaveChangesAsync();
 
         var (dismantled, dismantleError) = await dismantleTest.Service.DismantleAsync(
-            dismantleTest.Token, 1, new WeaponBatchRequest { WeaponIds = [tierOne.Id, tierTwo.Id] });
+            dismantleTest.Token, 1, await InventoryTestRequests.WeaponsAsync(dismantleTest.Db, dismantleTest.Catalog, 1, "dismantle", tierOne.Id, tierTwo.Id));
 
         Assert.Null(dismantleError);
         Assert.Equal(2, dismantled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
@@ -388,7 +392,7 @@ public sealed partial class WeaponServiceTests
         await test.Service.SetSlotAsync(test.Token, 1, 1, new SetWeaponSlotRequest { WeaponId = water.Id });
         await test.Service.SetLockAsync(test.Token, 1, main.Id, new SetWeaponLockRequest { IsLocked = false });
         var (recycled, recycleError) = await test.Service.DismantleAsync(test.Token, 1,
-            new WeaponBatchRequest { WeaponIds = [main.Id] });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Catalog, 1, "dismantle", main.Id));
         Assert.Null(recycleError);
         Assert.Equal(8, recycled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity); // base 1 + 50% of 14 invested.
     }
@@ -426,7 +430,7 @@ public sealed partial class WeaponServiceTests
         Assert.Null((await test.Service.SetLockAsync(test.Token, 1, main.Id,
             new SetWeaponLockRequest { IsLocked = false })).Error);
         var (recycled, recycleError) = await test.Service.DismantleAsync(test.Token, 1,
-            new WeaponBatchRequest { WeaponIds = [main.Id] });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Catalog, 1, "dismantle", main.Id));
         Assert.Null(recycleError);
         Assert.Equal(32, recycled!.Fragments.Single(fragment => fragment.Tier == 1).Quantity);
     }
@@ -707,6 +711,7 @@ public sealed partial class WeaponServiceTests
             Db = db;
             Character = character;
             Weapons = weapons;
+            Catalog = catalog;
             var skills = SkillTestFactory.Create();
             Service = new WeaponService(db, new UserService(db, ProgressionTestFactory.Create(), skills), skills, catalog);
         }
@@ -715,6 +720,7 @@ public sealed partial class WeaponServiceTests
         public GameDbContext Db { get; }
         public Character Character { get; }
         public List<CharacterWeapon> Weapons { get; }
+        public WeaponCatalog Catalog { get; }
         public WeaponService Service { get; }
 
         public static async Task<WeaponTestContext> CreateAsync(WeaponCatalog? configuredCatalog = null)

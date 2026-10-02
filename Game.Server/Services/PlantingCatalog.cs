@@ -11,10 +11,18 @@ public sealed class PlantingCatalog
             Plants.Select(p => p.SeedCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Plants.Count ||
             Plants.Any(p => string.IsNullOrWhiteSpace(p.Name) || string.IsNullOrWhiteSpace(p.UnlockTargetCode) || p.UnlockKind is not ("MonsterKill" or "DungeonClear") || p.MinimumCharacterLevel < 1 || p.GrowthSeconds > 604800 || string.IsNullOrWhiteSpace(p.Code) || string.IsNullOrWhiteSpace(p.SeedCode) || string.IsNullOrWhiteSpace(p.MaterialCode) || p.GrowthSeconds <= 0 || p.HarvestQuantity <= 0 || p.RequiredCount <= 0 || (p.IsRare ? p.SeedPrice != 0 : p.SeedPrice <= 0) || p.DropChancePercent is < 0 or > 100))
             throw new InvalidOperationException("Invalid planting configuration.");
+        if (Plants.Any(p => p.DropChancePerDepthPercent is < 0 or > 100 ||
+            !p.IsRare && (p.DropChancePerDepthPercent != 0 || p.FirstClearGuaranteed)))
+            throw new InvalidOperationException("Invalid seed drop progression.");
     }
     public IReadOnlyList<PlantOptions> Plants { get; }
     public PlantOptions? FindPlant(string? code) => Plants.FirstOrDefault(p => string.Equals(p.Code, code, StringComparison.OrdinalIgnoreCase));
     public PlantOptions? FindSeed(string? code) => Plants.FirstOrDefault(p => string.Equals(p.SeedCode, code, StringComparison.OrdinalIgnoreCase));
+    public IReadOnlyList<DungeonSeedDrop> SeedDropsFor(string dungeonCode, int depthLevel = 1) => Plants
+        .Where(p => p.IsRare && (p.UnlockTargetCode == dungeonCode || p.AlternativeUnlockTargetCodes.Contains(dungeonCode)))
+        .Select(p => new DungeonSeedDrop(p.SeedCode,
+            Math.Min(100m, p.DropChancePercent + (Math.Max(1, depthLevel) - 1m) * p.DropChancePerDepthPercent),
+            p.FirstClearGuaranteed)).ToList();
 }
 
 

@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Game.Server.Services;
 
 /// <summary>Owns account selection, character initialization and character-owned data deletion.</summary>
-public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCatalog skillCatalog, WeaponCatalog? weaponCatalog)
+public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCatalog skillCatalog, WeaponCatalog? weaponCatalog,
+    StoryQuestCatalog? storyCatalog = null)
 {
     public async Task<(Character? Character, string? Error)> SelectAsync(User user, int characterId)
     {
@@ -43,7 +44,7 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         var characterCount = await dbContext.Characters.CountAsync(character => character.UserId == user!.Id);
-        if (characterCount >= user!.CharacterSlotLimit) return (null, "CharacterSlotLimitReached");
+        if (characterCount >= CharacterSlotRules.SlotsPerAccount) return (null, "CharacterSlotLimitReached");
 
         var character = CreateCharacterEntity(user!.Id, name, professionCode);
         if (characterCount == 0) character.Gold = weaponCatalog?.StartingCharacterGold ?? 0;
@@ -60,6 +61,7 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
             });
             AddStartingWeapons(character);
             if (characterCount == 0) user.ActiveCharacterId = character.Id;
+            await StoryService.StartTrackedAsync(dbContext, user.Id, character.Id, storyCatalog ?? StoryQuestCatalog.Default, DateTime.UtcNow);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
         }
@@ -131,6 +133,17 @@ public sealed class CharacterLifecycleService(GameDbContext dbContext, SkillCata
         dbContext.CharacterWeapons.RemoveRange(await dbContext.CharacterWeapons.Where(weapon => weapon.CharacterId == characterId).ToListAsync());
         dbContext.CharacterFirstHuntWeaponClaims.RemoveRange(await dbContext.CharacterFirstHuntWeaponClaims.Where(item => item.CharacterId == characterId).ToListAsync());
         dbContext.BattleConsumableBuffs.RemoveRange(await dbContext.BattleConsumableBuffs.Where(item => item.CharacterId == characterId).ToListAsync());
+        var (storyState, storyQuest) = await StoryProgressService.CurrentAsync(dbContext, user.Id);
+        if (storyState is not null && (storyState.TutorialCharacterId == characterId || storyQuest?.ActorCharacterId == characterId))
+        {
+            if (storyState.TutorialCharacterId == characterId) storyState.TutorialCharacterId = null;
+            storyState.Version++;
+            if (storyQuest?.ActorCharacterId == characterId)
+            {
+                storyQuest.ActorCharacterId = null; storyQuest.Progress = 0; storyQuest.Status = "Active";
+                storyQuest.CompletedAtUtc = null; storyQuest.ActivatedAtUtc = DateTime.UtcNow; storyQuest.Version++;
+            }
+        }
         dbContext.Characters.Remove(character);
         try
         {

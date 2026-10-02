@@ -1,4 +1,5 @@
 @using Game.Shared.Dtos
+@using Game.Client.Services
 
 <div class="room-loot">
     <div class="room-loot__totals" aria-label="我的房间累计收益">
@@ -39,21 +40,30 @@
                 </div>
                 @if (selected.Items.Count > 0)
                 {
-                    <ul class="room-loot__items">
-                        @foreach (var group in selected.Items.GroupBy(item => RewardGroup(item.Source)))
-                        {
-                            <li class="room-loot__source"><strong>@group.Key</strong></li>
+                    @foreach (var group in selected.Items.GroupBy(item => RewardGroup(item.Source)))
+                    {
+                        <section @key="group.Key" class="room-loot__source" aria-label="@group.Key">
+                            <h4>@group.Key</h4>
+                            <div class="room-loot__items">
                             @foreach (var item in group)
                             {
-                            <li @key="(item.Kind, item.Code, item.Name, item.Source)">
-                                <span><small>@GetKindName(item.Kind)</small><strong>@item.Name</strong></span>
-                                <span class="room-loot__quantity"><b>× @item.Quantity.ToString("N0")</b>
-                                    @if (item.PendingQuantity > 0) { <small class="room-loot__pending">其中 @item.PendingQuantity.ToString("N0") 待结算</small> }
-                                </span>
-                            </li>
+                                <button @key="(item.Kind, item.Code, item.Name, item.Source)" type="button"
+                                        id="@($"{_itemTitleId}-{selected.CharacterId}-{item.Kind}-{item.Code}-{Uri.EscapeDataString(item.Source)}")"
+                                        class="room-loot__item room-loot__item--@item.Kind.ToLowerInvariant()"
+                                        aria-label="@ItemLabel(item)" aria-haspopup="dialog" title="@ItemLabel(item)"
+                                        @onclick="() => OpenItem(selected, item)">
+                                    @if (GetArt(item) is { } art)
+                                    {
+                                        <img src="@art" alt="" @onerror="() => _failedArt.Add(art)" />
+                                    }
+                                    else { <span class="room-loot__fallback" aria-hidden="true">@KindSymbol(item.Kind)</span> }
+                                    @if (item.PendingQuantity > 0) { <span class="room-loot__pending-dot" aria-hidden="true"></span> }
+                                    <b class="room-loot__quantity" aria-hidden="true">×@CompactQuantity(item.Quantity)</b>
+                                </button>
                             }
-                        }
-                    </ul>
+                            </div>
+                        </section>
+                    }
                 }
                 else
                 {
@@ -66,17 +76,81 @@
     {
         <p class="room-loot__empty">当前房间暂无我的角色奖励。</p>
     }
+    <ShellDialog IsOpen="@(_inspectedItem is not null)" Class="room-loot-dialog" LabelledBy="@_itemTitleId" OnClose="CloseItem">
+        @if (_inspectedItem is { } inspected)
+        {
+            <div class="room-loot__inspection" @onkeydown:stopPropagation @onclick:stopPropagation>
+                <header class="room-loot__inspection-header">
+                    <span class="room-loot__inspection-art room-loot__item--@inspected.Kind.ToLowerInvariant()" aria-hidden="true">
+                        @if (GetArt(inspected) is { } art)
+                        {
+                            <img src="@art" alt="" @onerror="() => _failedArt.Add(art)" />
+                        }
+                        else { <span class="room-loot__fallback">@KindSymbol(inspected.Kind)</span> }
+                    </span>
+                    <div><small>@GetKindName(inspected.Kind)</small><h3 id="@_itemTitleId">@inspected.Name</h3></div>
+                    <button type="button" class="room-loot__close" aria-label="关闭物品详情" @onclick="CloseItem">×</button>
+                </header>
+                <dl class="room-loot__facts">
+                    <div><dt>累计获得</dt><dd class="room-loot__received">×@inspected.Quantity.ToString("N0")</dd></div>
+                    @if (inspected.PendingQuantity > 0)
+                    {
+                        <div><dt>其中待结算</dt><dd class="room-loot__pending">×@inspected.PendingQuantity.ToString("N0")</dd></div>
+                    }
+                    <div><dt>奖励来源</dt><dd>@RewardGroup(inspected.Source)</dd></div>
+                    <div><dt>获得角色</dt><dd>@_inspectedCharacterName</dd></div>
+                </dl>
+                <p class="room-loot__hint">当前房间累计掉落，非仓库现有数量。</p>
+            </div>
+        }
+    </ShellDialog>
 </div>
 
 @code {
     [Parameter, EditorRequired] public RoomCumulativeRewardsResponse Rewards { get; set; } = new();
     private int? _selectedCharacterId;
+    private readonly string _itemTitleId = "loot-item-" + Guid.NewGuid().ToString("N");
+    private readonly HashSet<string> _failedArt = [];
+    private RoomRewardItemResponse? _inspectedItem;
+    private int _inspectedCharacterId;
+    private string _inspectedCharacterName = string.Empty;
 
     protected override void OnParametersSet()
     {
         if (!Rewards.Characters.Any(character => character.CharacterId == _selectedCharacterId))
             _selectedCharacterId = Rewards.Characters.FirstOrDefault()?.CharacterId;
+
+        // Preserve the open dialog and its DOM across polling, reorderings and transient omissions.
+        // Resolve by owner and reward identity, never by list index or the refreshed DTO reference.
+        if (_inspectedItem is { } inspected && Rewards.Characters
+            .FirstOrDefault(character => character.CharacterId == _inspectedCharacterId)?.Items
+            .FirstOrDefault(item => item.Kind == inspected.Kind && item.Code == inspected.Code && item.Source == inspected.Source) is { } latest)
+            _inspectedItem = latest;
     }
+
+    private void OpenItem(RoomCharacterRewardsResponse character, RoomRewardItemResponse item)
+    {
+        _inspectedCharacterId = character.CharacterId;
+        _inspectedCharacterName = character.CharacterName;
+        _inspectedItem = item;
+    }
+
+    private void CloseItem() => _inspectedItem = null;
+
+    private string? GetArt(RoomRewardItemResponse item)
+    {
+        var path = item.Kind == "Weapon" && !string.IsNullOrWhiteSpace(item.Code)
+            ? WeaponArt.ForCode(item.Code) : ItemArt.ForCode(item.Code);
+        return path is not null && !_failedArt.Contains(path) ? path : null;
+    }
+
+    private static string ItemLabel(RoomRewardItemResponse item) => $"{item.Name}，累计 {item.Quantity:N0} 件"
+        + (item.PendingQuantity > 0 ? $"，其中 {item.PendingQuantity:N0} 件待结算" : "") + "，查看详情";
+    private static string CompactQuantity(int quantity) => quantity >= 10000 ? $"{quantity / 10000d:0.#}万" : quantity.ToString("N0");
+    private static string KindSymbol(string kind) => kind switch
+    {
+        "Weapon" => "⚔", "SoulImprint" => "✧", "Consumable" => "✚", _ => "◈"
+    };
 
     private static string GetKindName(string kind) => kind switch
     {

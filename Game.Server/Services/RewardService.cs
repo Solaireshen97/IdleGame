@@ -16,18 +16,23 @@ public sealed partial class RewardService(GameDbContext dbContext, RewardCatalog
 
     public Task CaptureDungeonParticipantsAsync(Room room, IEnumerable<int> characterIds) =>
         _depthProgress.CaptureAsync(room, characterIds);
-    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear)
+    public IReadOnlyList<RewardDropPreview> GetDropPreview(string rewardCode, bool isClear, int depthLevel = 1)
     {
         var drops = catalog.GetDropPreview(rewardCode, isClear).ToList();
         if (isClear && planting is not null)
-            drops.AddRange(planting.Plants.Where(p => p.IsRare &&
-                (p.UnlockTargetCode == rewardCode || p.AlternativeUnlockTargetCodes.Contains(rewardCode)))
-                .Select(p => new RewardDropPreview("Material", p.SeedCode, p.Name + "种子", 1, p.DropChancePercent, null)));
+            drops.AddRange(planting.SeedDropsFor(rewardCode, depthLevel)
+                .Select(drop => new RewardDropPreview("Material", drop.SeedCode,
+                    planting.FindSeed(drop.SeedCode)!.Name + "种子", 1, drop.DropChancePercent, null)));
         return drops;
     }
 
     public bool HasRewardProfile(string rewardCode, bool isClear) =>
         catalog.HasRewardProfile(rewardCode, isClear);
+
+    public IReadOnlyList<RewardDropPreview> GetFirstSeedClearPreview(string dungeonCode) => planting is null ? [] :
+        planting.SeedDropsFor(dungeonCode).Where(drop => drop.FirstClearGuaranteed)
+            .Select(drop => new RewardDropPreview("Material", drop.SeedCode,
+                planting.FindSeed(drop.SeedCode)!.Name + "种子", 1, 100, null)).ToList();
 
     public async Task<bool> HasRewardProfileAsync(Room room, string rewardCode, bool isClear)
     {

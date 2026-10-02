@@ -15,6 +15,9 @@ public class RoomSlotResponse
     public int HealingPotionUsesUsed { get; set; }
     public int HealingPotionUsesRemaining { get; set; }
     public int HealingPotionUsesLimit { get; set; }
+    public int BuffPotionUsesUsed { get; set; }
+    public int BuffPotionUsesRemaining { get; set; }
+    public int BuffPotionUsesLimit { get; set; }
     public int PendingSkillSlotMask { get; set; }
     public bool IsSoulImprintQueued { get; set; }
     public RoomSoulImprintResponse? SoulImprint { get; set; }
@@ -91,6 +94,9 @@ public class RoomSkillSlotResponse
 
 public class RoomConsumableSlotResponse
 {
+    public string AutoCondition { get; set; } = "Always";
+    public string DefaultAutoCondition { get; set; } = "Always";
+    public string? AutoConditionOverride { get; set; }
     public string? UnavailableReason { get; set; }
     public int SlotIndex { get; set; }
     public string? ItemCode { get; set; }

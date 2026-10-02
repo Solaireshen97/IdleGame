@@ -29,7 +29,8 @@ public sealed class FormationConsumableChoice
     public int SlotIndex { get; set; }
     public string? ItemCode { get; set; }
     public bool AutoUseEnabled { get; set; }
-    public int AutoHpThresholdPercent { get; set; } = 50;
+    public string? AutoConditionOverride { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = ConsumableRules.DefaultAutoHpThresholdPercent;
 }
 public sealed class LoadoutSelection
 {
@@ -54,8 +55,35 @@ public sealed class FormationPreviewResponse
     public int Attack { get; set; }
     public int MaxHp { get; set; }
     public ElementType? MainElement { get; set; }
+    public FormationMainWeaponResponse? MainWeapon { get; set; }
+    public int WeaponAttack { get; set; }
+    public int WeaponMaxHp { get; set; }
+    public decimal WeaponAttackBonusPercent { get; set; }
+    public decimal WeaponHealthBonusPercent { get; set; }
+    public decimal WeaponCriticalChancePercent { get; set; }
+    public List<ActiveWeaponSkillResponse> WeaponSkills { get; set; } = [];
+    public List<WeaponEffectResponse> WeaponEffects { get; set; } = [];
     public List<FormationIssue> Issues { get; set; } = [];
     public List<LearnedSkillResponse> AvailableSkills { get; set; } = [];
+    public List<FormationSkillLibraryEntry> SkillLibrary { get; set; } = [];
+}
+public sealed class FormationSkillLibraryEntry : LearnedSkillResponse
+{
+    public bool IsUnlocked { get; set; }
+    public bool CanEquip { get; set; }
+    public string SourceProfessionName { get; set; } = "";
+    public int SourceProfessionLevel { get; set; }
+    public int RequiredProfessionLevel { get; set; }
+    public int RequiredCurrentProfessionLevel { get; set; }
+    public List<LearnedSkillResponse> LevelPreviews { get; set; } = [];
+}
+public sealed class FormationMainWeaponResponse
+{
+    public int WeaponId { get; set; }
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    public ElementType Element { get; set; }
+    public int QualityRank { get; set; }
 }
 public sealed class FormationResponse
 {

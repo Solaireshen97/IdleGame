@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-02",
+  "tool": "built-in image_gen",
+  "transparentBackground": true,
+  "assetDirectory": "Game.Client/wwwroot/art/skills",
+  "assets": [
+    {
+      "code": "mage-frost-bolt",
+      "file": "mage-frost-bolt.png",
+      "prompt": "Use case: stylized-concept. Asset type: one finished 2D pixel-art fantasy RPG skill icon for a mobile game, square canvas. Subject: FROST BOLT, one large sharply pointed icy arrowhead/comet flying diagonally from lower-left toward upper-right, with a compact cyan crystalline tail and three separate little ice shards behind. This is an offensive cold projectile, not a shield. Match a polished retro 16-bit skill icon set: deliberately chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters, bright ivory highlights, icy pale cyan and cobalt blue. Strong readable silhouette at 40px. Centered subject fills roughly 80 percent of the canvas with generous clean transparent padding. A single bold symbol, no tiny decoration, no letters, no text, no badge, no frame, no UI, no background disk, no smooth vector curves, no soft gradients or blurry glow. True transparent RGBA background."
+    },
+    {
+      "code": "hunter-expose-shot",
+      "file": "hunter-expose-shot.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: EXPOSE WEAKNESS SHOT. A single steel-tipped golden arrow flies diagonally from lower-left to upper-right through a small broken steel armor plate. The armor plate has a clearly visible central crack, with two chunky metal fragments separating outward and one tiny gold impact spark. Use ivory steel, muted slate blue, warm amber and a small red crack. Absolutely no green poison, no skull; this depicts piercing a weak point."
+    },
+    {
+      "code": "rogue-adrenaline",
+      "file": "rogue-adrenaline.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: ADRENALINE SURGE. A clenched dark leather-gloved rogue fist gripping a short dagger upright, surrounded by two compact sharp scarlet speed streaks and a small amber lightning bolt. Strong energetic diagonal composition, the clenched hand and dagger are one unified silhouette. Palette charcoal leather, ivory steel edge, deep scarlet red and bright warm amber. This means a burst of attack speed, not a potion, not healing, not dodging."
+    },
+    {
+      "code": "hunter-eagle-eye",
+      "file": "hunter-eagle-eye.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: EAGLE EYE FOCUS. One large stylized eagle eye in a sharp brow silhouette, an amber iris with dark pupil, framed by a simple small mint-green targeting reticle of four thick corner marks. The eye itself is the clear dominant symbol; eagle head feathers only as two or three angular pixel tufts on each end. Palette warm amber gold, ivory, hunter forest-green, mint and dark navy. This is heightened perception and a target mark, not an arrow or a weapon."
+    },
+    {
+      "code": "hunter-hunting-signal",
+      "file": "hunter-hunting-signal.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: COORDINATED HUNT SIGNAL. One large compact curved ivory hunting horn with a brass rim and dark forest-green leather wrap; three thick mint-green angular sound rays fan outward from its bell, representing a signal to the whole party. Horn silhouette runs from lower-left toward upper-right. Palette ivory, warm brass gold, emerald green and dark navy. Strong simple readable shape, no animal head, no dog or wolf, no bow or arrow."
+    },
+    {
+      "code": "knight-invigorate",
+      "file": "knight-invigorate.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: INVIGORATE SPIRIT, a knight's supportive healing skill for self and one ally. One large steel-blue armored gauntlet held palm-up, cradling a bright small emerald life-spark; two symmetrical upward curling golden light trails end in two bold ivory four-point stars above the palm. Palette steel blue armor, warm gold, emerald green and ivory. The gauntlet is the dominant readable shape, no swords, no shield, no potion bottle, no letters. Uplifting, protective, compact silhouette."
+    },
+    {
+      "code": "knight-holy-aura",
+      "file": "knight-holy-aura.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: HOLY AURA, a knight's persistent radiant aura that heals allies and burns enemies. A bold upright ivory-gold sunburst emblem floating just above a wide elliptical golden ring on the ground, with three small rising golden light pillars around the ring and two tiny emerald healing sparks inside. The central sun has four broad rays, not a face, not lettering. Palette warm gold, ivory, steel blue accents and very small emerald accents. Read as a protective area aura, distinct from a shield or a single explosive bolt."
+    },
+    {
+      "code": "mage-arcane-domain",
+      "file": "mage-arcane-domain.png",
+      "prompt": "Use case: stylized-concept. Asset type: ONE square finished fantasy RPG skill icon for a mobile game. Polished retro 16-bit PIXEL ART: chunky crisp square pixels like a 64x64 sprite enlarged with nearest-neighbor, thick very dark navy silhouette outlines, three or four stepped shade clusters and bright ivory highlights. Bold centered single symbol readable at 40px, filling 80 percent of canvas, generous clean transparent padding. No letters, text, frame, UI, background disk, smooth vector curves, smooth gradients, blur or soft glows. True transparent RGBA background. Subject: ARCANE DOMAIN, an area of controlled magical disorder. A large violet faceted crystal suspended above two bold concentric elliptical arcane rings, with three small floating crystal fragments orbiting it. The rings are composed of thick angular geometric segments with cyan notches, no written runes or letters. Compact, symmetric, luminous magical field silhouette. Palette deep violet, lavender, electric cyan and ivory, thick navy edges. No shield, no chained prisoner, no weapon; represent a persistent area of arcane magic."
+    }
+  ]
+}

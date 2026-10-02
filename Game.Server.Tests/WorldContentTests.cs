@@ -47,10 +47,10 @@ public sealed class WorldContentTests
         Assert.Equal(("peacebloom", 2), (Assert.Single(recipe.Ingredients).Code, recipe.Ingredients[0].Quantity));
         Assert.Single(production.Recipes, item => item.OutputCode == "minor-healing-potion");
         var whetstone = Assert.Single(production.Recipes, item => item.OutputCode == "whetstone-oil");
-        var travel = Assert.Single(production.Recipes, item => item.OutputCode == "travel-healing-potion");
         Assert.Equal("peacebloom", Assert.Single(whetstone.Ingredients).Code);
-        Assert.Equal(("peacebloom", 2),
-            (Assert.Single(travel.Ingredients).Code, travel.Ingredients[0].Quantity));
+        Assert.DoesNotContain(production.Recipes, item => item.OutputCode == "travel-healing-potion");
+        Assert.DoesNotContain(production.Recipes, item => item.Code == "elwynn-assault-legacy-batch");
+        Assert.Equal(2, content.Consumables.Items.Count(item => item.Kind == "Healing"));
         var operationPotion = production.Recipes.Single(item => item.Code == "northshire-battle-draught");
         Assert.Equal(("peacebloom", 3), (Assert.Single(operationPotion.Ingredients).Code, operationPotion.Ingredients[0].Quantity));
     }
@@ -88,8 +88,8 @@ public sealed class WorldContentTests
         var production = new ProductionCatalog(content.Bind<ProductionOptions>(ProductionOptions.SectionName),
             content.World, content.Materials, content.Consumables);
         var gatheredMaterials = gathering.Points.Select(point => point.MaterialCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(17, production.Recipes.Count);
-        Assert.All(production.Recipes.Where(recipe => recipe.Code != "elwynn-assault-legacy-batch"), recipe =>
+        Assert.Equal(15, production.Recipes.Count);
+        Assert.All(production.Recipes, recipe =>
             Assert.All(recipe.Ingredients, ingredient => Assert.Contains(ingredient.Code, gatheredMaterials)));
         foreach (var rare in rarePoints)
         {

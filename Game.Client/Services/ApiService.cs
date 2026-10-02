@@ -204,26 +204,6 @@ public partial class ApiService
         return (await ReadContextResponseAsync<ShopResponse>(response), null);
     }
 
-    public async Task<(ShopResponse? Response, string? ErrorMessage)> PurchaseCharacterSlotAsync()
-    {
-        using var request = await CreateRequestAsync(HttpMethod.Post, "api/shop/character-slot", requiresAuth: true);
-        using var response = await SendTrackedAsync(request);
-        if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = (await response.Content.ReadAsStringAsync()).Trim('"');
-            return (null, error switch
-            {
-                "InsufficientGold" => "金币不足。",
-                "MaximumCharacterSlotsReached" => "角色栏位已达到上限。",
-                "ConcurrencyConflict" => "金币或角色栏位刚刚发生变化，请重试。",
-                _ => "角色栏位解锁失败，请稍后重试。"
-            });
-        }
-
-        return (await ReadContextResponseAsync<ShopResponse>(response), null);
-    }
-
     public async Task<(DungeonExchangeResultResponse? Response, string? ErrorMessage)> ExchangeDungeonRewardAsync(
         int characterId, string offerCode, string? requestId = null)
     {
@@ -451,6 +431,7 @@ public partial class ApiService
             error = error.Trim('"') switch
             {
                 "CharacterAlreadyInRoom" => "当前角色已在另一个战斗中，请先离开原房间。",
+                "StoryMapLocked" => "这个地点尚未开放，请先在冒险日志中完成并回报前置委托。",
                 "DungeonDepthLocked" => "这个账号尚未开放房间的深层层级，请先通关前一层。",
                 "InvalidDungeonDepth" => "房间的深层层级暂不可用。",
                 _ => error
@@ -769,11 +750,11 @@ public partial class ApiService
         return await ReadCharacterResultAsync<CharacterSkillsResponse>(response, method, "skills", value => value.CharacterId);
     }
 
-    public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId) =>
-        ReadCachedResultAsync($"consumables:{characterId}", () => SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables"));
+    public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> GetCharacterConsumablesAsync(int characterId, bool forceRefresh = false) =>
+        ReadCachedResultAsync($"consumables:{characterId}", () => SendConsumableRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/consumables"), forceRefresh);
 
-    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> GetCharacterWeaponsAsync(int characterId) =>
-        ReadCachedResultAsync($"weapons:{characterId}", () => SendWeaponRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/weapons"));
+    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> GetCharacterWeaponsAsync(int characterId, bool forceRefresh = false) =>
+        ReadCachedResultAsync($"weapons:{characterId}", () => SendWeaponRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/weapons"), forceRefresh);
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SetWeaponSlotAsync(
         int characterId, int slotIndex, int? weaponId) =>
@@ -787,13 +768,11 @@ public partial class ApiService
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SellWeaponsAsync(
         int characterId, params int[] weaponIds) =>
-        SendWeaponRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/weapons/sell",
-            new WeaponBatchRequest { WeaponIds = weaponIds.ToList() });
+        PreviewAndExecuteWeaponsAsync(characterId, "sell", weaponIds);
 
     public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> DismantleWeaponsAsync(
         int characterId, params int[] weaponIds) =>
-        SendWeaponRequestAsync(HttpMethod.Post, $"api/user/characters/{characterId}/weapons/dismantle",
-            new WeaponBatchRequest { WeaponIds = weaponIds.ToList() });
+        PreviewAndExecuteWeaponsAsync(characterId, "dismantle", weaponIds);
 
     public async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> EnhanceWeaponSkillAsync(
         int characterId, int weaponId, int skillSlotIndex, string? requestId = null)
@@ -806,36 +785,48 @@ public partial class ApiService
         return result;
     }
 
-    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> UpgradeWeaponQualityAsync(
-        int characterId, int weaponId, int materialWeaponId, bool useUniversalStone = false) =>
-        SendWeaponRequestAsync(HttpMethod.Post,
+    public async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> UpgradeWeaponQualityAsync(
+        int characterId, int weaponId, int materialWeaponId, bool useUniversalStone = false)
+    {
+        var receipt = await BeginEconomicRequestAsync($"upgrade:{characterId}:{weaponId}:{materialWeaponId}:{useUniversalStone}", null);
+        var result = await SendWeaponRequestAsync(HttpMethod.Post,
             $"api/user/characters/{characterId}/weapons/{weaponId}/quality/upgrade",
-            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId, UseUniversalStone = useUniversalStone });
+            new UpgradeWeaponQualityRequest { MaterialWeaponId = materialWeaponId, UseUniversalStone = useUniversalStone, RequestId = receipt.Id });
+        if (result.Response is not null) CompleteEconomicRequest(receipt);
+        return result;
+    }
 
-    public Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> CraftWeaponBreakthroughStoneAsync(
-        int characterId, int tier, int quantity = 1) =>
-        SendWeaponRequestAsync(HttpMethod.Post,
+    public async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> CraftWeaponBreakthroughStoneAsync(
+        int characterId, int tier, int quantity = 1)
+    {
+        var receipt = await BeginEconomicRequestAsync($"craft-breakthrough:{characterId}:{tier}:{quantity}", null);
+        var result = await SendWeaponRequestAsync(HttpMethod.Post,
             $"api/user/characters/{characterId}/weapons/breakthrough-stones/craft",
-            new CraftWeaponBreakthroughStoneRequest { Tier = tier, Quantity = quantity });
+            new CraftWeaponBreakthroughStoneRequest { Tier = tier, Quantity = quantity, RequestId = receipt.Id });
+        if (result.Response is not null) CompleteEconomicRequest(receipt);
+        return result;
+    }
 
     private async Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)> SendWeaponRequestAsync(
         HttpMethod method, string url, object? configuration = null)
     {
-        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true, scope: ApiRequestScope.ExplicitCharacter);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
         using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
             if (response.StatusCode == HttpStatusCode.Unauthorized) await ClearResponseSessionAsync(response);
             var error = await response.Content.ReadAsStringAsync();
+            if (error.Trim().Trim('"') == "UnknownWeaponSkill") return (null, "该武器技能定义暂不可用，无法强化。");
+            if (error.Trim().Trim('"') == "InventoryCodeConflict") return (null, "突破材料代码存在冲突，原有物品已保留，暂不能合成。");
             return (null, string.IsNullOrWhiteSpace(error) ? "武器操作失败。" : error);
         }
         return await ReadCharacterResultAsync<CharacterWeaponsResponse>(response, method, "weapons", value => value.CharacterId);
     }
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> GetCharacterSoulImprintsAsync(
-        int characterId) =>
-        ReadCachedResultAsync($"soul-imprints:{characterId}", () => SendSoulImprintRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/soul-imprints"));
+        int characterId, bool forceRefresh = false) =>
+        ReadCachedResultAsync($"soul-imprints:{characterId}", () => SendSoulImprintRequestAsync(HttpMethod.Get, $"api/user/characters/{characterId}/soul-imprints"), forceRefresh);
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetEquippedSoulImprintAsync(
         int characterId, int? soulImprintId) =>
@@ -858,14 +849,12 @@ public partial class ApiService
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> DismantleSoulImprintsAsync(
         int characterId, params int[] soulImprintIds) =>
-        SendSoulImprintRequestAsync(HttpMethod.Post,
-            $"api/user/characters/{characterId}/soul-imprints/dismantle",
-            new SoulImprintBatchRequest { SoulImprintIds = soulImprintIds.ToList() });
+        PreviewAndExecuteSoulImprintsAsync(characterId, soulImprintIds);
 
     private async Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SendSoulImprintRequestAsync(
         HttpMethod method, string url, object? configuration = null)
     {
-        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true, scope: ApiRequestScope.ExplicitCharacter);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
         using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -892,6 +881,10 @@ public partial class ApiService
         int characterId, int slotIndex, SetConsumableSlotRequest configuration) =>
         SendConsumableRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/consumables/{slotIndex}", configuration);
 
+    public Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SetConsumableAutoAsync(
+        int characterId, int slotIndex, SetConsumableAutoRequest configuration) =>
+        SendConsumableRequestAsync(HttpMethod.Put, $"api/user/characters/{characterId}/consumables/{slotIndex}/auto", configuration);
+
     public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> QueueConsumableAsync(
         int roomId, int characterId, int consumableSlotIndex, bool isQueued,
         int expectedRoundNumber, int expectedRunSequence)
@@ -911,9 +904,9 @@ public partial class ApiService
     }
 
     private async Task<(CharacterConsumablesResponse? Response, string? ErrorMessage)> SendConsumableRequestAsync(
-        HttpMethod method, string url, SetConsumableSlotRequest? configuration = null)
+        HttpMethod method, string url, object? configuration = null)
     {
-        using var request = await CreateRequestAsync(method, url, requiresAuth: true);
+        using var request = await CreateRequestAsync(method, url, requiresAuth: true, scope: ApiRequestScope.ExplicitCharacter);
         if (configuration is not null) request.Content = JsonContent.Create(configuration);
         using var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)

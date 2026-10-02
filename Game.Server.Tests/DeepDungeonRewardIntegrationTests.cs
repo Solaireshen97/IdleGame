@@ -33,11 +33,12 @@ public sealed class DeepDungeonRewardIntegrationTests
         db.AddRange(new User { Id = 1, UserName = "owner", PasswordHash = "x", ActiveCharacterId = 1 }, character, dungeon);
         await db.SaveChangesAsync();
         var rules = new DungeonRunRulesService(db, content.Combat, content.Rewards, content.Parties, content.Depths,
-            encounters: content.Encounters);
+            plants: content.Planting, encounters: content.Encounters);
         var progress = new DungeonDepthProgressService(db, content.Depths, rules);
         var rewardService = new RewardService(db, content.Rewards, ProgressionTestFactory.Create(),
             depthProgress: progress, runRules: rules);
-        var runs = new DungeonRunService(db, rewardService, depthProgress: progress, runRules: rules);
+        var runs = new DungeonRunService(db, rewardService, rareSeeds: new RareSeedService(db, content.Planting, rules),
+            depthProgress: progress, runRules: rules);
         var participants = new[] { new RewardParticipant(1, character) };
         var weaponCodes = content.Exchanges.Offers.Where(offer => offer.DungeonCode == code && offer.RewardKind == "Weapon")
             .Select(offer => offer.EffectiveRewardCode).Order().ToArray();
@@ -57,6 +58,9 @@ public sealed class DeepDungeonRewardIntegrationTests
         Assert.DoesNotContain(await db.RewardEntries.Where(entry => entry.RoomId == first.Id).ToListAsync(),
             entry => entry.Kind == "Weapon" && entry.EventKey == "clear");
         Assert.Single(await db.CharacterSoulImprints.ToListAsync());
+        var seedCode = Assert.Single(content.Planting.Plants, plant => plant.IsRare && plant.UnlockTargetCode == code).SeedCode;
+        Assert.Equal(1, await QuantityAsync(seedCode));
+        Assert.False(await db.RewardEntries.AnyAsync(entry => entry.Kind == "Consumable"));
 
         // Reprocessing the last enemy must not pay the clear or first-clear reward again.
         var boss = await db.Monsters.Where(monster => monster.RoomId == first.Id).OrderBy(monster => monster.WaveNumber)
@@ -76,6 +80,8 @@ public sealed class DeepDungeonRewardIntegrationTests
         Assert.Equal(4, await QuantityAsync(currency));
         Assert.Equal(28, await db.CharacterWeapons.CountAsync());
         Assert.Equal("Defeat", (await db.RewardRuns.SingleAsync(run => run.RoomId == failed.Id)).Status);
+        Assert.Single(await db.RewardEntries.Where(entry => entry.RewardSource == "SeedFirstClear" && entry.Code == seedCode).ToListAsync());
+        Assert.False(await db.RewardEntries.AnyAsync(entry => entry.Kind == "Consumable"));
         Assert.DoesNotContain(await db.RewardEntries.Where(entry => entry.RoomId == failed.Id).ToListAsync(),
             entry => entry.EventKey is "clear" or "first-clear");
 
@@ -185,6 +191,7 @@ public sealed class DeepDungeonRewardIntegrationTests
         {
             Weapons = new(Bind<WeaponOptions>(WeaponOptions.SectionName));
             Consumables = new(Bind<ConsumableOptions>(ConsumableOptions.SectionName));
+            Planting = new(Bind<PlantingOptions>(PlantingOptions.SectionName));
             Materials = new(Bind<MaterialOptions>(MaterialOptions.SectionName));
             Souls = new(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName));
             Rewards = new(Bind<RewardOptions>(RewardOptions.SectionName), Consumables, Weapons, Materials, Souls, new FixedRandom(roll));
@@ -198,6 +205,7 @@ public sealed class DeepDungeonRewardIntegrationTests
         public WorldCatalog World { get; } = WorldCatalog.LoadDefault();
         public WeaponCatalog Weapons { get; }
         public ConsumableCatalog Consumables { get; }
+        public PlantingCatalog Planting { get; }
         public MaterialCatalog Materials { get; }
         public SoulImprintCatalog Souls { get; }
         public RewardCatalog Rewards { get; }

@@ -11,14 +11,13 @@ using Microsoft.Data.Sqlite;
 namespace Game.Server.Services;
 
 public class UserService(GameDbContext dbContext, ProgressionService progressionService, SkillCatalog skillCatalog,
-    WeaponCatalog? weaponCatalog = null, CharacterSlotCatalog? characterSlotCatalog = null,
-    RoomProjectionRevision? projectionRevision = null)
+    WeaponCatalog? weaponCatalog = null,
+    RoomProjectionRevision? projectionRevision = null, StoryQuestCatalog? storyCatalog = null)
 {
     private readonly CharacterAccessResolver _characters = new(dbContext);
-    private readonly CharacterLifecycleService _lifecycle = new(dbContext, skillCatalog, weaponCatalog);
+    private readonly CharacterLifecycleService _lifecycle = new(dbContext, skillCatalog, weaponCatalog, storyCatalog);
     private static readonly PasswordHasher<User> PasswordHasher = new();
     private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(7);
-    private CharacterSlotCatalog CharacterSlots => characterSlotCatalog ?? CharacterSlotCatalog.Default;
 
     public async Task<(AuthResponse? Response, string? Error)> RegisterAsync(RegisterRequest request)
     {
@@ -42,7 +41,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
         var user = new User
         {
             UserName = userName,
-            CharacterSlotLimit = CharacterSlots.InitialSlots
+            CharacterSlotLimit = CharacterSlotRules.SlotsPerAccount
         };
         user.PasswordHash = PasswordHasher.HashPassword(user, request.Password);
 
@@ -55,6 +54,7 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
 
             var session = CreateSession(user.Id);
             dbContext.UserLoginSessions.Add(session);
+            dbContext.UserStoryStates.Add(new UserStoryState { UserId = user.Id });
 
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -126,9 +126,9 @@ public class UserService(GameDbContext dbContext, ProgressionService progression
             ActiveCharacterId = activeCharacter?.Id,
             Gold = activeCharacter?.Gold ?? 0,
             CharacterCount = characterCount,
-            CharacterSlotLimit = user.CharacterSlotLimit,
-            MaximumCharacterSlots = CharacterSlots.MaximumSlots,
-            NextCharacterSlotCost = CharacterSlots.GetNextUnlockCost(user.CharacterSlotLimit)
+            CharacterSlotLimit = CharacterSlotRules.SlotsPerAccount,
+            MaximumCharacterSlots = CharacterSlotRules.SlotsPerAccount,
+            NextCharacterSlotCost = null
         }, null);
     }
 

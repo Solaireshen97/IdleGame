@@ -1,4 +1,4 @@
-@page "/battle/{roomId:int}"
+﻿@page "/battle/{roomId:int}"
 @using Game.Client.Services
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Auth
@@ -70,7 +70,7 @@ else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
         <div class="battle-rewards__loot"><BattleInformationPanel Room="_roomDetail" Visible="true" /></div>
         @if (IsOwner)
         {
-            <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">删除记录</button>
+            <button class="button button--danger" @onclick="DismissRoomAsync" @ref="_dismissRoomButton" disabled="@_isBusy">删除记录</button>
         }
     </section>
 }
@@ -89,73 +89,43 @@ else
     <section class="battle-stage" aria-label="战斗场景" @ref="_battleStage">
         <div class="battle-stage__header">
             <div>
-                <span class="section-kicker">@scene.RegionName · DUNGEON ENCOUNTER</span>
-                <h1>@scene.DungeonName</h1>
-                @if (_roomDetail.SupportsDepths)
-                {
-                    <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
-                    <small>深层 LV@(_roomDetail.DepthLevel) · @(_roomDetail.IsRepeatBattle ? "固定此层重复挑战" : "单次挑战") · 新精通从下轮生效</small>
-                }
-                @if (_roomDetail.ClosedAtUtc is null && _roomDetail.CoopDropBonus is { } coopDropBonus)
-                {
-                    <details class="coop-drop-bonus">
-                        <summary>
-                            <span>当前阵容预计道具掉率 +@(coopDropBonus.BonusPercent.ToString("0.##"))%（相对） · @coopDropBonus.TeamPlayerCount 个账号</span>
-                            <span class="coop-drop-bonus__note">以实际参战结算，同账号角色不叠加</span>
-                        </summary>
-                        <div class="coop-drop-bonus__scope">
-                            <p>每多一个参战账号增加 @(coopDropBonus.PerAdditionalPlayerPercent.ToString("0.##"))%，最多 @(coopDropBonus.MaximumPercent.ToString("0.##"))%。例如原掉率 20% 时，+10% 后为 22%。</p>
-                            <p>适用于击杀与通关的基础随机道具掉落。金币、经验、首次通关奖励、新手保底、精通额外抽取、挑战碎片和独立稀有种子不受影响。</p>
-                        </div>
-                    </details>
-                }
-                @if (_roomDetail.ClosedAtUtc is null && _roomDetail.DirectDamageVariancePercent > 0)
-                {
-                    <details class="damage-variance">
-                        <summary>直接伤害波动 ±@(_roomDetail.DirectDamageVariancePercent.ToString("0.##"))%</summary>
-                        <div class="damage-variance__scope">
-                            <p>普通攻击、技能、魂印主击与反击的直接伤害会轻微波动。小伤害采用概率取整，偶尔相差 1 点；派生追加伤害随主击计算，不重复波动。</p>
-                            <p>治疗、护盾及持续伤害不单独波动。技能描述中的攻击百分比仍是基础值。</p>
-                        </div>
-                    </details>
-                }
+                <span class="section-kicker">@scene.RegionName</span>
+                <h1>@scene.DungeonName @if (_roomDetail.SupportsDepths) { <small class="battle-depth">LV@(_roomDetail.DepthLevel)</small> }</h1>
             </div>
             <div class="battle-stage__meta">
-                <span class="battle-mode">第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波</span>
+                <span class="battle-mode">@scene.CurrentWaveNumber / @scene.TotalWaveCount 波</span>
                 <span class="battle-status">@(_activeCombatPlan is not null ? "交战中" : GetStatusText())</span>
             </div>
         </div>
 
         @if (scene.MonsterIntent is { } intent && scene.MonsterHp > 0 && scene.RoomStatus != Game.Shared.Enums.RoomStatus.WaveTransition && scene.NextBattleStartAtUtc is null)
         {
-            <section class="monster-intent monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
-                <div class="monster-intent__icon" aria-hidden="true">!</div>
-                <div class="monster-intent__body">
-                    <span>ENEMY INTENT · 敌方行动预告 · @GetDangerLabel(intent.DangerLevel)</span>
-                    <strong>@intent.ActionName</strong>
-                    <small>@intent.Description</small>
-
-                </div>
-                <div class="monster-intent__target">
-                    <span>目标</span><strong>@intent.TargetLabel</strong>
-                    @if (intent.ActionType == "Skill")
+            <details class="monster-intent monster-intent--expandable monster-intent--@intent.DangerLevel.ToLowerInvariant()" aria-label="敌方行动预告">
+                <summary class="monster-intent__summary">
+                    <span class="monster-intent__icon" aria-hidden="true">!</span>
+                    <span class="monster-intent__body">
+                        <span class="monster-intent__danger">@GetDangerLabel(intent.DangerLevel)</span>
+                        <strong>@intent.ActionName</strong>
+                    </span>
+                    <span class="monster-intent__target">
+                        <strong title="@intent.TargetLabel">→ @intent.TargetLabel</strong>
+                        @if (intent.ActionType == "Skill")
+                        {
+                            <small class="@(intent.IsInterruptible ? "intent-rule--yes" : "intent-rule--no")">
+                                @(intent.IsInterrupted ? "已打断" : intent.IsInterruptible ? "可打断" : "不可打断")
+                            </small>
+                        }
+                    </span>
+                    <span class="monster-intent__chevron" aria-hidden="true">⌄</span>
+                </summary>
+                <div class="monster-intent__details">
+                    <p>@intent.Description</p>
+                    @foreach (var effect in intent.Effects)
                     {
-                        <small class="@(intent.IsInterruptible ? "intent-rule--yes" : "intent-rule--no")">
-                            @(intent.IsInterrupted ? "已打断" : intent.IsInterruptible ? "可打断" : "不可打断")
-                        </small>
+                        <p>@effect.Summary</p>
                     }
                 </div>
-                @if (intent.Effects.Count > 0)
-                {
-                    <details class="monster-intent__effects">
-                        <summary>行动效果</summary>
-                        @foreach (var effect in intent.Effects)
-                        {
-                            <small>@effect.Summary</small>
-                        }
-                    </details>
-                }
-            </section>
+            </details>
         }
         else
         {
@@ -190,12 +160,13 @@ else
             </section>
         }
 
-        <div class="combat-readout" aria-label="回合战斗反馈">
+        <button type="button" class="combat-readout combat-readout--log" @onclick="OpenBattleLog" @ref="_logTrigger" aria-haspopup="dialog" aria-label="回合战斗反馈，打开完整战报" title="@GetLatestLog()">
             <span class="combat-readout__round">ROUND <b>@((_activeCombatPlan?.Round ?? scene.RoundNumber).ToString("D2"))</b></span>
             <strong class="combat-readout__action"><span class="combat-readout__rest">@GetCombatHeadline()</span><span class="combat-readout__live" data-combat-action></span></strong>
             <span class="combat-readout__result combat-readout__rest"><b>@(_lastCombatPlan is { HitCount: > 0 } ? $"{_lastCombatPlan.HitCount} HIT" : "")</b><span>@(_lastCombatPlan is { TotalDamage: > 0 } ? $"{_lastCombatPlan.TotalDamage:N0} 伤害" : "")</span></span>
             <span class="combat-readout__result combat-readout__live"><b data-combat-hits></b><span data-combat-total></span></span>
-        </div>
+            <span class="combat-readout__log-label">战报 ↗</span>
+        </button>
         <span class="combat-announcement" role="status">@_combatAnnouncement</span>
         <div class="battle-field @(backgroundArt is not null ? "battle-field--illustrated" : null) @(scene.Slots.Count(slot => slot.IsOccupied) >= 4 ? "battle-field--crowded" : "")">
             @if (backgroundArt is not null)
@@ -214,7 +185,7 @@ else
                                 title="@($"{slot.CharacterName} · HP {slot.CharacterHp}/{slot.CharacterMaxHp} · 点击查看状态")"
                                 aria-label="@($"{slot.SlotIndex} 号位 {slot.CharacterName}，生命值 {slot.CharacterHp}/{slot.CharacterMaxHp}{(IsMonsterIntentTarget(slot) ? "，敌人当前攻击目标" : "")}，点击查看详细状态")"
                                 aria-haspopup="dialog"
-                                @onclick="() => OpenStatusDialog(slot)">
+                                @onclick="() => OpenStatusDialog(slot)" @ref="_statusTriggers[slot.SlotIndex]">
                             <span class="fighter__vitals">
                                 <strong>@slot.CharacterName</strong>
                                 <span class="combat-health">
@@ -303,11 +274,6 @@ else
             </div>
             <div class="combat-fx-layer" aria-hidden="true"></div>
         </div>
-        <button type="button" class="battle-feed" @onclick="OpenBattleLog" @ref="_logTrigger" aria-haspopup="dialog">
-            <span class="battle-feed__live">战报</span>
-            <span class="battle-feed__latest">@GetLatestLog()</span>
-            <span class="battle-feed__open">打开完整战报 <span aria-hidden="true">↗</span></span>
-        </button>
         <div class="battle-stage__footer"><span><strong>进度</strong> 第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波 · 敌人 @scene.CurrentEnemyNumber / @scene.EnemiesInCurrentWave</span><span><strong>顺序</strong> 槽位 1 → @scene.SlotCount</span><span><strong>规则</strong> @(scene.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击" : "无准备超时")</span></div>
     </section>
 
@@ -339,9 +305,10 @@ else
                 <div class="battle-mobile-quick-actions__characters" role="tablist" aria-label="选择操作角色，共 @ownSlots.Count 个" @ref="_mobileActionCharacters">
                     @foreach (var characterSlot in ownSlots)
                     {
-                        <button type="button"
+                        <button type="button" @key="characterSlot.CharacterId"
                                 class="battle-mobile-character-tab @(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "active" : null) @(characterSlot.IsAlive ? null : "battle-mobile-character-tab--down")"
                                 role="tab"
+                                tabindex="@(characterSlot.CharacterId == mobileActionSlot.CharacterId ? 0 : -1)"
                                 aria-selected="@(characterSlot.CharacterId == mobileActionSlot.CharacterId ? "true" : "false")"
                                 aria-label='@($"操作 {characterSlot.CharacterName}，槽位 {characterSlot.SlotIndex}，{(characterSlot.IsAlive ? "存活" : "已阵亡")}")'
                                 aria-controls="mobile-action-rail"
@@ -362,24 +329,41 @@ else
                                     class="battle-mobile-skill battle-mobile-skill--soul @(soulSelected ? "battle-mobile-skill--selected" : null)"
                                     disabled="@(_isBusy || !CanQueueSoulImprint(mobileActionSlot, mobileSoulImprint))"
                                     aria-pressed="@(soulSelected ? "true" : "false")"
+                                    aria-label="@($"魂印，{GetSoulImprintStatus(mobileSoulImprint, soulSelected)}")"
                                     title="@GetSoulImprintHint(mobileActionSlot, mobileSoulImprint)"
                                     @onclick="() => ToggleSoulImprintAsync(mobileActionSlot, mobileSoulImprint)">
-                                <span class="battle-mobile-skill__icon" aria-hidden="true">@if (ItemArt.ForCode(mobileSoulImprint.Code) is { } soulArt) { <img src="@soulArt" alt="" /> } else { <text>✦</text> }</span>
+                                <span class="battle-mobile-skill__icon" aria-hidden="true">
+                                    @if (ItemArt.ForCode(mobileSoulImprint.Code) is { } soulArt) { <img src="@soulArt" alt="" /> } else { <text>✦</text> }
+                                    @if (mobileSoulImprint.CooldownRoundsRemaining > 0) { <span class="battle-skill-card__cooldown">@mobileSoulImprint.CooldownRoundsRemaining</span> }
+                                    @if (soulSelected) { <span class="battle-skill-card__check">✓</span> }
+                                </span>
                                 <strong>魂印</strong>
-                                <small>@(soulSelected ? "已安排" : mobileSoulImprint.CooldownRoundsRemaining > 0 ? $"蓄力 {mobileSoulImprint.CooldownRoundsRemaining}" : "释放")</small>
                             </button>
                         }
-                        @foreach (var skill in mobileActionSlot.Skills.Where(skill => skill.SkillCode is not null).OrderBy(skill => skill.SlotIndex))
+                        else
                         {
+                            <div class="battle-mobile-skill battle-mobile-skill--empty" role="img" aria-label="魂印槽，未装配"><span aria-hidden="true">魂印</span></div>
+                        }
+                        @for (var skillSlot = 1; skillSlot <= SkillRules.SlotCount; skillSlot++)
+                        {
+                            var skill = mobileActionSlot.Skills.FirstOrDefault(skill => skill.SlotIndex == skillSlot && skill.SkillCode is not null);
+                            @if (skill is null)
+                            {
+                                <div class="battle-mobile-skill battle-mobile-skill--empty" role="img" aria-label="@($"技能槽位 {skillSlot}，未装配")"><span aria-hidden="true">@skillSlot</span></div>
+                            }
+                            else
+                            {
                             var selected = IsSkillQueued(mobileActionSlot, skill);
                             var available = CanQueueSkill(mobileActionSlot, skill);
+                            var skillStatus = selected ? "已安排" : !mobileActionSlot.IsAlive ? "已阵亡" : skill.CooldownRoundsRemaining > 0 ? $"冷却 {skill.CooldownRoundsRemaining} 回合" : available ? "就绪" : "无有效目标";
                             <button type="button"
                                     class="battle-skill-card battle-mobile-skill battle-skill-card--@GetSkillTone(skill) @(selected ? "battle-skill-card--selected" : "") @(!available ? "battle-skill-card--unavailable" : "")"
                                     disabled="@_isBusy"
                                     title="@GetSkillHint(mobileActionSlot, skill)"
                                     aria-pressed="@(selected ? "true" : "false")"
+                                    aria-label="@($"{skill.SkillName}，{skillStatus}")"
                                     aria-haspopup="dialog"
-                                    @onclick="() => HandleSkillClickAsync(mobileActionSlot, skill)">
+                                    @onclick="() => HandleSkillClickAsync(mobileActionSlot, skill)" @ref="_skillTriggers[skill.SlotIndex]">
                                 <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skill)" aria-hidden="true">
                                     <span class="battle-skill-card__flare"></span>
                                     <img class="battle-skill-card__art" src="@SkillArt.ForCode(skill.SkillCode)" alt="" />
@@ -388,38 +372,26 @@ else
                                     @if (selected) { <span class="battle-skill-card__check">✓</span> }
                                 </span>
                                 <strong class="battle-skill-card__name">@skill.SkillName</strong>
-                                <small class="battle-skill-card__status">@(selected ? "已安排" : !mobileActionSlot.IsAlive ? "已阵亡" : skill.CooldownRoundsRemaining > 0 ? $"冷却 {skill.CooldownRoundsRemaining} 回合" : available ? "就绪" : "无有效目标")</small>
                                 @if (skill.AutoUseEnabled) { <span class="battle-skill-card__auto">AUTO</span> }
                             </button>
+                            }
                         }
                     </div>
-                    @if (mobileActionSlot.SoulImprint is { } configurableSoul)
-                    {
-                        <details class="skill-dialog__automation">
-                            <summary>魂印自动释放：@SkillAutoRules.Describe(configurableSoul.AutoCondition, configurableSoul.AutoHpThresholdPercent)</summary>
-                            <label><input type="checkbox" checked="@configurableSoul.AutoUseEnabled" disabled="@(_isBusy || _isSoulAutoSaving)"
-                                @onchange="e => SetSoulAutoAsync(mobileActionSlot, configurableSoul, (bool)e.Value!, configurableSoul.AutoConditionOverride, configurableSoul.AutoHpThresholdPercent)" /> 自动使用魂印</label>
-                            <SkillAutoConditionPicker ConditionOverride="@configurableSoul.AutoConditionOverride"
-                                DefaultCondition="@configurableSoul.DefaultAutoCondition" DefaultLabel="魂印默认"
-                                Threshold="@configurableSoul.AutoHpThresholdPercent" Disabled="@(_isBusy || _isSoulAutoSaving)"
-                                OnConditionChanged="condition => SetSoulAutoAsync(mobileActionSlot, configurableSoul, configurableSoul.AutoUseEnabled, condition, configurableSoul.AutoHpThresholdPercent)"
-                                OnThresholdChanged="threshold => SetSoulAutoAsync(mobileActionSlot, configurableSoul, configurableSoul.AutoUseEnabled, configurableSoul.AutoConditionOverride, threshold)" />
-                        </details>
-                    }
                 }
                 else
                 {
                     <div id="mobile-action-rail" class="battle-supplies-panel" role="tabpanel" aria-label="当前角色战斗补给">
-                        <BattleConsumablesPanel Character="mobileActionSlot" IsBusy="_isBusy"
+                        <BattleConsumablesPanel Character="mobileActionSlot" IsBusy="@(_isBusy || _isConsumableAutoSaving)"
                                                 IsBattleOver="@(_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver || _roomDetail.ClosedAtUtc is not null)"
                                                 CanQueue="@(supply => CanQueueConsumable(mobileActionSlot, supply))"
-                                                OnToggle="@(supply => ToggleConsumableAsync(mobileActionSlot, supply))" />
+                                                OnToggle="@(supply => ToggleConsumableAsync(mobileActionSlot, supply))"
+                                                OnAutoChanged="change => SetConsumableAutoAsync(mobileActionSlot, change)" />
                     </div>
                 }
-                @if (_mobileLoadoutView == "skills" || _consumableMessage is not null)
+                @if (_skillMessage is not null || _consumableMessage is not null)
                 {
-                    <div class="battle-mobile-quick-actions__hint @(_skillMessage is not null || _consumableMessage is not null ? "battle-mobile-quick-actions__hint--feedback" : null)" aria-live="polite">
-                        <span>@GetMobileActionFooterHint(mobileActionSlot)</span>
+                    <div class="battle-mobile-quick-actions__hint battle-mobile-quick-actions__hint--feedback" aria-live="polite">
+                        <span>@(_skillMessage ?? _consumableMessage)</span>
                     </div>
                 }
             </div>
@@ -475,6 +447,10 @@ else
             }
         </div>
         <div class="battle-command__shortcuts" aria-label="战斗管理">
+            @if (mobileActionSlot is not null)
+            {
+                <span class="battle-command__queue" role="status">@(GetMobileQueuedActionCount(mobileActionSlot) is var queuedCount && queuedCount > 0 ? $"已安排 {queuedCount} 项" : "未手动安排")</span>
+            }
             <button type="button" class="battle-shortcut" title="队伍编成与房间管理" @onclick="OpenManagement" @ref="_managementTrigger" aria-haspopup="dialog">
                 <span aria-hidden="true">☷</span> 队伍 <span class="battle-shortcut__count">@_roomDetail.Slots.Count(slot => slot.IsOccupied)/@_roomDetail.SlotCount</span>
             </button>
@@ -485,7 +461,7 @@ else
                         @onclick="OpenRewards"
                         @ref="_rewardsTrigger"
                         aria-haspopup="dialog">
-                    <span aria-hidden="true">✦</span> 统计信息
+                    <span aria-hidden="true">✦</span> 统计
                 </button>
             }
         </div>
@@ -495,12 +471,12 @@ else
     @if (_isLogOpen)
     {
         <div class="battle-log-overlay" @onclick="CloseBattleLog">
-            <section class="battle-log-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-log-title" @onclick:stopPropagation>
+            <section class="battle-log-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-log-title" @onclick:stopPropagation @ref="_logDialog">
                 <header class="battle-log-dialog__header">
-                    <div><span class="section-kicker">BATTLE REPORT</span><h2 id="battle-log-title">战斗记录</h2><p>当前房间最近 @_logs.Count 条记录</p></div>
+                    <div><h2 id="battle-log-title">战报 <small>最近 @_logs.Count 条</small></h2><p>最新记录在前</p></div>
                     <button type="button" class="battle-log-dialog__close" @onclick="CloseBattleLog" @ref="_logCloseButton" aria-label="关闭战报">×</button>
                 </header>
-                <div class="battle-log-dialog__content">
+                <div class="battle-log-dialog__content" tabindex="0" role="region" aria-label="战报记录">
                     @if (_logs.Count == 0)
                     {
                         <p>战场尚无记录。准备战斗后，行动过程会显示在这里。</p>
@@ -520,10 +496,9 @@ else
     }
 
         <div class="battle-log-overlay battle-reward-overlay" hidden="@(!_isRewardsOpen)" @onclick="CloseRewards">
-            <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
+            <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation @ref="_rewardsDialog">
                 <header class="battle-log-dialog__header">
                     <div>
-                        <span class="section-kicker">BATTLE INFORMATION</span>
                         <h2 id="battle-reward-title">统计信息</h2>
                         <p>当前第 @_roomDetail.RunSequence 次挑战</p>
                     </div>
@@ -539,19 +514,19 @@ else
         var positiveEffects = statusCharacter.StatusEffects.Where(effect => effect.IsPositive).ToList();
         var negativeEffects = statusCharacter.StatusEffects.Where(effect => !effect.IsPositive).ToList();
         <div class="status-dialog-overlay" @onclick="CloseStatusDialog">
-            <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" aria-describedby="status-dialog-description" @onclick:stopPropagation>
+            <section class="status-dialog" role="dialog" aria-modal="true" aria-labelledby="status-dialog-title" aria-describedby="status-dialog-description" @onclick:stopPropagation @ref="_statusDialog">
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
                         <span class="status-dialog__portrait" aria-hidden="true"><img src="@ProfessionArt.ForName(statusCharacter.ProfessionName)" alt="" /></span>
                         <div>
-                            <span class="section-kicker">CHARACTER STATUS · @statusCharacter.SlotIndex 号位</span>
+                            <span class="section-kicker">@statusCharacter.SlotIndex 号位 · 状态</span>
                             <h2 id="status-dialog-title">@statusCharacter.CharacterName</h2>
                             <p id="status-dialog-description">@statusCharacter.ProfessionName · Lv @statusCharacter.CharacterLevel</p>
                         </div>
                     </div>
                     <button type="button" class="status-dialog__close" @onclick="CloseStatusDialog" @ref="_statusDialogCloseButton" aria-label="关闭角色状态详情">×</button>
                 </header>
-                <div class="status-dialog__content">
+                <div class="status-dialog__content" tabindex="0" role="region" aria-label="状态详情">
                     <div class="status-dialog__vitals">
                         <div><span>生命值</span><strong>@statusCharacter.CharacterHp / @statusCharacter.CharacterMaxHp</strong></div>
                         <progress value="@statusCharacter.CharacterHp" max="@statusCharacter.CharacterMaxHp" aria-label="@statusCharacter.CharacterName 生命值"></progress>
@@ -608,19 +583,19 @@ else
         var positiveMonsterEffects = monsterStatus.MonsterEffects.Where(effect => effect.IsPositive).ToList();
         var negativeMonsterEffects = monsterStatus.MonsterEffects.Where(effect => !effect.IsPositive).ToList();
         <div class="status-dialog-overlay" @onclick="CloseMonsterStatusDialog">
-            <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" aria-describedby="monster-status-dialog-description" @onclick:stopPropagation>
+            <section class="status-dialog status-dialog--enemy" role="dialog" aria-modal="true" aria-labelledby="monster-status-dialog-title" aria-describedby="monster-status-dialog-description" @onclick:stopPropagation @ref="_monsterStatusDialog">
                 <header class="status-dialog__header">
                     <div class="status-dialog__identity">
                         <span class="status-dialog__portrait status-dialog__portrait--enemy" aria-hidden="true"><img src="@MonsterArt.ForName(monsterStatus.MonsterName)" alt="" /></span>
                         <div>
-                            <span class="section-kicker">ENEMY STATUS · 第 @monsterStatus.CurrentWaveNumber 波</span>
+                            <span class="section-kicker">敌人状态 · 第 @monsterStatus.CurrentWaveNumber 波</span>
                             <h2 id="monster-status-dialog-title">@monsterStatus.MonsterName</h2>
                             <p id="monster-status-dialog-description">@WeaponRules.ElementName(monsterStatus.MonsterElement)属性 · 第 @monsterStatus.CurrentEnemyNumber / @monsterStatus.EnemiesInCurrentWave 位</p>
                         </div>
                     </div>
                     <button type="button" class="status-dialog__close" @onclick="CloseMonsterStatusDialog" @ref="_monsterStatusDialogCloseButton" aria-label="关闭怪物状态详情">×</button>
                 </header>
-                <div class="status-dialog__content">
+                <div class="status-dialog__content" tabindex="0" role="region" aria-label="状态详情">
                     <div class="status-dialog__vitals">
                         <div><span>生命值</span><strong>@monsterStatus.MonsterHp / @monsterStatus.MonsterMaxHp</strong></div>
                         <progress value="@monsterStatus.MonsterHp" max="@monsterStatus.MonsterMaxHp" aria-label="@monsterStatus.MonsterName 生命值"></progress>
@@ -688,14 +663,14 @@ else
             ? GetSkillHint(skillDialog.Character, skillDialog.Skill) : needsTarget && !dialogCanUse
                 ? "请选择有效目标" : needsTarget ? $"对 {chosenTarget!.CharacterName} 使用" : "本回合使用";
         <div class="skill-dialog-overlay" @onclick="CloseSkillDialog">
-            <section class="skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title" aria-describedby="skill-dialog-description" @onclick:stopPropagation>
+            <section class="skill-dialog" role="dialog" aria-modal="true" aria-labelledby="skill-dialog-title" aria-describedby="skill-dialog-description" @onclick:stopPropagation @ref="_skillDialog">
                 <header class="skill-dialog__header">
                     <div class="skill-dialog__skill">
                         <span class="battle-skill-card__icon battle-skill-card__icon--@GetSkillTone(skillDialog.Skill)" aria-hidden="true">
                             <span class="battle-skill-card__flare"></span>
                             <img class="battle-skill-card__art" src="@SkillArt.ForCode(skillDialog.Skill.SkillCode)" alt="" />
                         </span>
-                        <div><span class="section-kicker">SKILL @skillDialog.Skill.SlotIndex</span><h2 id="skill-dialog-title">@skillDialog.Skill.SkillName</h2><p>@skillDialog.Character.CharacterName · @skillDialog.Character.ProfessionName</p></div>
+                        <div><span class="section-kicker">技能槽 @skillDialog.Skill.SlotIndex</span><h2 id="skill-dialog-title">@skillDialog.Skill.SkillName</h2><p>@skillDialog.Character.CharacterName · @skillDialog.Character.ProfessionName</p></div>
                     </div>
                     <button type="button" class="skill-dialog__close" @onclick="CloseSkillDialog" @ref="_skillDialogCloseButton" aria-label="关闭技能详情">×</button>
                 </header>
@@ -724,13 +699,19 @@ else
                             }
                         </section>
                     }
-                    <div class="skill-dialog__facts">
-                        @foreach (var effect in skillDialog.Skill.Effects)
-                        {
-                            <span><i aria-hidden="true">✦</i>@effect.Summary</span>
-                        }
-                        <span><i aria-hidden="true">⌛</i>@(skillDialog.Skill.CooldownRoundsRemaining > 0 ? $"剩余冷却 {skillDialog.Skill.CooldownRoundsRemaining} 回合" : "技能已就绪")</span>
-                    </div>
+                    <p class="skill-dialog__cooldown"><span aria-hidden="true">⌛</span> @(skillDialog.Skill.CooldownRoundsRemaining > 0 ? $"剩余冷却 {skillDialog.Skill.CooldownRoundsRemaining} 回合" : "技能已就绪")</p>
+                    @if (skillDialog.Skill.Effects.Count > 0)
+                    {
+                        <details class="skill-dialog__effects">
+                            <summary tabindex="0">逐项效果 <span>@skillDialog.Skill.Effects.Count 项</span></summary>
+                            <div class="skill-dialog__facts">
+                                @foreach (var effect in skillDialog.Skill.Effects)
+                                {
+                                    <span><i aria-hidden="true">✦</i>@effect.Summary</span>
+                                }
+                            </div>
+                        </details>
+                    }
                     <section class="skill-dialog__automation" aria-label="技能自动使用设置">
                         <div class="skill-dialog__automation-heading">
                             <div><strong>自动使用</strong><small>@GetSkillAutoConditionText(skillDialog.Skill)</small></div>
@@ -762,33 +743,158 @@ else
 
     @if (_isManagementOpen)
     {
+        var managementSlot = _roomDetail.Slots.FirstOrDefault(slot => slot.SlotIndex == _managementSlotIndex);
         <div class="battle-management-overlay" @onclick="CloseManagement">
-            <section class="battle-management-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-management-title" @onclick:stopPropagation @ref="_managementDialog">
+            <section class="battle-management-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-management-title" @onclick:stopPropagation @ref="_managementDialog" inert="@(_roomActionConfirmation is not null)">
                 <header class="battle-management-dialog__header">
-                    <div><span class="section-kicker">PARTY & ROOM</span><h2 id="battle-management-title">队伍与房间 <small>@_roomDetail.Slots.Count(slot => slot.IsOccupied) / @_roomDetail.SlotCount 人</small></h2></div>
+                    @if (managementSlot is not null)
+                    {
+                        <button type="button" class="battle-log-dialog__close" aria-label="返回队伍列表" @onclick="BackToManagementRoster" @ref="_managementBackButton">‹</button>
+                    }
+                    <div class="management-heading"><h2 id="battle-management-title">@(managementSlot is null ? "队伍与房间" : managementSlot.IsOccupied ? "队员详情" : "添加角色") <small>@(managementSlot is null ? $"{_roomDetail.Slots.Count(slot => slot.IsOccupied)} / {_roomDetail.SlotCount} 人" : $"{managementSlot.SlotIndex} 号位")</small></h2></div>
                     <button type="button" class="battle-log-dialog__close" @onclick="CloseManagement" aria-label="关闭队伍与房间" @ref="_managementCloseButton">×</button>
                 </header>
+                @if (managementSlot is null)
+                {
+                    <div class="management-tabs" role="group" aria-label="队伍与房间分区">
+                        <button type="button" aria-pressed="@(_managementView == "team" ? "true" : "false")" @onclick='() => _managementView = "team"'>队伍</button>
+                        <button type="button" aria-pressed="@(_managementView == "room" ? "true" : "false")" @onclick='() => _managementView = "room"'>房间</button>
+                    </div>
+                }
                 <div class="battle-management-dialog__content">
                     <RoomOperations Operations="_roomDetail.Operations" IsBusy="_isBusy" ShowLatest="true" OnCancel="CancelRoomOperationAsync" />
+                    @if (managementSlot is { } member)
+                    {
+                        @if (member.IsOccupied)
+                        {
+                            <div class="management-member">
+                                <img src="@ProfessionArt.ForName(member.ProfessionName)" alt="" />
+                                <div><h3>@member.CharacterName</h3><p>@member.ProfessionName · Lv @member.CharacterLevel · @member.PlayerName</p><span class="management-state">@ManagementMemberState(member)</span></div>
+                            </div>
+                            <div class="management-member-facts">
+                                <div><span>生命</span><strong>@member.CharacterHp / @member.CharacterMaxHp</strong><progress class="health-bar" value="@member.CharacterHp" max="@member.CharacterMaxHp" aria-label="角色生命"></progress></div>
+                                <div><span>职业经验</span><strong>@(member.ExperienceToNextLevel is int nextExperience ? $"{member.CharacterExperience} / {nextExperience}" : "MAX")</strong><progress value="@(member.ExperienceToNextLevel is null ? 1 : member.CharacterExperience ?? 0)" max="@(member.ExperienceToNextLevel ?? 1)" aria-label="职业经验"></progress></div>
+                            </div>
+                            @if (member.SourceFormationName is not null) { <p class="management-note">出战编队 · @member.SourceFormationName <small>@(member.SourceFormationVersion is int version ? $"v{version}" : "")</small></p> }
+                            @if (member.HasNewFormationVersion) { <p class="management-note">编队已更新，下次入场生效。</p> }
+                            @if (member.HasAutoPolicyOverrides) { <p class="management-note">当前房间使用临时自动策略。</p> }
+                        }
+                        @if (IsOwner && (!member.IsOccupied || member.IsCurrentUserCharacter))
+                        {
+                            <h3 class="management-section-title">@(member.IsOccupied ? "与哪位队员交换？" : "选择要放入的角色")</h3>
+                            @if (!CanChangeFormation) { <p class="management-note management-note--timing">本场结束后生效，可在队伍页取消预约。</p> }
+                            <div class="management-candidates" role="group" aria-label="选择角色">
+                                @foreach (var character in GetFormationCharacters(member))
+                                {
+                                    <button @key="character.CharacterId" type="button" class="management-candidate"
+                                            aria-pressed="@(_selectedCharacterIds[member.SlotIndex] == character.CharacterId ? "true" : "false")"
+                                            disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)" @onclick="() => _selectedCharacterIds[member.SlotIndex] = character.CharacterId">
+                                        <img src="@ProfessionArt.ForCode(character.ProfessionCode)" alt="" />
+                                        <span><strong>@character.Name</strong><small>@character.ProfessionName · Lv @character.Level · @(GetFormationCharacterSlot(character.CharacterId) is { } position ? $"从 {position.SlotIndex} 号位调入" : "选择出战编队")</small></span>
+                                        <span class="management-candidate__check" aria-hidden="true">@(_selectedCharacterIds[member.SlotIndex] == character.CharacterId ? "✓" : "○")</span>
+                                    </button>
+                                }
+                            </div>
+                            @if (!GetFormationCharacters(member).Any()) { <p class="management-note">@(member.IsOccupied ? "暂无其他自有队员可交换站位。" : "暂无可调入的自有角色。")</p> }
+                        }
+                        @if (member.IsCurrentUserCharacter && member.SoulImprint is { } configurableSoul)
+                        {
+                            <details class="battle-management-details">
+                                <summary tabindex="0">魂印自动释放</summary>
+                                <label><input type="checkbox" checked="@configurableSoul.AutoUseEnabled" disabled="@(_isBusy || _isSoulAutoSaving)"
+                                    @onchange="e => SetSoulAutoAsync(member, configurableSoul, (bool)e.Value!, configurableSoul.AutoConditionOverride, configurableSoul.AutoHpThresholdPercent)" /> 自动使用魂印</label>
+                                <SkillAutoConditionPicker ConditionOverride="@configurableSoul.AutoConditionOverride"
+                                    DefaultCondition="@configurableSoul.DefaultAutoCondition" DefaultLabel="魂印默认"
+                                    Threshold="@configurableSoul.AutoHpThresholdPercent" Disabled="@(_isBusy || _isSoulAutoSaving)"
+                                    OnConditionChanged="condition => SetSoulAutoAsync(member, configurableSoul, configurableSoul.AutoUseEnabled, condition, configurableSoul.AutoHpThresholdPercent)"
+                                    OnThresholdChanged="threshold => SetSoulAutoAsync(member, configurableSoul, configurableSoul.AutoUseEnabled, configurableSoul.AutoConditionOverride, threshold)" />
+                            </details>
+                        }
+                    }
+                    else if (_managementView == "team")
+                    {
+                        <div class="management-roster-heading"><strong>@_roomDetail.DungeonName</strong><small>第 @_roomDetail.RunSequence 轮 · @(_roomDetail.IsRepeatBattle ? "循环" : "单次")</small></div>
+                        <div class="management-roster" aria-label="队伍站位">
+                            @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
+                            {
+                                var canAdd = IsOwner || !_roomDetail.Slots.Any(s => s.IsCurrentUserCharacter) && CanJoinRoom;
+                                <button @key="slot.SlotIndex" type="button" class="management-slot @(slot.IsOccupied ? "management-slot--occupied" : "management-slot--empty")"
+                                        disabled="@(!slot.IsOccupied && (!canAdd || _isBusy || _roomDetail.ClosedAtUtc.HasValue))"
+                                        aria-label="@($"{slot.SlotIndex} 号位，{(slot.IsOccupied ? slot.CharacterName + "，" + ManagementMemberState(slot) + "，查看队员" : canAdd ? "添加角色" : "等待加入")}")"
+                                        @onclick="() => OpenManagementSlot(slot)" @ref="_managementSlotTriggers[slot.SlotIndex]">
+                                    <span class="management-slot__number">@slot.SlotIndex</span>
+                                    @if (slot.IsOccupied)
+                                    {
+                                        <span class="management-slot__portrait"><img src="@ProfessionArt.ForName(slot.ProfessionName)" alt="" /></span>
+                                        <span class="management-slot__body">
+                                            <span class="management-slot__name"><strong>@slot.CharacterName</strong><small>@slot.ProfessionName · Lv @slot.CharacterLevel</small></span>
+                                            <span class="management-slot__hp"><progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp" aria-label="@($"生命 {slot.CharacterHp} / {slot.CharacterMaxHp}")"></progress><small>@slot.CharacterHp / @slot.CharacterMaxHp</small></span>
+                                        </span>
+                                        <span class="management-slot__state @(!slot.IsAlive ? "is-defeated" : slot.IsConfirmed || slot.IsAutoEnabled ? "is-ready" : null)">@ManagementMemberState(slot)<span aria-hidden="true">›</span></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="management-slot__plus" aria-hidden="true">＋</span><span class="management-slot__empty-label">@(canAdd ? "添加角色" : "等待加入")</span><span class="management-slot__vacancy">空位</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
                     <div class="battle-management-summary">
                         <strong>@_roomDetail.DungeonName <span>· 第 @_roomDetail.RunSequence 轮</span></strong>
-                        <span>@(_roomDetail.IsPublic ? "公开房间 · 允许其他玩家加入" : "私人房间 · 不接受新玩家加入")</span>
                         <span>@(_roomDetail.IsRepeatBattle ? "循环讨伐" : "单次讨伐") · 第 @_roomDetail.CurrentWaveNumber / @_roomDetail.TotalWaveCount 波 · 敌人 @_roomDetail.CurrentEnemyNumber / @_roomDetail.EnemiesInCurrentWave</span>
-                        @if (_roomDetail.IsPartyHpScaled)
-                        {
-                            <span>怪物生命随上阵人数增加；中途加入保留剩余血量比例，下一场按实际人数重新计算。</span>
-                        }
-                        else
-                        {
-                            <span>固定难度 · 怪物生命不随上阵人数变化</span>
-                        }
                         @if (_roomDetail.ExpiresAtUtc is DateTime expiresAt)
                         {
                             <span>任务截止 @DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc).ToLocalTime().ToString("MM-dd HH:mm")</span>
                         }
-                        <span>@(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击（不自动施放技能）" : "无准备超时") · 按槽位 1 → @_roomDetail.SlotCount 行动</span>
                     </div>
-                    <p class="formation-panel__progress-note">当前职业获得战斗经验，技能随职业等级自动解锁和升级；可在职业与技能页配置技能栏。</p>
+
+                    <details class="battle-management-details">
+                        <summary tabindex="0">副本规则与加成</summary>
+                        @if (_roomDetail.IsPartyHpScaled)
+                        {
+                            <p>怪物生命随上阵人数增加；中途加入保留剩余血量比例，下一场按实际人数重新计算。</p>
+                        }
+                        else
+                        {
+                            <p>固定难度 · 怪物生命不随上阵人数变化</p>
+                        }
+                        <p>@(_roomDetail.IsPreparationTimeoutEnabled ? $"{BattleRules.PreparationTimeoutSeconds} 秒未准备则自动攻击（不自动施放技能）" : "无准备超时") · 按槽位 1 → @_roomDetail.SlotCount 行动</p>
+
+                        @if (_roomDetail.SupportsDepths)
+                        {
+                            <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
+                            <small>深层 LV@(_roomDetail.DepthLevel) · @(_roomDetail.IsRepeatBattle ? "固定此层重复挑战" : "单次挑战") · 新精通从下轮生效</small>
+                        }
+                        @if (_roomDetail.ClosedAtUtc is null && _roomDetail.CoopDropBonus is { } coopDropBonus)
+                        {
+                            <details class="coop-drop-bonus">
+                                <summary tabindex="0">
+                                    <span>当前阵容预计道具掉率 +@(coopDropBonus.BonusPercent.ToString("0.##"))%（相对） · @coopDropBonus.TeamPlayerCount 个账号</span>
+                                    <span class="coop-drop-bonus__note">以实际参战结算，同账号角色不叠加</span>
+                                </summary>
+                                <div class="coop-drop-bonus__scope">
+                                    <p>每多一个参战账号增加 @(coopDropBonus.PerAdditionalPlayerPercent.ToString("0.##"))%，最多 @(coopDropBonus.MaximumPercent.ToString("0.##"))%。例如原掉率 20% 时，+10% 后为 22%。</p>
+                                    <p>适用于击杀与通关的基础随机道具掉落。金币、经验、首次通关奖励、新手保底、精通额外抽取、挑战碎片和独立稀有种子不受影响。</p>
+                                </div>
+                            </details>
+                        }
+                        @if (_roomDetail.ClosedAtUtc is null && _roomDetail.DirectDamageVariancePercent > 0)
+                        {
+                            <details class="damage-variance">
+                                <summary tabindex="0">直接伤害波动 ±@(_roomDetail.DirectDamageVariancePercent.ToString("0.##"))%</summary>
+                                <div class="damage-variance__scope">
+                                    <p>普通攻击、技能、魂印主击与反击的直接伤害会轻微波动。小伤害采用概率取整，偶尔相差 1 点；派生追加伤害随主击计算，不重复波动。</p>
+                                    <p>治疗、护盾及持续伤害不单独波动。技能描述中的攻击百分比仍是基础值。</p>
+                                </div>
+                            </details>
+                        }
+                    </details>
+                    <details class="battle-management-details">
+                        <summary tabindex="0">编队操作说明</summary>
+                    <p class="formation-panel__progress-note">当前职业获得战斗经验，技能随职业等级自动解锁和升级。可在编队保存职业、技能、魂印与补给，离场后应用；当前战斗保持入场配置。</p>
                     @if (IsOwner)
                     {
                         <p class="formation-panel__progress-note">在空位选择已上阵角色可直接移入；在已占用位置选择其他自有队员可交换站位。可直接点击自己任意队员的技能进行操作。</p>
@@ -797,60 +903,12 @@ else
                             <p class="formation-panel__progress-note">战斗中也可预约调整，本场战斗结束后自动执行；预约可随时取消。</p>
                         }
                     }
-                    <div class="slot-grid">
-                        @foreach (var slot in _roomDetail.Slots.OrderBy(x => x.SlotIndex))
-                        {
-                            <article class="party-slot @(slot.IsOccupied ? "party-slot--occupied" : "party-slot--empty")">
-                                <span class="party-slot__index">@slot.SlotIndex</span>
-                                @if (slot.IsOccupied)
-                                {
-                                    <div class="party-slot__identity"><h3>@slot.CharacterName</h3><span>@slot.PlayerName · Lv @slot.CharacterLevel</span></div>
-                                    @if (slot.SourceFormationName is not null) { <p>@slot.SourceFormationName / 入场版本 @slot.SourceFormationVersion</p> }
-                                    @if (slot.HasNewFormationVersion) { <p>预设有新版本，下次入场使用。</p> }
-                                    @if (slot.HasAutoPolicyOverrides) { <p>本房间已调整临时自动策略。</p> }
-                                    <div class="party-slot__hp"><span>HP @slot.CharacterHp / @slot.CharacterMaxHp</span><span>@(slot.IsAlive ? "存活" : "已阵亡")</span></div>
-                                    <progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp"></progress>
-                                    <div class="party-slot__experience">
-                                        <div class="party-slot__experience-label"><span>EXP</span><strong>@(slot.ExperienceToNextLevel is int nextExperience ? $"{slot.CharacterExperience} / {nextExperience}" : "MAX")</strong></div>
-                                        <progress value="@(slot.ExperienceToNextLevel is null ? 1 : slot.CharacterExperience ?? 0)" max="@(slot.ExperienceToNextLevel ?? 1)" aria-label="@slot.CharacterName 经验值"></progress>
-                                    </div>
-                                    <div class="party-slot__badges">@if (!slot.IsAlive) { <span class="status-badge status-badge--danger">已死亡</span> } else if (slot.IsOfflineAuto) { <span class="status-badge">离线自动准备</span> } else if (slot.IsOffline) { <span class="status-badge">@(_roomDetail.IsPreparationTimeoutEnabled ? "离线 · 等待准备超时" : "离线 · 等待准备")</span> } else if (slot.IsTemporaryAuto) { <span class="status-badge">超时自动攻击</span> } else if (slot.IsAutoEnabled) { <span class="status-badge status-badge--success">自动准备</span> } else if (slot.IsConfirmed) { <span class="status-badge status-badge--success">已准备</span> } else { <span class="status-badge">@(slot.IsCurrentUserCharacter ? "等待你准备" : "等待玩家准备")</span> }</div>
-                                }
-                                else
-                                {
-                                    <div class="party-slot__identity"><h3>空槽位</h3><span>等待冒险者加入</span></div>
-                                    @if (!IsOwner && !_roomDetail.Slots.Any(member => member.IsCurrentUserCharacter) && CanJoinRoom)
-                                    {
-                                        <button class="button button--secondary" @onclick="() => JoinRoomAsync(slot.SlotIndex)" disabled="@_isBusy">加入房间</button>
-                                    }
-                                }
+                    </details>
 
-                                @if (IsOwner && (!slot.IsOccupied || slot.IsCurrentUserCharacter))
-                                {
-                                    <div class="slot-management">
-                                        <select @bind="_selectedCharacterIds[slot.SlotIndex]" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)" aria-label="@($"选择放到 {slot.SlotIndex} 号位的角色")">
-                                            <option value="0">@(slot.IsOccupied ? "选择队员交换站位" : "选择自有角色")</option>
-                                            @foreach (var character in GetFormationCharacters(slot))
-                                            {
-                                                <option value="@character.CharacterId">@GetFormationCharacterLabel(character)</option>
-                                            }
-                                        </select>
-                                        <button class="button button--quiet" @onclick="() => AssignSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue || _selectedCharacterIds[slot.SlotIndex] == 0)">@GetFormationActionLabel(slot)</button>
-                                        @if (slot.IsOccupied)
-                                        {
-                                            <button class="button button--quiet" @onclick="() => RemoveSlotAsync(slot.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)">@(CanChangeFormation ? "移除" : "预约移除")</button>
-                                        }
-                                    </div>
-                                }
-                            </article>
-                        }
-                    </div>
-
-                    @if (_message is not null) { <p class="notice-message" role="alert">@_message</p> }
-                </div>
-                <footer class="battle-management-dialog__footer">
                     @if (IsOwner)
                     {
+                        <details class="battle-management-details" open>
+                            <summary tabindex="0">房间设置 · @(_roomDetail.IsPublic ? "公开" : "私人")</summary>
                         <div class="room-visibility-control">
                             <div><strong>开放房间</strong><small>@(_roomDetail.IsPublic ? "允许其他玩家从大厅加入" : "已关闭加入，现有队员不受影响")</small></div>
                             <button type="button" class="room-visibility-switch @(_roomDetail.IsPublic ? "is-public" : null)" role="switch"
@@ -860,22 +918,42 @@ else
                             </button>
                         </div>
                         @if (_visibilityError is not null) { <p class="room-visibility-error" role="alert">@_visibilityError</p> }
+                        </details>
                     }
-                    @if (IsOwner || CanRequestLeave)
+                    }
+                    @if (_message is not null && !_roomDetail.Operations.Any(operation => operation.Message == _message)) { <p class="notice-message" role="alert">@_message</p> }
+                </div>
+                <footer class="battle-management-dialog__footer">
+                    @if (managementSlot is { } target && IsOwner && (!target.IsOccupied || target.IsCurrentUserCharacter))
+                    {
+                        <div class="management-edit-actions">
+                            @if (target.IsOccupied) { <button type="button" class="button button--secondary" @onclick="() => RemoveSlotAsync(target.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue)">@(CanChangeFormation ? "移出队伍" : "预约移出")</button> }
+                            <button type="button" class="button button--primary" @onclick="() => AssignSlotAsync(target.SlotIndex)" disabled="@(_isBusy || _roomDetail.ClosedAtUtc.HasValue || _selectedCharacterIds[target.SlotIndex] == 0)">@(_selectedCharacterIds[target.SlotIndex] == 0 ? "请先选择角色" : GetFormationActionLabel(target))</button>
+                        </div>
+                    }
+                    else if (managementSlot is not null)
+                    {
+                        <div class="management-edit-actions"><button type="button" class="button button--secondary" @onclick="BackToManagementRoster">返回队伍</button></div>
+                    }
+                    else if (_managementView == "team")
+                    {
+                        <div class="management-edit-actions"><button type="button" class="button button--primary" @onclick="CloseManagement">返回战斗</button></div>
+                    }
+                    else if (IsOwner || CanRequestLeave)
                     {
                     <section class="battle-controls battle-controls--room-actions" aria-label="房间操作">
                         <div class="battle-controls__tools">
                             @if (IsOwner && _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver && _roomDetail.NextBattleStartAtUtc is null)
                             {
-                                <button class="button button--secondary" @onclick="ResetBattleAsync" disabled="@_isBusy">重置战斗</button>
+                                <button class="button button--secondary" @onclick="ResetBattleAsync" @ref="_resetRoomButton" disabled="@_isBusy">重置战斗</button>
                             }
                             else if (CanRequestLeave)
                             {
-                                <button class="button button--secondary" @onclick="LeaveRoomAsync" disabled="@_isBusy">@(_roomDetail.CanLeaveRoom ? "离开房间" : "预约退出")</button>
+                                <button class="button button--secondary" @onclick="LeaveRoomAsync" @ref="_leaveRoomButton" disabled="@_isBusy">@(_roomDetail.CanLeaveRoom ? "离开房间" : "预约退出")</button>
                             }
                             @if (IsOwner)
                             {
-                                <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">解散房间</button>
+                                <button class="button button--danger" @onclick="DismissRoomAsync" @ref="_dismissRoomButton" disabled="@_isBusy">解散房间</button>
                             }
                         </div>
                     </section>
@@ -885,6 +963,19 @@ else
         </div>
     }
 }
+    @if (_roomActionConfirmation is { } confirmation)
+    {
+        <div class="room-confirm-overlay" @onclick="CancelRoomAction">
+            <section class="room-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="room-confirm-title" aria-describedby="room-confirm-description" @ref="_roomConfirmDialog" @onclick:stopPropagation @onkeydown:stopPropagation @onkeydown="HandleRoomConfirmKeyDown">
+                <h2 id="room-confirm-title">@confirmation.Title</h2>
+                <p id="room-confirm-description">@confirmation.Description</p>
+                <div class="room-confirm-dialog__actions">
+                    <button type="button" class="button button--secondary" @onclick="CancelRoomAction" @ref="_roomConfirmCancel">取消</button>
+                    <button type="button" class="button button--danger" @onclick="ConfirmRoomActionAsync">@confirmation.ConfirmLabel</button>
+                </div>
+            </section>
+        </div>
+    }
 </div>
 
 @code {
@@ -915,12 +1006,26 @@ else
     private ElementReference _battleCommand;
     private ElementReference _managementTrigger;
     private ElementReference _managementDialog;
+    private ElementReference _logDialog, _rewardsDialog, _skillDialog, _statusDialog, _monsterStatusDialog;
+    private ElementReference _roomConfirmDialog, _roomConfirmCancel, _dismissRoomButton, _leaveRoomButton, _resetRoomButton;
+    private RoomActionConfirmation? _roomActionConfirmation;
+    private string? _restoreRoomActionFocus;
+    private bool _focusRoomConfirm;
+    private readonly Dictionary<int, ElementReference> _statusTriggers = new(), _skillTriggers = new();
+    private ElementReference? _restoreBattleDetailFocus;
+    private sealed record RoomActionConfirmation(string Action, string Title, string Description, string ConfirmLabel);
     private ElementReference _managementCloseButton;
     private bool _isManagementOpen;
+    private string _managementView = "team";
+    private int? _managementSlotIndex, _restoreManagementSlot;
+    private bool _focusManagementBack;
+    private ElementReference _managementBackButton;
+    private readonly Dictionary<int, ElementReference> _managementSlotTriggers = new();
     private bool _focusManagementClose;
     private bool _focusManagementTrigger;
     private ElementReference _mobileQuickActions;
     private ElementReference _mobileActionCharacters;
+    private string? _keyboardTabContainerId;
     private ElementReference _rewardsTrigger;
     private ElementReference _rewardsCloseButton;
     private ElementReference _logTrigger;
@@ -972,8 +1077,8 @@ else
     private sealed record BattleLogEntry(long Id, string Text);
     private sealed record SkillDialogContext(RoomSlotResponse Character, RoomSkillSlotResponse Skill);
     private bool IsOwner => _roomDetail is not null && _currentUser?.UserId == _roomDetail.OwnerUserId;
-    private bool IsBattlePanelOpen => (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null) &&
-        (_isManagementOpen || _isLogOpen || _isRewardsOpen);
+    private bool IsBattlePanelOpen => _roomActionConfirmation is not null || (_roomDetail is { ClosedAtUtc: null } || _combatScene is not null) &&
+        (_isManagementOpen || _isLogOpen || _isRewardsOpen || _isSkillDialogOpen || _selectedStatusCharacterId.HasValue || _isMonsterStatusDialogOpen);
     private bool CanChangeFormation => _roomDetail is { ClosedAtUtc: null } &&
         (_roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.BattleOver ||
          _roomDetail.RoomStatus == Game.Shared.Enums.RoomStatus.NotStarted && _roomDetail.RoundNumber == 0);
@@ -1052,6 +1157,12 @@ else
             if (_refreshCancellation.IsCancellationRequested) return;
         }
 
+        if (!string.IsNullOrEmpty(_mobileActionCharacters.Id) && _keyboardTabContainerId != _mobileActionCharacters.Id)
+        {
+            _keyboardTabContainerId = _mobileActionCharacters.Id;
+            await Js.InvokeVoidAsync("battleUi.configureCharacterTabs", _mobileActionCharacters);
+        }
+
         if (!_hasRevealedShortViewport &&
             _roomDetail?.Slots.Any(slot => slot.IsCurrentUserCharacter && slot.IsOccupied) == true)
         {
@@ -1071,7 +1182,34 @@ else
             await Js.InvokeVoidAsync("battleUi.revealQuickActionsOnShortViewport", _mobileQuickActions);
         }
 
-        if (_focusManagementClose)
+        if (_focusRoomConfirm)
+        {
+            _focusRoomConfirm = false;
+            await _roomConfirmCancel.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _roomConfirmDialog);
+        }
+        else if (_restoreRoomActionFocus is { } roomAction)
+        {
+            _restoreRoomActionFocus = null;
+            var trigger = roomAction == "dismiss" ? _dismissRoomButton : roomAction == "leave" ? _leaveRoomButton : _resetRoomButton;
+            await trigger.FocusAsync(preventScroll: true);
+        }
+        else if (_restoreBattleDetailFocus is { } detailTrigger)
+        {
+            _restoreBattleDetailFocus = null;
+            await detailTrigger.FocusAsync(preventScroll: true);
+        }
+        else if (_focusManagementBack)
+        {
+            _focusManagementBack = false;
+            await _managementBackButton.FocusAsync();
+        }
+        else if (_restoreManagementSlot is int returnSlot)
+        {
+            _restoreManagementSlot = null;
+            if (_managementSlotTriggers.TryGetValue(returnSlot, out var trigger)) await trigger.FocusAsync();
+        }
+        else if (_focusManagementClose)
         {
             _focusManagementClose = false;
             await _managementCloseButton.FocusAsync(preventScroll: true);
@@ -1085,17 +1223,20 @@ else
         else if (_focusSkillDialogCloseButton)
         {
             _focusSkillDialogCloseButton = false;
-            await _skillDialogCloseButton.FocusAsync();
+            await _skillDialogCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _skillDialog);
         }
         else if (_focusStatusDialogCloseButton)
         {
             _focusStatusDialogCloseButton = false;
-            await _statusDialogCloseButton.FocusAsync();
+            await _statusDialogCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _statusDialog);
         }
         else if (_focusMonsterStatusDialogCloseButton)
         {
             _focusMonsterStatusDialogCloseButton = false;
-            await _monsterStatusDialogCloseButton.FocusAsync();
+            await _monsterStatusDialogCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _monsterStatusDialog);
         }
         else if (_focusMonsterTrigger)
         {
@@ -1106,6 +1247,7 @@ else
         {
             _focusLogCloseButton = false;
             await _logCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _logDialog);
         }
         else if (_focusLogTrigger)
         {
@@ -1116,6 +1258,7 @@ else
         {
             _focusRewardsCloseButton = false;
             await _rewardsCloseButton.FocusAsync(preventScroll: true);
+            await Js.InvokeVoidAsync("battleUi.trapDialogFocus", _rewardsDialog);
         }
         else if (_focusRewardsTrigger)
         {
@@ -1140,21 +1283,6 @@ else
         }
     }
 
-    private string GetMobileActionFooterHint(RoomSlotResponse slot)
-    {
-        if (_mobileLoadoutView == "supplies")
-        {
-            return _consumableMessage ?? string.Empty;
-        }
-        var queuedCount = GetMobileQueuedActionCount(slot);
-
-        return _skillMessage ?? _consumableMessage ?? (queuedCount > 0
-            ? $"本回合已安排 {queuedCount} 项 · 再点已选项可取消"
-            : slot.IsQuickSkillCastEnabled
-                ? "快速释放已开启 · 指定队友的技能仍需选人"
-            : "点按技能先查看效果，再确认使用");
-    }
-
     private static int GetMobileQueuedActionCount(RoomSlotResponse slot)
     {
         var queuedCount = slot.Skills.Count(skill => skill.SkillCode is not null && IsSkillQueued(slot, skill));
@@ -1166,15 +1294,40 @@ else
     private void OpenManagement()
     {
         ClearCombatFeedback();
+        _managementView = "team";
+        _managementSlotIndex = null;
         _isManagementOpen = true;
         _focusManagementClose = true;
     }
 
     private void CloseManagement()
     {
+        _managementSlotIndex = _restoreManagementSlot = null;
+        _focusManagementBack = false;
         _isManagementOpen = false;
         _focusManagementTrigger = true;
     }
+
+    private async Task OpenManagementSlot(RoomSlotResponse slot)
+    {
+        if (!slot.IsOccupied && !IsOwner) { await JoinRoomAsync(slot.SlotIndex); return; }
+        _managementSlotIndex = slot.SlotIndex;
+        _selectedCharacterIds[slot.SlotIndex] = 0;
+        _focusManagementBack = true;
+    }
+
+    private void BackToManagementRoster()
+    {
+        _restoreManagementSlot = _isManagementOpen && _roomDetail is { ClosedAtUtc: null } ? _managementSlotIndex : null;
+        _managementSlotIndex = null;
+        _managementView = "team";
+        _focusManagementBack = false;
+    }
+
+    private static string ManagementMemberState(RoomSlotResponse slot) => !slot.IsAlive ? "已阵亡"
+        : slot.IsOfflineAuto ? "离线托管" : slot.IsOffline ? "离线待准备"
+        : slot.IsTemporaryAuto ? "超时托管" : slot.IsAutoEnabled ? "自动准备"
+        : slot.IsConfirmed ? "已准备" : "待准备";
 
     private void OpenRewards()
     {
@@ -1210,6 +1363,7 @@ else
         else if (_isMonsterStatusDialogOpen) CloseMonsterStatusDialog();
         else if (_isRewardsOpen) CloseRewards();
         else if (_isLogOpen) CloseBattleLog();
+        else if (_isManagementOpen && _managementSlotIndex is not null) BackToManagementRoster();
         else if (_isManagementOpen) CloseManagement();
     }
 
@@ -1222,6 +1376,8 @@ else
 
     private void CloseStatusDialog()
     {
+        var slotIndex = _roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == _selectedStatusCharacterId)?.SlotIndex;
+        if (slotIndex.HasValue && _statusTriggers.TryGetValue(slotIndex.Value, out var trigger)) _restoreBattleDetailFocus = trigger;
         _selectedStatusCharacterId = null;
     }
 
@@ -1263,14 +1419,9 @@ else
     private RoomSlotResponse? GetFormationCharacterSlot(int characterId) =>
         _roomDetail?.Slots.FirstOrDefault(slot => slot.IsCurrentUserCharacter && slot.CharacterId == characterId);
 
-    private string GetFormationCharacterLabel(CharacterSummaryResponse character)
-    {
-        var position = GetFormationCharacterSlot(character.CharacterId) is { } slot ? $" · 当前 {slot.SlotIndex} 号位" : "";
-        return $"{character.Name} · Lv {character.Level}{position}";
-    }
-
-    private string GetFormationActionLabel(RoomSlotResponse target) => (CanChangeFormation ? "" : "预约") +
-        (target.IsOccupied ? "交换站位" : GetFormationCharacterSlot(_selectedCharacterIds[target.SlotIndex]) is not null ? "移动至此" : "上阵");
+    private string GetFormationActionLabel(RoomSlotResponse target) =>
+        GetFormationCharacterSlot(_selectedCharacterIds[target.SlotIndex]) is null ? "下一步：选择编队" :
+        (CanChangeFormation ? "" : "预约") + (target.IsOccupied ? "交换站位" : "移动至此");
 
     private async Task AssignSlotAsync(int slotIndex)
     {
@@ -1278,14 +1429,20 @@ else
         if (GetFormationCharacterSlot(characterId) is not null)
         {
             if (await RunRoomOperationAsync(() => ApiService.AssignRoomSlotAsync(RoomId, slotIndex, characterId), "调整队伍失败。"))
+            {
                 foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0;
+                BackToManagementRoster();
+            }
             return;
         }
         await OpenAdmissionAsync(characterId, slotIndex, true);
     }
 
-    private async Task RemoveSlotAsync(int slotIndex) =>
-        await RunRoomOperationAsync(() => ApiService.RemoveRoomSlotAsync(RoomId, slotIndex), "移除角色失败。");
+    private async Task RemoveSlotAsync(int slotIndex)
+    {
+        if (await RunRoomOperationAsync(() => ApiService.RemoveRoomSlotAsync(RoomId, slotIndex), "移除角色失败。"))
+            BackToManagementRoster();
+    }
 
     private async Task<bool> RunRoomOperationAsync(Func<Task<(RoomDetailResponse? Detail, string? ErrorMessage)>> action, string fallback)
     {
@@ -1401,7 +1558,7 @@ else
         var success = await RunRoomOperationAsync(() => _admissionIsAssign
             ? ApiService.AssignRoomSlotAsync(_admissionRoomId, _admissionSlotIndex, characterId, selection, _admissionRequestId)
             : ApiService.JoinRoomAsync(_admissionRoomId, _admissionSlotIndex, characterId, selection, _admissionRequestId), "入场失败，请检查编队。");
-        if (success) { CloseAdmission(); foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0; }
+        if (success) { CloseAdmission(); foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0; BackToManagementRoster(); }
     }
 
     private async Task SetRoomVisibilityAsync(bool isPublic)
@@ -1426,7 +1583,44 @@ else
         finally { _isUpdatingVisibility = false; _isBusy = false; }
     }
 
-    private async Task LeaveRoomAsync() =>
+    private Task LeaveRoomAsync() => RequestRoomAction(new("leave", _roomDetail?.CanLeaveRoom == true ? "离开房间？" : "预约退出？",
+        _roomDetail?.CanLeaveRoom == true ? "你的参战角色将退出房间，其他队员继续留在房间。" : "本场战斗结束后，你的参战角色将退出房间；执行前可在队伍中取消预约。",
+        _roomDetail?.CanLeaveRoom == true ? "确认离开" : "预约退出"));
+
+    private Task ResetBattleAsync() => RequestRoomAction(new("reset", "重新挑战？", "全队将开始下一次挑战，当前战报会清空；已记录统计仍可查看。", "开始下一次"));
+
+    private Task DismissRoomAsync() => RequestRoomAction(_roomDetail?.ClosedAtUtc is not null
+        ? new("dismiss", "删除房间记录？", "此房间及其战报将被删除，无法再打开查看。", "删除记录")
+        : new("dismiss", "解散房间？", "当前战斗将结束，所有队员退出，此房间及其战报将被删除。", "解散房间"));
+
+    private Task RequestRoomAction(RoomActionConfirmation confirmation)
+    {
+        if (!_isBusy) { _roomActionConfirmation = confirmation; _focusRoomConfirm = true; }
+        return Task.CompletedTask;
+    }
+
+    private void CancelRoomAction()
+    {
+        _restoreRoomActionFocus = _roomActionConfirmation?.Action;
+        _roomActionConfirmation = null;
+    }
+
+    private void HandleRoomConfirmKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CancelRoomAction();
+    }
+
+    private async Task ConfirmRoomActionAsync()
+    {
+        if (_roomActionConfirmation is not { } confirmation || _isBusy) return;
+        _roomActionConfirmation = null;
+        if (confirmation.Action == "dismiss") await ExecuteDismissRoomAsync();
+        else if (confirmation.Action == "leave") await ExecuteLeaveRoomAsync();
+        else await ExecuteResetBattleAsync();
+        if (_roomDetail is not null && confirmation.Action != "dismiss") _focusManagementClose = _isManagementOpen;
+    }
+
+    private async Task ExecuteLeaveRoomAsync() =>
         await RunRoomOperationAsync(() => ApiService.LeaveRoomAsync(RoomId), "离开房间失败。");
 
     private async Task SetSlotAutoAsync(int slotIndex, bool isAutoEnabled)
@@ -1548,6 +1742,7 @@ else
 
     private void CloseSkillDialog()
     {
+        if (_selectedSkillSlotIndex.HasValue && _skillTriggers.TryGetValue(_selectedSkillSlotIndex.Value, out var trigger)) _restoreBattleDetailFocus = trigger;
         _isSkillDialogOpen = false;
         _selectedSkillCharacterId = null;
         _selectedSkillSlotIndex = null;
@@ -1564,6 +1759,26 @@ else
     }
 
     private bool _isSoulAutoSaving;
+    private bool _isConsumableAutoSaving;
+    private async Task SetConsumableAutoAsync(RoomSlotResponse character, BattleConsumablesPanel.AutoChange change)
+    {
+        if (_isBusy || _isConsumableAutoSaving || character.CharacterId is null) return;
+        _isConsumableAutoSaving = true;
+        _consumableMessage = null;
+        try
+        {
+            var (response, error) = await ApiService.SetConsumableAutoAsync(character.CharacterId.Value,
+                change.Supply.SlotIndex, new SetConsumableAutoRequest
+                {
+                    AutoUseEnabled = change.Enabled, AutoConditionOverride = change.Condition,
+                    AutoHpThresholdPercent = change.Threshold
+                });
+            if (response is null) _consumableMessage = GetConsumableError(error);
+            else await RefreshRoomDetailAsync();
+        }
+        catch { _consumableMessage = "连接失败，药剂自动使用设置未保存。"; }
+        finally { _isConsumableAutoSaving = false; }
+    }
     private async Task SetSoulAutoAsync(RoomSlotResponse character, RoomSoulImprintResponse soul, bool enabled, string? condition, int threshold)
     {
         if (_isBusy || _isSoulAutoSaving || character.CharacterId is null) return;
@@ -1831,6 +2046,9 @@ else
 
     private static string GetConsumableError(string? error) => error?.Trim().Trim('"') switch
     {
+        "BuffPotionLimitReached" => "本轮副本的强化药剂次数已用完。",
+        "InvalidAutoCondition" => "请选择有效的自动使用条件。",
+        "InvalidHpThreshold" => "生命阈值需要在 1%～100% 之间。",
         "HealingPotionLimitReached" => "本轮副本治疗药水次数已用完。",
         "StaleRound" => "回合已经推进，请按当前回合重新安排药水。",
         "RoomClosed" => "房间已关闭。",
@@ -1847,7 +2065,7 @@ else
         _ => "安排战斗道具失败，请稍后重试。"
     };
 
-    private async Task ResetBattleAsync()
+    private async Task ExecuteResetBattleAsync()
     {
         _isBusy = true; _message = null;
         var (detail, error) = await ApiService.ResetBattleAsync(RoomId);
@@ -1855,7 +2073,7 @@ else
         _isBusy = false;
     }
 
-    private async Task DismissRoomAsync()
+    private async Task ExecuteDismissRoomAsync()
     {
         _isBusy = true;
         if (await ApiService.DeleteRoomAsync(RoomId)) Navigation.NavigateTo("/rooms"); else { _message = "解散房间失败。"; _isBusy = false; }

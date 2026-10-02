@@ -1,0 +1,57 @@
+@inject IJSRuntime Js
+
+<button type="button" class="item-picker-trigger" disabled="@Disabled" @onclick="Open" aria-haspopup="dialog"><span><strong>@(Selected?.Name ?? EmptyLabel)</strong>@if (Selected is not null) { <small>@Selected.Description</small> }</span><b aria-hidden="true">›</b></button>
+@if (_open)
+{
+    <div class="item-picker-backdrop" @onclick="Close">
+        <section class="item-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="@_titleId" tabindex="-1" @ref="_dialog" @onclick:stopPropagation="true" @onkeydown="KeyDown" @onkeydown:stopPropagation="true">
+            <header><div><h3 id="@_titleId">@Title</h3>@if (!string.IsNullOrWhiteSpace(Hint)) { <details class="item-picker-hint"><summary>选择说明</summary><p>@Hint</p></details> }</div><button type="button" @onclick="Close" aria-label="关闭物品选择">×</button></header>
+            <div class="item-picker-search"><input type="search" placeholder="搜索名称、属性或编号" aria-label="搜索候选物品" @bind="_search" @bind:event="oninput" />@if (_search.Length > 0) { <button type="button" aria-label="清除物品搜索" @onclick='() => _search = ""'>清除</button> }</div>
+            <div class="item-picker-list" @key="_search">
+                @if (AllowEmpty) { <button type="button" @onclick='() => ChooseAsync("")'><span class="item-picker-icon">＋</span><span><strong>@EmptyLabel</strong><small>清空此槽位</small></span></button> }
+                <Virtualize Items="@Filtered" Context="option" ItemSize="104">
+                    <button type="button" @key="option.Value" class="item-picker-option @(option.Value == Value ? "is-selected" : null)" disabled="@(Disabled || option.Disabled)" @onclick="() => ChooseAsync(option.Value)"><span class="item-picker-icon">@if (option.Art is { } art) { <img src="@art" alt="" loading="lazy" onerror="this.hidden=true" /> } else { <span>◇</span> }</span><span><strong title="@option.Name">@option.Name</strong><small title="@option.Description">@option.Description</small></span><b>@(option.Value == Value ? "✓" : "选择")</b></button>
+                </Virtualize>
+                @if (Filtered.Count == 0) { <p class="item-picker-empty">@(string.IsNullOrWhiteSpace(_search) ? EmptyMessage : "没有符合搜索的物品，请调整关键词或清除搜索。")</p> }
+            </div>
+            <footer><a href="@WarehouseRoute">查看角色仓库 ↗</a><button type="button" @onclick="Close">返回配置</button></footer>
+        </section>
+    </div>
+}
+
+@code {
+    public sealed record Option(string Value, string Name, string Description, string? Art = null, bool Disabled = false);
+    [Parameter] public IReadOnlyList<Option> Options { get; set; } = [];
+    // A saved selection can outlive its stock without becoming a selectable candidate.
+    [Parameter] public Option? SelectedOption { get; set; }
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> OnPick { get; set; }
+    [Parameter] public string Title { get; set; } = "选择物品";
+    [Parameter] public string Hint { get; set; } = "从此角色的持有物品中选择。";
+    [Parameter] public string EmptyLabel { get; set; } = "不装备";
+    [Parameter] public string EmptyMessage { get; set; } = "没有可选物品，可前往角色仓库查看。";
+    [Parameter] public string WarehouseRoute { get; set; } = "/inventory";
+    [Parameter] public bool AllowEmpty { get; set; } = true;
+    [Parameter] public bool Disabled { get; set; }
+    private readonly string _titleId = "item-picker-" + Guid.NewGuid().ToString("N");
+    private Option? Selected => Options.FirstOrDefault(option => option.Value == Value)
+        ?? (SelectedOption?.Value == Value ? SelectedOption : null);
+    private List<Option> Filtered
+    {
+        get
+        {
+            var query = _search.Trim();
+            if (query.StartsWith('#')) return Options.Where(option => option.Value.Equals(query[1..], StringComparison.OrdinalIgnoreCase)).ToList();
+            return Options.Where(option => query.Length == 0 || option.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || option.Value.Contains(query, StringComparison.OrdinalIgnoreCase) || option.Description.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+    }
+    private bool _open, _focus;
+    private string _search = "";
+    private ElementReference _dialog;
+    private void Open() { if (Disabled) return; _open = true; _focus = true; _search = ""; }
+    public Task ShowAsync(string? search = null) { if (Disabled) return Task.CompletedTask; _open = true; _focus = true; _search = search ?? ""; return InvokeAsync(StateHasChanged); }
+    private async Task Close() { _open = false; await Js.InvokeVoidAsync("inventoryUi.restoreFocus"); }
+    private async Task ChooseAsync(string value) { if (Disabled) return; await Close(); await OnPick.InvokeAsync(value); }
+    private Task KeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? Close() : Task.CompletedTask;
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (_focus) { _focus = false; await Js.InvokeVoidAsync("inventoryUi.focusDialog", _dialog, true); } }
+}

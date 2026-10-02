@@ -1,0 +1,198 @@
+@page "/story"
+@using Game.Client.Services
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Story
+@using Game.Client.Components
+@inject NavigationManager Navigation
+@inject ApiService Api
+@inject ActiveCharacterState Characters
+@implements IDisposable
+
+<PageTitle>冒险日志</PageTitle>
+<div class="story-page">
+    <header class="story-heading"><div><small>林间驿站 · 账号冒险</small><h1>冒险日志</h1></div><button class="button button--secondary" @onclick="ReloadAsync" disabled="@_busy">刷新剧情</button></header>
+    @if (_notice is not null) { <p class="notice-message" role="status">@_notice</p> }
+    @if (_overview is null)
+    {
+        <GameStateCard Title="@(_loading ? "正在翻开冒险日志" : "暂时无法读取剧情")" Detail="@(_loading ? "确认章节与委托进度…" : "检查连接后重新载入。")">
+            <Actions><button class="button button--primary" @onclick="ReloadAsync" disabled="@_busy">重新载入</button></Actions>
+        </GameStateCard>
+    }
+    else
+    {
+        <details class="story-actor" open="@_overview.NeedsTutorialCharacter"><summary>教学执行角色 · @(_overview.TutorialCharacterName ?? "尚未选择") <small>查看或更换</small></summary><p>教学目标与教学报酬归这个角色；其他角色可以继续自己的战斗。</p>
+            <p>更换时会重新检查当前未完成步骤。已领物品不会复制或转移，账号章节进度保留。新角色可能需要在已开放农场取得自己的种植与配方资格。</p>
+            <label>选择自有角色 <select @bind="_actorId" disabled="@_busy"><option value="0">请选择</option>@foreach (var actor in _actors) { <option value="@actor.CharacterId">@actor.Name</option> }</select></label>
+            <button class="button button--secondary" disabled="@(_busy || _actorId == 0 || _actorId == _overview.TutorialCharacterId)" @onclick="ChangeActorAsync">设为教学执行角色</button>
+            @if (_overview.NeedsTutorialCharacter) { <p role="status">原执行角色不可用，请选择角色后继续委托。</p> }
+        </details>
+        <h2>@_overview.ChapterName @(_overview.ChapterCompleted ? "· 已完成" : "")</h2>
+        @if (_overview.IsLegacy) { <p>原有地图已保留；剧情回顾可直接继续，不重复发放教学报酬。</p> }
+        @if (_overview.CurrentQuest is { } quest)
+        {
+            <section class="story-quest" aria-label="当前委托">
+                <div class="story-heading"><h2>@quest.Name</h2><span>@StatusName(quest.Status)</span></div>
+                <strong>@quest.NpcName</strong>
+                @if (!_skipDialogue) { <blockquote>@quest.StartDialogue</blockquote> }
+                <button class="button button--quiet" @onclick="() => _skipDialogue = !_skipDialogue">@(_skipDialogue ? "重读对白" : "跳过对白，查看目标")</button>
+                <p><strong>目标：</strong>@quest.Summary</p>
+                @if (quest.Code == "ch01-06" && !_overview.IsLegacy)
+                {
+                    <p>制作进度 @quest.Progress / @quest.RequiredCount · @(quest.Status == "ReadyToTurnIn" ? "装备与库存条件已满足" : "全部条件满足后才可回报")</p>
+                    <p>制作完成后，还需给同一教学角色装入「治疗」补给槽，并保留至少一瓶治疗药水库存。保存编队后需应用到角色；角色仍在房间中时先离场，再应用。进度满格仅表示制作要求已满足。</p>
+                    <button class="button button--secondary" disabled="@_busy" @onclick='() => NavigateToObjectiveAsync(quest, "/formations?section=supplies&itemCode=minor-healing-potion")'>前往编队装入治疗补给</button>
+                }
+                else { <p>进度 @quest.Progress / @quest.RequiredCount</p> }
+                @if (quest.Destination == "/weapons") { <p>在仓库选择一把武器，在详情的「武器技能」中强化技能。</p> }
+                @if (quest.Destination == "/inventory") { <p>在编队的武器盘中选择位置，将首猎武器装入合法位置。保存编队后需应用到角色；角色仍在房间中时先离场，再应用。</p> }
+                <progress value="@quest.Progress" max="@Math.Max(1, quest.RequiredCount)" aria-label="委托进度"></progress>
+                <p><strong>委托报酬：</strong>@RewardText(quest)</p>
+                <p>领取角色：@ActorName(quest)。战利品与首通奖励在战斗结算中另行发放。</p>
+                @if (quest.Status == "ReadyToTurnIn")
+                {
+                    <blockquote>@quest.TurnInDialogue</blockquote>
+                    <button class="button button--primary" disabled="@(_busy || _overview.NeedsTutorialCharacter)" @onclick="() => TurnInAsync(quest)">@(_busy ? "正在回报…" : _overview.IsLegacy ? "继续回顾" : quest.RewardGold > 0 || quest.Rewards.Count > 0 ? $"向{quest.NpcName}回报并领取报酬" : "继续剧情")</button>
+                }
+                else if (Destination(quest) is { } destination)
+                { <button class="button button--primary" disabled="@_busy" @onclick="() => NavigateToObjectiveAsync(quest, destination)">前往@(DestinationName(quest))</button> }
+                @if (quest.ActorCharacterId is { } actorId && actorId != Characters.Current?.CharacterId) { <p>前往目标时会切换到执行角色 @ActorName(quest)，请用这个角色完成教学。</p> }
+            </section>
+        }
+        else { <p>当前章节已经告一段落。已开放地点可继续挑战。</p> }
+        <section><h2>冒险地图</h2><div class="story-map">@foreach (var node in _overview.MapNodes)
+        {
+            <article class="story-node @(!node.CanEnter ? "story-node--locked" : "")"><div class="story-heading"><h3>@node.Name</h3><span>@(node.IsCleared ? "已通关" : node.CanEnter ? "可挑战" : node.IsUnlocked ? "已发现" : "未开放")</span></div><p>@node.Description</p><small>推荐 Lv.@node.RecommendedLevel</small>
+                @if (node.CanEnter && node.DungeonId is { } id) { <a class="button button--secondary" href="@($"/rooms?dungeonId={id}")">前往挑战</a> }
+                else { <p>@(node.LockReason ?? "随剧情继续开放")</p> }
+            </article>
+        }</div></section>
+        <section><h2>委托与线索记录</h2>@foreach (var entry in _overview.Quests.Where(q => q.Status != "Locked"))
+        {
+            <details class="story-log"><summary>@entry.Name · @StatusName(entry.Status)</summary><p>@entry.NpcName：@entry.StartDialogue</p><p>@entry.Summary</p>@if (entry.Status == "TurnedIn") { <p>@entry.TurnInDialogue</p><p>已领取：@RewardText(entry) · @ActorName(entry)</p> }</details>
+        }</section>
+    }
+</div>
+
+@code {
+    private StoryOverviewResponse? _overview;
+    private List<CharacterSummaryResponse> _actors = [];
+    private readonly Dictionary<string, StoryTurnInRequest> _turnIns = new();
+    private readonly CancellationTokenSource _pollCancellation = new();
+    private StoryTutorialCharacterRequest? _actorRequest;
+    private int _actorId;
+    private bool _busy, _loading = true, _disposed, _skipDialogue, _reloadPending;
+    private int _generation;
+    private string? _notice;
+    protected override async Task OnInitializedAsync() { Api.ContextChanged += ContextChanged; await ReloadAsync(); _ = PollAsync(); }
+    private async Task PollAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            while (await timer.WaitForNextTickAsync(_pollCancellation.Token))
+                await InvokeAsync(async () =>
+                {
+                    if (_disposed || _busy || _overview is null) return;
+                    var generation = _generation; var context = Api.DataRevision;
+                    try { var response = await Api.GetStoryAsync(); if (Current(generation, context) && response is not null) { _overview = response; StateHasChanged(); } }
+                    catch { }
+                });
+        }
+        catch (OperationCanceledException) { }
+    }
+    private bool Current(int generation, long context) => !_disposed && generation == _generation && context == Api.DataRevision;
+    private async Task ReloadAsync()
+    {
+        if (_busy || _disposed) return;
+        _busy = true; _loading = true;
+        await Api.EnsureContextAsync();
+        var generation = ++_generation; var context = Api.DataRevision;
+        try
+        {
+            var (overview, error) = await Api.InitializeStoryAsync();
+            var actors = await Api.GetCurrentCharactersAsync();
+            if (!Current(generation, context)) return;
+            _overview = overview; _actors = actors ?? []; _actorId = overview?.TutorialCharacterId ?? 0; _notice = error;
+        }
+        catch { if (Current(generation, context)) _notice = "连接中断，请重新载入剧情。"; }
+        finally { _busy = false; if (!_disposed) _loading = false; if (_reloadPending && !_disposed) { _reloadPending = false; await ReloadAsync(); } }
+    }
+    private async Task TurnInAsync(StoryQuestResponse quest)
+    {
+        if (_busy || _overview is null || quest.Status != "ReadyToTurnIn") return;
+        if (!_turnIns.TryGetValue(quest.Code, out var request)) _turnIns[quest.Code] = request = new() { RequestId = Guid.NewGuid().ToString("N"), ExpectedVersion = quest.Version };
+        await MutateAsync(() => Api.TurnInStoryAsync(quest.Code, request), () => _turnIns.Remove(quest.Code));
+    }
+    private async Task ChangeActorAsync()
+    {
+        if (_busy || _overview is null || _actorId == 0) return;
+        if (_actorRequest?.CharacterId != _actorId) _actorRequest = new() { CharacterId = _actorId, ExpectedVersion = _overview.Version, RequestId = Guid.NewGuid().ToString("N") };
+        var request = _actorRequest;
+        await MutateAsync(() => Api.SetStoryTutorialCharacterAsync(request), () => _actorRequest = null);
+    }
+    private async Task NavigateToObjectiveAsync(StoryQuestResponse quest, string destination)
+    {
+        if (_busy || _disposed) return;
+        _busy = true; var session = Api.SessionRevision;
+        try
+        {
+            if (quest.ActorCharacterId is { } actorId && actorId != Characters.Current?.CharacterId)
+            {
+                var (response, error) = await Api.SelectCurrentCharacterAsync(actorId);
+                if (_disposed || session != Api.SessionRevision) return;
+                if (response is null) { _notice = error ?? "暂时无法切换到执行角色，请重试。"; return; }
+                await Characters.RefreshAsync();
+                if (_disposed || session != Api.SessionRevision || Characters.Current?.CharacterId != actorId) return;
+            }
+            if (!_disposed && session == Api.SessionRevision) Navigation.NavigateTo(destination);
+        }
+        catch { if (!_disposed && session == Api.SessionRevision) _notice = "前往目标失败，请检查连接后重试。"; }
+        finally { _busy = false; if (_reloadPending && !_disposed) { _reloadPending = false; await ReloadAsync(); } }
+    }
+    private async Task MutateAsync(Func<Task<(StoryOverviewResponse? Response, string? ErrorMessage)>> action, Action success)
+    {
+        _busy = true; var generation = ++_generation; var context = Api.DataRevision;
+        try
+        {
+            var (response, error) = await action();
+            if (!Current(generation, context)) return;
+            _notice = error;
+            if (error is ApiService.StoryVersionChangedError or ApiService.StoryRequestConflictError)
+            {
+                success();
+                var refreshed = await Api.GetStoryAsync();
+                if (!Current(generation, context)) return;
+                if (refreshed is not null) _overview = refreshed;
+                else _notice = "状态已变化，但刷新未完成；请重新载入剧情后再操作。";
+                return;
+            }
+            if (response is not null) { _overview = response; _skipDialogue = false; success(); Characters.Invalidate(); await Characters.RefreshAsync(); }
+        }
+        catch { if (Current(generation, context)) _notice = "连接中断，请刷新核对进度；再次点击会安全重试同一次操作。"; }
+        finally { _busy = false; if (_reloadPending && !_disposed) { _reloadPending = false; await ReloadAsync(); } }
+    }
+    private void ContextChanged()
+    {
+        _generation++; _overview = null; _actors = []; _turnIns.Clear(); _actorRequest = null;
+        _reloadPending = _busy;
+        _ = InvokeAsync(async () => { if (_disposed) return; await ReloadAsync(); if (!_disposed) StateHasChanged(); });
+    }
+    private string ActorName(StoryQuestResponse quest) => quest.ActorCharacterId is { } id ? _actors.FirstOrDefault(c => c.CharacterId == id)?.Name ?? $"角色 #{id}" : Characters.Current?.Name ?? "当前操作角色";
+    private static string RewardText(StoryQuestResponse quest) => string.Join("、", (quest.RewardGold > 0 ? new[] { $"金币 {quest.RewardGold}" } : Array.Empty<string>()).Concat(quest.Rewards.Select(r => $"{r.Name} ×{r.Quantity}"))) is { Length: > 0 } text ? text : "新线索与地图进展";
+    private static string StatusName(string status) => status switch { "Active" => "进行中", "ReadyToTurnIn" => "可回报", "TurnedIn" => "已回报", _ => "未接取" };
+    private string? Destination(StoryQuestResponse quest)
+    {
+        if (quest.Destination == "/weapons") return "/inventory?category=weapons";
+        if (quest.Destination == "/inventory") return "/formations?section=weapons";
+        if (quest.Destination == "/story" || string.IsNullOrWhiteSpace(quest.Destination)) return null;
+        if (quest.Destination.StartsWith("/rooms?dungeonCode=", StringComparison.Ordinal))
+        {
+            var code = Uri.UnescapeDataString(quest.Destination.Split('=', 2)[1]);
+            var node = _overview?.MapNodes.FirstOrDefault(n => n.DungeonCode == code && n.CanEnter && n.DungeonId.HasValue);
+            return node is null ? null : $"/rooms?dungeonId={node.DungeonId}";
+        }
+        return quest.Destination;
+    }
+    private string DestinationName(StoryQuestResponse quest) => Destination(quest)?.Split('?')[0] switch { "/rooms" => "委托地点", "/characters" => "角色整备", "/inventory" => "仓库", "/planting" or "/gathering" => "药田", "/production" => "炼金台", "/formations" => "编队", _ => "目标页面" };
+    public void Dispose() { _disposed = true; _generation++; Api.ContextChanged -= ContextChanged; _pollCancellation.Cancel(); _pollCancellation.Dispose(); }
+}

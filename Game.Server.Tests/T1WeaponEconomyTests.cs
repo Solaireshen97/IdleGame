@@ -17,59 +17,68 @@ namespace Game.Server.Tests;
 
 public sealed class T1WeaponEconomyTests
 {
-    [Fact]
-    public async Task CharacterSlotsStartAtTwoAndCanBePurchasedUpToFive()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public async Task AccountsHaveFiveFreeSlotsIncludingLegacyAccounts(int? legacyLimit)
     {
         await using var test = await EconomyContext.CreateAsync();
+        Assert.Equal(5, test.User.CharacterSlotLimit);
+        if (legacyLimit is int oldLimit)
+        {
+            test.User.CharacterSlotLimit = oldLimit;
+            await test.Db.SaveChangesAsync();
+        }
+        var initialGold = test.Character.Gold;
         var initialAccount = await test.Users.GetCurrentUserAsync(test.Token);
         Assert.Null(initialAccount.Error);
-        Assert.Equal(1, initialAccount.Response!.CharacterCount);
-        Assert.Equal(2, initialAccount.Response.CharacterSlotLimit);
+        Assert.Equal(5, initialAccount.Response!.CharacterSlotLimit);
         Assert.Equal(5, initialAccount.Response.MaximumCharacterSlots);
-        Assert.Equal(500, initialAccount.Response.NextCharacterSlotCost);
+        Assert.Null(initialAccount.Response.NextCharacterSlotCost);
 
-        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
-            new CreateCharacterRequest { Name = "第二角色", ProfessionCode = "acolyte" })).Error);
-        var blockedThird = await test.Users.CreateCurrentCharacterAsync(test.Token,
-            new CreateCharacterRequest { Name = "第三角色", ProfessionCode = "swordsman" });
-        Assert.Equal("CharacterSlotLimitReached", blockedThird.Error);
-        Assert.Equal(2, await test.Db.Characters.CountAsync());
+        for (var number = 2; number <= 5; number++)
+            Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
+                new CreateCharacterRequest { Name = $"角色{number}", ProfessionCode = "swordsman" })).Error);
 
-        test.Character.Gold = 6000;
-        await test.Db.SaveChangesAsync();
-        var thirdSlot = await test.Shop.PurchaseCharacterSlotAsync(test.Token);
-        Assert.Null(thirdSlot.Error);
-        Assert.Equal(3, thirdSlot.Response!.CharacterSlotLimit);
-        Assert.Equal(5500, thirdSlot.Response.Gold);
-        Assert.Equal(1500, thirdSlot.Response.NextCharacterSlotCost);
-        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
-            new CreateCharacterRequest { Name = "第三角色", ProfessionCode = "swordsman" })).Error);
-
-        Assert.Null((await test.Shop.PurchaseCharacterSlotAsync(test.Token)).Error);
-        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
-            new CreateCharacterRequest { Name = "第四角色", ProfessionCode = "acolyte" })).Error);
-        var fifthSlot = await test.Shop.PurchaseCharacterSlotAsync(test.Token);
-        Assert.Null(fifthSlot.Error);
-        Assert.Equal(5, fifthSlot.Response!.CharacterSlotLimit);
-        Assert.Null(fifthSlot.Response.NextCharacterSlotCost);
-        Assert.Equal(0, fifthSlot.Response.Gold);
-        Assert.Null((await test.Users.CreateCurrentCharacterAsync(test.Token,
-            new CreateCharacterRequest { Name = "第五角色", ProfessionCode = "swordsman" })).Error);
-
-        Assert.Equal("MaximumCharacterSlotsReached",
-            (await test.Shop.PurchaseCharacterSlotAsync(test.Token)).Error);
         Assert.Equal("CharacterSlotLimitReached",
             (await test.Users.CreateCurrentCharacterAsync(test.Token,
                 new CreateCharacterRequest { Name = "第六角色", ProfessionCode = "swordsman" })).Error);
         Assert.Equal(5, await test.Db.Characters.CountAsync());
+        Assert.Equal(initialGold, await test.Db.Characters.Where(c => c.Id == test.Character.Id).Select(c => c.Gold).SingleAsync());
+        var shop = await test.Shop.GetAsync(test.Token);
+        Assert.Null(shop.Error);
+        Assert.Equal(5, shop.Response!.CharacterSlotLimit);
+        Assert.Equal(5, shop.Response.MaximumCharacterSlots);
+        Assert.Null(shop.Response.NextCharacterSlotCost);
+        Assert.Equal(initialGold, shop.Response.Gold);
     }
 
+    [Fact]
+    public async Task RetiredSlotPurchaseEndpointDoesNotSpendGoldOrChangeAccount()
+    {
+        await using var test = await EconomyContext.CreateAsync();
+        test.User.CharacterSlotLimit = 2;
+        test.Character.Gold = 6000;
+        await test.Db.SaveChangesAsync();
+        var version = test.User.Version;
+        var controller = new Game.Server.Controllers.ShopController(test.Shop);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var result = Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(controller.PurchaseCharacterSlot().Result);
+            Assert.Equal(410, result.StatusCode);
+            Assert.Equal("CharacterSlotsIncluded", result.Value);
+        }
+        Assert.Equal(6000, await test.Db.Characters.Select(c => c.Gold).SingleAsync());
+        Assert.Equal(version, (await test.Db.Users.AsNoTracking().SingleAsync()).Version);
+    }
     [Theory]
-    [InlineData("swordsman", "t1-shop-fire")]
-    [InlineData("acolyte", "t1-shop-light")]
-    [InlineData("mage", "t1-shop-water")]
-    [InlineData("hunter", "t1-shop-wind")]
-    [InlineData("rogue", "t1-shop-dark")]
+    [InlineData("swordsman", "t1-shop-earth")]
+    [InlineData("acolyte", "t1-shop-earth")]
+    [InlineData("mage", "t1-shop-earth")]
+    [InlineData("hunter", "t1-shop-earth")]
+    [InlineData("rogue", "t1-shop-earth")]
     public async Task FirstCharacterUsesChosenProfessionAndReceivesStartingGoldAndShopWeapon(string professionCode, string weaponCode)
     {
         await using var test = await EconomyContext.CreateAsync(useProductionSkills: true, createFirstCharacter: false);
@@ -91,6 +100,7 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal(WeaponRules.SlotCount, weapons.Count);
         var weapon = weapons[0];
         Assert.All(weapons, item => Assert.Equal(weaponCode, item.WeaponCode));
+        Assert.All(weapons, item => Assert.Equal(ElementType.Earth, item.Element));
         Assert.Equal(Enumerable.Range(1, WeaponRules.SlotCount), weapons.Select(item => item.EquippedSlotIndex!.Value));
         Assert.True(weapon.IsLocked);
         Assert.All(weapons.Skip(1), item => Assert.False(item.IsLocked));
@@ -189,9 +199,9 @@ public sealed class T1WeaponEconomyTests
 
         var selected = new List<CharacterWeapon> { starter };
         if (batch) selected.Add(replacements[1]);
-        var expectedGold = test.Character.Gold + selected.Sum(weapon => weapon.SellGold);
+        var expectedGold = (await test.Db.Characters.AsNoTracking().SingleAsync(item => item.Id == test.Character.Id)).Gold + selected.Sum(weapon => weapon.SellGold);
         var sold = await test.Armory.SellAsync(test.Token, test.Character.Id,
-            new WeaponBatchRequest { WeaponIds = selected.Select(weapon => weapon.Id).ToList() });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Weapons, test.Character.Id, "sell", selected.Select(weapon => weapon.Id).ToArray()));
 
         Assert.Null(sold.Error);
         Assert.Equal(expectedGold, sold.Response!.Gold);
@@ -220,6 +230,7 @@ public sealed class T1WeaponEconomyTests
             new WeaponBatchRequest { WeaponIds = [weapon.Id] });
         Assert.Equal("WeaponCannotBeDismantled", directRecycle.Error);
         Assert.NotNull(await test.Db.CharacterWeapons.SingleOrDefaultAsync(item => item.Id == weapon.Id));
+        weapon = await test.Db.CharacterWeapons.Include(item => item.Skills).SingleAsync(item => item.Id == weapon.Id);
         test.Db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = test.Character.Id, ItemCode = WeaponRules.FragmentCode(1), Quantity = 10 });
         await test.Db.SaveChangesAsync();
 
@@ -232,10 +243,10 @@ public sealed class T1WeaponEconomyTests
         Assert.Equal("InsufficientWeaponFragments", rejected.Error);
         Assert.Equal(2, weapon.Skills.Single().EnhancementLevel);
         var recycled = await test.Armory.DismantleAsync(test.Token, test.Character.Id,
-            new WeaponBatchRequest { WeaponIds = [weapon.Id] });
+            await InventoryTestRequests.WeaponsAsync(test.Db, test.Weapons, test.Character.Id, "dismantle", weapon.Id));
         Assert.Null(recycled.Error);
         Assert.Equal(7, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
-        Assert.Equal(80, test.Character.Gold);
+        Assert.Equal(80, (await test.Db.Characters.AsNoTracking().SingleAsync(item => item.Id == test.Character.Id)).Gold);
     }
 
     [Fact]

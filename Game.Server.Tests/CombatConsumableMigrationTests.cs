@@ -31,14 +31,16 @@ public sealed class CombatConsumableMigrationTests
             new CharacterActivity { CharacterId = 1, Kind = "Battle", SourceId = 7, StartedAtUtc = now },
             new CharacterActivity { CharacterId = 2, Kind = "Production", SourceId = 3, StartedAtUtc = now },
             new CharacterItemStack { CharacterId = 1, ItemCode = "minor-healing-potion", Quantity = 17 },
-            new CharacterConsumableSlot { CharacterId = 1, SlotIndex = 1, ItemCode = "whetstone-oil", AutoUseEnabled = true },
-            new CharacterConsumableSlot { CharacterId = 2, SlotIndex = 3, ItemCode = "northshire-battle-draught" },
             new ProductionTask { Id = 3, CharacterId = 2, UserId = 1, RecipeCode = "minor-healing-potion",
                 OutputCode = "minor-healing-potion", OutputQuantity = 1, IngredientsJson = "[]", CycleSeconds = 10,
                 StartedAtUtc = now, EndsAtUtc = now.AddHours(1), NextCycleAtUtc = now.AddSeconds(10),
                 CompletedCycles = 5, TotalQuantity = 5 },
             new RewardRun { RoomId = 7, Sequence = 1, Status = "Settled", SettledAtUtc = now });
         await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO CharacterConsumableSlots (CharacterId, SlotIndex, ItemCode, AutoUseEnabled, AutoHpThresholdPercent, Version)
+            VALUES (1, 1, 'whetstone-oil', 1, 50, 0), (2, 3, 'northshire-battle-draught', 0, 50, 0);
+            """);
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO RoomOperations(RoomId,UserId,Kind,SlotIndex,CharacterId,CharacterName,Status,CreatedAtUtc,Version)
             VALUES(7,1,0,2,2,'Production','Pending',{now},0);
@@ -59,7 +61,7 @@ public sealed class CombatConsumableMigrationTests
         Assert.Null(room.PreparationStartedAtUtc);
         Assert.Empty(await db.CharacterActivities.Where(activity => activity.Kind == "Battle").ToListAsync());
         Assert.Equal("Production", (await db.CharacterActivities.SingleAsync()).Kind);
-        Assert.Empty(await db.CharacterConsumableSlots.ToListAsync());
+        Assert.False(await db.CharacterConsumableSlots.AnyAsync());
         Assert.All(await db.RoomSlots.Select(slot => new { slot.CharacterId, slot.UserId, slot.PendingConsumableSlotMask }).ToListAsync(), slot =>
         {
             Assert.Null(slot.CharacterId);
@@ -77,7 +79,7 @@ public sealed class CombatConsumableMigrationTests
         Assert.Equal(5, production.TotalQuantity);
         Assert.Equal("Settled", (await db.RewardRuns.SingleAsync()).Status);
         Assert.Equal(50, await db.RewardEntries.Select(item => item.Quantity).SingleAsync());
-        Assert.Empty(await db.BattleHealingPotionStates.ToListAsync());
+        Assert.False(await db.BattleHealingPotionStates.AnyAsync());
         Assert.False(db.Database.HasPendingModelChanges());
     }
 }

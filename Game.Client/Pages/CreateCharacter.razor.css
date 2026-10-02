@@ -13,3 +13,7 @@
 .character-creation-page__header p { margin: 0; color: #aebfce; font-size: .85rem; }
 .character-creation-page__logout { flex: 0 0 auto; min-height: 44px; padding: .5rem .7rem; border: 1px solid #50667a; border-radius: .65rem; background: #15273a; color: #dbe7ee; font-size: .75rem; cursor: pointer; }
 .character-creation-page__logout:disabled { opacity: .6; cursor: not-allowed; }
+
+.character-creation-page { padding: calc(.75rem + env(safe-area-inset-top)) .75rem calc(.75rem + env(safe-area-inset-bottom)); }
+.character-creation-page__header { align-items: center; min-height: 44px; margin-bottom: .65rem; }
+.character-creation-page__header h1 { margin: 0; font-size: 1.3rem; }

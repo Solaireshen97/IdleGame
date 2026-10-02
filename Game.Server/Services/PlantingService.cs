@@ -54,6 +54,8 @@ public sealed class PlantingService(GameDbContext db, UserService users, Plantin
             {
                 plot.PlantCode = plant.Code; plot.PlantName = plant.Name; plot.SeedCode = plant.SeedCode; plot.MaterialCode = plant.MaterialCode;
                 plot.HarvestQuantity = plant.HarvestQuantity; plot.GrowthSeconds = plant.GrowthSeconds; plot.PlantedAtUtc = now; plot.MaturesAtUtc = now.AddSeconds(plant.GrowthSeconds); plot.Version++;
+                await StoryProgressService.RecordAsync(db, character.Id, "Plant", plant.Code,
+                    $"plant:{plot.Id}:{plot.Version}", 1, now);
             }
             db.LogisticsRequests.Add(new() { CharacterId = character.Id, RequestId = requestId, Kind = "Plant", Fingerprint = fingerprint, CompletedAtUtc = now });
             await db.SaveChangesAsync(); await transaction.CommitAsync();
@@ -102,7 +104,8 @@ public sealed class PlantingService(GameDbContext db, UserService users, Plantin
         foreach (var plant in catalog.Plants)
         {
             var progress = await ProgressAsync(character.Id, plant);
-            plants.Add(new(plant.Code, plant.Name, plant.SeedCode, plant.MaterialCode, plant.RegionCode, plant.IsRare, plant.GrowthSeconds, plant.HarvestQuantity, plant.SeedPrice, seeds.GetValueOrDefault(plant.SeedCode), plant.IsRare || character.Level >= plant.MinimumCharacterLevel && progress >= plant.RequiredCount, plant.UnlockKind, plant.UnlockTargetCode, plant.RequiredCount, progress, string.Join(" / ", plant.AlternativeUnlockTargetCodes.Prepend(plant.UnlockTargetCode).Select(code => world?.Dungeons.FirstOrDefault(d => d.Code == code)?.Name ?? "对应战斗地点"))));
+            plants.Add(new(plant.Code, plant.Name, plant.SeedCode, plant.MaterialCode, plant.RegionCode, plant.IsRare, plant.GrowthSeconds, plant.HarvestQuantity, plant.SeedPrice, seeds.GetValueOrDefault(plant.SeedCode), plant.IsRare || character.Level >= plant.MinimumCharacterLevel && progress >= plant.RequiredCount, plant.UnlockKind, plant.UnlockTargetCode, plant.RequiredCount, progress, string.Join(" / ", plant.AlternativeUnlockTargetCodes.Prepend(plant.UnlockTargetCode).Select(code => world?.Dungeons.FirstOrDefault(d => d.Code == code)?.Name ?? "对应战斗地点")),
+                plant.DropChancePercent, plant.DropChancePerDepthPercent, plant.FirstClearGuaranteed));
         }
         return new(character.Id, character.Name, DateTime.UtcNow, plots.Select(p => new GardenPlotDto(p.PlotIndex, p.Version, p.PlantCode, p.PlantName, p.MaterialCode, p.HarvestQuantity, p.PlantedAtUtc, p.MaturesAtUtc)).ToList(), plants);
     }

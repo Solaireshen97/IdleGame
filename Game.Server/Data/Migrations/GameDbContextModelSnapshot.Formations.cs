@@ -27,7 +27,7 @@ partial class GameDbContextModelSnapshot
                 "FormationSkillSlots" => [("FormationId", typeof(int)), ("SlotIndex", typeof(int)), ("SkillCode", typeof(string)),
                     ("AutoUseEnabled", typeof(bool)), ("AutoConditionOverride", typeof(string)), ("AutoHpThresholdPercent", typeof(int))],
                 "FormationConsumableSlots" => [("FormationId", typeof(int)), ("SlotIndex", typeof(int)), ("ItemCode", typeof(string)),
-                    ("AutoUseEnabled", typeof(bool)), ("AutoHpThresholdPercent", typeof(int))],
+                    ("AutoUseEnabled", typeof(bool)), ("AutoConditionOverride", typeof(string)), ("AutoHpThresholdPercent", typeof(int))],
                 "CharacterFormationStates" => [("CharacterId", typeof(int)), ("DefaultFormationId", typeof(int?)),
                     ("AppliedFormationId", typeof(int?)), ("AppliedFormationVersion", typeof(int?)), ("AppliedChoiceHash", typeof(string)), ("Version", typeof(int))],
                 "CharacterBattleFormationPreferences" => [("CharacterId", typeof(int)), ("DungeonCode", typeof(string)), ("DepthLevel", typeof(int)),

@@ -4,7 +4,7 @@
     font-size: 0.95rem;
 }
 
-.current-character-panel__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: .55rem; margin-bottom: .75rem; }
+.current-character-panel__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: .4rem; margin-bottom: .5rem; }
 .current-character-panel__slots { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .55rem; color: #aebfce; font-size: .7rem; }
 .current-character-panel__slots strong { color: #f0c475; font-variant-numeric: tabular-nums; }.current-character-panel__slots small { color: #75899c; }
 
@@ -257,4 +257,31 @@ button.character-create-card:disabled,
     }
     .profession-option__glyph { width: 42px; height: 58px; }
     .profession-option__content > span { display: none; }
+}
+
+.character-create-card:not(.character-create-card--editing) { min-height: 44px; flex-direction: row; flex-wrap: wrap; padding: .5rem .65rem; gap: .35rem .6rem; }
+.character-create-card:not(.character-create-card--editing) .character-create-card__plus { font-size: 1.1rem; }
+.character-create-card:not(.character-create-card--editing) .character-create-card__text { font-size: .8rem; }
+.character-create-card--locked small { font-size: .72rem; }
+.current-character-panel__slots { font-size: .75rem; }
+.current-character-panel__message { font-size: .8rem; line-height: 1.5; }
+
+/* Compact profession choices keep the selected profession's full details readable. */
+.character-create-card--editing .character-create-card__header { margin-bottom: .25rem; }
+.character-create-card__input { font-size: 16px; }
+.profession-picker__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+.profession-option { grid-template-columns: 1fr; justify-items: center; align-content: center; min-height: 94px; padding: .35rem; gap: .25rem; text-align: center; }
+.profession-option__glyph { width: 46px; height: 60px; }
+.profession-option__content strong { padding: 0; font-size: .8rem; }
+.profession-option__check { top: .3rem; right: .35rem; }
+.profession-detail { margin-top: .55rem; padding: .6rem .7rem; border: 1px solid #655b45; border-radius: .55rem; background: #d5ac6010; color: #c4d2dc; }
+.profession-detail > strong { color: #f0d09a; font-size: .8rem; }
+.profession-detail p { margin: .3rem 0 0; font-size: .76rem; line-height: 1.55; }
+.profession-detail small { display: block; margin-top: .35rem; color: #e8bc74; font-size: .72rem; }
+.character-create-card--editing .current-character-panel__message { padding: .5rem .6rem; border: 1px solid #9b6d66; border-radius: .45rem; background: #4b282633; }
+@media (min-width: 600px) and (max-height: 500px) {
+    .profession-picker__grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .profession-option { min-height: 88px; }
+    .profession-option__glyph { height: 54px; }
+    .profession-detail { padding-block: .45rem; }
 }

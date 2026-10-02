@@ -1,0 +1,10 @@
+.growth-panel { border-top: 1px solid #334959; margin-top: 1.25rem; padding-top: .8rem; }
+.growth-panel h3 { display: flex; align-items: center; gap: .5rem; color: #ece3d3; font-size: .9rem; margin: .4rem 0 .8rem; }
+.growth-panel button { min-height: 44px; background: #314452; border: 1px solid #526573; color: #f2d8a5; border-radius: .45rem; padding: .6rem .75rem; font-size: .8125rem; margin: .3rem .3rem .3rem 0; }
+.growth-panel button:hover:not(:disabled) { background: #435966; }
+.growth-panel button:disabled { opacity: .45; cursor: not-allowed; }
+.growth-panel button:focus-visible { outline: 2px solid #eccd90; outline-offset: 3px; }
+.growth-skill { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem; border-bottom: 1px solid #293e4c; padding: .7rem 0; }
+.growth-skill strong { color: #e0e7e8; font-size: .82rem; }
+.growth-skill p,.growth-note { font-size: .75rem; line-height: 1.65; color: #9db0be; margin: .3rem 0; }
+.growth-skill small { color: #ae9772; font-size: .7rem; }

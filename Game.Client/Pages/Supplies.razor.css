@@ -15,6 +15,10 @@
 .supplies-page__character small { color: #aebfce; font-size: .72rem; }
 .supplies-page__character .supplies-page__switch { border-top: 1px solid #3b5267; margin: .6rem 0 0; padding-top: .85rem; line-height: 1.5; }
 .supplies-page__notice { border: 1px solid #344a60; border-radius: .7rem; padding: 1.5rem; color: #b8c8d5; background: #172638; }
+.supplies-page__tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; margin-bottom: .5rem; padding: .25rem; border: 1px solid #40566b; border-radius: .7rem; background: #132435; }
+.supplies-page__tabs a { display: grid; place-items: center; min-height: 44px; border-radius: .45rem; color: #9db3c3; font-size: .8rem; font-weight: 700; text-decoration: none; }
+.supplies-page__tabs a.active { background: #d7a85e22; color: #f4d498; box-shadow: inset 0 -2px #d7a85e; }
+.supplies-page__tabs a:focus-visible { outline: 2px solid #edc77f; outline-offset: -2px; }
 
 @container game-shell (max-width: 800px) {
     .supplies-page__layout { grid-template-columns: minmax(0, 1fr); }
@@ -24,7 +28,7 @@
 }
 
 @container game-shell (max-width: 640.98px) {
-    .supplies-page { padding-top: .5rem; }
+    .supplies-page { padding-top: 0; }
     .supplies-page__intro, .supplies-page__character { display: none; }
     .supplies-page__layout { display: block; }
 }

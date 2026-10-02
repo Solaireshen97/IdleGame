@@ -1,0 +1,554 @@
+@page "/inventory"
+@using Game.Client.Services
+@using Game.Shared
+@using Game.Shared.Enums
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Inventory
+@inject ApiService Api
+@inject InventoryState Store
+@inject ActiveCharacterState Characters
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+@implements IAsyncDisposable
+
+<PageTitle>角色仓库</PageTitle>
+
+<div class="inventory-page">
+    <header class="inventory-header">
+        <div><h1>仓库</h1></div>
+        <div class="inventory-header-tools">
+            <label><span class="visually-hidden">查看角色</span><select value="@_characterId" @onchange="ChangeCharacterAsync" disabled="@(_busy || _loadingCharacters || _characters.Count == 0 || HasConfirmation)">@foreach (var character in _characters) { <option value="@character.CharacterId">@character.Name · Lv.@character.Level</option> }</select></label>
+            <button type="button" class="inventory-refresh" disabled="@(_busy || _loadingCharacters || Store.IsLoading || HasConfirmation)" @onclick="RefreshAsync" aria-label="刷新仓库">↻ <span>刷新</span></button>
+        </div>
+    </header>
+    <div class="inventory-context"><span title="切换查看角色不会转移物品"><strong>@ViewedName</strong> 的物品</span><span class="inventory-sync @(HasSyncError ? "inventory-sync--stale" : null)" role="status">@(!_initialized || _loadingCharacters || Store.IsLoading ? "正在同步…" : HasSyncError || Store.Overview?.CharacterId != _characterId ? "尚未同步" : "已同步")</span></div>
+
+    @if (_error is not null || Store.ErrorMessage is not null)
+    {
+        <div class="inventory-alert" role="alert"><span>@(_error ?? Store.ErrorMessage)</span><button type="button" disabled="@(_busy || _loadingCharacters || Store.IsLoading || HasConfirmation)" @onclick="RefreshAsync">重新同步</button></div>
+    }
+    @if (_notice is not null) { <p class="inventory-notice" role="status">@_notice</p> }
+
+    @if (_initialized && _charactersLoaded && _characters.Count == 0)
+    {
+        <GameStateCard Title="先创建一名角色" Detail="装备和物品会存放在角色自己的仓库。" Tone="empty" Compact="true">
+            <Actions><a href="/characters/create">创建角色</a></Actions>
+        </GameStateCard>
+    }
+    else if (Store.Overview is not { } overview || overview.CharacterId != _characterId)
+    {
+        <GameStateCard Title="@(Store.IsLoading || _loadingCharacters || !_initialized ? "正在打开仓库" : "仓库暂未载入")" Detail="@(Store.IsLoading || _loadingCharacters || !_initialized ? "整理该角色的装备、药剂与材料…" : "点击刷新，重新读取角色资产。")" Compact="true" />
+    }
+    else
+    {
+        <section class="inventory-summary" aria-label="角色持有资产">
+            <details class="inventory-assets">
+                <summary><span class="inventory-summary-gold"><span>金币</span><strong><small>◆</small> @overview.Gold.ToString("N0")</strong></span><span class="inventory-assets-label">资产概览 <b aria-hidden="true">⌄</b></span></summary>
+                <div class="inventory-asset-counts">
+                    <div><span>武器</span><strong>@overview.WeaponCount.ToString("N0")<small> 件</small></strong></div>
+                    <div><span>魂印</span><strong>@overview.SoulImprintCount.ToString("N0")<small> 枚</small></strong></div>
+                    <div><span>药剂 / 材料</span><strong>@overview.OwnedStackKinds.ToString("N0")<small> 种</small></strong></div>
+                </div>
+                <p class="inventory-asset-protection">已装备 @overview.EquippedCount · 受保护 @overview.ProtectedCount <small>装备、锁定与编队引用按物品去重</small></p>
+            </details>
+        </section>
+        @if (overview.IsLoadoutLocked)
+        {
+            <p class="inventory-room-note">战斗中 · 可查看与锁定，整理和强化需先离场。</p>
+        }
+        <nav class="inventory-categories" aria-label="物品分类" @ref="_categoryStrip">
+            @foreach (var category in InventoryCategories.Values)
+            {
+                var summary = overview.Categories.FirstOrDefault(item => item.Category == category);
+                <button type="button" class="@(_query.Category == category ? "is-active" : null)" aria-pressed="@(_query.Category == category ? "true" : "false")" disabled="@(_busy || HasConfirmation)" @onclick="() => SetCategoryAsync(category)"><span>@InventoryCategories.Name(category)</span><small>@(summary?.RowCount ?? 0)</small></button>
+            }
+        </nav>
+        <section class="inventory-filters" aria-label="仓库筛选">
+            <label class="inventory-search"><span class="visually-hidden">搜索物品</span><input type="search" placeholder="搜索物品" value="@_query.Search" @oninput="SearchChanged" disabled="@(_busy || HasConfirmation)" /></label>
+            <details class="inventory-filter-options">
+            <summary title="@FilterSummary"><strong>筛选 / 排序 @if (HasFilter) { <b class="inventory-filter-dot" aria-label="已应用筛选">·</b> }</strong><span class="visually-hidden">@FilterSummary</span></summary>
+            <div class="inventory-filter-fields">
+            @if (_query.Category is InventoryCategories.Weapons or InventoryCategories.SoulImprints)
+            {
+                <label>属性<select value="@(_query.Element?.ToString() ?? "")" @onchange="ElementChangedAsync" disabled="@(_busy || HasConfirmation)"><option value="">全部属性</option>@foreach (var element in Enum.GetValues<ElementType>()) { <option value="@element">@WeaponRules.ElementName(element)</option> }</select></label>
+                <label>阶级<select value="@_query.Tier" @onchange="TierChangedAsync" disabled="@(_busy || HasConfirmation)"><option value="">全部阶级</option>@for (var tier = 1; tier <= 10; tier++) { <option value="@tier">T@(tier)</option> }</select></label>
+            }
+            @if (_query.Category == InventoryCategories.Weapons)
+            {
+                <label>品质<select value="@_query.QualityRank" @onchange="QualityChangedAsync" disabled="@(_busy || HasConfirmation)"><option value="">全部品质</option>@for (var quality = 0; quality <= WeaponRules.MaxQualityBonusLevels; quality++) { <option value="@quality">@WeaponRules.QualityName(quality)</option> }</select></label>
+            }
+            <label>状态<select value="@_query.State" @onchange="StateChangedAsync" disabled="@(_busy || HasConfirmation)"><option value="all">全部状态</option><option value="equipped">已装备 / 已配置</option><option value="unequipped">未装备 / 未配置</option><option value="locked">已锁定</option><option value="referenced">编队引用</option><option value="protected">受保护</option><option value="available">可整理</option></select></label>
+            <label>排序<select value="@_query.Sort" @onchange="SortChangedAsync" disabled="@(_busy || HasConfirmation)"><option value="name">名称</option><option value="quantity">数量优先</option><option value="level">等级优先</option><option value="quality">品质优先</option></select></label>
+            @if (HasFilter) { <button type="button" class="inventory-reset" disabled="@(_busy || HasConfirmation)" @onclick="ResetFiltersAsync">重置筛选</button> }
+            </div>
+            </details>
+        </section>
+
+        <div class="inventory-workspace @(_detail is not null || _detailLoading ? "has-detail" : null)">
+            <section class="inventory-list" aria-label="持有物品" aria-busy="@(Store.IsLoading ? "true" : "false")">
+                <header class="inventory-list-heading"><div><h2 tabindex="-1" @ref="_listHeading" aria-label="@($"{InventoryCategories.Name(_query.Category)}，第 {overview.Page} 页")">@InventoryCategories.Name(_query.Category)</h2><span>@(HasCurrentCategory ? $"{overview.FilteredRowCount} 条结果" : Store.IsLoading ? "正在读取…" : "尚未载入")</span></div><button type="button" disabled="@(_busy || HasConfirmation)" class="@(_batchMode ? "is-active" : null)" @onclick="ToggleBatch">@(_batchMode ? "退出批量" : "批量整理")</button></header>
+                @if (_batchMode)
+                {
+                    <div class="inventory-selection-tools"><label>操作<select value="@_batchAction" @onchange="BatchActionChanged" disabled="@(_busy || HasConfirmation)"><option value="dismantle">分解</option><option value="sell">出售武器</option></select></label><button type="button" disabled="@(_busy || HasConfirmation)" @onclick="SelectPage">选择本页可处理物品</button><small>同类装备最多 100 件，翻页或改筛选会清空选择</small></div>
+                }
+                @if (!HasCurrentCategory)
+                {
+                    <GameStateCard Title="@(Store.IsLoading ? "正在读取物品" : "该分类暂未载入")" Detail="@(Store.IsLoading ? "" : "请重新同步后查看。")" Compact="true" />
+                }
+                else if (overview.Items.Count == 0)
+                {
+                    <div class="inventory-empty"><span aria-hidden="true">◇</span><h3>@(HasFilter ? "没有符合条件的物品" : "这里还没有物品")</h3><p>@(HasFilter ? "试着更换分类或清除筛选。" : "战斗收获、购买与生产的物品会出现在这里。")</p>@if (HasFilter) { <button type="button" @onclick="ResetFiltersAsync">清除筛选</button> }</div>
+                }
+                else
+                {
+                    <div class="inventory-items @(_query.Category == InventoryCategories.Weapons ? "inventory-items--weapons" : "inventory-items--compact") @(_batchMode ? "is-selecting" : null)">
+                        @foreach (var item in overview.Items)
+                        {
+                            <div class="inventory-row @(_selectedKey == item.Key ? "is-inspected" : null) @(_selected.Contains(item.Key) ? "is-selected" : null)" @key="item.Key">
+                                @if (_batchMode)
+                                {
+                                    <label class="inventory-row-select"><input type="checkbox" checked="@_selected.Contains(item.Key)" disabled="@(_busy || HasConfirmation || !CanSelect(item))" @onchange="() => ToggleSelection(item)" aria-label="@($"选择{item.Name}用于{ActionName(_batchAction)}")" /></label>
+                                }
+                                <button type="button" class="inventory-item" data-inventory-key="@item.Key" disabled="@(_busy || HasConfirmation || (_batchMode && !CanSelect(item)))" @onclick="() => ActivateItemAsync(item)">
+                                    <span class="inventory-tile-visual">
+                                        <span class="inventory-art">@if (Art(item) is { } art) { <img src="@art" alt="" loading="lazy" onerror="this.hidden=true" /> }<span aria-hidden="true">@CategorySymbol(item.Category)</span></span>
+                                        @if (item.Element is { } element) { <span class="inventory-tile-element" data-element="@element">@WeaponRules.ElementName(element)</span> }
+                                        @if (item.AssetKind == InventoryKinds.Stack) { <strong class="inventory-tile-quantity" title="@item.Quantity.ToString("N0")" aria-label="@($"持有 {item.Quantity:N0}")">×@CompactQuantity(item.Quantity)</strong> }
+                                        else if (item.ItemLevel is int level) { <small class="inventory-tile-level">装等 @level</small> }
+                                        else if (item.Tier is int tier) { <small class="inventory-tile-level">T@(tier)</small> }
+                                    </span>
+                                    <strong class="inventory-tile-name">@item.Name</strong>
+                                    @if (item.QualityRank is int rank) { <span class="inventory-tile-quality"><WeaponQualityCrystals Rank="@rank" /></span> }
+                                    @if (item.AssetKind == InventoryKinds.Weapon && (item.Attack is not null || item.MaxHp is not null))
+                                    {
+                                        <span class="inventory-tile-stats"><span title="攻击"><small>攻</small> @(item.Attack?.ToString("N0") ?? "—")</span><span title="生命"><small>生</small> @(item.MaxHp?.ToString("N0") ?? "—")</span></span>
+                                    }
+                                    <span class="inventory-badges">@if (item.IsEquipped) { <b title="@StorageName(item)">@(item.AssetKind == InventoryKinds.Weapon ? item.EquippedSlotIndex == WeaponRules.MainSlotIndex ? "主" : "副" : "已装")</b> }@if (item.IsLocked) { <b title="已锁定">锁</b> }@if (item.FormationReferences.Count > 0) { <b title="@($"被 {item.FormationReferences.Count} 个编队引用")">编@(item.FormationReferences.Count)</b> }@if (!item.IsDefinitionKnown || item.HasCodeConflict) { <b class="inventory-badge-unknown">待识别</b> }</span>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (HasCurrentCategory)
+                {
+                    <footer class="inventory-pagination"><span>第 @overview.Page / @PageCount 页</span><div><button type="button" disabled="@(overview.Page <= 1 || _busy || Store.IsLoading || HasConfirmation)" @onclick="() => GoPageAsync(overview.Page - 1)">上一页</button><button type="button" disabled="@(overview.Page >= PageCount || _busy || Store.IsLoading || HasConfirmation)" @onclick="() => GoPageAsync(overview.Page + 1)">下一页</button></div></footer>
+                }
+            </section>
+
+            @if (_detailLoading || _detail is not null)
+            {
+                <div class="inventory-detail-backdrop" @onclick="CloseDetail"></div>
+                <aside class="inventory-detail" aria-label="物品详情" tabindex="-1" @ref="_detailElement" @onkeydown="DetailKeyDown">
+                    <button type="button" class="inventory-detail-close" @onclick="CloseDetail" disabled="@_busy" aria-label="关闭物品详情">×</button>
+                    @if (_detailLoading) { <GameStateCard Title="正在读取详情" Detail="查看效果、用途与整理条件…" Compact="true" /> }
+                    else if (_detail is { } detail)
+                    {
+                        var entry = detail.Entry;
+                        <span class="inventory-kicker">@InventoryCategories.Name(entry.Category)</span><div class="inventory-detail-title"><span class="inventory-art inventory-art--large">@if (Art(entry) is { } art) { <img src="@art" alt="" onerror="this.hidden=true" /> }<span aria-hidden="true">@CategorySymbol(entry.Category)</span></span><div><h2>@entry.Name</h2><small>@ItemSubtitle(entry)</small></div></div>
+                        <p class="inventory-detail-description">@entry.Description</p>
+                        @if (entry.AssetKind == InventoryKinds.Stack) { <p class="inventory-detail-stock">持有 <strong>@entry.Quantity.ToString("N0")</strong></p> }
+                        @if (!entry.IsDefinitionKnown || entry.HasCodeConflict) { <p class="inventory-room-note">已保留真实持有数量。该物品的定义暂不可用，依赖定义的操作已停用。</p> }
+                        <dl class="inventory-detail-facts"><div><dt>所属角色</dt><dd>@ViewedName</dd></div>@if (entry.Element is { } element) { <div><dt>属性</dt><dd>@WeaponRules.ElementName(element)</dd></div> }@if (detail.Weapon is { } weapon) { <div><dt>攻击 / 生命</dt><dd>@weapon.Attack / @weapon.MaxHp</dd></div> }@if (detail.SoulImprint is { } soul) { <div><dt>初始 / 使用冷却</dt><dd>@soul.InitialCooldownRounds / @soul.CooldownRounds 回合</dd></div> }<div><dt>存放状态</dt><dd>@StorageName(entry)@(entry.IsLocked ? " · 已锁定" : "")</dd></div></dl>
+                        @if (entry.Tags.Count > 0) { <div class="inventory-tags">@foreach (var tag in entry.Tags) { <span>@tag</span> }</div> }
+                        @if (entry.FormationReferences.Count > 0)
+                        {
+                            <section class="inventory-references"><h3>编队引用</h3><p>整理前，请先替换或移除这些编队中的引用。</p>@foreach (var reference in entry.FormationReferences) { <button type="button" disabled="@_busy" @onclick='() => NavigateForCharacterAsync($"/formations?formationId={reference.Id}")'>@reference.Name ↗</button> }</section>
+                        }
+                        <div class="inventory-detail-actions">
+                            @foreach (var action in entry.Actions.Where(action => action.Action is "lock" or "unlock" or "sell" or "dismantle"))
+                            {
+                                <button type="button" class="@(action.Action is "sell" or "dismantle" ? "is-danger" : null)" disabled="@(_busy || !action.Allowed)" title="@string.Join("；", action.ReasonCodes.Select(ReasonName))" @onclick="() => DetailActionAsync(action.Action)">@ActionName(action.Action)</button>
+                            }
+                        </div>
+                        @foreach (var action in entry.Actions.Where(action => !action.Allowed && action.ReasonCodes.Count > 0).GroupBy(action => string.Join("/", action.ReasonCodes)).Select(group => group.First()))
+                        {
+                            <p class="inventory-action-reason">@string.Join("；", action.ReasonCodes.Select(ReasonName))</p>
+                        }
+                        <InventoryGrowthPanel Detail="@detail" Busy="@_busy" OnEnhance="EnhanceAsync" OnUpgrade="UpgradeAsync" OnCraft="CraftAsync" OnChooseMaterial="ChooseMaterialAsync" />
+                        @if (entry.Usages.Count > 0)
+                        {
+                            <section class="inventory-usages"><h3>使用与获取</h3>@foreach (var usage in entry.Usages) { <button type="button" disabled="@_busy" @onclick="() => NavigateForCharacterAsync(UsageRoute(usage.Route, entry))">@UsageLabel(usage) ↗</button> }</section>
+                        }
+                        <small class="inventory-item-code">@entry.Code</small>
+                    }
+                </aside>
+            }
+        </div>
+        @if (_batchMode)
+        {
+            <div class="inventory-batch-bar" role="region" aria-label="批量整理"><div><strong>已选 @_selected.Count 件</strong><small>@($"{ActionName(_batchAction)}前先核对收益与保护状态")</small></div><button type="button" disabled="@(_selected.Count == 0 || _busy || HasConfirmation)" @onclick="PreviewSelectedAsync">@($"预览{ActionName(_batchAction)}收益")</button><button type="button" class="inventory-batch-cancel" disabled="@(_busy || HasConfirmation)" @onclick="() => _selected.Clear()">取消选择</button></div>
+        }
+        @if (overview.Pending.MaturePlotCount > 0 || overview.Pending.PendingBattleCount > 0)
+        {
+            <section class="inventory-pending"><div><span class="inventory-kicker">等待入库</span><h2>下一份收获</h2><p>以下内容尚未计入持有资产。</p></div>@if (overview.Pending.MaturePlotCount > 0) { <button type="button" disabled="@_busy" @onclick='() => NavigateForCharacterAsync("/gathering")'><strong>@overview.Pending.MaturePlotCount 块药田成熟</strong><span>@NavigationLabel("前往收获") →</span></button> }@if (overview.Pending.PendingBattleCount > 0) { <button type="button" disabled="@_busy" @onclick='() => NavigateForCharacterAsync("/rooms")'><strong>@overview.Pending.PendingBattleCount 轮战斗待结算</strong><span>金币 @overview.Pending.PendingGold · @NavigationLabel("查看战斗") →</span></button> }</section>
+            @if (overview.Pending.BattleRewards.Count > 0) { <details class="inventory-pending-rewards"><summary>查看战斗待到账明细</summary><ul>@foreach (var reward in overview.Pending.BattleRewards) { <li><span>@reward.Name</span><strong>× @reward.Quantity.ToString("N0")</strong></li> }</ul></details> }
+        }
+        <nav class="inventory-config-links" aria-label="角色配装"><span>为 @ViewedName 配置出战</span><button type="button" disabled="@_busy" @onclick='() => NavigateForCharacterAsync("/formations")'>@NavigationLabel("管理编队") ↗</button></nav>
+    }
+</div>
+
+@if (_preview is { } preview)
+{
+    <div class="inventory-modal-backdrop" @onclick="CancelConfirmation"><section class="inventory-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-confirm-title" tabindex="-1" @ref="_modalElement" @onclick:stopPropagation="true" @onkeydown="ModalKeyDown"><header><div><span class="inventory-kicker">核对整理结果 · @ViewedName</span><h2 id="inventory-confirm-title">@ActionName(preview.Action) @preview.Items.Count 件物品</h2></div><button type="button" disabled="@_busy" @onclick="CancelConfirmation" aria-label="关闭确认">×</button></header><div class="inventory-modal-body"><p>确认后物品将被移除。服务器会再次核对装备、锁定、编队引用与收益。</p><div class="inventory-preview-items">@foreach (var item in preview.Items) { <div class="inventory-preview-row" @key="item.Key"><strong>@item.Name</strong><small>@ItemSubtitle(item)</small>@foreach (var reason in item.Actions.FirstOrDefault(action => action.Action == preview.Action)?.ReasonCodes ?? []) { <span class="inventory-action-reason">@ReasonName(reason)</span> }</div> }</div><h3>预计获得</h3><div class="inventory-preview-rewards">@foreach (var reward in preview.Rewards) { <span>@reward.Name <strong>× @reward.Quantity.ToString("N0")</strong></span> }@if (preview.Rewards.Count == 0) { <span>没有可入库收益</span> }</div>@if (!preview.Allowed) { <p class="inventory-alert">部分物品当前无法处理，整批操作已停止。关闭后重新选择。</p> }@if (_error is not null) { <p class="inventory-alert" role="alert">@_error</p> }</div><footer><button type="button" disabled="@_busy" @onclick="CancelConfirmation">返回仓库</button><button type="button" class="is-danger" disabled="@(_busy || !preview.Allowed)" @onclick="ExecuteAsync">@(_busy ? "处理中…" : $"确认{ActionName(preview.Action)}")</button></footer></section></div>
+}
+@if (_chooseMaterial && _detail?.Weapon is { } target)
+{
+    <div class="inventory-modal-backdrop" @onclick="CloseMaterial"><section class="inventory-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-material-title" tabindex="-1" @ref="_modalElement" @onclick:stopPropagation="true" @onkeydown="ModalKeyDown"><header><div><span class="inventory-kicker">武器突破</span><h2 id="inventory-material-title">为 @target.Name 选择素材</h2></div><button type="button" @onclick="CloseMaterial" aria-label="关闭素材选择">×</button></header><div class="inventory-modal-body"><p>仅展示未装备、未锁定、未被编队引用的同名武器。选中的素材会被消耗。</p><div class="inventory-preview-items"><Virtualize Items="@_detail.QualityMaterials" Context="candidate" ItemSize="80"><button type="button" class="inventory-material-row" @key="candidate.Id" disabled="@_busy" @onclick="() => UpgradeAsync(candidate.Id)"><strong title="@candidate.Name">@candidate.Name</strong><span>装等 @candidate.ItemLevel · @candidate.QualityName · 实例 #@candidate.Id</span><small title="@string.Join(" / ", candidate.Skills.Select(skill => $"{skill.Name} Lv.{skill.Level}"))">@string.Join(" / ", candidate.Skills.Select(skill => $"{skill.Name} Lv.{skill.Level}"))</small></button></Virtualize>@if (_detail.QualityMaterials.Count == 0) { <p>没有符合条件的素材。可以使用通用突破石，或前往商店与战斗获取。</p> }</div></div><footer><button type="button" @onclick="CloseMaterial">返回详情</button></footer></section></div>
+}
+@if (_managementConfirm is not null)
+{
+    <div class="inventory-modal-backdrop" @onclick="CancelConfirmation"><section class="inventory-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-management-title" tabindex="-1" @ref="_modalElement" @onclick:stopPropagation="true" @onkeydown="ModalKeyDown"><header><h2 id="inventory-management-title">确认武器突破</h2><button type="button" disabled="@_busy" @onclick="CancelConfirmation" aria-label="关闭确认">×</button></header><div class="inventory-modal-body"><p>@_managementConfirm</p>@if (_error is not null) { <p class="inventory-alert" role="alert">@_error</p> }</div><footer><button type="button" disabled="@_busy" @onclick="CancelConfirmation">取消</button><button type="button" disabled="@_busy" @onclick="ConfirmManagementAsync">@(_busy ? "处理中…" : "确认消耗并突破")</button></footer></section></div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "characterId")] public int? RequestedCharacterId { get; set; }
+    [SupplyParameterFromQuery(Name = "category")] public string? RequestedCategory { get; set; }
+    [SupplyParameterFromQuery(Name = "search")] public string? RequestedSearch { get; set; }
+    [SupplyParameterFromQuery(Name = "element")] public string? RequestedElement { get; set; }
+    [SupplyParameterFromQuery(Name = "state")] public string? RequestedState { get; set; }
+    [SupplyParameterFromQuery(Name = "sort")] public string? RequestedSort { get; set; }
+    [SupplyParameterFromQuery(Name = "tier")] public int? RequestedTier { get; set; }
+    [SupplyParameterFromQuery(Name = "quality")] public int? RequestedQuality { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] public int? RequestedPage { get; set; }
+    [SupplyParameterFromQuery(Name = "item")] public string? RequestedItem { get; set; }
+    private List<CharacterSummaryResponse> _characters = [];
+    private InventoryQueryRequest _query = new() { Category = InventoryCategories.Weapons };
+    private int _characterId;
+    private bool _initialized, _disposed, _busy, _detailLoading, _batchMode, _chooseMaterial, _focusDetail, _focusModal, _refocusModal, _restoreFocus, _connected;
+    private bool _loadingCharacters = true, _charactersLoaded, _pollingStarted, _revealList;
+    private long _generation, _detailGeneration, _session;
+    private string? _error, _notice, _selectedKey, _lastRoute;
+    private string _batchAction = "dismantle";
+    private readonly HashSet<string> _selected = [];
+    private InventoryItemDetailDto? _detail;
+    private InventoryActionPreviewResponse? _preview;
+    private string? _managementConfirm;
+    private Func<Task>? _managementAction;
+    private readonly CancellationTokenSource _lifetime = new();
+    private CancellationTokenSource? _searchCancellation;
+    private DotNetObjectReference<Inventory>? _reference;
+    private int _visibilityRegistration;
+    private ElementReference _detailElement, _modalElement;
+    private ElementReference _categoryStrip;
+    private ElementReference _listHeading;
+    private string? _revealedCategory;
+    private bool HasConfirmation => _preview is not null || _managementConfirm is not null || _chooseMaterial;
+    private bool HasSyncError => _error is not null || Store.ErrorMessage is not null || Store.IsStale || !_charactersLoaded;
+    private bool HasCurrentCategory => Store.LoadedCategory == _query.Category;
+    private string ViewedName => Store.Overview?.CharacterId == _characterId ? Store.Overview.CharacterName : _characters.FirstOrDefault(character => character.CharacterId == _characterId)?.Name ?? "角色";
+    private int PageCount => Math.Max(1, ((Store.Overview?.FilteredRowCount ?? 0) + _query.PageSize - 1) / _query.PageSize);
+    private bool HasFilter => !string.IsNullOrWhiteSpace(_query.Search) || _query.Element is not null || _query.Tier is not null || _query.QualityRank is not null || _query.State != "all";
+    private string FilterSummary
+    {
+        get
+        {
+            var filters = new List<string>();
+            if (_query.Element is { } element) filters.Add(WeaponRules.ElementName(element));
+            if (_query.Tier is { } tier) filters.Add($"T{tier}");
+            if (_query.QualityRank is { } quality) filters.Add(WeaponRules.QualityName(quality));
+            filters.Add(_query.State switch
+            {
+                "equipped" => "已装备", "unequipped" => "未装备", "locked" => "已锁定",
+                "referenced" => "编队引用", "protected" => "受保护", "available" => "可整理", _ => "全部状态"
+            });
+            filters.Add(_query.Sort switch { "quantity" => "数量优先", "level" => "等级优先", "quality" => "品质优先", _ => "名称排序" });
+            return string.Join(" · ", filters);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Store.Changed += StoreChanged;
+        Api.ContextChanged += ContextChanged;
+        _session = Api.SessionRevision;
+        await LoadCharactersAsync();
+    }
+    private async Task LoadCharactersAsync(bool force = false)
+    {
+        var session = _session;
+        _loadingCharacters = true;
+        try
+        {
+            await Characters.EnsureLoadedAsync();
+            var characters = await Api.GetCurrentCharactersAsync(force);
+            if (_disposed || session != _session) return;
+            _charactersLoaded = characters is not null;
+            if (characters is null) { _error = "角色列表暂时无法读取，请重试。"; return; }
+            _characters = characters;
+            if (_characters.Count == 0) { _characterId = 0; return; }
+            _characterId = RequestedCharacterId ?? Characters.Current?.CharacterId ?? _characters[0].CharacterId;
+            if (!_characters.Any(character => character.CharacterId == _characterId)) _characterId = _characters[0].CharacterId;
+            ApplyRoute();
+            await LoadAsync(force);
+            if (!_pollingStarted && !_disposed) { _pollingStarted = true; _ = PollAsync(); }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch
+        {
+            if (!_disposed && session == _session)
+            {
+                _charactersLoaded = false;
+                _error = "角色列表暂时无法读取，请重试。";
+            }
+        }
+        finally
+        {
+            if (!_disposed && session == _session) { _initialized = true; _loadingCharacters = false; }
+        }
+    }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_initialized || _disposed || _lastRoute == Navigation.Uri || _busy) return;
+        ApplyRoute();
+        await LoadAsync();
+    }
+    private void ApplyRoute()
+    {
+        var nextId = RequestedCharacterId ?? _characterId;
+        if (_characters.Any(character => character.CharacterId == nextId) && nextId != _characterId) { _characterId = nextId; ClearSelection(); }
+        _query = new() { Category = RequestedCategory is not null && InventoryCategories.Values.Contains(RequestedCategory) ? RequestedCategory : RequestedItem?.StartsWith("soul:") == true ? InventoryCategories.SoulImprints : InventoryCategories.Weapons, Search = RequestedSearch, Element = Enum.TryParse<ElementType>(RequestedElement, out var element) ? element : null, State = RequestedState ?? "all", Sort = RequestedSort ?? "name", Tier = RequestedTier, QualityRank = RequestedQuality, Page = Math.Max(1, RequestedPage ?? 1) };
+        _lastRoute = Navigation.Uri;
+        ClearSelection();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_connected)
+        {
+            _reference = DotNetObjectReference.Create(this);
+            try { _visibilityRegistration = await Js.InvokeAsync<int>("inventoryUi.connect", _reference); _connected = true; } catch (JSException) { }
+        }
+        if (_focusModal) { _focusModal = false; await Js.InvokeVoidAsync("inventoryUi.focusDialog", _modalElement, true); }
+        if (_refocusModal) { _refocusModal = false; if (HasConfirmation && !_busy) await Js.InvokeVoidAsync("inventoryUi.refocusDialog", _modalElement); }
+        if (_focusDetail) { _focusDetail = false; await Js.InvokeVoidAsync("inventoryUi.focusDialog", _detailElement, false, _selectedKey); }
+        if (_restoreFocus) { _restoreFocus = false; await Js.InvokeVoidAsync("inventoryUi.restoreFocus"); }
+        if (_revealList) { _revealList = false; await Js.InvokeVoidAsync("inventoryUi.revealList", _listHeading); }
+        if (Store.Overview?.CharacterId == _characterId && _revealedCategory != _query.Category)
+        {
+            _revealedCategory = _query.Category;
+            await Js.InvokeVoidAsync("inventoryUi.revealCategory", _categoryStrip);
+        }
+    }
+    private void StoreChanged() => _ = InvokeAsync(async () => { if (_disposed) return; Reconcile(); StateHasChanged(); if (Store.IsStale && Store.ErrorMessage is null && !Store.IsLoading && !_busy && !HasConfirmation && await IsVisibleAsync()) await LoadAsync(true); });
+    private void ContextChanged()
+    {
+        if (_session == Api.SessionRevision) return;
+        _session = Api.SessionRevision; _generation++; _detailGeneration++; _characterId = 0; _characters.Clear(); ClearSelection(); _initialized = false; _charactersLoaded = false; _ = InvokeAsync(StateHasChanged);
+    }
+    private async Task<bool> IsVisibleAsync() { try { return await Js.InvokeAsync<bool>("inventoryUi.isVisible"); } catch (JSException) { return true; } }
+    private async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try { while (await timer.WaitForNextTickAsync(_lifetime.Token)) await InvokeAsync(async () => { if (!_disposed && !_busy && !HasConfirmation && !Store.IsLoading && await IsVisibleAsync()) await LoadAsync(true); }); } catch (OperationCanceledException) { }
+    }
+    [JSInvokable] public Task OnVisibleAsync() => InvokeAsync(async () => { if (!_disposed && _initialized && !_busy && !HasConfirmation && !Store.IsLoading) await LoadAsync(true); });
+    private async Task LoadAsync(bool force = false)
+    {
+        if (_disposed || _characterId <= 0) return;
+        var generation = _generation;
+        var characterId = _characterId;
+        await Store.LoadAsync(characterId, _query, force, _lifetime.Token);
+        if (_disposed || generation != _generation || characterId != _characterId) return;
+        Reconcile();
+        if (_selectedKey is not null && _detail is not null && !HasConfirmation) await LoadDetailAsync(_selectedKey, _detail.Entry.AssetKind, force);
+        else if (RequestedItem is not null && _detail is null && _selectedKey is null)
+        {
+            var kind = RequestedItem.Split(':', 2)[0];
+            if (kind is InventoryKinds.Weapon or InventoryKinds.SoulImprint or InventoryKinds.Stack) { _selectedKey = RequestedItem; _focusDetail = true; await LoadDetailAsync(RequestedItem, kind, true); }
+        }
+    }
+    private void Reconcile()
+    {
+        if (Store.Overview?.CharacterId != _characterId || !HasCurrentCategory) return;
+        var items = Store.Overview.Items;
+        var removed = _selected.RemoveWhere(key => !items.Any(item => item.Key == key && Allowed(item, _batchAction)));
+        if (removed > 0) _notice = $"{removed} 件已选物品状态发生变化，已从本次整理中移除。";
+    }
+    private async Task RefreshAsync()
+    {
+        if (_loadingCharacters) return;
+        _error = null;
+        if (!_charactersLoaded || _characters.Count == 0) await LoadCharactersAsync(true);
+        else await LoadAsync(true);
+    }
+    private async Task ChangeCharacterAsync(ChangeEventArgs args)
+    {
+        if (_busy || HasConfirmation || !int.TryParse(args.Value?.ToString(), out var id) || !_characters.Any(character => character.CharacterId == id)) return;
+        _characterId = id; _generation++; ClearSelection(); _notice = null; _error = null; _query.Page = 1; UpdateRoute(); await LoadAsync(true);
+    }
+    private void ClearSelection() { _selected.Clear(); ClearDetail(); _preview = null; _managementConfirm = null; _managementAction = null; _chooseMaterial = false; }
+    private async Task QueryChangedAsync() { _generation++; ClearSelection(); _query.Page = 1; UpdateRoute(); await LoadAsync(); }
+    private async Task SetCategoryAsync(string category) { _query.Category = category; _query.Element = null; _query.Tier = null; _query.QualityRank = null; await QueryChangedAsync(); }
+    private async Task ElementChangedAsync(ChangeEventArgs args) { _query.Element = Enum.TryParse<ElementType>(args.Value?.ToString(), out var element) ? element : null; await QueryChangedAsync(); }
+    private async Task TierChangedAsync(ChangeEventArgs args) { _query.Tier = int.TryParse(args.Value?.ToString(), out var value) ? value : null; await QueryChangedAsync(); }
+    private async Task QualityChangedAsync(ChangeEventArgs args) { _query.QualityRank = int.TryParse(args.Value?.ToString(), out var value) ? value : null; await QueryChangedAsync(); }
+    private async Task StateChangedAsync(ChangeEventArgs args) { _query.State = args.Value?.ToString() ?? "all"; await QueryChangedAsync(); }
+    private async Task SortChangedAsync(ChangeEventArgs args) { _query.Sort = args.Value?.ToString() ?? "name"; await QueryChangedAsync(); }
+    private async Task ResetFiltersAsync() { var category = _query.Category; _query = new() { Category = category }; await QueryChangedAsync(); }
+    private void SearchChanged(ChangeEventArgs args)
+    {
+        _query.Search = args.Value?.ToString(); _searchCancellation?.Cancel(); _searchCancellation?.Dispose(); _searchCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _ = SearchAsync(_searchCancellation.Token);
+    }
+    private async Task SearchAsync(CancellationToken token) { try { await Task.Delay(300, token); await InvokeAsync(QueryChangedAsync); } catch (OperationCanceledException) { } }
+    private async Task GoPageAsync(int page)
+    {
+        if (_busy || HasConfirmation || Store.IsLoading) return;
+        _query.Page = Math.Clamp(page, 1, PageCount);
+        var requestedPage = _query.Page;
+        var generation = ++_generation;
+        ClearSelection(); UpdateRoute();
+        await LoadAsync();
+        _revealList = !_disposed && generation == _generation && Store.ErrorMessage is null
+            && Store.Overview?.CharacterId == _characterId && Store.Overview.Page == requestedPage;
+    }
+    private void UpdateRoute()
+    {
+        var values = new Dictionary<string, object?> { ["characterId"] = _characterId, ["category"] = _query.Category, ["search"] = _query.Search, ["element"] = _query.Element?.ToString(), ["state"] = _query.State == "all" ? null : _query.State, ["sort"] = _query.Sort == "name" ? null : _query.Sort, ["tier"] = _query.Tier, ["quality"] = _query.QualityRank, ["page"] = _query.Page == 1 ? null : _query.Page, ["item"] = _selectedKey };
+        var uri = Navigation.GetUriWithQueryParameters(values); _lastRoute = uri; Navigation.NavigateTo(uri, replace: true);
+    }
+    private Task ActivateItemAsync(InventoryEntryDto item)
+    {
+        if (!_batchMode) return OpenDetailAsync(item);
+        ToggleSelection(item);
+        return Task.CompletedTask;
+    }
+    private async Task OpenDetailAsync(InventoryEntryDto item) { if (_selectedKey != item.Key) _detail = null; _selectedKey = item.Key; _focusDetail = true; UpdateRoute(); await LoadDetailAsync(item.Key, item.AssetKind, true); }
+    private async Task LoadDetailAsync(string key, string kind, bool force)
+    {
+        var generation = ++_detailGeneration; var viewGeneration = _generation; var characterId = _characterId; _detailLoading = _detail is null;
+        try
+        {
+            var (response, error) = await Api.GetInventoryDetailAsync(characterId, kind, key, force, _lifetime.Token);
+            if (_disposed || generation != _detailGeneration || viewGeneration != _generation || _selectedKey != key || characterId != _characterId) return;
+            if (response is not null && response.CharacterId == characterId)
+            {
+                _detail = response;
+                // Item links can arrive without a category, including stackable materials.
+                if (_query.Category != response.Entry.Category && InventoryCategories.Values.Contains(response.Entry.Category))
+                {
+                    _query.Category = response.Entry.Category;
+                    _query.Element = null; _query.Tier = null; _query.QualityRank = null; _query.Page = 1;
+                    _selected.Clear(); UpdateRoute();
+                    await Store.LoadAsync(characterId, _query, false, _lifetime.Token);
+                }
+            }
+            else
+            {
+                _error = error ?? "详情读取失败，请刷新仓库。";
+                if (error == "物品已不在该角色仓库中，请刷新后重新选择。") { ClearDetail(); UpdateRoute(); }
+                else if (_detail is null) _selectedKey = null;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { if (!_disposed && generation == _detailGeneration) _error = "详情连接中断，请重新同步。"; }
+        finally { if (generation == _detailGeneration) _detailLoading = false; }
+    }
+    private void ClearDetail() { _restoreFocus |= _detail is not null || _detailLoading || _chooseMaterial; _detailGeneration++; _detail = null; _selectedKey = null; _detailLoading = false; _chooseMaterial = false; _focusDetail = false; }
+    private void CloseDetail() { if (_busy) return; ClearDetail(); UpdateRoute(); }
+    private void DetailKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CloseDetail(); }
+    private void ToggleBatch() { _batchMode = !_batchMode; _selected.Clear(); }
+    private void BatchActionChanged(ChangeEventArgs args) { _batchAction = args.Value?.ToString() ?? "dismantle"; _selected.Clear(); }
+    private bool CanSelect(InventoryEntryDto item) => item.InstanceId is not null && Allowed(item, _batchAction) && (_selected.Count == 0 || _selected.Contains(item.Key) || Store.Overview?.Items.FirstOrDefault(candidate => _selected.Contains(candidate.Key))?.AssetKind == item.AssetKind) && (_selected.Count < 100 || _selected.Contains(item.Key));
+    private void ToggleSelection(InventoryEntryDto item) { if (_selected.Contains(item.Key)) _selected.Remove(item.Key); else if (CanSelect(item)) _selected.Add(item.Key); }
+    private void SelectPage() { if (!HasCurrentCategory) return; foreach (var item in Store.Overview?.Items ?? []) if (CanSelect(item)) _selected.Add(item.Key); }
+    private Task PreviewSelectedAsync() => PreviewAsync((Store.Overview?.Items ?? []).Where(item => _selected.Contains(item.Key)).ToList(), _batchAction);
+    private async Task PreviewAsync(List<InventoryEntryDto> items, string action)
+    {
+        if (_busy || items.Count == 0) return;
+        _busy = true; _error = null; var generation = _generation; var characterId = _characterId;
+        try { var (preview, error) = await Api.PreviewInventoryActionAsync(characterId, new() { AssetKind = items[0].AssetKind, Action = action, InstanceIds = items.Select(item => item.InstanceId!.Value).ToList() }, _lifetime.Token); if (_disposed || generation != _generation || characterId != _characterId) return; if (preview is not null && preview.CharacterId == characterId) { _preview = preview; _focusModal = true; } else _error = error ?? "预览未能完成，请重新同步。"; } catch { if (!_disposed && generation == _generation) _error = "预览连接中断，请重试。"; } finally { _busy = false; }
+    }
+    private async Task ExecuteAsync()
+    {
+        if (_busy || _preview is not { Allowed: true } preview) return;
+        _busy = true; _error = null; var characterId = _characterId;
+        try { var (success, error) = await Api.ExecuteInventoryActionAsync(characterId, preview, _lifetime.Token); if (_disposed || characterId != _characterId) return; if (success) { _preview = null; _selected.Clear(); _notice = $"已{ActionName(preview.Action)} {preview.Items.Count} 件物品，收益已存入 {ViewedName} 的仓库。"; CloseAfterAction(); } else _error = error ?? "操作未完成，请重新核对。"; } catch { if (!_disposed) _error = "连接中断，请使用同一确认重试，或关闭后刷新核对库存。"; } finally { _busy = false; if (!_disposed) { if (_preview is not null) _refocusModal = true; await LoadAsync(true); } }
+    }
+    private void CloseAfterAction() { ClearDetail(); UpdateRoute(); }
+    private async Task DetailActionAsync(string action)
+    {
+        if (_detail is null || _busy) return;
+        if (action is "sell" or "dismantle") { await PreviewAsync([_detail.Entry], action); return; }
+        var item = _detail.Entry;
+        if (item.AssetKind == InventoryKinds.Weapon) await RunWeaponAsync(() => Api.SetWeaponLockAsync(_characterId, item.InstanceId!.Value, action == "lock"), action == "lock" ? "武器已锁定。" : "武器已解锁。");
+        else if (item.AssetKind == InventoryKinds.SoulImprint) await RunSoulAsync(() => Api.SetSoulImprintLockAsync(_characterId, item.InstanceId!.Value, action == "lock"), action == "lock" ? "魂印已锁定。" : "魂印已解锁。");
+    }
+    private Task EnhanceAsync(int slot) => _detail?.Weapon is { } weapon ? RunWeaponAsync(() => Api.EnhanceWeaponSkillAsync(_characterId, weapon.Id, slot), "武器技能已强化。") : Task.CompletedTask;
+    private Task CraftAsync(int tier) => RunWeaponAsync(() => Api.CraftWeaponBreakthroughStoneAsync(_characterId, tier), "已合成 1 枚通用突破石。");
+    private Task ChooseMaterialAsync() { if (_busy) return Task.CompletedTask; _chooseMaterial = true; _focusModal = true; return Task.CompletedTask; }
+    private void CloseMaterial() => CancelConfirmation();
+    private Task UpgradeAsync(int materialId)
+    {
+        if (_detail?.Weapon is not { } weapon || _busy) return Task.CompletedTask;
+        var candidate = _detail.QualityMaterials.FirstOrDefault(item => item.Id == materialId);
+        if (materialId != 0 && candidate is null) return Task.CompletedTask;
+        _chooseMaterial = false;
+        _managementConfirm = materialId == 0 ? $"消耗 1 枚对应阶段通用突破石，为「{weapon.Name}」突破至 {WeaponRules.QualityName(weapon.QualityRank + 1)}。" : $"消耗「{candidate!.Name}」实例 #{candidate.Id}（{candidate.QualityName}），为「{weapon.Name}」突破至 {WeaponRules.QualityName(weapon.QualityRank + 1)}。素材的强化投入不会额外返还。";
+        _managementAction = () => RunWeaponAsync(() => Api.UpgradeWeaponQualityAsync(_characterId, weapon.Id, materialId, materialId == 0), "武器品质已突破。"); _focusModal = true; return Task.CompletedTask;
+    }
+    private async Task ConfirmManagementAsync()
+    {
+        if (_busy || _managementAction is null) return;
+        var action = _managementAction;
+        await action();
+        if (_disposed) return;
+        if (_error is null) { _managementConfirm = null; _managementAction = null; _restoreFocus = true; await LoadAsync(true); }
+        else _refocusModal = true;
+    }
+    private async Task RunWeaponAsync(Func<Task<(CharacterWeaponsResponse? Response, string? ErrorMessage)>> action, string notice) => await RunManagementAsync(async () => { var result = await action(); return (result.Response is not null, result.ErrorMessage); }, notice);
+    private async Task RunSoulAsync(Func<Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)>> action, string notice) => await RunManagementAsync(async () => { var result = await action(); return (result.Response is not null, result.ErrorMessage); }, notice);
+    private async Task RunManagementAsync(Func<Task<(bool Success, string? Error)>> action, string notice)
+    {
+        if (_busy) return; _busy = true; _error = null; var generation = _generation; var characterId = _characterId;
+        try { var result = await action(); if (_disposed || generation != _generation || characterId != _characterId) return; if (result.Success) { _notice = notice; if (Characters.Current?.CharacterId == characterId) await Characters.RefreshAsync(); } else _error = result.Error ?? "操作未完成，请重新同步。"; } catch { if (!_disposed) _error = "连接中断，请刷新后核对物品状态。"; } finally { _busy = false; if (!_disposed) await LoadAsync(true); }
+    }
+    private void CancelConfirmation() { if (_busy) return; _preview = null; _managementConfirm = null; _managementAction = null; _chooseMaterial = false; _ = InvokeAsync(async () => { await Js.InvokeVoidAsync("inventoryUi.restoreFocus"); await LoadAsync(true); }); }
+    private void ModalKeyDown(KeyboardEventArgs args) { if (args.Key == "Escape") CancelConfirmation(); }
+    private string NavigationLabel(string label) => Characters.Current?.CharacterId == _characterId ? label : $"切换为 {ViewedName} 并{label}";
+    private string UsageLabel(InventoryUsageDto usage) => IsWarehouseRoute(usage.Route) ? usage.Label : NavigationLabel(usage.Label);
+    private static bool IsWarehouseRoute(string route) => route.Split('?', '#')[0].Trim('/') == "inventory";
+    private string UsageRoute(string route, InventoryEntryDto entry) => route + (route.Contains('?') ? "&" : "?") + (IsWarehouseRoute(route) ? "characterId=" + _characterId : "item=" + Uri.EscapeDataString(entry.Code) + (entry.InstanceId is int id ? "&instanceId=" + id : ""));
+    private async Task NavigateForCharacterAsync(string route)
+    {
+        if (_busy) return; _busy = true; _error = null; var targetId = _characterId;
+        if (IsWarehouseRoute(route)) { _busy = false; Navigation.NavigateTo(route); return; }
+        try { if (Characters.Current?.CharacterId != targetId) { var (character, error) = await Api.SelectCurrentCharacterAsync(targetId); if (character is null) { _error = error ?? "切换角色失败。"; return; } await Characters.RefreshAsync(); if (Characters.Current?.CharacterId != targetId) { _error = "角色信息尚未同步，请重试。"; return; } } Navigation.NavigateTo(route); } catch { _error = "角色切换未完成，请重试。"; } finally { _busy = false; }
+    }
+    private static bool Allowed(InventoryEntryDto item, string action) => item.Actions.Any(candidate => candidate.Action == action && candidate.Allowed);
+    private static string? Art(InventoryEntryDto item) => item.AssetKind == InventoryKinds.Weapon ? WeaponArt.ForCode(item.Code) : ItemArt.ForCode(item.Code);
+    private static string CompactQuantity(int quantity) => quantity >= 100_000_000 ? $"{quantity / 100_000_000d:0.#}亿" : quantity >= 10_000 ? $"{quantity / 10_000d:0.#}万" : quantity.ToString("N0");
+    private static string ItemSubtitle(InventoryEntryDto item) => string.Join(" · ", new[] { item.Element is { } element ? WeaponRules.ElementName(element) : null, item.ItemLevel is int level ? $"装等 {level}" : item.Tier is int tier ? $"T{tier}" : null, item.AssetKind == InventoryKinds.Stack ? InventoryCategories.Name(item.Category) : item.InstanceId is int id ? $"#{id}" : null }.Where(value => value is not null));
+    private static string CategorySymbol(string category) => category switch { InventoryCategories.Weapons => "⚔", InventoryCategories.SoulImprints => "◇", InventoryCategories.Supplies => "✚", InventoryCategories.Planting => "♣", InventoryCategories.Upgrade => "✦", InventoryCategories.Exchange => "◆", _ => "▦" };
+    private static string StorageName(InventoryEntryDto entry) => !entry.IsEquipped ? "未装备" : entry.AssetKind switch
+    {
+        InventoryKinds.Weapon => entry.EquippedSlotIndex is int slot ? slot == WeaponRules.MainSlotIndex ? "主武器" : $"副武器 {slot:00}" : "武器槽",
+        InventoryKinds.SoulImprint => "魂印槽",
+        InventoryKinds.Stack => entry.EquippedSlotIndex is int slot ? $"{ConsumableRules.SlotName(slot)}槽" : "补给槽",
+        _ => "已装备 / 已配置"
+    };
+    private static string ActionName(string action) => action switch { "lock" => "锁定", "unlock" => "解锁", "sell" => "出售", "dismantle" => "分解", "enhance" => "强化", "upgrade" => "突破", _ => action };
+    private static string ReasonName(string reason) => reason switch
+    {
+        "WeaponLocked" or "SoulImprintLocked" => "物品已锁定",
+        "WeaponEquipped" or "SoulImprintEquipped" => "请先卸下物品",
+        "FormationItemReferenced" => "物品被编队引用",
+        "LoadoutLocked" => "角色已入场，请先离场",
+        "WeaponCannotBeDismantled" => "没有可返还碎片",
+        "UnknownItemDefinition" or "DefinitionMissing" or "UnknownSoulImprint" => "物品定义暂不可用",
+        "WeaponQualityMaxed" or "WeaponQualityAtMaximum" => "品质已满",
+        "WeaponSkillAtMaximum" => "技能已达到强化上限",
+        "UnknownWeaponSkill" => "武器技能定义暂不可用，无法强化",
+        "WeaponNotSellable" => "该武器不可出售",
+        "StarterWeaponCannotBeConsumed" => "初始赠品不能作为突破素材",
+        "InsufficientBreakthroughFragments" => "突破碎片不足",
+        "InsufficientBreakthroughStones" => "通用突破石不足",
+        "InventoryFull" => "数量已达到存储上限",
+        "InventoryCodeConflict" => "物品代码存在冲突，暂不能操作",
+        _ => "当前状态不支持此操作，请重新同步后核对。"
+    };
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true; _generation++; _detailGeneration++; Store.Changed -= StoreChanged; Api.ContextChanged -= ContextChanged; _lifetime.Cancel(); _searchCancellation?.Cancel(); _searchCancellation?.Dispose();
+        try { if (_connected) await Js.InvokeVoidAsync("inventoryUi.disconnect", _visibilityRegistration); } catch (JSException) { }
+        _reference?.Dispose(); Store.Dispose(); _lifetime.Dispose();
+    }
+}

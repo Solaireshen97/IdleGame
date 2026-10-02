@@ -3,20 +3,23 @@
 @using Game.Shared.Dtos.Auth
 @inject ApiService ApiService
 @inject NavigationManager Navigation
+@inject UserSessionService Session
 
 <PageTitle>登录</PageTitle>
 
-<AuthShell Kicker="RETURN TO ADVENTURE"
+<AuthShell Kicker=""
            Title="欢迎回来"
-           Description="继续你的远征、养成与离线收益。"
+           Description=""
            SubmitLabel="进入冒险"
            SubmittingLabel="正在进入…"
-           AlternatePrompt="第一次来到这里？"
-           AlternateLabel="创建冒险者账号"
+           AlternatePrompt="没有账号？"
+           AlternateLabel="注册账号"
            AlternateHref="/register"
            IsChecking="@_isCheckingLoginState"
            IsSubmitting="@_isSubmitting"
            ErrorMessage="@_errorMessage"
+           RecoveryError="@_recoveryError"
+           OnRetry="CheckLoginAsync"
            OnSubmit="LoginAsync">
     <label class="auth-field" for="login-user-name">
         <span>用户名</span>
@@ -25,6 +28,7 @@
             <input id="login-user-name"
                    name="username"
                    autocomplete="username"
+                   enterkeyhint="next"
                    autocapitalize="none"
                    spellcheck="false"
                    placeholder="输入用户名"
@@ -41,6 +45,7 @@
                    name="password"
                    type="@(_showPassword ? "text" : "password")"
                    autocomplete="current-password"
+                   enterkeyhint="done"
                    placeholder="输入密码"
                    @bind="_request.Password"
                    @bind:event="oninput" />
@@ -59,21 +64,36 @@
     private bool _isSubmitting;
     private bool _showPassword;
     private string? _errorMessage;
+    private string? _recoveryError;
+    private bool _checking;
+    [SupplyParameterFromQuery(Name = "notice")] public string? Notice { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => CheckLoginAsync();
+
+    private async Task CheckLoginAsync()
     {
-        var currentUser = await ApiService.GetCurrentUserAsync();
-        if (currentUser is not null)
+        if (_checking) return;
+        _checking = true;
+        _isCheckingLoginState = true;
+        _recoveryError = null;
+        try
         {
-            Navigation.NavigateTo(currentUser.CharacterCount == 0 ? "/characters/create" : "/rooms", replace: true);
-            return;
+            var hadToken = await Session.IsLoggedIn();
+            var currentUser = await ApiService.GetCurrentUserAsync(forceRefresh: true);
+            if (currentUser is not null)
+            {
+                Navigation.NavigateTo(currentUser.CharacterCount == 0 ? "/characters/create" : "/rooms", replace: true);
+                return;
+            }
+            if (await Session.IsLoggedIn()) _recoveryError = "暂时无法确认登录状态。请检查网络后重试，无需重新输入账号。";
+            else if (hadToken || Notice == "session-expired") _errorMessage = "登录已过期，请重新登录。";
         }
-
-        _isCheckingLoginState = false;
+        finally { _isCheckingLoginState = false; _checking = false; }
     }
 
     private async Task LoginAsync()
     {
+        if (_isSubmitting) return;
         _isSubmitting = true;
         _errorMessage = null;
 

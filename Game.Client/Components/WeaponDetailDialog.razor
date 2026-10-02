@@ -11,11 +11,11 @@
         <header class="weapon-detail-header">
             <span class="weapon-detail-crest" aria-hidden="true"><img src="@WeaponArt.ForName(Name)" alt="" /></span>
             <div class="weapon-detail-heading">
-                <span class="weapon-detail-kicker">@Category · @WeaponRules.ElementName(Element)属性</span>
+                <span class="weapon-detail-kicker">@if (!string.IsNullOrWhiteSpace(DisplayCategory)) { <span>@DisplayCategory · </span> }@WeaponRules.ElementName(Element)属性</span>
                 <h2 id="weapon-detail-title">@Name</h2>
                 @if (QualityRank is int qualityRank)
                 {
-                    <div class="weapon-detail-quality"><span>水晶品质</span><WeaponQualityCrystals Rank="@qualityRank" /><strong>@WeaponRules.QualityName(qualityRank)</strong></div>
+                    <div class="weapon-detail-quality"><span>品质</span><WeaponQualityCrystals Rank="@qualityRank" /><strong>@WeaponRules.QualityName(qualityRank)</strong></div>
                 }
                 <p id="weapon-detail-subtitle">@(string.IsNullOrWhiteSpace(Subtitle) ? $"装等 {ItemLevel}" : Subtitle)</p>
             </div>
@@ -32,7 +32,6 @@
             @if (!_showManagement)
             {
                 <div class="weapon-detail-stats" aria-label="武器属性">
-                    <div><span>属性</span><strong>@WeaponRules.ElementName(Element)</strong></div>
                     <div><span>攻击</span><strong>+@Attack</strong></div>
                     <div><span>生命</span><strong>+@MaxHp</strong></div>
                 </div>
@@ -61,6 +60,10 @@
             {
                 <p class="weapon-detail-note">@Note</p>
             }
+            @if (!_showManagement && !string.IsNullOrWhiteSpace(RulesNote))
+            {
+                <details class="weapon-detail-rules"><summary>来源与分解规则</summary><p class="weapon-detail-note">@RulesNote</p></details>
+            }
         </div>
         <footer class="weapon-detail-footer">
             @if (ActionSummary is not null) { <div class="weapon-detail-action-summary">@ActionSummary</div> }
@@ -83,6 +86,7 @@
     [Parameter] public string Category { get; set; } = "WEAPON DETAIL";
     [Parameter] public string Subtitle { get; set; } = string.Empty;
     [Parameter] public string? Note { get; set; }
+    [Parameter] public string? RulesNote { get; set; }
     [Parameter] public string CloseLabel { get; set; } = "返回";
     [Parameter] public IReadOnlyList<WeaponDropSkillPreviewResponse> Skills { get; set; } = [];
     [Parameter] public RenderFragment? AdditionalContent { get; set; }
@@ -94,13 +98,19 @@
 
     private ElementReference _closeButton;
     private ElementReference _dialog;
+    private string? DisplayCategory => Category switch
+    {
+        "OWNED WEAPON" or "WEAPON DETAIL" => null,
+        "WEAPON PREVIEW" => "掉落预览",
+        _ => Category
+    };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await _closeButton.FocusAsync(preventScroll: true);
-            if (ManagementLabel is not null) await Js.InvokeVoidAsync("weaponBoardUi.trapDialogFocus", _dialog);
+            await Js.InvokeVoidAsync("weaponBoardUi.trapDialogFocus", _dialog);
         }
     }
 

@@ -32,16 +32,16 @@ public partial class BattleService
             var cooldown = item is null ? null : await dbContext.BattleConsumableCooldowns.SingleOrDefaultAsync(
                 entry => entry.RoomId == room.Id && entry.CharacterId == participant.Character.Id &&
                     entry.CooldownGroup == item.CooldownGroup);
-            var healingUses = await dbContext.BattleHealingPotionStates
+            var uses = await dbContext.BattleHealingPotionStates
                 .Where(state => state.RoomId == room.Id && state.RunSequence == room.RunSequence &&
-                    state.CharacterId == participant.Character.Id).Select(state => (int?)state.UsesUsed).SingleOrDefaultAsync() ?? 0;
+                    state.CharacterId == participant.Character.Id).SingleOrDefaultAsync();
             var buffActive = item?.Kind == "CombatBuff" && await dbContext.BattleConsumableBuffs.AnyAsync(buff =>
                 buff.RoomId == room.Id && buff.RunSequence == room.RunSequence &&
                 buff.CharacterId == participant.Character.Id && buff.WeaponSkillCode == item.WeaponSkillCode &&
                 buff.ExpiresAfterRound >= room.RoundNumber);
             var unavailable = ConsumableUsePolicy.UnavailableReason(room, participant.Character, slotIndex,
                 item, stock?.Quantity ?? 0, Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
-                healingUses, buffActive);
+                uses?.UsesUsed ?? 0, buffActive, uses?.BuffUsesUsed ?? 0);
             if (unavailable is not null) return (false, unavailable);
         }
 

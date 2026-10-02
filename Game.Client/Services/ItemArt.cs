@@ -7,7 +7,6 @@ public static class ItemArt
     {
         ["minor-healing-potion"] = "/art/items/potions/minor-healing-potion.png",
         ["northshire-battle-draught"] = "/art/items/potions/northshire-battle-draught.png",
-        ["travel-healing-potion"] = "/art/items/potions/travel-healing-potion.png",
         ["whetstone-oil"] = "/art/items/potions/whetstone-oil.png",
         ["elwynn-assault-draught"] = "/art/items/potions/elwynn-assault-draught.png",
         ["tirisfal-dusk-draught"] = "/art/items/potions/tirisfal-dusk-draught.png",

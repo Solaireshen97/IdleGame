@@ -9,3 +9,11 @@ button:focus-visible { outline: 2px solid #e3ba72; outline-offset: 3px; }
 .statistics-actor strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-size: .9rem; }
 .statistics-actor small { color: #acbfce; font-size: .7rem; }
 @media (max-width: 420px) { .statistics-actor { grid-template-columns: repeat(3, minmax(0, 1fr)); } .statistics-actor__identity { grid-column: 1/-1; } }
+.statistics-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; margin: .65rem 0 .5rem; }
+.statistics-metrics button { min-height: 44px; padding: .4rem .2rem; font-size: .8rem; }
+.statistics-actor { min-height: 44px; padding: .6rem; gap: .45rem .5rem; }
+@media (max-width: 420px) {
+    .statistics-actor__identity { flex-direction: row !important; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+    .statistics-actor__identity small { font-size: .68rem; }
+    .statistics-actor strong { font-size: .85rem; }
+}

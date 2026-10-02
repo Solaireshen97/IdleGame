@@ -43,26 +43,38 @@ public static class CombatLoadoutCodec
         value.SoulImprintId
     }));
 
-    public static string ConfigurationHash(CombatLoadoutDefinition value) => Hash(JsonSerializer.Serialize(new
+    public static string ConfigurationHash(CombatLoadoutDefinition value)
     {
-        Structure = ChoiceHash(value),
-        Skills = Enumerable.Range(1, SkillRules.SlotCount).Select(i =>
+        // Preserve existing saved hashes when no consumable condition override is present.
+        var baseHash = Hash(JsonSerializer.Serialize(new
         {
-            var s = value.Skills.FirstOrDefault(s => s.SlotIndex == i);
-            return new { Auto = s?.SkillCode is not null && s.AutoUseEnabled,
-                Condition = s?.SkillCode is not null ? SkillAutoRules.Normalize(s.AutoConditionOverride) : null,
-                Threshold = s?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent };
-        }),
-        Consumables = Enumerable.Range(1, ConsumableRules.TotalSlotCount).Select(i =>
+            Structure = ChoiceHash(value),
+            Skills = Enumerable.Range(1, SkillRules.SlotCount).Select(i =>
+            {
+                var s = value.Skills.FirstOrDefault(s => s.SlotIndex == i);
+                return new { Auto = s?.SkillCode is not null && s.AutoUseEnabled,
+                    Condition = s?.SkillCode is not null ? SkillAutoRules.Normalize(s.AutoConditionOverride) : null,
+                    Threshold = s?.AutoHpThresholdPercent ?? SkillRules.DefaultAutoHpThresholdPercent };
+            }),
+            Consumables = Enumerable.Range(1, ConsumableRules.TotalSlotCount).Select(i =>
+            {
+                var s = value.Consumables.FirstOrDefault(s => s.SlotIndex == i);
+                return new { Auto = i != ConsumableRules.OperationPotionSlotIndex && s?.ItemCode is not null && s.AutoUseEnabled,
+                    // Empty-slot thresholds have no effect, including the old default of 50%.
+                    Threshold = s?.ItemCode is not null ? s.AutoHpThresholdPercent : 50 };
+            }),
+            SoulAuto = value.SoulImprintId.HasValue && value.SoulAutoUseEnabled,
+            SoulCondition = value.SoulImprintId.HasValue ? SkillAutoRules.Normalize(value.SoulAutoConditionOverride) : null,
+            SoulThreshold = value.SoulImprintId.HasValue ? value.SoulAutoHpThresholdPercent : SkillRules.DefaultAutoHpThresholdPercent
+        }));
+        var conditions = Enumerable.Range(1, ConsumableRules.SlotCount).Select(i =>
         {
             var s = value.Consumables.FirstOrDefault(s => s.SlotIndex == i);
-            return new { Auto = i != ConsumableRules.OperationPotionSlotIndex && s?.ItemCode is not null && s.AutoUseEnabled,
-                Threshold = s?.AutoHpThresholdPercent ?? ConsumableRules.DefaultAutoHpThresholdPercent };
-        }),
-        SoulAuto = value.SoulImprintId.HasValue && value.SoulAutoUseEnabled,
-        SoulCondition = value.SoulImprintId.HasValue ? SkillAutoRules.Normalize(value.SoulAutoConditionOverride) : null,
-        SoulThreshold = value.SoulImprintId.HasValue ? value.SoulAutoHpThresholdPercent : SkillRules.DefaultAutoHpThresholdPercent
-    }));
+            return s?.ItemCode is not null ? SkillAutoRules.Normalize(s.AutoConditionOverride) : null;
+        }).ToArray();
+        return conditions.All(condition => condition is null) ? baseHash :
+            Hash(JsonSerializer.Serialize(new { Base = baseHash, ConsumableConditions = conditions }));
+    }
 
     public static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static string? Code(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToLowerInvariant();

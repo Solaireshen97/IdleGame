@@ -3,10 +3,10 @@
 @inject ApiService ApiService
 
 <section class="profession-board" aria-labelledby="profession-board-title">
-    <header class="profession-board__header">
-        <div><span class="profession-board__eyebrow">PROFESSIONS</span><h2 id="profession-board-title">职业成长</h2></div>
-        <p>各职业独立成长。当前职业获得战斗经验。</p>
-    </header>
+    <details class="profession-board__rules">
+        <summary><h2 id="profession-board-title">职业成长</h2><span>成长规则 ⌄</span></summary>
+        <p>各职业独立成长，当前职业获得战斗经验。活动外可免费切换；职业满 30 级后，为该角色解锁一个共享技能。</p>
+    </details>
 
     @if (_loading)
     {
@@ -20,19 +20,21 @@
     }
     else
     {
-        <p class="profession-board__notice">可在活动外免费切换职业。职业满 30 级后，为该角色解锁一个共享技能。</p>
+        @if (!_progress.CanSwitch) { <p class="profession-board__busy">活动结束后可切换职业</p> }
         <div class="profession-board__list">
             @foreach (var profession in _progress.Professions)
             {
                 <article class="profession-board__item @(profession.IsActive ? "profession-board__item--active" : null)" @key="profession.Code">
                     <img src="@ProfessionArt.ForCode(profession.Code)" alt="" width="52" height="52" loading="lazy" />
-                    <div class="profession-board__content">
-                        <div class="profession-board__title"><h3>@profession.Name</h3>@if (profession.IsActive) { <span>当前职业</span> }</div>
+                    <details class="profession-board__content">
+                        <summary aria-label="@($"{profession.Name}，展开职业介绍")">
+                            <span class="profession-board__title"><strong>@profession.Name</strong>@if (profession.IsActive) { <span>当前</span> }<i aria-hidden="true">⌄</i></span>
+                            <span class="profession-board__level"><strong>Lv @profession.Level</strong><span>@(profession.ExperienceToNextLevel is int required ? $"{profession.Experience} / {required}" : "等级已满")</span></span>
+                            <progress value="@(profession.ExperienceToNextLevel is null ? 1 : profession.Experience)" max="@(profession.ExperienceToNextLevel ?? 1)" aria-label="@profession.Name 经验值"></progress>
+                            @if (profession.IsSharedSkillUnlocked) { <small class="profession-board__shared">共享技能已解锁</small> }
+                        </summary>
                         <p>@profession.Description</p>
-                        <div class="profession-board__level"><strong>Lv @profession.Level</strong><span>@(profession.ExperienceToNextLevel is int required ? $"EXP {profession.Experience} / {required}" : "等级已满")</span></div>
-                        <progress value="@(profession.ExperienceToNextLevel is null ? 1 : profession.Experience)" max="@(profession.ExperienceToNextLevel ?? 1)" aria-label="@profession.Name 经验值"></progress>
-                        @if (profession.IsSharedSkillUnlocked) { <small>已解锁本职业共享技能</small> }
-                    </div>
+                    </details>
                     @if (!profession.IsActive)
                     {
                         <button type="button" disabled="@(_saving || !_progress.CanSwitch)" title="@(_progress.CanSwitch ? null : "请先结束当前活动")" @onclick="() => SwitchAsync(profession.Code)">切换</button>

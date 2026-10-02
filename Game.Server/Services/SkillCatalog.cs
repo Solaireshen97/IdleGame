@@ -101,6 +101,13 @@ public sealed class SkillCatalog
     public CharacterSkillDefinition? FindDefinition(string? code) =>
         code is not null && _definitions.TryGetValue(code, out var versions) ? versions[0] : null;
 
+    // Information-only access to the compiled battle definitions; Resolve remains
+    // the authority for learning and equipment eligibility.
+    public IReadOnlyList<CharacterSkillDefinition> SkillLevelPreviews(string code, bool shared = false) =>
+        _definitions.TryGetValue(code, out var versions)
+            ? shared ? [versions[3]] : versions.Take(3).ToArray()
+            : [];
+
     public bool IsLearned(Character character, string? skillCode, IReadOnlyDictionary<string, int> ranks,
         IReadOnlyDictionary<string, int>? professionLevels = null) =>
         Resolve(character, skillCode, professionLevels) is not null;

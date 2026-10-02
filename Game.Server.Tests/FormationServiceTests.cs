@@ -298,6 +298,44 @@ public sealed class FormationServiceTests
         Assert.Equal(("MonsterHpBelowThreshold", 35), (soul.AutoConditionOverride, soul.AutoHpThresholdPercent));
     }
 
+    [Fact]
+    public async Task FormationCapturesCopiesAppliesAndValidatesConsumableAutoCondition()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var potion = new CharacterConsumableSlot { CharacterId = fixture.Character.Id, SlotIndex = 1,
+            ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoConditionOverride = "SelfHpBelowThreshold", AutoHpThresholdPercent = 40 };
+        fixture.Db.AddRange(potion, new CharacterWeapon { CharacterId = fixture.Character.Id,
+            WeaponCode = "blade", Name = "主武器", EquippedSlotIndex = 1, Attack = 10, MaxHp = 10 });
+        await fixture.Db.SaveChangesAsync();
+        var (created, error) = await fixture.Service.CreateAsync("token", fixture.Character.Id,
+            new() { Name = "药剂编队", Position = 1, FromCurrent = true });
+        Assert.Null(error);
+        var originalHash = CombatLoadoutCodec.ConfigurationHash(created!.Loadout);
+        var structure = CombatLoadoutCodec.ChoiceHash(created.Loadout);
+        var choice = created.Loadout.Consumables.Single(slot => slot.SlotIndex == 1);
+        Assert.Equal(("SelfHpBelowThreshold", 40), (choice.AutoConditionOverride, choice.AutoHpThresholdPercent));
+        choice.AutoConditionOverride = "MonsterHpBelowThreshold";
+        choice.AutoHpThresholdPercent = 35;
+        Assert.NotEqual(originalHash, CombatLoadoutCodec.ConfigurationHash(created.Loadout));
+        Assert.Equal(structure, CombatLoadoutCodec.ChoiceHash(created.Loadout));
+        var (saved, saveError) = await fixture.Service.SaveAsync("token", fixture.Character.Id, created.Id,
+            new() { Name = created.Name, GroupElement = created.GroupElement, Position = created.Position,
+                ExpectedVersion = created.Version, Loadout = created.Loadout });
+        Assert.Null(saveError);
+        var (copied, copyError) = await fixture.Service.CopyAsync("token", fixture.Character.Id, created.Id,
+            new() { Name = "备用药剂", Position = 2, ExpectedVersion = saved!.Version });
+        Assert.Null(copyError);
+        Assert.Equal("MonsterHpBelowThreshold", copied!.Loadout.Consumables.Single(slot => slot.SlotIndex == 1).AutoConditionOverride);
+        var (_, applyError) = await fixture.Service.ApplyAsync("token", fixture.Character.Id, copied.Id,
+            new() { ExpectedVersion = copied.Version, ExpectedCharacterVersion = fixture.Character.Version, RequestId = "potion-condition" });
+        Assert.Null(applyError);
+        Assert.Equal(("MonsterHpBelowThreshold", 35), (potion.AutoConditionOverride, potion.AutoHpThresholdPercent));
+        copied.Loadout.Consumables.Single(slot => slot.SlotIndex == 1).AutoConditionOverride = "invalid";
+        Assert.Equal("InvalidAutoCondition", (await fixture.Service.SaveAsync("token", fixture.Character.Id, copied.Id,
+            new() { Name = copied.Name, GroupElement = copied.GroupElement, Position = copied.Position,
+                ExpectedVersion = copied.Version, Loadout = copied.Loadout })).Error);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         public required SqliteConnection Connection { get; init; }

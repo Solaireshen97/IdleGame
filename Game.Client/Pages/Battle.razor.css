@@ -3262,16 +3262,18 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
 .battle-page--focused .battle-mobile-quick-actions__characters { grid-column: 1 / -1; gap: .3rem; padding: 0; }
 .battle-page--focused .battle-mobile-quick-actions--solo .battle-mobile-quick-actions__characters { display: none; }
 .battle-page--focused .battle-mobile-character-tab { flex: 1 0 0; min-width: 0; min-height: 40px; padding: .2rem .3rem; }
-.battle-page--focused .battle-mobile-skill-rail { grid-column: 1 / -1; display: flex; gap: .4rem; padding: 2px; overflow: visible; }
+.battle-page--focused .battle-mobile-skill-rail { grid-column:1 / -1; display:grid; grid-template-columns:repeat(6,minmax(44px,1fr)); gap:.4rem; padding:2px; overflow-x:auto; }
 .battle-page--focused .battle-mobile-skill { flex: 1 1 0; width: auto; min-width: 0; min-height: 94px; padding: .35rem .12rem; border-radius: .65rem; }
+.battle-page--focused .battle-mobile-skill--empty { position:relative; align-self:stretch; border:1px dashed #405665; background:#10233166; color:#7c95a5; }
+.battle-mobile-skill--empty > span { position:absolute; top:.35rem; left:.35rem; font-size:.65rem; line-height:1; }
 .battle-page--focused .battle-mobile-skill .battle-skill-card__icon { width: 46px; height: 46px; flex-basis: 46px; }
 .battle-page--focused .battle-mobile-skill .battle-skill-card__name { margin-top: .3rem; font-size: .7rem; }
 .battle-page--focused .battle-mobile-skill .battle-skill-card__status { display: block; margin-top: .12rem; font-size: .56rem; color: #a8bdc8; }
 .battle-page--focused .battle-mobile-skill .battle-skill-card__auto { top: .3rem; right: .2rem; font-size: .45rem; }
 .battle-page--focused .battle-mobile-skill--soul { flex-direction: column; gap: .25rem; }
 .battle-mobile-skill__icon img { width: 100%; height: 100%; padding: 2px; object-fit: contain; image-rendering: pixelated; }
-.battle-page--focused .battle-mobile-skill__icon { width: 46px; height: 46px; font-size: 1.4rem; }
-.battle-page--focused .battle-mobile-skill--soul strong { font-size: .7rem; }
+.battle-page--focused .battle-mobile-skill__icon { position:relative; width:46px; height:46px; font-size:1.4rem; }
+.battle-page--focused .battle-mobile-skill--soul strong { font-size:.7rem; line-height:1.05; }
 .battle-page--focused .battle-mobile-skill--soul small { font-size: .56rem; }
 .battle-page--focused .battle-mobile-supply-rail { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; min-height: 98px; padding: 2px; overflow: visible; }
 .battle-page--focused .battle-mobile-supply { min-width: 0; min-height: 46px; width: auto; padding: .3rem .4rem; }
@@ -3399,3 +3401,354 @@ button.battle-supply:not(:disabled):active { transform: scale(.985); }
     font-size: .7rem; line-height: 1.5; overflow-wrap: anywhere;
 }
 .formation-admission-overlay { position:fixed; inset:0; z-index:1500; background:#000a; display:grid; place-items:center; padding:16px; } .formation-admission-dialog { width:min(620px,100%); max-height:90vh; overflow:auto; background:#172331; color:#eef3fa; border:1px solid #43546c; border-radius:16px; padding:24px; }
+
+/* Keep the battle and thumb controls compact; explanations expand in place. */
+.battle-page--focused {
+    display: flex;
+    flex-direction: column;
+}
+
+.battle-page--focused .battle-stage { flex: 1 0 auto; }
+.battle-page--focused .battle-stage__header > div:first-child { min-width: 0; }
+.battle-page--focused .battle-stage__header h1 { overflow-wrap: anywhere; }
+.battle-depth { color: #dfbc7d; font-size: .7rem; white-space: nowrap; }
+.battle-page--focused .battle-stage__meta { flex: 0 0 auto; gap: .25rem; }
+
+.battle-page--focused .monster-intent--expandable {
+    display: block;
+    padding: 0;
+}
+
+.monster-intent__summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: .4rem;
+    min-height: 48px;
+    padding: .35rem .5rem;
+    list-style: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.monster-intent__summary::-webkit-details-marker { display: none; }
+.monster-intent__summary:focus-visible,
+.battle-management-details summary:focus-visible {
+    outline: 2px solid #e3ba72;
+    outline-offset: -2px;
+    border-radius: .4rem;
+}
+
+.battle-page--focused .monster-intent__summary .monster-intent__body {
+    display: grid;
+    gap: .12rem;
+}
+
+.battle-page--focused .monster-intent__body .monster-intent__danger {
+    display: block;
+    font-size: .65rem;
+    line-height: 1.1;
+    letter-spacing: 0;
+}
+
+.battle-page--focused .monster-intent__summary .monster-intent__target {
+    display: grid;
+    gap: .12rem;
+    grid-column: auto;
+    text-align: right;
+}
+
+.battle-page--focused .monster-intent__summary .monster-intent__target strong {
+    max-width: 112px;
+    font-size: .72rem;
+}
+
+.monster-intent__chevron { color: #e8c89d; transition: transform .15s; }
+.monster-intent[open] .monster-intent__chevron { transform: rotate(180deg); }
+.monster-intent__details { padding: 0 .7rem .6rem; color: #d7dfe6; font-size: .78rem; line-height: 1.5; }
+.monster-intent__details p { margin: .35rem 0 0; }
+
+.battle-page--focused .battle-feed { min-height: 44px; }
+.battle-page--focused .battle-mobile-quick-actions__heading { min-height: 44px; }
+.battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle { min-height: 44px; }
+.battle-loadout-switch { padding: .1rem; }
+.battle-loadout-switch button { min-height: 44px; font-size: .75rem; }
+.battle-page--focused .battle-mobile-character-tab { min-height: 44px; }
+.battle-page--focused .battle-mobile-character-tab strong { font-size: .75rem; }
+.battle-page--focused .battle-mobile-character-tab small { font-size: .65rem; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__name { font-size: .75rem; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__status,
+.battle-page--focused .battle-mobile-skill--soul small { font-size: .65rem; }
+
+.battle-page--focused .battle-command {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.battle-page--focused .battle-command__shortcuts {
+    grid-column: 1;
+    grid-row: 3;
+    align-items: center;
+    gap: .4rem;
+}
+
+.battle-command__queue { flex: 1; min-width: 0; color: #b4c6cf; font-size: .72rem; }
+.battle-page--focused .battle-command__shortcuts .battle-shortcut { flex: 0 0 auto; padding: .35rem .65rem; font-size: .75rem; }
+.battle-page--focused .battle-command__action { grid-column: 1; grid-row: 4; }
+.battle-page--focused .battle-command__action .battle-controls__primary { min-height: 48px; font-size: .9rem; }
+.battle-page--focused .battle-command__action .battle-controls__waiting,
+.battle-page--focused .battle-command__action .auto-indicator { min-height: 48px; font-size: .8rem; }
+.battle-page--focused .battle-command__action .battle-auto { flex-basis: 70px; width: 70px; min-height: 48px; }
+.battle-page--focused .battle-command__action .battle-auto input { width: 1rem; height: 1rem; }
+.battle-page--focused .battle-command__message { grid-row: 5; }
+
+.battle-management-details { margin-top: .65rem; border: 1px solid #455d6f; border-radius: .65rem; padding: 0 .65rem; color: #b9cbd6; font-size: .78rem; }
+.battle-management-details > summary { min-height: 44px; align-content: center; color: #e5c68e; cursor: pointer; }
+.battle-management-details[open] { padding-bottom: .65rem; }
+.battle-management-details > label { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.battle-management-details .coop-drop-bonus,
+.battle-management-details .damage-variance { max-width: none; font-size: .75rem; }
+.battle-management-details .coop-drop-bonus summary,
+.battle-management-details .damage-variance summary { min-height: 44px; align-content: center; }
+.battle-management-details .coop-drop-bonus__scope,
+.battle-management-details .damage-variance__scope { position: static; width: 100%; margin-top: .25rem; box-shadow: none; }
+.battle-log-dialog__close, .status-dialog__close, .skill-dialog__close { min-width: 44px; min-height: 44px; }
+
+@container game-shell (max-width: 420px) {
+    .battle-page--focused .battle-stage__meta { flex-direction: column; align-items: flex-end; }
+    .battle-page--focused .battle-action-profession { display: none; }
+    .battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle { flex-direction: column; justify-content: center; gap: .15rem; }
+    .battle-page--focused .battle-mobile-quick-actions__tools .quick-skill-toggle strong { font-size: .65rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .monster-intent__chevron { transition: none; }
+}
+
+/* Size the scenery to the available phone height instead of growing the page. */
+.battle-page--focused { min-height: 0; }
+.battle-page--focused .battle-stage { flex: 0 0 auto; }
+.battle-page--focused .battle-stage__header { min-height: 44px; padding-block: .35rem; }
+.battle-page--focused .battle-stage__meta { flex-direction: row; align-items: center; }
+.battle-page--focused .battle-stage__header h1 { margin-top: 0; }
+.battle-page--focused .battle-field {
+    --unit-height: clamp(68px, calc(35dvh - 200px), 112px);
+    flex: 0 0 auto;
+    min-height: 0;
+    padding-block: .15rem .45rem;
+}
+.battle-page--focused .enemy-vitals { display: flex; flex-direction: column; justify-content: center; min-height: 44px; max-width: none; }
+.battle-page--focused .combat-readout--log {
+    min-height: 44px;
+    margin-block: 0;
+    padding-block: .25rem;
+    border: 0;
+    border-bottom: 1px solid #c8a56820;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+.combat-readout--log:focus-visible { outline: 2px solid #e3ba72; outline-offset: -2px; }
+.combat-readout__log-label { flex: 0 0 auto; color: #e5c68e; font-size: .7rem; }
+.battle-page--focused .battle-mobile-skill { min-height:64px; padding-block:.2rem; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__icon,
+.battle-page--focused .battle-mobile-skill__icon { width: 38px; height: 38px; flex-basis: 38px; }
+.battle-page--focused .battle-mobile-skill .battle-skill-card__name { margin-top: .2rem; }
+@container game-shell (max-width:340px) {
+    .battle-page--focused .battle-mobile-skill-rail { gap:2px; }
+}
+
+@media (max-height: 740px) {
+    .battle-page--focused { min-height: 0; }
+    .battle-page--focused .battle-field { --unit-height: 48px; min-height: 0; }
+    .battle-page--focused .battle-command { grid-template-columns: auto minmax(0, 1fr); gap: .3rem; }
+    .battle-page--focused .battle-command__queue { display: none; }
+    .battle-page--focused .battle-command__shortcuts { grid-column: 1; grid-row: 3; gap: .25rem; }
+    .battle-page--focused .battle-command__shortcuts .battle-shortcut { min-width: 44px; min-height: 48px; padding-inline: .35rem; }
+    .battle-page--focused .battle-shortcut__count { display: none; }
+    .battle-page--focused .battle-command__action { grid-column: 2; grid-row: 3; gap: .25rem; }
+    .battle-page--focused .battle-command__action .battle-auto { flex-basis: 44px; width: 44px; min-width: 44px; }
+    .battle-page--focused .battle-command__action .battle-controls__primary { padding-inline: .3rem; font-size: .85rem; }
+    .battle-page--focused .battle-command__message { grid-row: 4; }
+}
+
+/* Secondary battle panels use one scroll area below a stable header. */
+.battle-log-overlay, .battle-management-overlay {
+    padding: max(.75rem, env(safe-area-inset-top)) 0 0;
+    align-items: end;
+    place-items: end center;
+    overflow: hidden;
+}
+.battle-log-dialog,
+.battle-reward-overlay .battle-reward-dialog,
+.battle-management-dialog {
+    width: min(100%, 640px);
+    max-height: min(820px, calc(100dvh - max(.75rem, env(safe-area-inset-top))));
+    border-width: 1px 0 0;
+    border-radius: 1rem 1rem 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.battle-log-dialog__header, .battle-management-dialog__header {
+    flex: 0 0 auto;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem .85rem;
+}
+.battle-log-dialog__header h2, .battle-management-dialog__header h2 { margin: 0; font: 700 1.1rem system-ui, sans-serif; }
+.battle-log-dialog__header h2 small { color: #a8becb; font-size: .75rem; font-weight: 500; }
+.battle-log-dialog__header p { margin-top: .2rem; font-size: .75rem; }
+.battle-log-dialog__content, .battle-management-dialog__content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding: .65rem .85rem .85rem;
+    scroll-padding-block: .5rem;
+}
+.battle-log-dialog__content li { padding: .55rem .15rem; font-size: .85rem; line-height: 1.6; }
+.battle-management-summary { gap: .2rem; margin-bottom: .65rem; padding: .55rem .65rem; font-size: .75rem; }
+.battle-management-dialog .party-slot { min-height: 0; padding: .65rem; }
+.battle-management-dialog .party-slot__identity h3 { margin-bottom: .12rem; font-size: .95rem; overflow-wrap: anywhere; }
+.battle-management-dialog .party-slot__identity span { font-size: .72rem; }
+.battle-management-dialog .party-slot__hp { margin-top: .35rem; font-size: .75rem; }
+.battle-management-dialog .health-bar { display: block; margin-block: .3rem; height: .35rem; }
+.battle-management-dialog .party-slot__badges { margin-top: .25rem; }
+.party-slot__details { margin-top: .25rem; border-top: 1px solid #43596a66; }
+.party-slot__details > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: #dcc08c; font-size: .78rem; cursor: pointer; list-style: none; }
+.party-slot__details > summary::after { content: "⌄"; }
+.party-slot__details[open] > summary::after { content: "⌃"; }
+.party-slot__details > summary::-webkit-details-marker { display: none; }
+.party-slot__details p { margin: .25rem 0 .55rem; color: #acbfcd; font-size: .75rem; line-height: 1.5; }
+.party-slot__details summary:focus-visible { outline: 2px solid #e3ba72; outline-offset: 2px; border-radius: .3rem; }
+.battle-management-dialog .slot-management { margin-top: .35rem; gap: .4rem; }
+.battle-management-dialog .slot-management select, .battle-management-dialog .slot-management .button { min-height: 44px; }
+.battle-management-dialog .slot-management .button { flex: 1; }
+.battle-management-dialog__footer { flex: 0 0 auto; padding-bottom: 0; }
+.battle-management-dialog .battle-controls--room-actions { padding: .65rem .85rem; }
+.battle-management-details p { font-size: .78rem; line-height: 1.6; }
+.battle-management-details .room-visibility-control { padding-inline: 0; border: 0; margin-bottom: 0; }
+@media (pointer: coarse) {
+    .battle-management-dialog select { font-size: 16px; }
+}
+
+.skill-dialog__cooldown { margin: 0; color: #d2bd92; font-size: .85rem; line-height: 1.5; }
+.skill-dialog__effects { border-block: 1px solid #48627680; }
+.skill-dialog__effects > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: #dcc08c; font-size: .85rem; cursor: pointer; }
+.skill-dialog__effects > summary span { color: #a4b7c4; font-size: .75rem; }
+.skill-dialog__effects > summary::after { content: "⌄"; }
+.skill-dialog__effects[open] > summary::after { content: "⌃"; }
+.skill-dialog__effects > summary::-webkit-details-marker { display: none; }
+.skill-dialog__effects > summary:focus-visible { outline: 2px solid #e3ba72; outline-offset: 2px; }
+.skill-dialog__effects .skill-dialog__facts { grid-template-columns: 1fr; margin-bottom: .5rem; }
+.skill-dialog__effects .skill-dialog__facts span { min-height: 0; font-size: .8rem; line-height: 1.5; }
+.skill-dialog__automation { padding: .6rem; }
+.skill-dialog__automation-heading strong { font-size: .85rem; }
+.skill-dialog__automation-heading small { font-size: .75rem; line-height: 1.5; }
+
+.room-confirm-overlay { position: fixed; inset: 0; z-index: 1400; display: grid; place-items: center; padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)); background: #020a13cc; backdrop-filter: blur(4px); }
+.room-confirm-dialog { width: min(100%, 420px); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1rem; border: 1px solid #7c7667; border-radius: 1rem; background: linear-gradient(145deg, #23394b, #102130); box-shadow: 0 16px 60px #0008; }
+.room-confirm-dialog h2 { margin: 0; color: #f0dfc2; font-size: 1.1rem; }
+.room-confirm-dialog p { margin: .75rem 0 1rem; color: #c6d2dc; font-size: .9rem; line-height: 1.65; }
+.room-confirm-dialog__actions { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.room-confirm-dialog__actions .button { min-height: 44px; }
+
+/* Keep the header and decision visible while expanded skill effects scroll. */
+.skill-dialog { display: flex; flex-direction: column; overflow: hidden; }
+.skill-dialog__header, .skill-dialog__footer { flex: 0 0 auto; }
+.skill-dialog__content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; }
+.skill-dialog__footer { position: static; }
+.skill-dialog__footer .button { min-height: 44px; }
+.skill-dialog__automation .switch-control { min-height: 44px; }
+.skill-dialog__automation .switch-control span { top: 8px; bottom: 8px; }
+.status-dialog { display: flex; flex-direction: column; }
+.status-dialog__header { flex: 0 0 auto; }
+.status-dialog__content { flex: 1 1 auto; min-height: 0; max-height: none; overscroll-behavior: contain; }
+@media (max-width: 360px) {
+    .battle-page--focused .battle-field--crowded { grid-template-columns: minmax(220px, 1fr) minmax(0, 54px); gap: .25rem; padding-inline: .3rem; }
+    .battle-page--focused .fighter-line { gap: 0; }
+    .battle-page--focused .fighter { min-width: 44px; }
+}
+
+/* Slot numbers remain distinguishable when long character names share a prefix. */
+.battle-page--focused .battle-mobile-character-tab { grid-template-columns: .9rem minmax(0, 1fr); column-gap: .15rem; }
+.battle-page--focused .battle-mobile-character-tab > span { display: grid; grid-column: 1; grid-row: 1; width: .9rem; height: .9rem; font-size: .65rem; align-self: center; }
+.battle-page--focused .battle-mobile-character-tab > strong { grid-column: 2; grid-row: 1; }
+.battle-page--focused .battle-mobile-character-tab > small { grid-column: 1 / -1; grid-row: 2; text-align: center; }
+.battle-mobile-character-tab:focus-visible { outline: 2px solid #eed08e; outline-offset: -2px; }
+
+/* Unbroken account names must not set the intrinsic width of the party grid. */
+.battle-management-dialog .slot-grid { grid-template-columns: minmax(0, 1fr); }
+.battle-management-dialog .party-slot, .party-slot__identity { min-width: 0; }
+.party-slot__identity span { display: block; overflow-wrap: anywhere; }
+.party-slot__details, .slot-management { min-width: 0; }
+
+/* Team overview keeps all five positions compact; changes live in a focused subview. */
+.management-heading { flex: 1; min-width: 0; }
+.management-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; flex: none; padding: .3rem .85rem .55rem; border-bottom: 1px solid #6d849533; }
+.management-tabs button { min-height: 44px; border: 1px solid transparent; border-radius: .6rem; background: #0d202e80; color: #a6bdcb; font-size: .85rem; }
+.management-tabs button[aria-pressed="true"] { color: #f4d596; border-color: #aa8b54; background: #ddba6b1c; font-weight: 700; }
+.management-roster-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .65rem; }
+.management-roster-heading strong { min-width: 0; font-size: .82rem; color: #ead2a8; overflow-wrap: anywhere; }
+.management-roster-heading small { flex: none; font-size: .68rem; color: #9fb7c7; }
+.management-roster { display: grid; gap: .45rem; }
+.management-slot { width: 100%; min-width: 0; display: grid; grid-template-columns: 14px 42px minmax(0, 1fr) auto; align-items: center; gap: .4rem; padding: .55rem .6rem; border: 1px solid #476172; border-radius: .7rem; background: #0d202e; color: #dce5ee; text-align: left; }
+.management-slot:hover:not(:disabled) { border-color: #dcb971; background: #1a3141; }
+.management-slot__number { color: #dab775; font-weight: 700; font-size: .8rem; text-align: center; }
+.management-slot__portrait { width: 42px; height: 52px; overflow: hidden; border-radius: .4rem; background: radial-gradient(ellipse, #46607666, transparent); }
+.management-slot__portrait img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.management-slot__body { display: grid; min-width: 0; gap: .25rem; }
+.management-slot__name { display: grid; gap: .08rem; min-width: 0; }
+.management-slot__name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
+.management-slot__name small, .management-slot__hp small { font-size: .65rem; color: #a6bece; }
+.management-slot__hp { display: flex; gap: .4rem; align-items: center; }
+.management-slot__hp .health-bar { flex: 1; min-width: 24px; width: 100%; height: 4px; margin: 0; }
+.management-slot__hp small { flex: none; font-variant-numeric: tabular-nums; }
+.management-slot__state { display: grid; justify-items: end; gap: .2rem; font-size: .65rem; color: #c5b48f; }
+.management-slot__state > span { font-size: 1.15rem; color: #8aa3b5; line-height: 1; }
+.management-slot__state.is-ready { color: #88d9b1; }
+.management-slot__state.is-defeated { color: #eb9c90; }
+.management-slot--empty { min-height: 50px; border-style: dashed; background: #0b1b264d; }
+.management-slot--empty:disabled { opacity: .75; }
+.management-slot__plus { color: #e1bc75; font-size: 1.35rem; text-align: center; }
+.management-slot__empty-label { color: #cfbc95; font-size: .82rem; }
+.management-slot__vacancy { color: #829cae; font-size: .65rem; }
+.management-member { display: flex; align-items: center; gap: .7rem; margin-bottom: .7rem; }
+.management-member > img { width: 60px; height: 76px; object-fit: contain; image-rendering: pixelated; }
+.management-member > div { min-width: 0; }
+.management-member h3 { margin: 0; color: #f0dfba; font-size: 1rem; overflow-wrap: anywhere; }
+.management-member p, .management-note { margin: .3rem 0; color: #a6bfce; font-size: .75rem; line-height: 1.6; overflow-wrap: anywhere; }
+.management-state { font-size: .7rem; color: #d9c398; }
+.management-member-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-bottom: .6rem; }
+.management-member-facts > div { display: grid; gap: .25rem; padding: .55rem; border: 1px solid #466074; border-radius: .55rem; }
+.management-member-facts span { color: #a6bfce; font-size: .7rem; }
+.management-member-facts strong { font-size: .8rem; overflow-wrap: anywhere; }
+.management-member-facts progress { width: 100%; height: 4px; margin: .15rem 0; accent-color: #d6b371; }
+.management-section-title { margin: 1rem 0 .45rem; color: #ead2a8; font-size: .85rem; }
+.management-note--timing { color: #e6c388; margin-bottom: .65rem; }
+.management-candidates { display: grid; gap: .45rem; }
+.management-candidate { display: grid; grid-template-columns: 36px minmax(0, 1fr) 22px; align-items: center; gap: .55rem; min-height: 64px; padding: .45rem .6rem; text-align: left; border: 1px solid #456174; border-radius: .6rem; background: #0d202e; color: #dce5ee; }
+.management-candidate img { width: 36px; height: 46px; object-fit: contain; image-rendering: pixelated; }
+.management-candidate > span { min-width: 0; }
+.management-candidate strong, .management-candidate small { display: block; overflow-wrap: anywhere; }
+.management-candidate strong { font-size: .85rem; }
+.management-candidate small { margin-top: .15rem; color: #a6bfce; font-size: .7rem; }
+.management-candidate[aria-pressed="true"] { border-color: #d5ad65; background: #d5ad651c; }
+.management-candidate__check { color: #ddbd7c; text-align: center; }
+.management-edit-actions { display: flex; gap: .5rem; padding: .65rem .85rem; border-top: 1px solid #6d849533; background: #0d1f2e; }
+.management-edit-actions .button { flex: 1; min-height: 44px; }
+.management-edit-actions .button--secondary { flex: 0 1 auto; }
+.battle-management-summary { overflow-wrap: anywhere; }
+
+/* Full names wrap without oversized headings consuming a short-screen dialog. */
+.status-dialog__header, .skill-dialog__header { gap: .5rem; padding: .7rem .8rem; }
+.status-dialog__identity, .skill-dialog__skill { flex: 1; min-width: 0; gap: .5rem; align-items: flex-start; }
+.status-dialog__identity > div, .skill-dialog__skill > div { min-width: 0; flex: 1; }
+.status-dialog__header h2, .skill-dialog__header h2 { font: 700 1.05rem/1.3 system-ui, sans-serif; overflow-wrap: anywhere; }
+.status-dialog__header .section-kicker, .skill-dialog__header .section-kicker { font-size: .72rem; line-height: 1.35; letter-spacing: .03em; }
+.status-dialog__header p, .skill-dialog__header p { overflow-wrap: anywhere; }
+.status-dialog__portrait { width: 44px; height: 52px; flex-basis: 44px; }
+.status-dialog__portrait img { max-height: 50px; }
+.skill-dialog__skill .battle-skill-card__icon { width: 44px; height: 44px; flex-basis: 44px; }
+.status-dialog__close, .skill-dialog__close { font: 400 26px/1 system-ui, sans-serif; }

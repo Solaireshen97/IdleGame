@@ -70,7 +70,7 @@ public sealed partial class SoulImprintServiceTests
         Assert.Equal("SoulImprintLocked", (await test.Service.DismantleAsync(test.Token, 1,
             new SoulImprintBatchRequest { SoulImprintIds = [locked.Id] })).Error);
         var (response, error) = await test.Service.DismantleAsync(test.Token, 1,
-            new SoulImprintBatchRequest { SoulImprintIds = [spare.Id] });
+            await InventoryTestRequests.SoulsAsync(test.Db, test.Catalog, 1, spare.Id));
 
         Assert.Null(error);
         Assert.Equal(25, response!.Fragments.Single(item => item.Tier == 1).Quantity);
@@ -80,16 +80,18 @@ public sealed partial class SoulImprintServiceTests
     private sealed class SoulImprintTestContext : IAsyncDisposable
     {
         private readonly string _path;
-        private SoulImprintTestContext(string path, GameDbContext db, SoulImprintService service)
+        private SoulImprintTestContext(string path, GameDbContext db, SoulImprintService service, SoulImprintCatalog catalog)
         {
             _path = path;
             Db = db;
             Service = service;
+            Catalog = catalog;
         }
 
         public string Token => "soul-token";
         public GameDbContext Db { get; }
         public SoulImprintService Service { get; }
+        public SoulImprintCatalog Catalog { get; }
 
         public static async Task<SoulImprintTestContext> CreateAsync()
         {
@@ -118,7 +120,7 @@ public sealed partial class SoulImprintServiceTests
                 }]
             }));
             var users = new UserService(db, ProgressionTestFactory.Create(), SkillTestFactory.Create());
-            return new SoulImprintTestContext(path, db, new SoulImprintService(db, users, catalog));
+            return new SoulImprintTestContext(path, db, new SoulImprintService(db, users, catalog), catalog);
         }
 
         public async ValueTask DisposeAsync()

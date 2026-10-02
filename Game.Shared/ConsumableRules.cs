@@ -8,7 +8,8 @@ public static class ConsumableRules
     public const int OperationPotionSlotIndex = 3;
     public const int TotalSlotCount = 3;
     public const int HealingPotionUsesPerRun = 2;
-    public const int DefaultAutoHpThresholdPercent = 50;
+    public const int BuffPotionUsesPerRun = 2;
+    public const int DefaultAutoHpThresholdPercent = 40;
 
     public static int SlotMask(int slotIndex) => slotIndex is >= 1 and <= SlotCount
         ? 1 << (slotIndex - 1) : 0;

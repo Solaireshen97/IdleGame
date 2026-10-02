@@ -8,7 +8,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 
-<div class="page @(IsBattlePage ? "page--battle" : null) @(IsLobbyPage ? "page--lobby" : null) @(IsWeaponsPage ? "page--weapons" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsEntryPage ? "page--auth" : null)">
+<div class="page @(IsBattlePage ? "page--battle" : null) @(IsLobbyPage ? "page--lobby" : null) @(IsWeaponsPage ? "page--weapons" : null) @(IsTalentPage ? "page--talents" : null) @(IsSuppliesPage ? "page--supplies" : null) @(IsInventoryPage ? "page--inventory" : null) @(IsFormationsPage ? "page--formations" : null) @(IsEntryPage ? "page--auth" : null)">
     @if (!IsEntryPage)
     {
         <NavMenu />
@@ -30,7 +30,6 @@
                         aria-haspopup="dialog"
                         aria-expanded="@(_isSwitcherOpen ? "true" : "false")"
                         aria-label="@(ActiveCharacters.Current is { } active ? $"当前角色 {active.Name}，等级 {active.Level}，{GetExperienceText(active)}，点击切换角色" : "选择当前操作角色")">
-                    <span class="top-row__character-label">当前操作角色</span>
                     @if (ActiveCharacters.Current is { } character)
                     {
                         <span class="top-row__character-line">
@@ -52,19 +51,6 @@
                     <span class="top-row__character-arrow" aria-hidden="true">⌄</span>
                 </button>
             }
-            <a href="/formations" class="button button--secondary">编队</a>
-            <strong class="top-row__title">@CurrentPageTitle</strong>
-            @if (!_isLoadingUser && _currentUser is not null)
-            {
-                <div class="top-row__account">
-                    <span class="top-row__username" title="@_currentUser.UserName">@_currentUser.UserName</span>
-                    <button type="button" class="top-row__logout" @onclick="LogoutAsync" disabled="@_isLoggingOut" title="退出登录" aria-label="@(_isLoggingOut ? "正在退出登录" : "退出登录")">@(_isLoggingOut ? "…" : "↪")</button>
-                </div>
-            }
-            @if (_logoutError is not null)
-            {
-                <span class="top-row__error" role="alert">@_logoutError</span>
-            }
         </div>
         }
 
@@ -80,21 +66,25 @@
         </article>
     </main>
 
-    @if (_isSwitcherOpen && _currentUser is not null)
+    @if (_currentUser is not null)
     {
-        <div class="character-switcher__overlay" @onclick="CloseSwitcher">
-            <section class="character-switcher__dialog" role="dialog" aria-modal="true" aria-labelledby="character-switcher-title" @onclick:stopPropagation="true" @onkeydown="HandleSwitcherKeyDown">
+        <ShellDialog IsOpen="_isSwitcherOpen" OnClose="CloseSwitcher" Class="character-switcher" LabelledBy="character-switcher-title">
                 <header class="character-switcher__header">
                     <div>
-                        <span>YOUR CHARACTERS</span>
-                        <h2 id="character-switcher-title">选择操作角色</h2>
-                        <p>切换当前角色，或创建、管理你的角色。</p>
+                        <h2 id="character-switcher-title">我的角色</h2>
+                        <p>@_currentUser.UserName</p>
                     </div>
-                    <button type="button" class="character-switcher__close" @ref="_switchCloseButton" @onclick="CloseSwitcher" aria-label="关闭角色窗口">×</button>
+                    <button type="button" class="character-switcher__close" @onclick="CloseSwitcher" aria-label="关闭角色窗口">×</button>
                 </header>
+                @if (_isSwitcherOpen)
+                {
                 <CurrentCharacterPanel OnSelected="CloseSwitcher" />
-            </section>
-        </div>
+                }
+                <footer class="character-switcher__account">
+                    @if (_logoutError is not null) { <span class="top-row__error" role="alert">@_logoutError</span> }
+                    <button type="button" class="button button--quiet" @onclick="LogoutAsync" disabled="@_isLoggingOut">@(_isLoggingOut ? "正在退出…" : "退出登录")</button>
+                </footer>
+        </ShellDialog>
     }
 </div>
 
@@ -108,16 +98,16 @@
     private bool _isOpeningBattle;
     private string? _logoutError;
     private bool _isSwitcherOpen;
-    private bool _focusSwitcherClose;
-    private bool _focusSwitcherTrigger;
+    private bool _restoreSwitcherFocus;
     private ElementReference _switchTrigger;
-    private ElementReference _switchCloseButton;
     private readonly CancellationTokenSource _refreshCancellation = new();
     private bool IsBattlePage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
     private bool IsLobbyPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') is "" or "rooms";
     private bool IsWeaponsPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("weapons", StringComparison.OrdinalIgnoreCase);
     private bool IsTalentPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("talents", StringComparison.OrdinalIgnoreCase);
     private bool IsSuppliesPage => Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("supplies", StringComparison.OrdinalIgnoreCase);
+    private bool IsFormationsPage => string.Equals(Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/'), "formations", StringComparison.OrdinalIgnoreCase);
+    private bool IsInventoryPage => string.Equals(Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/'), "inventory", StringComparison.OrdinalIgnoreCase);
     private bool IsCharacterCreationPage => string.Equals(
         Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/'), "characters/create", StringComparison.OrdinalIgnoreCase);
     private bool IsEntryPage => IsAuthPage || IsCharacterCreationPage;
@@ -138,6 +128,7 @@
             if (path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase)) return "战斗房间";
             if (path.StartsWith("talents", StringComparison.OrdinalIgnoreCase)) return "职业与技能";
             if (path.StartsWith("weapons", StringComparison.OrdinalIgnoreCase)) return "武器编成";
+            if (path.StartsWith("inventory", StringComparison.OrdinalIgnoreCase)) return "角色仓库";
             if (path.StartsWith("shop", StringComparison.OrdinalIgnoreCase)) return "商店";
             if (path.StartsWith("supplies", StringComparison.OrdinalIgnoreCase)) return "战斗补给";
             if (path.StartsWith("gathering", StringComparison.OrdinalIgnoreCase) || path.StartsWith("planting", StringComparison.OrdinalIgnoreCase)) return "药田种植";
@@ -156,10 +147,13 @@
         ActiveCharacters.Changed += OnActiveCharacterChanged;
         CharacterContext.Changed += OnCharacterContextChanged;
         ApiService.ContextChanged += OnContextChanged;
+        Navigation.LocationChanged += OnLocationChanged;
         _ = RefreshCharacterLoopAsync(_refreshCancellation.Token);
     }
 
-    protected override Task OnParametersSetAsync() => LoadPageContextAsync();
+    // Query-only warehouse navigation must not remove @Body while refreshing the header.
+    protected override Task OnParametersSetAsync() => LoadPageContextAsync(
+        preserveBody: IsInventoryPage && _canRenderBody && _layoutSessionRevision == ApiService.SessionRevision);
 
     private async Task LoadPageContextAsync(bool preserveBody = false)
     {
@@ -175,8 +169,6 @@
         if (_currentUser is null)
         {
             _isSwitcherOpen = false;
-            _focusSwitcherClose = false;
-            _focusSwitcherTrigger = false;
             ActiveCharacters.Clear();
             _canRenderBody = true;
         }
@@ -195,44 +187,39 @@
         _isLoadingUser = false;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_focusSwitcherClose)
-        {
-            _focusSwitcherClose = false;
-            await _switchCloseButton.FocusAsync();
-        }
-        else if (_focusSwitcherTrigger && _currentUser is not null)
-        {
-            _focusSwitcherTrigger = false;
-            await _switchTrigger.FocusAsync();
-        }
-    }
-
     private void OpenSwitcher()
     {
         _isSwitcherOpen = true;
-        _focusSwitcherClose = true;
     }
 
     private void CloseSwitcher()
     {
+        _restoreSwitcherFocus |= _isSwitcherOpen;
         _isSwitcherOpen = false;
-        _focusSwitcherTrigger = true;
     }
 
-    private void HandleSwitcherKeyDown(KeyboardEventArgs args)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (args.Key == "Escape") CloseSwitcher();
+        if (_restoreSwitcherFocus && !_isSwitcherOpen && !_isLoadingUser && _currentUser is not null)
+        {
+            _restoreSwitcherFocus = false;
+            await _switchTrigger.FocusAsync(preventScroll: true);
+        }
     }
 
     private void OnActiveCharacterChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private void OnContextChanged()
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(() =>
     {
         _isSwitcherOpen = false;
-        _focusSwitcherClose = false;
-        _focusSwitcherTrigger = false;
+        _restoreSwitcherFocus = false;
+        StateHasChanged();
+    });
+
+    private void OnContextChanged()
+    {
+        _restoreSwitcherFocus |= _isSwitcherOpen && !_isLoggingOut;
+        _isSwitcherOpen = false;
         _ = InvokeAsync(async () =>
         {
             if (_refreshCancellation.IsCancellationRequested) return;
@@ -314,6 +301,7 @@
         ActiveCharacters.Changed -= OnActiveCharacterChanged;
         CharacterContext.Changed -= OnCharacterContextChanged;
         ApiService.ContextChanged -= OnContextChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
         _refreshCancellation.Cancel();
         _refreshCancellation.Dispose();
     }

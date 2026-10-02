@@ -7,3 +7,4 @@
 .skill-auto-picker__hint { flex-basis: 100%; margin: 0; color: #adbfcb; font-size: .72rem; line-height: 1.5; }
 .skill-auto-picker select:focus-visible, .skill-auto-picker input:focus-visible { outline: 2px solid #e0b15f; outline-offset: 2px; }
 .skill-auto-picker select:disabled, .skill-auto-picker input:disabled { opacity: .6; cursor: wait; }
+@media(pointer:coarse) { .skill-auto-picker select, .skill-auto-picker input { font-size:16px; } }

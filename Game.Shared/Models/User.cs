@@ -6,6 +6,6 @@ public class User
     public string UserName { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public int? ActiveCharacterId { get; set; }
-    public int CharacterSlotLimit { get; set; } = 2;
+    public int CharacterSlotLimit { get; set; } = CharacterSlotRules.SlotsPerAccount;
     public int Version { get; set; }
 }

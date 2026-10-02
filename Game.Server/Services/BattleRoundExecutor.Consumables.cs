@@ -108,7 +108,7 @@ public sealed partial class BattleRoundExecutor
         }
     }
 
-    private async Task ApplyCombatBuffsAsync(Room room, List<BattleParticipant> aliveSlots, List<string> logs)
+    private async Task ApplyCombatBuffsAsync(Room room, List<BattleParticipant> aliveSlots, Monster monster, List<string> logs)
     {
         if (weaponCatalog is null) return;
         var ids = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -121,21 +121,23 @@ public sealed partial class BattleRoundExecutor
         var active = await dbContext.BattleConsumableBuffs.Where(buff => buff.RoomId == room.Id &&
             buff.RunSequence == room.RunSequence && buff.ExpiresAfterRound >= room.RoundNumber &&
             ids.Contains(buff.CharacterId)).ToListAsync();
+        var states = await ReadConsumableUsesAsync(room, ids);
 
         foreach (var participant in aliveSlots)
         {
             var character = participant.Character;
             if (!equipment.TryGetValue(character.Id, out var slot)) continue;
+            slot = BattleAutoPolicyResolver.Consumable(participant.Slot, slot);
             var manual = (participant.Slot.PendingConsumableSlotMask & ConsumableRules.SlotMask(slot.SlotIndex)) != 0;
             var item = consumableCatalog.FindItem(slot.ItemCode);
-            if (!manual && (!slot.AutoUseEnabled || item is { WeaponSkillCode: "weapon-enmity" } &&
-                (long)character.Hp * 100 > (long)TalentRules.EffectiveMaxHp(character) * 50)) continue;
+            if (!manual && !slot.AutoUseEnabled) continue;
+            states.TryGetValue(character.Id, out var state);
             var stock = stocks.SingleOrDefault(stack => stack.CharacterId == character.Id && stack.ItemCode == item?.Code);
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == character.Id &&
                 string.Equals(entry.CooldownGroup, item?.CooldownGroup, StringComparison.OrdinalIgnoreCase));
             var unavailable = ConsumableUsePolicy.UnavailableReason(room, character, slot.SlotIndex, item,
                 stock?.Quantity ?? 0, Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber), 0,
-                active.Any(buff => buff.CharacterId == character.Id && buff.WeaponSkillCode == item?.WeaponSkillCode));
+                active.Any(buff => buff.CharacterId == character.Id && buff.WeaponSkillCode == item?.WeaponSkillCode), state?.BuffUsesUsed ?? 0);
             if (unavailable is not null)
             {
                 if (manual) LogSkippedConsumable(participant, item?.Name, unavailable, logs);
@@ -143,6 +145,10 @@ public sealed partial class BattleRoundExecutor
             }
             var skillLevel = ConsumableRules.ScaledSkillLevel(item!.WeaponSkillLevel, item.Tier, character.Level);
             if (skillLevel <= 0) continue;
+            if (!manual && !await MeetsConsumableAutoConditionAsync(room, monster, participant, aliveSlots, slot, item)) continue;
+            state ??= AddConsumableUses(room, character.Id, states);
+            state.BuffUsesUsed++;
+            state.Version++;
             stock!.Quantity--;
             stock.Version++;
             SetConsumableCooldown(room, character.Id, item.CooldownGroup, item.CooldownRounds, cooldown, cooldowns);
@@ -161,7 +167,7 @@ public sealed partial class BattleRoundExecutor
         }
     }
 
-    private async Task ApplyCombatConsumablesAsync(Room room, List<BattleParticipant> aliveSlots, List<string> logs)
+    private async Task ApplyCombatConsumablesAsync(Room room, List<BattleParticipant> aliveSlots, Monster monster, List<string> logs)
     {
         var ids = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var equipment = await dbContext.CharacterConsumableSlots.Where(slot =>
@@ -170,17 +176,16 @@ public sealed partial class BattleRoundExecutor
         var stocks = await dbContext.CharacterItemStacks.Where(stack => ids.Contains(stack.CharacterId)).ToListAsync();
         var cooldowns = await dbContext.BattleConsumableCooldowns.Where(cooldown =>
             cooldown.RoomId == room.Id && ids.Contains(cooldown.CharacterId)).ToListAsync();
-        var states = await dbContext.BattleHealingPotionStates.Where(state => state.RoomId == room.Id &&
-            state.RunSequence == room.RunSequence && ids.Contains(state.CharacterId)).ToDictionaryAsync(state => state.CharacterId);
+        var states = await ReadConsumableUsesAsync(room, ids);
 
         foreach (var participant in aliveSlots)
         {
             var character = participant.Character;
             if (!equipment.TryGetValue(character.Id, out var slot)) continue;
+            slot = BattleAutoPolicyResolver.Consumable(participant.Slot, slot);
             var manual = (participant.Slot.PendingConsumableSlotMask & ConsumableRules.SlotMask(slot.SlotIndex)) != 0;
             var maxHp = TalentRules.EffectiveMaxHp(character);
-            if (!manual && (!slot.AutoUseEnabled || (long)character.Hp * 100 > (long)maxHp * slot.AutoHpThresholdPercent))
-                continue;
+            if (!manual && !slot.AutoUseEnabled) continue;
             var item = consumableCatalog.FindItem(slot.ItemCode);
             var stock = stocks.SingleOrDefault(stack => stack.CharacterId == character.Id && stack.ItemCode == item?.Code);
             var cooldown = cooldowns.SingleOrDefault(entry => entry.CharacterId == character.Id &&
@@ -197,13 +202,8 @@ public sealed partial class BattleRoundExecutor
                 (1 + character.TalentHealingReceivedPercent / 100m));
             var healed = Math.Min(raw, maxHp - character.Hp);
             if (healed <= 0) continue;
-
-            if (state is null)
-            {
-                state = new BattleHealingPotionState { RoomId = room.Id, RunSequence = room.RunSequence, CharacterId = character.Id };
-                states.Add(character.Id, state);
-                dbContext.BattleHealingPotionStates.Add(state);
-            }
+            if (!manual && !await MeetsConsumableAutoConditionAsync(room, monster, participant, aliveSlots, slot, item!)) continue;
+            state ??= AddConsumableUses(room, character.Id, states);
             // The existing round SaveChanges commits health, stock, cooldown, quota and room version together.
             var hpBefore = character.Hp;
             character.Hp += healed;
@@ -238,6 +238,32 @@ public sealed partial class BattleRoundExecutor
             _events.Status(room, "Character", state.CharacterId, BattleConsumableStatus.Operation(state, consumableCatalog), BattleStatusChange.Removed, 1, 0);
     }
 
+    private async Task<bool> MeetsConsumableAutoConditionAsync(Room room, Monster monster, BattleParticipant participant,
+        List<BattleParticipant> participants, CharacterConsumableSlot slot, ConsumableItemOptions item) =>
+        SkillBattlePolicy.MeetsAutoCondition(
+            await _skillSnapshots.CaptureAutoAsync(room, monster, participant.Character.Id,
+                participants.Select(entry => (entry.Slot, entry.Character))),
+            slot.AutoConditionOverride ?? ConsumableCatalog.DefaultAutoCondition(item), slot.AutoHpThresholdPercent);
+
+    private async Task<Dictionary<int, BattleHealingPotionState>> ReadConsumableUsesAsync(Room room, List<int> ids)
+    {
+        var states = await dbContext.BattleHealingPotionStates.Where(state => state.RoomId == room.Id &&
+            state.RunSequence == room.RunSequence && ids.Contains(state.CharacterId)).ToDictionaryAsync(state => state.CharacterId);
+        // Buffs and healing may both create/update the same quota row before this round is saved.
+        foreach (var state in dbContext.BattleHealingPotionStates.Local.Where(state => state.RoomId == room.Id &&
+            state.RunSequence == room.RunSequence && ids.Contains(state.CharacterId)))
+            states[state.CharacterId] = state;
+        return states;
+    }
+
+    private BattleHealingPotionState AddConsumableUses(Room room, int characterId, Dictionary<int, BattleHealingPotionState> states)
+    {
+        var state = new BattleHealingPotionState { RoomId = room.Id, RunSequence = room.RunSequence, CharacterId = characterId };
+        states.Add(characterId, state);
+        dbContext.BattleHealingPotionStates.Add(state);
+        return state;
+    }
+
     private void SetConsumableCooldown(Room room, int characterId, string group, int rounds,
         BattleConsumableCooldown? cooldown, List<BattleConsumableCooldown> cooldowns)
     {
@@ -255,6 +281,7 @@ public sealed partial class BattleRoundExecutor
         var description = reason switch
         {
             "HealingPotionLimitReached" => "本次副本治疗药水次数已用完",
+            "BuffPotionLimitReached" => "本次副本强化药剂次数已用完",
             "HpFull" => "生命已满", "CharacterDead" => "角色已阵亡", "OutOfStock" => "库存不足",
             "ConsumableCooldown" => "药水仍在冷却", "BuffAlreadyActive" => "增益仍在生效",
             "ConsumableIneffective" => "当前等级无法生效", "BattleOver" => "战斗已结束",

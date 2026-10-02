@@ -49,6 +49,7 @@ public partial class GameDbContext(DbContextOptions<GameDbContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureStory(modelBuilder);
         ConfigureFormations(modelBuilder);
         ConfigureStatistics(modelBuilder);
         modelBuilder.Entity<DungeonRunRuleSnapshot>().HasKey(item => item.RoomId);
@@ -144,6 +145,8 @@ public partial class GameDbContext(DbContextOptions<GameDbContext> options) : Db
         modelBuilder.Entity<BattleHealingPotionState>().Property(state => state.Version).IsConcurrencyToken();
         modelBuilder.Entity<BattleHealingPotionState>().ToTable(table => table.HasCheckConstraint(
             "CK_BattleHealingPotionStates_Uses", $"UsesUsed BETWEEN 0 AND {Game.Shared.ConsumableRules.HealingPotionUsesPerRun}"));
+        modelBuilder.Entity<BattleHealingPotionState>().ToTable(table => table.HasCheckConstraint(
+            "CK_BattleHealingPotionStates_BuffUses", $"BuffUsesUsed BETWEEN 0 AND {Game.Shared.ConsumableRules.BuffPotionUsesPerRun}"));
         modelBuilder.Entity<BattleOperationPotionState>()
             .ToTable(table => table.HasCheckConstraint("CK_BattleOperationPotionStates_AttackPercent",
                 "AttackPercent BETWEEN 0 AND 100"));

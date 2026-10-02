@@ -1,0 +1,18 @@
+@inject NavigationManager Navigation
+
+<GameStateCard Compact="true" Title="正在打开编队" Detail="出战配置已集中到编队。" />
+
+@code {
+    [Parameter] public string Section { get; set; } = "weapons";
+    [Parameter] public int? InstanceId { get; set; }
+    [Parameter] public string? InstanceKind { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        var section = Section is "profession" or "skills" or "soul" or "consumables" ? Section : "weapons";
+        var target = InstanceId is > 0 && InstanceKind is "weapon" or "soul"
+            ? $"/inventory?category={(InstanceKind == "weapon" ? "weapons" : "souls")}&item={InstanceKind}:{InstanceId}"
+            : $"/formations?section={section}";
+        Navigation.NavigateTo(target, replace: true);
+    }
+}

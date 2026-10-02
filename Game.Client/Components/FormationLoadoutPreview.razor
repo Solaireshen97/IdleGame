@@ -1,0 +1,57 @@
+@using Game.Shared
+@using Game.Shared.Dtos.Formations
+@using Game.Client.Services
+
+<span class="loadout-preview">
+    <span class="loadout-identity">
+        <span class="loadout-portrait"><img src="@ProfessionArt.ForCode(Formation.Loadout.ProfessionCode)" alt="@Formation.Preview.ProfessionName" /></span>
+        <span class="loadout-copy">
+            <strong title="@Formation.Name">@Formation.Name</strong>
+            <span>@Formation.Preview.ProfessionName <small>Lv.@Formation.Preview.Level</small><span class="loadout-element">@WeaponRules.ElementName(Formation.GroupElement)</span></span>
+            <small class="loadout-stats"><span>攻击 @Formation.Preview.Attack.ToString("N0")</span><span>生命 @Formation.Preview.MaxHp.ToString("N0")</span></small>
+        </span>
+        <span class="loadout-main @(Formation.Preview.MainWeapon is null ? "loadout-main--empty" : null)" title="@MainWeaponLabel">
+            @if (Formation.Preview.MainWeapon is { } main && !string.IsNullOrWhiteSpace(main.Code))
+            {
+                <img src="@WeaponArt.ForCode(main.Code)" alt="@MainWeaponLabel" />
+            }
+            else
+            {
+                <span class="loadout-placeholder" role="img" aria-label="@MainWeaponLabel">—</span>
+            }
+            <small aria-hidden="true">主武器</small>
+        </span>
+    </span>
+    <span class="loadout-skills" aria-label="携带技能">
+        @for (var index = 1; index <= SkillRules.SlotCount; index++)
+        {
+            var slot = Formation.Loadout.Skills.FirstOrDefault(item => item.SlotIndex == index);
+            var skill = Formation.Preview.AvailableSkills.FirstOrDefault(item => item.Code == slot?.SkillCode);
+            var name = slot?.SkillCode is null ? "空槽" : skill?.Name ?? "未知技能";
+            var label = $"技能{index}：{name}" + (slot?.SkillCode is null ? "" : slot.AutoUseEnabled ? " · 自动" : " · 手动");
+            <span class="loadout-skill @(slot?.SkillCode is null ? "loadout-skill--empty" : null)" title="@label">
+                <span class="loadout-skill-art">
+                    @if (SkillArt.ForCode(slot?.SkillCode) is { } art)
+                    {
+                        <img src="@art" alt="@label" />
+                    }
+                    else
+                    {
+                        <span class="loadout-placeholder" role="img" aria-label="@label">@(slot?.SkillCode is null ? "—" : "?")</span>
+                    }
+                    @if (slot is { SkillCode: not null, AutoUseEnabled: true }) { <span class="loadout-auto" aria-hidden="true"></span> }
+                </span>
+                <small aria-hidden="true">@name</small>
+            </span>
+        }
+    </span>
+</span>
+
+@code {
+    [Parameter, EditorRequired] public FormationResponse Formation { get; set; } = null!;
+
+    private string MainWeaponLabel => Formation.Preview.MainWeapon is { } main
+        ? $"主武器：{main.Name} · {WeaponRules.ElementName(main.Element)}属性 · {WeaponRules.QualityName(main.QualityRank)}"
+        : Formation.Loadout.Weapons.Any(item => item.SlotIndex == WeaponRules.MainSlotIndex && item.WeaponId.HasValue)
+            ? "主武器资料暂不可用" : "未配置主武器";
+}

@@ -6,12 +6,12 @@
 
 <PageTitle>注册</PageTitle>
 
-<AuthShell Kicker="BEGIN YOUR JOURNEY"
-           Title="创建冒险者"
-           Description="建立账号，从第一场战斗开始积累你的队伍。"
-           SubmitLabel="开始冒险"
+<AuthShell Kicker=""
+           Title="注册账号"
+           Description=""
+           SubmitLabel="注册并选择职业"
            SubmittingLabel="正在创建…"
-           AlternatePrompt="已经拥有账号？"
+           AlternatePrompt="已有账号？"
            AlternateLabel="返回登录"
            AlternateHref="/login"
            IsChecking="@_isCheckingLoginState"
@@ -25,6 +25,7 @@
             <input id="register-user-name"
                    name="username"
                    autocomplete="username"
+                   enterkeyhint="next"
                    autocapitalize="none"
                    spellcheck="false"
                    placeholder="设置用户名"
@@ -41,6 +42,7 @@
                    name="password"
                    type="@(_showPassword ? "text" : "password")"
                    autocomplete="new-password"
+                   enterkeyhint="done"
                    placeholder="设置密码"
                    @bind="_request.Password"
                    @bind:event="oninput" />

@@ -1,0 +1,94 @@
+@using Game.Shared
+@using Game.Shared.Enums
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Formations
+@using Game.Client.Services
+@using Game.Client.Pages
+@inject IJSRuntime Js
+
+<div class="formation-edit-backdrop" @onclick="RequestClose">
+<section class="formation-edit-sheet" role="dialog" aria-modal="true" aria-labelledby="formation-edit-title" tabindex="-1" @ref="_dialog" @onclick:stopPropagation="true" @onkeydown="KeyDown" @onkeydown:stopPropagation="true">
+    <header class="edit-header"><button type="button" class="icon-button" aria-label="返回编队" disabled="@Busy" @onclick="RequestClose">‹</button><div><small>@(IsNew ? "新建预设" : Draft.Name)</small><h2 id="formation-edit-title">@Title</h2></div></header>
+    <div class="edit-body">
+        @if (Error is not null) { <p class="edit-error" role="alert">@Error</p> }
+        @if (Notice is not null && !HasUnsavedChanges) { <p class="edit-notice" role="status">@Notice</p> }
+        @if (ChoicesError is null && ChoicesWarning is not null)
+        { <div class="edit-choice-error" role="alert"><p>@ChoicesWarning</p><button type="button" disabled="@(Busy || ChoicesLoading)" @onclick="OnRetryChoices">@(ChoicesLoading ? "正在读取…" : "重试读取候选")</button></div> }
+        <fieldset disabled="@Busy">
+        @if (ChoicesError is not null)
+        {
+            <div class="edit-choice-error" role="alert"><p>@ChoicesError</p><button type="button" disabled="@(Busy || ChoicesLoading)" @onclick="OnRetryChoices">@(ChoicesLoading ? "正在读取…" : "重试读取候选")</button></div>
+        }
+        else if (Section == "details")
+        {
+            <p class="edit-context">@(Preview?.ProfessionName ?? "当前职业") · @Draft.Loadout.Weapons.Count(w => w.WeaponId.HasValue) 件武器</p>
+            @if (IsNew) { <p class="edit-hint">从当前配置创建，保存后可继续调整。</p> }
+            @if (!IsNew)
+            {
+                <div class="formation-manage-deploy">
+                    @if (CanApply) { <button type="button" class="save-button" disabled="@(Busy || HasUnsavedChanges || !CanDeploy || IsApplied)" @onclick="OnApply">@(ManagementOperation == "apply" ? "正在应用…" : IsApplied ? "已应用到角色" : "应用到角色")</button> }
+                    else { <span class="manage-activity-state">活动中 · 离场后应用</span> }
+                    <button type="button" class="cancel-button" disabled="@(Busy || HasUnsavedChanges)" @onclick="OnToggleDefault">@(ManagementOperation == "default" ? "正在设置…" : IsDefault ? "★ 取消默认" : "☆ 设为默认")</button>
+                </div>
+                @if (HasUnsavedChanges) { <p class="edit-hint">先保存修改，再应用或设为默认。</p> }
+            }
+            <a class="formation-warehouse" href="@($"/inventory?characterId={CharacterId}")">查看角色仓库 ↗</a>
+            <label class="text-field">编队名称<input maxlength="40" @bind="Draft.Name" @bind:event="oninput" @bind:after="Touched" placeholder="例如：深层生存" /></label>
+            <div class="field-heading">属性分组</div><div class="group-choices">@foreach (var element in Enum.GetValues<ElementType>()) { <button type="button" style="@Game.Client.Pages.Formations.ElementStyle(element)" aria-pressed="@(Draft.GroupElement == element ? "true" : "false")" @onclick="() => ChooseGroup(element)"><span><FormationElementIcon Element="element" /></span>@WeaponRules.ElementName(element)</button> }</div>
+            <div class="field-heading">保存位置</div><div class="position-choices">@for (var i = 1; i <= PositionsPerElement; i++) { var position = i; var occupied = Formations.FirstOrDefault(f => f.GroupElement == Draft.GroupElement && f.Position == position && f.Id != EditingId); <button type="button" aria-pressed="@(Draft.Position == position ? "true" : "false")" disabled="@(occupied is not null)" title="@(occupied?.Name ?? $"位置 {position}")" @onclick="async () => { Draft.Position = position; await Touched(); }">@position.ToString("00")<small>@(occupied is null ? "" : "已使用")</small></button> }</div>
+            @if (!IsNew)
+            {
+                <div class="manage-actions"><button type="button" @onclick="OnCopy"><span>⧉</span><strong>复制编队</strong><small>建立一份独立预设</small><b>›</b></button><button type="button" class="danger-link" @ref="_deleteTrigger" @onclick="ShowDeleteConfirmation"><span>×</span><strong>删除编队</strong><b>›</b></button></div>
+                @if (_confirmDelete) { <div class="delete-confirm" role="alert"><p>删除「@Draft.Name」？已入场与已预约的配置不会撤回。</p><button type="button" class="danger-button" @onclick="OnDelete">确认删除</button><button type="button" class="quiet-button" @ref="_keepFormationButton" @onclick="KeepFormation">保留编队</button></div> }
+            }
+        }
+        else if (Section == "profession")
+        {
+            <div class="profession-choices">@foreach (var profession in Professions) { <button type="button" aria-pressed="@(Draft.Loadout.ProfessionCode == profession.Code ? "true" : "false")" @onclick="() => ChooseProfessionAsync(profession.Code)"><img src="@ProfessionArt.ForCode(profession.Code)" alt="" /><span><strong>@profession.Name</strong><small>Lv.@profession.Level</small></span>@if (Draft.Loadout.ProfessionCode == profession.Code) { <b>✓</b> }</button> }</div>
+            @if (Professions.FirstOrDefault(p => p.Code == Draft.Loadout.ProfessionCode) is { } selectedProfession) { <details class="selected-description"><summary>@selectedProfession.Name · 成长与职业说明</summary><p>@selectedProfession.Description</p><p>@(selectedProfession.ExperienceToNextLevel is int required ? $"经验 {selectedProfession.Experience} / {required}" : "等级已满") · @(selectedProfession.IsSharedSkillUnlocked ? "共享技能已解锁" : "满 30 级解锁共享技能")</p><small>各职业独立成长。配置保存后需应用到角色才会切换；活动中可编辑，离场后应用。</small></details> }
+        }
+        else if (Section == "skills")
+        {
+            var current = Draft.Loadout.Skills.Single(s => s.SlotIndex == _selectedSlot); var selected = FindSkill(current.SkillCode);
+            <div class="field-heading">技能栏 <small>点击槽位，再选择技能</small></div>
+            <div class="edit-skill-strip">@foreach (var slot in Draft.Loadout.Skills.OrderBy(s => s.SlotIndex)) { <button type="button" aria-pressed="@(_selectedSlot == slot.SlotIndex ? "true" : "false")" aria-label="@($"技能槽位 {slot.SlotIndex}")" @onclick="() => _selectedSlot = slot.SlotIndex"><span>@if (SkillArt.ForCode(slot.SkillCode) is { } art) { <img src="@art" alt="" /> } else { <span>＋</span> }<small>@slot.SlotIndex</small></span><strong>@(FindSkill(slot.SkillCode)?.Name ?? (slot.SkillCode is null ? "空槽" : "需调整"))</strong></button> }</div>
+            <div class="slot-tools"><small>槽位 @_selectedSlot · @(selected?.Name ?? "空槽位")</small><div><button type="button" aria-label="技能优先级前移" disabled="@(_selectedSlot == 1)" @onclick="() => MoveSkillAsync(-1)">←</button><button type="button" aria-label="技能优先级后移" disabled="@(_selectedSlot == 5)" @onclick="() => MoveSkillAsync(1)">→</button><button type="button" disabled="@(current.SkillCode is null)" @onclick="() => ChooseSkillAsync(null)">卸下</button></div></div>
+            @if (selected is not null)
+            {
+                <div class="strategy-panel"><label class="toggle-row"><span><strong>自动使用</strong><small>@SkillAutoRules.Describe(current.AutoConditionOverride ?? selected.AutoCondition, current.AutoHpThresholdPercent)</small></span><input type="checkbox" @bind="current.AutoUseEnabled" @bind:after="Touched" /></label><details><summary>释放条件与技能详情</summary><p>@selected.Description</p>@foreach (var effect in selected.Effects) { <p class="skill-effect-detail">@effect.Summary</p> }<small>@(selected.IsShared ? "共享技能 · 固定效果" : $"技能 Lv.{selected.Level}") · 初始冷却 @selected.InitialCooldownRounds · 常规冷却 @selected.CooldownRounds 回合</small><SkillAutoConditionPicker ConditionOverride="@current.AutoConditionOverride" DefaultCondition="@selected.AutoCondition" Threshold="@current.AutoHpThresholdPercent" Disabled="@Busy" OnConditionChanged="async value => { current.AutoConditionOverride = value; await Touched(); }" OnThresholdChanged="async value => { current.AutoHpThresholdPercent = value; await Touched(); }" /></details></div>
+            }
+            <FormationSkillLibrary Entries="@SkillLibraryEntries" Loadout="@Draft.Loadout" SelectedSlot="@_selectedSlot" ProfessionLevel="@(Preview?.Level ?? 0)" Loading="@PreviewLoading" Busy="@Busy" OnChoose="ChooseSkillAsync" />
+        }
+        else if (Section == "weapons")
+        {
+            <div class="field-heading">武器盘 <small>@Draft.Loadout.Weapons.Count(w => w.WeaponId.HasValue) / 10</small></div>
+            <div class="edit-weapon-grid">@foreach (var slot in Draft.Loadout.Weapons.OrderBy(w => w.SlotIndex)) { var gridWeapon = Weapons.FirstOrDefault(w => w.Id == slot.WeaponId); <button type="button" class="@(slot.SlotIndex == 1 ? "is-main" : null)" aria-pressed="@(_selectedSlot == slot.SlotIndex ? "true" : "false")" aria-label="@($"编辑武器槽位 {slot.SlotIndex}")" @onclick="() => SelectWeaponSlotAsync(slot.SlotIndex)"><small>@(slot.SlotIndex == 1 ? "主武器" : slot.SlotIndex.ToString("00"))</small>@if (gridWeapon is not null) { <img src="@WeaponArt.ForCode(gridWeapon.WeaponCode)" alt="" /> } else { <span>＋</span> }<strong>@(gridWeapon?.Name ?? (slot.WeaponId.HasValue ? "武器已失效" : "空槽"))</strong></button> }</div>
+            <FormationWeaponSummary Preview="Preview" Loading="PreviewLoading" />
+            var current = Draft.Loadout.Weapons.Single(w => w.SlotIndex == _selectedSlot); var weapon = Weapons.FirstOrDefault(w => w.Id == current.WeaponId);
+            <div class="selected-description"><div class="field-heading">@(_selectedSlot == 1 ? "主武器" : $"武器 {_selectedSlot}")<small>点击图标更换</small></div><InventoryItemPicker @ref="_weaponPicker" AllowEmpty="@(_selectedSlot != WeaponRules.MainSlotIndex)" Options="@WeaponOptions" Value="@(current.WeaponId?.ToString())" OnPick="PickWeaponAsync" Title="选择编队武器" Hint="主武器必须保留；选择盘中武器会交换两个槽位。" WarehouseRoute="@($"/inventory?characterId={CharacterId}&category=weapons")" Disabled="@Busy" />
+            @if (weapon is not null) { <div class="item-stats"><span>攻击 <b>@weapon.Attack</b></span><span>生命 <b>@weapon.MaxHp</b></span><span>@WeaponRules.ElementName(weapon.Element) · @weapon.QualityName</span></div><details><summary>武器技能 · @weapon.Skills.Count</summary>@foreach (var skill in weapon.Skills) { <p><strong>@skill.Name · Lv.@skill.Level</strong><br />@skill.Description</p> }</details>@if (weapon.LockedSkills.Count > 0) { <p class="edit-hint">满突破解锁：@string.Join("、", weapon.LockedSkills.Select(skill => skill.Name))</p> } }</div>
+        }
+        else if (Section == "supplies")
+        {
+            <div class="supply-tabs">@foreach (var slot in Draft.Loadout.Consumables.OrderBy(s => s.SlotIndex)) { <button type="button" aria-pressed="@(_selectedSlot == slot.SlotIndex ? "true" : "false")" @onclick="() => _selectedSlot = slot.SlotIndex"><span>@if (ItemArt.ForCode(slot.ItemCode) is { } art) { <img src="@art" alt="" /> } else { <span>＋</span> }</span><strong>@Game.Client.Pages.Formations.SupplySlotName(slot.SlotIndex)</strong></button> }</div>
+            var current = Draft.Loadout.Consumables.Single(s => s.SlotIndex == _selectedSlot); var item = Supplies.FirstOrDefault(s => s.Code == current.ItemCode);
+            <div class="selected-description"><InventoryItemPicker @key="_selectedSlot" @ref="_supplyPicker" Options="@SupplyOptions" SelectedOption="@(item is null ? null : SupplyOption(item))" Value="@current.ItemCode" OnPick="PickSupplyAsync" Title="选择编队补给" Hint="仅显示当前角色有库存的药剂，不预留库存。" EmptyLabel="不携带" EmptyMessage="暂无可用药剂，获得后会显示在这里。" WarehouseRoute="@($"/inventory?characterId={CharacterId}&category=supplies")" Disabled="@Busy" />@if (item is not null) { <p>@item.Description</p> }</div>
+            @if (_selectedSlot == ConsumableRules.OperationPotionSlotIndex) { <p class="edit-hint operation-potion-rule">本轮副本首次参战时自动消耗 1 瓶，效果持续整轮。</p> }
+            <details class="selected-description supply-rules"><summary>补给使用规则</summary><p>每轮副本治疗最多 @ConsumableRules.HealingPotionUsesPerRun 次、强化最多 @ConsumableRules.BuffPotionUsesPerRun 次，可同回合使用，仍需满足各自冷却。每次消耗 1 瓶。</p><p>库存耗尽后保留配置，不会自动换药或购买。这里只保存编队配置，不预留库存；活动中的配置保持不变。</p></details>
+            @if (_selectedSlot != ConsumableRules.OperationPotionSlotIndex && item is not null)
+            { <div class="strategy-panel"><label class="toggle-row"><span><strong>自动使用</strong><small>仅作用于自身</small></span><input type="checkbox" @bind="current.AutoUseEnabled" @bind:after="Touched" /></label><details><summary>设置自动释放条件</summary><SkillAutoConditionPicker ConditionOverride="@current.AutoConditionOverride" DefaultCondition="@item.DefaultAutoCondition" DefaultLabel="药剂默认" Threshold="@current.AutoHpThresholdPercent" Disabled="@Busy" OnConditionChanged="async value => { current.AutoConditionOverride = value; await Touched(); }" OnThresholdChanged="async value => { current.AutoHpThresholdPercent = value; await Touched(); }" /></details></div> }
+        }
+        else if (Section == "soul")
+        {
+            var soul = Souls.FirstOrDefault(s => s.Id == Draft.Loadout.SoulImprintId);
+            <div class="soul-spotlight">@if (ItemArt.ForCode(soul?.Code) is { } art) { <img src="@art" alt="" /> } else { <span>◇</span> }<h3>@(soul?.Name ?? (Draft.Loadout.SoulImprintId.HasValue ? "魂印已失效" : "选择你的魂印"))</h3>@if (soul is not null) { <small>@WeaponRules.ElementName(soul.Element) · T@(soul.Tier)</small> }</div>
+            <InventoryItemPicker Options="@SoulOptions" Value="@(Draft.Loadout.SoulImprintId?.ToString())" OnPick="PickSoulAsync" Title="选择编队魂印" Hint="只保存到此编队，当前战斗保持原配置。" WarehouseRoute="@($"/inventory?characterId={CharacterId}&category=souls")" Disabled="@Busy" />
+            @if (soul is not null)
+            { <div class="selected-description"><p>@soul.Description</p><div class="item-stats"><span>初始冷却 <b>@soul.InitialCooldownRounds</b></span><span>常规冷却 <b>@soul.CooldownRounds</b></span></div></div><div class="strategy-panel"><label class="toggle-row"><span><strong>自动使用魂印</strong><small>@SkillAutoRules.Describe(Draft.Loadout.SoulAutoConditionOverride ?? soul.DefaultAutoCondition, Draft.Loadout.SoulAutoHpThresholdPercent)</small></span><input type="checkbox" @bind="Draft.Loadout.SoulAutoUseEnabled" @bind:after="Touched" /></label><details><summary>设置自动释放条件</summary><SkillAutoConditionPicker ConditionOverride="@Draft.Loadout.SoulAutoConditionOverride" DefaultCondition="@soul.DefaultAutoCondition" DefaultLabel="魂印默认" Threshold="@Draft.Loadout.SoulAutoHpThresholdPercent" Disabled="@Busy" OnConditionChanged="async value => { Draft.Loadout.SoulAutoConditionOverride = value; await Touched(); }" OnThresholdChanged="async value => { Draft.Loadout.SoulAutoHpThresholdPercent = value; await Touched(); }" /></details></div> }
+        }
+        @if (Preview?.Issues.Count > 0) { <details class="editor-issues"><summary>@(Preview.CanDeploy ? "配置提醒" : "待完善的配置") · @Preview.Issues.Count</summary>@foreach (var issue in Preview.Issues) { <p><strong>@Game.Client.Pages.Formations.IssueLocation(issue)</strong> · @issue.Message</p> }</details> }
+        </fieldset>
+    </div>
+    <footer class="edit-footer"><div class="edit-save-state @(HasUnsavedChanges ? "is-dirty" : null)" role="status"><span class="save-dot"></span><strong>@(Busy ? (ManagementOperation is null ? "正在保存…" : "正在处理…") : PreviewLoading ? "正在更新预览…" : HasUnsavedChanges ? "有修改未保存" : "无未保存修改")</strong><small>仅保存此编队</small></div><div><button type="button" class="cancel-button" disabled="@Busy" @onclick="RequestClose">取消</button><button type="button" class="save-button" disabled="@(Busy || PreviewLoading || ChoicesError is not null || string.IsNullOrWhiteSpace(Draft.Name))" @onclick="OnSave">@(Busy ? (ManagementOperation is null ? "保存中…" : "处理中…") : IsNew ? "创建编队" : "保存编队")</button></div></footer>
+</section>
+</div>

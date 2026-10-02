@@ -117,6 +117,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 clearsByDungeon[clear.DungeonId] = clear.HighestDepth;
         }
         var result = new List<DungeonSummaryResponse>();
+        var campaign = new CampaignAccessService(dbContext, _depthCatalog);
+        var storyUnlocks = user is null ? null : await campaign.UnlocksAsync(user.Id);
         foreach (var dungeon in dungeons)
         {
             var representative = encounterCatalog?.GetRepresentativeMonster(dungeon);
@@ -134,6 +136,10 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     prerequisiteIds.TryGetValue((definition.PrerequisiteDungeonCode, dungeon.RegionCode), out var prerequisiteId) &&
                     clearsByDungeon.ContainsKey(prerequisiteId) ? 1 : 0;
             }
+            var storyAllowed = storyUnlocks is null || storyUnlocks.Contains(dungeon.Code) ||
+                definition is not null && !string.IsNullOrWhiteSpace(definition.PrerequisiteDungeonCode) &&
+                prerequisiteIds.TryGetValue((definition.PrerequisiteDungeonCode, dungeon.RegionCode), out var storyParentId) &&
+                clearsByDungeon.ContainsKey(storyParentId);
             result.Add(new DungeonSummaryResponse
             {
                 SupportsDepths = definition is not null, Stage = definition?.Stage ?? 0,
@@ -159,8 +165,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 PartyHpPercentages = _partyScaling.Catalog.GetHpPercentages(dungeon.PartyScalingProfileCode).ToList(),
                 Description = dungeon.Description, MinimumLevel = dungeon.MinimumLevel,
                 RecommendedLevel = dungeon.RecommendedLevel, CurrentCharacterLevel = currentLevel,
-                CanEnter = canEnter && unlocked > 0,
-                LockReason = !canEnter ? "请先选择角色" : unlocked == 0 ? "账号需先通关本地区普通副本" : null,
+                CanEnter = canEnter && storyAllowed && unlocked > 0,
+                LockReason = !canEnter ? "请先选择角色" : !storyAllowed ? "请先完成营地的前置剧情" : unlocked == 0 ? "账号需先通关本地区普通副本" : null,
                 MonsterName = representative?.Name ?? dungeon.MonsterName, MonsterElement = representative?.Element ?? dungeon.MonsterElement,
                 MonsterMaxHp = representative?.MaxHp ?? dungeon.MonsterMaxHp, MonsterAttack = representative?.Attack ?? dungeon.MonsterAttack,
                 MonsterDefense = representative?.Defense ?? dungeon.MonsterDefense, SlotCount = dungeon.SlotCount,
@@ -187,6 +193,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         if (result is null || !_depthCatalog.ValidateDepth(result.Code, depthLevel)) return null;
         var dungeon = (await dbContext.Dungeons.FindAsync(dungeonId))!;
         result.DepthLevel = depthLevel;
+        result.RewardPreview = BuildRewardPreview(dungeon, depthLevel);
         result.UsesPlaceholderBalance = _depthCatalog.Find(result.Code)?.UsesPlaceholderAt(depthLevel) == true;
         if (result.SupportsDepths)
         {
@@ -240,6 +247,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             ? await dbContext.Dungeons.FindAsync(dungeonId.Value)
             : await dbContext.Dungeons.FirstOrDefaultAsync(item => item.MonsterName == legacyMonsterType) ?? await dbContext.Dungeons.OrderBy(item => item.SortOrder).FirstAsync();
         if (dungeon is null || dungeonId.HasValue && !dungeon.IsVisible) return (null, "DungeonNotFound");
+        var storyError = await new CampaignAccessService(dbContext, _depthCatalog).AdmissionErrorAsync(user!.Id, dungeon);
+        if (storyError is not null) return (null, storyError);
         var depthError = await _depthProgress.AdmissionErrorAsync(user!.Id, dungeon, depthLevel);
         if (depthError is not null) return (null, depthError);
         character.Hp = TalentRules.EffectiveMaxHp(character);
@@ -327,6 +336,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         }
         var dungeon = await dbContext.Dungeons.FindAsync(room.DungeonId);
         if (dungeon is null) return (null, "DungeonNotFound");
+        var storyError = await new CampaignAccessService(dbContext, _depthCatalog).AdmissionErrorAsync(user.Id, dungeon);
+        if (storyError is not null) return (null, storyError);
         var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, dungeon, room.DepthLevel);
         if (depthError is not null) return (null, depthError);
         if (room.OwnerUserId == user!.Id) return (null, "CannotJoinOwnRoom");
@@ -455,6 +466,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         if (character.UserId != user!.Id) return (null, "NotCharacterOwner");
         var dungeon = await dbContext.Dungeons.FindAsync(room!.DungeonId);
         if (dungeon is null) return (null, "DungeonNotFound");
+        var storyError = await new CampaignAccessService(dbContext, _depthCatalog).AdmissionErrorAsync(user.Id, dungeon);
+        if (storyError is not null) return (null, storyError);
         var depthError = await _depthProgress.AdmissionErrorAsync(user.Id, dungeon, room.DepthLevel);
         if (depthError is not null) return (null, depthError);
         var existingSlot = await dbContext.RoomSlots.FirstOrDefaultAsync(x => x.CharacterId == character.Id);
@@ -841,6 +854,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 var ownCharacterId = slot.UserId == currentUserId ? slot.CharacterId : null;
                 var healingUses = ownCharacterId is int healingCharacterId
                     ? healingPotionStates.GetValueOrDefault(healingCharacterId)?.UsesUsed ?? 0 : 0;
+                var buffUses = ownCharacterId is int buffCharacterId
+                    ? healingPotionStates.GetValueOrDefault(buffCharacterId)?.BuffUsesUsed ?? 0 : 0;
                 var ownProfessionLevels = ownCharacterId is int professionCharacterId &&
                     professionLevelsByCharacter.TryGetValue(professionCharacterId, out var levels)
                     ? levels : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -848,6 +863,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                     ? Enumerable.Range(1, ConsumableRules.SlotCount).Select(index =>
                     {
                         var equipped = consumableSlots.FirstOrDefault(entry => entry.CharacterId == id && entry.SlotIndex == index);
+                        if (equipped is not null && room.LoadoutIntegrityError is null)
+                            equipped = BattleAutoPolicyResolver.Consumable(slot, equipped);
                         var item = consumableCatalog.FindItem(equipped?.ItemCode);
                         var cooldown = item is null ? null : cooldowns.FirstOrDefault(entry => entry.CharacterId == id && entry.CooldownGroup == item.CooldownGroup);
                         return new RoomConsumableSlotResponse
@@ -861,12 +878,15 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                             Quantity = item is null ? 0 : itemStacks.FirstOrDefault(stack => stack.CharacterId == id && stack.ItemCode == item.Code)?.Quantity ?? 0,
                             CooldownRoundsRemaining = Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber),
                             AutoUseEnabled = equipped?.AutoUseEnabled ?? false,
+                            AutoCondition = equipped?.AutoConditionOverride ?? ConsumableCatalog.DefaultAutoCondition(item),
+                            DefaultAutoCondition = ConsumableCatalog.DefaultAutoCondition(item),
+                            AutoConditionOverride = equipped?.AutoConditionOverride,
                             AutoHpThresholdPercent = equipped?.AutoHpThresholdPercent ?? ConsumableRules.DefaultAutoHpThresholdPercent,
                             UnavailableReason = character is null ? "CharacterDead" : ConsumableUsePolicy.UnavailableReason(
                                 room, character, index, item,
                                 item is null ? 0 : itemStacks.FirstOrDefault(stack => stack.CharacterId == id && stack.ItemCode == item.Code)?.Quantity ?? 0,
                                 Math.Max(0, (cooldown?.ReadyAtRound ?? 0) - room.RoundNumber), healingUses,
-                                item?.Kind == "CombatBuff" && activeConsumableBuffs.Any(buff => buff.CharacterId == id && buff.WeaponSkillCode == item.WeaponSkillCode))
+                                item?.Kind == "CombatBuff" && activeConsumableBuffs.Any(buff => buff.CharacterId == id && buff.WeaponSkillCode == item.WeaponSkillCode), buffUses)
                         };
                     }).ToList()
                     : [];
@@ -976,7 +996,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 }
                 var isAuto = RoomAutoPolicy.IsAuto(room, slot, clearedDungeonCharacterIds, slots);
                 var isOffline = RoomAutoPolicy.IsOffline(room, slot, now);
-                return new RoomSlotResponse { SourceFormationId = slot.SourceFormationId, SourceFormationVersion = slot.SourceFormationVersion, SourceFormationName = slot.SourceFormationName, HasAutoPolicyOverrides = slot.AutoPolicyOverridesJson is not null, HasNewFormationVersion = slot.SourceFormationId is int fid && formationVersions.GetValueOrDefault(fid) > slot.SourceFormationVersion, SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotMask = ownCharacterId.HasValue ? slot.PendingConsumableSlotMask : 0, HealingPotionUsesUsed = healingUses, HealingPotionUsesRemaining = ownCharacterId.HasValue ? Math.Max(0, ConsumableRules.HealingPotionUsesPerRun - healingUses) : 0, HealingPotionUsesLimit = ownCharacterId.HasValue ? ConsumableRules.HealingPotionUsesPerRun : 0, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), IsOccupied = slot.CharacterId.HasValue, IsCurrentUserCharacter = slot.UserId == currentUserId, IsQuickSkillCastEnabled = ownCharacterId.HasValue && character?.IsQuickSkillCastEnabled == true, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
+                return new RoomSlotResponse { SourceFormationId = slot.SourceFormationId, SourceFormationVersion = slot.SourceFormationVersion, SourceFormationName = slot.SourceFormationName, HasAutoPolicyOverrides = slot.AutoPolicyOverridesJson is not null, HasNewFormationVersion = slot.SourceFormationId is int fid && formationVersions.GetValueOrDefault(fid) > slot.SourceFormationVersion, SlotIndex = slot.SlotIndex, CharacterId = slot.CharacterId, PendingConsumableSlotMask = ownCharacterId.HasValue ? slot.PendingConsumableSlotMask : 0, HealingPotionUsesUsed = healingUses, HealingPotionUsesRemaining = ownCharacterId.HasValue ? Math.Max(0, ConsumableRules.HealingPotionUsesPerRun - healingUses) : 0, HealingPotionUsesLimit = ownCharacterId.HasValue ? ConsumableRules.HealingPotionUsesPerRun : 0, BuffPotionUsesUsed = buffUses, BuffPotionUsesRemaining = ownCharacterId.HasValue ? Math.Max(0, ConsumableRules.BuffPotionUsesPerRun - buffUses) : 0, BuffPotionUsesLimit = ownCharacterId.HasValue ? ConsumableRules.BuffPotionUsesPerRun : 0, PendingSkillSlotMask = ownCharacterId.HasValue ? slot.PendingSkillSlotMask : 0, IsSoulImprintQueued = ownCharacterId.HasValue && slot.IsSoulImprintQueued, SoulImprint = ownSoulImprint, Consumables = ownConsumables, OperationPotion = operationPotion, Skills = ownSkills, CharacterName = character?.Name, CharacterElement = characterElement, OutgoingElementModifierPercent = ElementMatchup.PlayerAttackPercent(characterElement, monster.Element), IncomingElementModifierPercent = ElementMatchup.MonsterAttackPercent(monster.Element, characterElement), ProfessionName = character is null ? null : skillCatalog.EffectiveProfession(character)?.Name, CharacterHp = character?.Hp, CharacterMaxHp = character is null ? null : TalentRules.EffectiveMaxHp(character), CharacterLevel = character?.Level, CharacterExperience = character?.Experience, ExperienceToNextLevel = character is null ? null : progressionService.GetExperienceToNextLevel(character.Level), IsOccupied = slot.CharacterId.HasValue, IsCurrentUserCharacter = slot.UserId == currentUserId, IsQuickSkillCastEnabled = ownCharacterId.HasValue && character?.IsQuickSkillCastEnabled == true, IsAlive = character?.Hp > 0, IsConfirmed = slot.IsConfirmed, PlayerName = player?.UserName, IsAutoEnabled = isAuto, IsTemporaryAuto = slot.IsTemporaryAuto, IsOffline = isOffline, IsOfflineAuto = isOffline && isAuto, IsAutoUnlockedForCurrentUser = isAutoUnlocked, CanConfigureAuto = canConfigureAuto, StatusEffects = statusEffects };
             }).ToList()
         };
     }
@@ -1097,10 +1117,11 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
 
     private static string RewardSourceName(string source, string baseName) => source switch
     {
-        "Mastery" => "精通追加", "Challenge" => "挑战奖励", "ChallengeFirstClear" => "挑战首通", _ => baseName
+        "Mastery" => "精通追加", "Challenge" => "挑战奖励", "ChallengeFirstClear" => "挑战首通",
+        "SeedFirstClear" => "种子首通", _ => baseName
     };
 
-    private List<DungeonRewardPreviewResponse> BuildRewardPreview(Dungeon dungeon)
+    private List<DungeonRewardPreviewResponse> BuildRewardPreview(Dungeon dungeon, int depthLevel = 1)
     {
         var result = new List<DungeonRewardPreviewResponse>();
         var sources = encounterCatalog?.GetRewardSources(dungeon) ?? [new EncounterRewardSource(dungeon.Code, false)];
@@ -1109,8 +1130,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             var sourceName = source.IsBoss ? "首领掉落" : "怪物掉落";
             result.AddRange(rewardService.GetDropPreview(source.Code, false).Select(drop => BuildDropPreview(sourceName, drop)));
         }
-        result.AddRange(rewardService.GetDropPreview(dungeon.Code, true).Select(drop => BuildDropPreview("通关奖励", drop)));
+        result.AddRange(rewardService.GetDropPreview(dungeon.Code, true, depthLevel).Select(drop => BuildDropPreview("通关奖励", drop)));
         result.AddRange(rewardService.GetDropPreview($"{dungeon.Code}-first-clear", true).Select(drop => BuildDropPreview("首次通关", drop)));
+        result.AddRange(rewardService.GetFirstSeedClearPreview(dungeon.Code).Select(drop => BuildDropPreview("种子首通", drop)));
         return result.DistinctBy(item => (item.Source, item.Kind, item.Code, item.Quantity, item.ChancePercent)).ToList();
     }
 

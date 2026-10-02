@@ -77,7 +77,7 @@ public class DungeonEncounterCatalogTests
             reward => reward.Code == "weapon-fragment-t1" && reward.Quantity == 12);
         Assert.Contains(rewards.GetDropPreview($"{code}-first-clear", true),
             reward => reward.Code == "weapon-fragment-t1" && reward.Quantity == 20);
-        Assert.Equal(200, monsters.Sum(monster => rewardOptions.MonsterKills[monster.RewardProfileCode].Gold) +
+        Assert.Equal(90, monsters.Sum(monster => rewardOptions.MonsterKills[monster.RewardProfileCode].Gold) +
             rewardOptions.DungeonClears[code].Gold);
         Assert.Equal(250, monsters.Sum(monster => rewardOptions.MonsterKills[monster.RewardProfileCode].Experience) +
             rewardOptions.DungeonClears[code].Experience);

@@ -37,7 +37,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
         var operationBonuses = await ApplyOperationPotionsAsync(room, aliveSlots, logs);
         await UpdateTemporaryWeaponBonusesAsync(room, aliveSlots);
-        await ApplyCombatBuffsAsync(room, aliveSlots, logs);
+        await ApplyCombatBuffsAsync(room, aliveSlots, monster, logs);
         await UpdateTemporaryWeaponBonusesAsync(room, aliveSlots);
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
@@ -108,7 +108,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
             return BattleRoundOutcome.MonsterDefeated;
         }
 
-        await ApplyCombatConsumablesAsync(room, aliveSlots, logs);
+        await ApplyCombatConsumablesAsync(room, aliveSlots, monster, logs);
         if (!slots.Any(entry => entry.Character.Hp > 0)) return BattleRoundOutcome.PartyDefeated;
         if (monsterCombatService is not null)
         {

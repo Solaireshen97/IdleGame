@@ -8,3 +8,11 @@ ul { list-style: none; margin: 0; padding: 0; } li { display: grid; gap: .35rem;
 li div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem; }
 progress { width: 100%; height: .4rem; accent-color: #e3ba72; } strong, dd { overflow-wrap: anywhere; }
 @media (max-width: 380px) { dl { grid-template-columns: 1fr; } }
+.actor-detail { margin-top: .75rem; padding: .7rem; }
+h3 { font-size: .95rem; line-height: 1.4; }
+h4 { margin-block: .6rem .45rem; font-size: .85rem; }
+.actor-detail__full > summary { min-height: 44px; align-content: center; color: #dfc58d; font-size: .8rem; cursor: pointer; }
+.actor-detail__full > summary:focus-visible { outline: 2px solid #e3ba72; outline-offset: 2px; }
+.actor-source-mode button { min-height: 44px; flex: 1; font-size: .8rem; }
+dl { gap: .6rem; margin-block: .6rem; }
+li { padding-block: .55rem; }

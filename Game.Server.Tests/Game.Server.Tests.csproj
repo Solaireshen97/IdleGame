@@ -22,6 +22,7 @@
 	<Compile Include="..\Game.Client\Services\WeaponArt.cs" Link="Client\WeaponArt.cs" />
 	<Compile Include="..\Game.Client\Services\ApiService*.cs" Link="Client\%(Filename)%(Extension)" />
 	<Compile Include="..\Game.Client\Services\ClientQueryCache.cs" Link="Client\ClientQueryCache.cs" />
+	<Compile Include="..\Game.Client\Services\InventoryState.cs" Link="Client\InventoryState.cs" />
 	<Compile Include="..\Game.Client\Services\ContentCatalogCache.cs" Link="Client\ContentCatalogCache.cs" />
 	<Compile Include="..\Game.Client\Services\ActiveCharacterState.cs" Link="Client\ActiveCharacterState.cs" />
 	<Compile Include="..\Game.Client\Services\AccountBalanceState.cs" Link="Client\AccountBalanceState.cs" />

@@ -8,6 +8,7 @@ public sealed class CharacterSoulImprintsResponse
     public string CharacterName { get; set; } = string.Empty;
     public List<CharacterSoulImprintResponse> SoulImprints { get; set; } = [];
     public List<WeaponFragmentResponse> Fragments { get; set; } = [];
+    public Game.Shared.Dtos.Inventory.InventoryOperationResult? OperationResult { get; set; }
 }
 
 public sealed class CharacterSoulImprintResponse
@@ -55,4 +56,7 @@ public sealed class SetSoulImprintAutoRequest
 public sealed class SoulImprintBatchRequest
 {
     public List<int> SoulImprintIds { get; set; } = [];
+    public string? RequestId { get; set; }
+    public List<Game.Shared.Dtos.Inventory.InventoryInstanceVersion> ExpectedVersions { get; set; } = [];
+    public string? OutcomeFingerprint { get; set; }
 }

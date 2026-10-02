@@ -57,14 +57,22 @@ public sealed class ConsumableCatalog
         (int)decimal.Floor(RecoveryCalculator.Calculate(maxHp, item.HealAmount, item.HealMaxHpPercent) *
             ConsumableRules.EffectScalePercent(item.Tier, characterLevel) / 100m);
 
+    public static string DefaultAutoCondition(ConsumableItemOptions? item) =>
+        item is { Kind: "Healing" } or { WeaponSkillCode: "weapon-enmity" }
+            ? "SelfHpBelowThreshold" : "Always";
+
+    public static int DefaultAutoHpThreshold(ConsumableItemOptions? item) =>
+        item is { WeaponSkillCode: "weapon-enmity" } ? 35 : ConsumableRules.DefaultAutoHpThresholdPercent;
+
     public static string Description(ConsumableItemOptions item, int characterLevel)
     {
         var scale = ConsumableRules.EffectScalePercent(item.Tier, characterLevel);
         if (scale == 0) return "当前等级已无效果";
         if (item.Kind == "Healing")
-            return $"恢复 {ConsumableRules.ScaledPercent(item.HealAmount, item.Tier, characterLevel)} HP＋最大生命的 {item.HealMaxHpPercent * scale / 100m:0.##}% · 冷却 {item.CooldownRounds} 回合";
+            return (item.HealAmount > 0 ? $"恢复 {ConsumableRules.ScaledPercent(item.HealAmount, item.Tier, characterLevel)} HP＋最大生命的 " : "恢复最大生命的 ") +
+                $"{item.HealMaxHpPercent * scale / 100m:0.##}% · 每场最多 {ConsumableRules.HealingPotionUsesPerRun} 次 · 两次至少间隔 {item.CooldownRounds + 1} 回合";
         if (item.Kind == "CombatBuff")
-            return $"{WeaponSkillName(item.WeaponSkillCode)} Lv{ConsumableRules.ScaledSkillLevel(item.WeaponSkillLevel, item.Tier, characterLevel)} · 持续 {item.DurationRounds} 回合 · 冷却 {item.CooldownRounds} 回合" +
+            return $"{WeaponSkillName(item.WeaponSkillCode)} Lv{ConsumableRules.ScaledSkillLevel(item.WeaponSkillLevel, item.Tier, characterLevel)} · 持续 {item.DurationRounds} 回合 · 每场最多 {ConsumableRules.BuffPotionUsesPerRun} 次 · 两次至少间隔 {item.CooldownRounds + 1} 回合" +
                 (item.WeaponSkillCode == "weapon-might" ? " · 提高生命上限不恢复当前生命" : "");
         var effects = new List<string>();
         if (item.AttackPercent > 0) effects.Add($"攻击 +{ConsumableRules.ScaledPercent(item.AttackPercent, item.Tier, characterLevel)}%");

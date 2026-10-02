@@ -41,6 +41,13 @@ public sealed class ClientQueryCache(TimeProvider? clock = null)
         }
     }
 
+    public void InvalidatePrefix(string prefix)
+    {
+        lock (_gate)
+            foreach (var key in _entries.Keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal)).ToArray())
+                _entries.Remove(key);
+    }
+
     private async Task LoadAsync<T>(string key, Entry<T> entry, Func<Task<T?>> read, TimeSpan lifetime) where T : class
     {
         try

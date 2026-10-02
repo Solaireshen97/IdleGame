@@ -3,13 +3,17 @@
 
 <article class="character-card @(IsCurrent ? "character-card--current" : string.Empty)">
     <div class="character-card__header">
-        <div class="character-card__identity">
+        <button type="button" class="character-card__identity" @onclick="() => _detailsOpen = !_detailsOpen"
+                disabled="@IsInteractionDisabled" aria-expanded="@(_detailsOpen ? "true" : "false")"
+                aria-controls="@($"character-details-{Character.CharacterId}")"
+                aria-label="@($"查看角色 {Character.Name} 的详情与管理，Lv {Character.Level}，{Character.ProfessionName}，生命 {Character.Hp}/{Character.MaxHp}")">
             <span class="character-card__glyph" aria-hidden="true"><img src="@ProfessionArt.ForName(Character.ProfessionName)" alt="" /></span>
-            <div>
-                <h3 class="character-card__name">@Character.Name</h3>
-                <small>@Character.ProfessionName</small>
-            </div>
-        </div>
+            <span class="character-card__copy">
+                <strong class="character-card__name">@Character.Name</strong>
+                <small>Lv @Character.Level · @Character.ProfessionName</small>
+                <span class="character-card__health">HP @Character.Hp / @Character.MaxHp <span class="character-card__details-label">详情 @(_detailsOpen ? "⌃" : "⌄")</span></span>
+            </span>
+        </button>
         <div class="character-card__header-actions">
             @if (IsCurrent)
             {
@@ -26,35 +30,32 @@
                     @SelectButtonText
                 </button>
             }
+        </div>
+    </div>
+
+    <div id="@($"character-details-{Character.CharacterId}")" class="character-card__details" hidden="@(!_detailsOpen)">
+        <div class="character-card__progress">
+            <div><strong>职业经验</strong><span>@(Character.ExperienceToNextLevel is int required ? $"{Character.Experience} / {required}" : "等级已满")</span></div>
+            <progress value="@(Character.ExperienceToNextLevel is null ? 1 : Character.Experience)" max="@(Character.ExperienceToNextLevel ?? 1)" aria-label="@Character.Name 经验值"></progress>
+        </div>
+
+        <dl class="character-card__stats">
+            <div>
+                <dt>攻击</dt>
+                <dd>@Character.Attack</dd>
+            </div>
+        </dl>
+        <div class="character-card__management">
             @if (CanDelete)
             {
-                <button type="button"
-                        class="character-card__delete"
-                        @onclick="OnDelete"
-                        disabled="@IsInteractionDisabled"
-                        aria-label="删除角色 @Character.Name"
-                        title="@(DeleteDisabledReason ?? $"删除角色 {Character.Name}")">
-                    @DeleteButtonText
-                </button>
+                <button type="button" class="character-card__delete" @onclick="OnDelete"
+                        disabled="@IsInteractionDisabled" aria-label="删除角色 @Character.Name"
+                        title="@(DeleteDisabledReason ?? $"删除角色 {Character.Name}")">@DeleteButtonText</button>
             }
+            @if (DeleteDisabledReason is not null) { <small>@DeleteDisabledReason</small> }
+            @if (SelectDisabledReason is not null && SelectDisabledReason != DeleteDisabledReason) { <small>@SelectDisabledReason</small> }
         </div>
     </div>
-
-    <div class="character-card__progress">
-        <div><strong>@Character.ProfessionName · Lv @Character.Level</strong><span>@(Character.ExperienceToNextLevel is int required ? $"EXP {Character.Experience} / {required}" : "等级已满")</span></div>
-        <progress value="@(Character.ExperienceToNextLevel is null ? 1 : Character.Experience)" max="@(Character.ExperienceToNextLevel ?? 1)" aria-label="@Character.Name 经验值"></progress>
-    </div>
-
-    <dl class="character-card__stats">
-        <div>
-            <dt>HP</dt>
-            <dd>@Character.Hp / @Character.MaxHp</dd>
-        </div>
-        <div>
-            <dt>攻击</dt>
-            <dd>@Character.Attack</dd>
-        </div>
-    </dl>
 </article>
 
 @code {
@@ -90,5 +91,6 @@
 
     private string SelectButtonText => IsSelecting ? "切换中…" : "切换";
 
-    private string DeleteButtonText => IsDeleting ? "…" : "×";
+    private bool _detailsOpen;
+    private string DeleteButtonText => IsDeleting ? "删除中…" : "删除角色";
 }

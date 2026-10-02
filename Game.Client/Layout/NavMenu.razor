@@ -2,7 +2,7 @@
 @implements IDisposable
 
 <nav class="mobile-dock" aria-label="主要导航">
-    @foreach (var item in NavigationItems)
+    @foreach (var item in PrimaryItems)
     {
         var isActive = IsActive(item);
         <a class="mobile-dock__link @(isActive ? "active" : null)"
@@ -12,20 +12,45 @@
             <span>@item.MobileLabel</span>
         </a>
     }
+    <button type="button" class="mobile-dock__link @(IsMoreActive ? "active" : null)"
+            @onclick="() => _isMoreOpen = true" aria-haspopup="dialog" aria-expanded="@_isMoreOpen">
+        <span class="mobile-dock__icon" aria-hidden="true">•••</span><span>更多</span>
+    </button>
 </nav>
 
+<ShellDialog IsOpen="_isMoreOpen" OnClose="CloseMore" Class="navigation-sheet" LabelledBy="navigation-sheet-title">
+    <header class="navigation-sheet__header">
+        <h2 id="navigation-sheet-title">冒险与营地</h2>
+        <button type="button" @onclick="CloseMore" aria-label="关闭更多导航">×</button>
+    </header>
+    <nav class="navigation-sheet__grid" aria-label="更多导航">
+        @foreach (var item in MoreItems)
+        {
+            <a href="@item.Href" class="navigation-sheet__link @(IsActive(item) ? "active" : null)"
+               @onclick="CloseMore" aria-current="@(IsActive(item) ? "page" : null)">
+                <span aria-hidden="true">@item.Icon</span><strong>@item.MobileLabel</strong><span aria-hidden="true">›</span>
+            </a>
+        }
+    </nav>
+</ShellDialog>
+
 @code {
-    private static readonly NavItem[] NavigationItems =
+    private bool _isMoreOpen;
+    private static readonly NavItem[] PrimaryItems =
     [
         new("rooms", "大厅", "☷"),
         new("formations", "编队", "▦"),
-        new("talents", "职业", "✦"),
-        new("weapons", "武器", "⚔"),
-        new("supplies", "补给", "✚"),
+        new("inventory", "仓库", "▣")
+    ];
+    private static readonly NavItem[] MoreItems =
+    [
+        new("story", "冒险日志", "✧"),
         new("gathering", "药田", "♣"),
         new("production", "炼金", "⚗"),
         new("shop", "商店", "◆")
     ];
+    private bool IsMoreActive => MoreItems.Any(IsActive);
+    private void CloseMore() => _isMoreOpen = false;
 
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
 
@@ -42,11 +67,16 @@
                 || path.StartsWith("battle/", StringComparison.OrdinalIgnoreCase);
         }
 
-        return path.Equals(item.Href, StringComparison.OrdinalIgnoreCase)
+        return (item.Href == "gathering" && path.Equals("planting", StringComparison.OrdinalIgnoreCase))
+            || path.Equals(item.Href, StringComparison.OrdinalIgnoreCase)
             || path.StartsWith($"{item.Href}/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => _ = InvokeAsync(() =>
+    {
+        _isMoreOpen = false;
+        StateHasChanged();
+    });
 
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 

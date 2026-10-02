@@ -11,8 +11,8 @@
 
 <div class="alchemy-page">
     <header class="alchemy-intro">
-        <div><span class="alchemy-eyebrow">CAMP ALCHEMY</span><h1>炼金工坊</h1><p>将草药的力量，留在每一瓶药剂中。</p></div>
-        <a class="alchemy-garden-link" href="/planting">前往药田 <span aria-hidden="true">↗</span></a>
+        <h1>炼金工坊</h1>
+        <nav class="alchemy-shortcuts" aria-label="炼金相关页面"><a href="/inventory?characterId=@ActiveCharacters.Current?.CharacterId">仓库</a><a class="alchemy-garden-link" href="/planting">药田 <span aria-hidden="true">↗</span></a></nav>
     </header>
     @if (_notice is not null)
     {
@@ -31,7 +31,7 @@
     {
         @if (_connectionIssue) { <p class="alchemy-connection" role="status">连接暂时中断，当前显示上次进度，正在重新连接。</p> }
         <section id="alchemy-workbench" tabindex="-1" class="alchemy-bench @(_overview.ActiveTask is not null ? "alchemy-bench--working" : null)" aria-labelledby="alchemy-bench-title">
-            <div class="alchemy-bench-heading"><div><span class="alchemy-eyebrow">WORKBENCH</span><h2 id="alchemy-bench-title">@_overview.CharacterName 的炼金台</h2></div><span class="alchemy-bench-status"><i></i>@(_overview.ActiveTask is null ? "空闲" : "炼制中")</span></div>
+            <div class="alchemy-bench-heading"><h2 id="alchemy-bench-title">炼金台</h2><span class="alchemy-bench-status"><i></i>@(_overview.ActiveTask is null ? "空闲" : "炼制中")</span></div>
             @if (_overview.ActiveTask is { } task)
             {
                 <div class="alchemy-bench-main">
@@ -51,33 +51,37 @@
             {
                 <div class="alchemy-idle">
                     <div class="alchemy-vessel alchemy-vessel--idle" aria-hidden="true"><span></span><img src="@ItemArt.ForCode("minor-healing-potion")" alt="" /></div>
-                    <div><h3>炼金台已就绪</h3><p>选择下方配方，开始炼制药剂。</p><small>战斗与离线期间，也能继续生产</small></div>
+                    <div><h3>选择配方开始炼制</h3><p>战斗与离线期间继续生产</p></div>
                 </div>
             }
         </section>
 
         <section class="alchemy-recipes" aria-labelledby="alchemy-recipes-title">
-            <div class="alchemy-section-heading"><div><span class="alchemy-eyebrow">RECIPE BOOK</span><h2 id="alchemy-recipes-title" tabindex="-1">炼金配方</h2></div><span>已解锁 <b>@_overview.Recipes.Count(MeetsRequirements)</b> / @_overview.Recipes.Count</span></div>
+            <div class="alchemy-section-heading"><h2 id="alchemy-recipes-title" tabindex="-1">选择配方</h2><span>已解锁 <b>@_overview.Recipes.Count(MeetsRequirements)</b> / @_overview.Recipes.Count</span></div>
             <div class="alchemy-filters" role="group" aria-label="筛选炼金配方">
                 @foreach (var filter in Filters)
                 {
-                    <button type="button" class="@(_filter == filter.Code ? "alchemy-filter--active" : null)" aria-pressed="@(_filter == filter.Code ? "true" : "false")" @onclick="() => _filter = filter.Code">@filter.Name <small>@_overview.Recipes.Count(recipe => MatchesFilter(recipe, filter.Code))</small></button>
+                    <button type="button" class="@(_filter == filter.Code ? "alchemy-filter--active" : null)" aria-pressed="@(_filter == filter.Code ? "true" : "false")" @onclick="() => SetRecipeFilter(filter.Code)">@filter.Name <small>@_overview.Recipes.Count(recipe => MatchesFilter(recipe, filter.Code))</small></button>
                 }
             </div>
             <div class="alchemy-recipe-list">
-                @foreach (var recipe in VisibleRecipes)
+                @foreach (var recipe in PagedRecipes)
                 {
                     <button @key="recipe.Code" id="@RecipeElementId(recipe.Code)" type="button" class="alchemy-recipe @(IsGreater(recipe) ? "alchemy-recipe--greater" : null) @(!MeetsRequirements(recipe) ? "alchemy-recipe--locked" : null)" @onclick="() => OpenRecipe(recipe.Code)" aria-haspopup="dialog" aria-label="@($"查看{recipe.Name}配方，{RecipeState(recipe)}")">
                         <span class="alchemy-recipe-icon"><img src="@ItemArt.ForCode(recipe.OutputCode)" alt="" loading="lazy" /></span>
                         <span class="alchemy-recipe-copy">
                             <span class="alchemy-recipe-title"><strong>@recipe.OutputName</strong><small>@(IsGreater(recipe) ? "强效" : recipe.OutputQuantity > 1 ? "批量" : "普通")</small></span>
                             <span class="alchemy-recipe-effect">@recipe.OutputDescription</span>
-                            <span class="alchemy-recipe-meta">@recipe.CycleSeconds 秒 / 批 <i>·</i> 每批 @recipe.OutputQuantity 瓶 <i>·</i> 背包 @recipe.CharacterQuantity</span>
+                            <span class="alchemy-recipe-meta">@recipe.CycleSeconds 秒 / 批 <i>·</i> @recipe.OutputQuantity 瓶 <i>·</i> 库存 @recipe.CharacterQuantity</span>
                         </span>
                         <span class="alchemy-recipe-state @(MeetsRequirements(recipe) && IngredientsReady(recipe) ? "alchemy-recipe-state--ready" : null)"><b>@RecipeState(recipe)</b><small>@(MeetsRequirements(recipe) ? $"可做 {AvailableCycles(recipe)} 批" : $"需要 Lv.{recipe.MinimumCharacterLevel}") <span aria-hidden="true">›</span></small></span>
                     </button>
                 }
             </div>
+            @if (RecipePageCount > 1)
+            {
+                <nav class="alchemy-pager" aria-label="配方分页"><button type="button" disabled="@(CurrentRecipePage == 1)" @onclick="() => _recipePage = CurrentRecipePage - 1" aria-label="上一页配方">←</button><span>@CurrentRecipePage / @RecipePageCount 页 · @VisibleRecipes.Count() 个配方</span><button type="button" disabled="@(CurrentRecipePage == RecipePageCount)" @onclick="() => _recipePage = CurrentRecipePage + 1" aria-label="下一页配方">→</button></nav>
+            }
             @if (!VisibleRecipes.Any())
             {
                 <div class="alchemy-empty"><strong>暂时没有可制作的配方</strong><p>收获草药或完成对应战斗后，再来查看。</p><a href="/planting">去药田看看 ↗</a></div>
@@ -99,7 +103,7 @@
         {
             <div class="alchemy-dialog-overlay" @onclick="CloseRecipe" @onkeydown="HandleDialogKeyDown" @onkeydown:stopPropagation>
                 <section @key="selected.Code" class="alchemy-dialog @(IsGreater(selected) ? "alchemy-dialog--greater" : null)" @ref="_dialog" role="dialog" aria-modal="true" aria-labelledby="alchemy-dialog-title" @onclick:stopPropagation>
-                    <header class="alchemy-dialog-header"><div><span class="alchemy-eyebrow">PREPARE A BREW</span><h2 id="alchemy-dialog-title">@selected.OutputName</h2></div><button type="button" class="alchemy-dialog-close" @ref="_dialogCloseButton" @onclick="CloseRecipe" aria-label="关闭配方详情">×</button></header>
+                    <header class="alchemy-dialog-header"><h2 id="alchemy-dialog-title">@selected.OutputName</h2><button type="button" class="alchemy-dialog-close" @ref="_dialogCloseButton" @onclick="CloseRecipe" aria-label="关闭配方详情">×</button></header>
                     <div class="alchemy-dialog-body">
                         <div class="alchemy-product">
                             <div class="alchemy-product-icon"><img src="@ItemArt.ForCode(selected.OutputCode)" alt="" /></div>
@@ -150,11 +154,19 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "item")] public string? RequestedItemCode { get; set; }
+    private bool _locatedItem;
     private static readonly (string Code, string Name)[] Filters = [("all", "全部"), ("ready", "可制作"), ("normal", "普通"), ("greater", "强效")];
     private ProductionOverviewResponse? _overview;
     private bool _fixedBatch;
     private string _batchInput = "1";
     private string _filter = "all";
+    private int _recipePage = 1;
+    private const int RecipePageSize = 3;
+    private int RecipePageCount => Math.Max(1, (VisibleRecipes.Count() + RecipePageSize - 1) / RecipePageSize);
+    private int CurrentRecipePage => Math.Clamp(_recipePage, 1, RecipePageCount);
+    private IEnumerable<ProductionRecipeResponse> PagedRecipes => VisibleRecipes.Skip((CurrentRecipePage - 1) * RecipePageSize).Take(RecipePageSize);
+    private void SetRecipeFilter(string filter) { _filter = filter; _recipePage = 1; }
     private readonly Dictionary<string, string> _startRequests = new();
     private readonly CancellationTokenSource _refreshCancellation = new();
     private int _characterGeneration;
@@ -210,7 +222,7 @@
     private void OpenRecipe(string code) { _selectedRecipeCode = code; _focusDialog = true; _notice = null; _returnFocusId = null; }
     private void CloseRecipe()
     {
-        _returnFocusId = VisibleRecipes.Any(recipe => recipe.Code == _selectedRecipeCode) ? RecipeElementId(_selectedRecipeCode!) : "alchemy-recipes-title";
+        _returnFocusId = PagedRecipes.Any(recipe => recipe.Code == _selectedRecipeCode) ? RecipeElementId(_selectedRecipeCode!) : "alchemy-recipes-title";
         _selectedRecipeCode = null;
         _focusDialog = false;
     }
@@ -231,7 +243,11 @@
     private string StartLabel(ProductionRecipeResponse recipe) => _isBusy ? "处理中…" : _connectionIssue ? "等待连接恢复" : !recipe.IsUnlocked ? "完成战斗后解锁" : !MeetsRequirements(recipe) ? "角色等级不足" : _overview?.ActiveTask is not null ? "炼金台正在生产" : !ValidQuantity ? "请输入有效批数" : !IngredientsReady(recipe) ? "背包材料不足" : _fixedBatch ? $"开始制作 {RequestedCycles} 批" : "开始连续生产";
     private void SetNotice(string text, bool error = false) { _notice = text; _noticeIsError = error; }
     private bool IsCurrent(int generation, int? characterId) => !_disposed && generation == _characterGeneration && characterId == ActiveCharacters.Current?.CharacterId;
-    private void ApplyOverview(ProductionOverviewResponse response) { _overview = response; _serverOffset = response.ServerTimeUtc - DateTime.UtcNow; _connectionIssue = false; }
+    private void ApplyOverview(ProductionOverviewResponse response)
+    {
+        _overview = response; _serverOffset = response.ServerTimeUtc - DateTime.UtcNow; _connectionIssue = false;
+        if (!_locatedItem && RequestedItemCode is not null && response.Recipes.FirstOrDefault(recipe => recipe.OutputCode == RequestedItemCode || recipe.Ingredients.Any(ingredient => ingredient.Code == RequestedItemCode)) is { } requested) { _locatedItem = true; OpenRecipe(requested.Code); }
+    }
 
     private async Task RefreshLoopAsync(CancellationToken token)
     {

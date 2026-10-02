@@ -1,4 +1,5 @@
 @using Game.Client.Services
+@using Game.Shared
 @using Game.Shared.Dtos.Characters
 @inject ApiService ApiService
 @inject CharacterContextCoordinator CharacterContext
@@ -20,7 +21,7 @@ else
     <div class="current-character-panel__grid">
     @foreach (var character in _characters.OrderByDescending(character => character.IsCurrent))
     {
-        <CharacterCard Character="character"
+        <CharacterCard @key="character.CharacterId" Character="character"
                        IsCurrent="@character.IsCurrent"
                        CanDelete="@(_characters.Count > 1)"
                        IsInteractionDisabled="@_isSubmitting"
@@ -35,10 +36,13 @@ else
     @if (_isCreating)
     {
         <form class="character-create-card character-create-card--editing" @onsubmit="CreateCharacterAsync" @onsubmit:preventDefault="true">
+            @if (!FirstCharacterCreation)
+            {
             <div class="character-create-card__header">
                 <h3 class="character-create-card__title">创建角色</h3>
                 <span class="character-create-card__plus">+</span>
             </div>
+            }
             <label class="character-create-card__label" for="character-name-input">角色名</label>
             <input id="character-name-input"
                    class="character-create-card__input"
@@ -47,9 +51,7 @@ else
                    placeholder="输入角色名"
                    autocomplete="off"
                    required
-                   aria-describedby="character-name-hint"
                    disabled="@_isSubmitting" />
-            <span id="character-name-hint" class="character-create-card__hint">用于区分编队中的不同角色。</span>
             <fieldset class="profession-picker" disabled="@_isSubmitting">
                 <legend class="character-create-card__label">选择初始职业</legend>
                 @if (_professions.Count == 0)
@@ -66,25 +68,37 @@ else
                                 <input type="radio"
                                        name="character-profession"
                                        value="@profession.Code"
+                                       aria-describedby="selected-profession-details"
                                        checked="@(_newProfessionCode == profession.Code)"
                                        @onchange="@(_ => SelectProfession(profession.Code))" />
                                 <span class="profession-option__glyph" aria-hidden="true"><img src="@ProfessionArt.ForCode(profession.Code)" alt="" /></span>
                                 <span class="profession-option__content">
                                     <strong>@profession.Name</strong>
-                                    <span>@profession.Description</span>
-                                    @if (!string.IsNullOrWhiteSpace(profession.GrantedSkillName))
-                                    {
-                                        <small>初始技能 · @profession.GrantedSkillName</small>
-                                    }
                                 </span>
                                 <span class="profession-option__check" aria-hidden="true">✓</span>
                             </label>
                         }
                     </div>
+                    @if (_professions.FirstOrDefault(profession => profession.Code == _newProfessionCode) is { } selectedProfession)
+                    {
+                        <div id="selected-profession-details" class="profession-detail" aria-live="polite">
+                            <strong>@selectedProfession.Name</strong>
+                            <p>@selectedProfession.Description</p>
+                            @if (!string.IsNullOrWhiteSpace(selectedProfession.GrantedSkillName)) { <small>初始技能 · @selectedProfession.GrantedSkillName</small> }
+                        </div>
+                    }
                 }
             </fieldset>
+            @if (_isMessageError && !string.IsNullOrWhiteSpace(_message)) { <p class="@MessageClassName" role="alert">@_message</p> }
             <div class="character-create-card__actions">
-                <button type="submit" disabled="@(_isSubmitting || _professions.Count == 0)">@CreateSubmitText</button>
+                @if (FirstCharacterCreation && _createOutcomeUnknown)
+                {
+                    <button type="button" disabled="@_isSubmitting" @onclick="CheckCreationAsync">@(_isSubmitting ? "正在核对…" : "核对创建结果")</button>
+                }
+                else
+                {
+                    <button type="submit" disabled="@(_isSubmitting || _professions.Count == 0)">@CreateSubmitText</button>
+                }
                 @if (!FirstCharacterCreation)
                 {
                     <button type="button" @onclick="CancelCreate" disabled="@_isSubmitting">取消</button>
@@ -105,18 +119,15 @@ else
     }
     else
     {
-        <a class="character-create-card character-create-card--locked" href="/shop">
+        <div class="character-create-card character-create-card--locked" role="status">
             <span class="character-create-card__plus">◇</span>
-            <span class="character-create-card__text">@(_characterSlotLimit >= _maximumCharacterSlots ? "角色栏位已达上限" : "角色栏位已满")</span>
-            @if (_characterSlotLimit < _maximumCharacterSlots)
-            {
-                <small>前往商店解锁下一个栏位</small>
-            }
-        </a>
+            <span class="character-create-card__text">角色栏位已满</span>
+            <small>已拥有全部五个栏位</small>
+        </div>
     }
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_message))
+    @if (!string.IsNullOrWhiteSpace(_message) && !(_isCreating && _isMessageError))
     {
         <p class="@MessageClassName">@_message</p>
     }
@@ -145,6 +156,7 @@ else
     private bool _isCreating;
     private bool _isSubmitting;
     private bool _isLoadingProfessions;
+    private bool _createOutcomeUnknown;
     private int? _deletingCharacterId;
     private int? _selectingCharacterId;
     private string _newCharacterName = string.Empty;
@@ -152,12 +164,12 @@ else
     private string? _message;
     private bool _isMessageError;
     private CharacterOperation? _activeOperation;
-    private int _characterSlotLimit = 2;
-    private int _maximumCharacterSlots = 5;
+    private int _characterSlotLimit = CharacterSlotRules.SlotsPerAccount;
+    private int _maximumCharacterSlots = CharacterSlotRules.SlotsPerAccount;
 
     private bool HasAvailableCharacterSlot => _characters.Count < _characterSlotLimit;
     private bool IsCreatingSubmission => _isSubmitting && _activeOperation == CharacterOperation.Create;
-    private string CreateSubmitText => IsCreatingSubmission ? "创建中..." : "创建";
+    private string CreateSubmitText => IsCreatingSubmission ? "创建中…" : FirstCharacterCreation ? "创建并进入大厅" : "创建角色";
     private string CreateEntryText => _isSubmitting ? GetSubmittingText() : "创建角色";
     private string MessageClassName => _isMessageError
         ? "current-character-panel__message current-character-panel__message--error"
@@ -191,7 +203,12 @@ else
     {
         if (_isLoadingProfessions) return;
         _isLoadingProfessions = true;
-        try { _professions = await ApiService.GetProfessionsAsync() ?? []; }
+        try
+        {
+            _professions = await ApiService.GetProfessionsAsync() ?? [];
+            if (!_professions.Any(profession => profession.Code == _newProfessionCode))
+                _newProfessionCode = _professions.FirstOrDefault()?.Code ?? string.Empty;
+        }
         catch { _professions = []; }
         finally { _isLoadingProfessions = false; }
     }
@@ -247,8 +264,13 @@ else
 
     private async Task CreateCharacterAsync()
     {
-        if (_isSubmitting)
+        if (_isSubmitting || FirstCharacterCreation && _createOutcomeUnknown)
         {
+            return;
+        }
+        if (!_professions.Any(profession => profession.Code == _newProfessionCode))
+        {
+            SetFailureMessage("创建", "请选择一个初始职业。");
             return;
         }
 
@@ -269,10 +291,40 @@ else
             SetSuccessMessage($"已创建角色“{character.Name}”。");
             await OnCreated.InvokeAsync();
         }
+        catch (HttpRequestException) { CreationUnconfirmed("连接中断"); }
+        catch (TaskCanceledException) { CreationUnconfirmed("请求超时"); }
         finally
         {
             EndSubmission();
         }
+    }
+
+    private void CreationUnconfirmed(string reason)
+    {
+        _createOutcomeUnknown = FirstCharacterCreation;
+        SetFailureMessage("创建", FirstCharacterCreation ? $"{reason}，请先核对创建结果。" : $"{reason}，请刷新确认角色是否已创建。");
+    }
+
+    private async Task CheckCreationAsync()
+    {
+        if (_isSubmitting || !FirstCharacterCreation || !_createOutcomeUnknown) return;
+        BeginSubmission(CharacterOperation.Create);
+        try
+        {
+            var characters = await ApiService.GetCurrentCharactersAsync(forceRefresh: true);
+            if (characters is null) { SetFailureMessage("核对", "暂时无法读取角色，请重试。"); return; }
+            if (characters.Count > 0)
+            {
+                await CharacterContext.RefreshAsync();
+                await OnCreated.InvokeAsync();
+                return;
+            }
+            _createOutcomeUnknown = false;
+            SetSuccessMessage("尚未创建角色，可以重新提交。");
+        }
+        catch (HttpRequestException) { SetFailureMessage("核对", "连接中断，请重试。"); }
+        catch (TaskCanceledException) { SetFailureMessage("核对", "请求超时，请重试。"); }
+        finally { EndSubmission(); }
     }
 
     private async Task DeleteCharacterAsync(CharacterSummaryResponse character)
@@ -384,9 +436,7 @@ else
     {
         if (!HasAvailableCharacterSlot)
         {
-            return _characterSlotLimit >= _maximumCharacterSlots
-                ? "角色栏位已达到上限。"
-                : "角色栏位已满，请前往商店解锁。";
+            return "已拥有全部五个角色栏位，角色数量已达上限。";
         }
 
         if (!_isSubmitting)
@@ -449,7 +499,7 @@ else
             "Character does not belong to current user." => "该角色不属于当前用户。",
             "Cannot delete the last character." => "至少保留一个角色。",
             "Character is still in a room." => "角色仍在房间中。",
-            "CharacterSlotLimitReached" => "角色栏位已满，请前往商店解锁。",
+            "CharacterSlotLimitReached" => "已拥有全部五个角色栏位，角色数量已达上限。",
             "ConcurrencyConflict" => "角色信息刚刚发生变化，请刷新后重试。",
             "User not found." => "用户不存在。",
             "Request body is required." => "请求无效。",

@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [switch]$Browser,
+    [switch]$InventoryBrowser,
     [string]$PublishedRun
 )
 
@@ -216,6 +217,10 @@ try {
     if ($Browser) {
         & node (Join-Path $PSScriptRoot 'verify-published-client.cjs') $baseUrl $runRoot
         if ($LASTEXITCODE -ne 0) { throw "Published Blazor browser startup failed with exit code $LASTEXITCODE." }
+    }
+    if ($InventoryBrowser) {
+        & node (Join-Path $PSScriptRoot 'verify-inventory.cjs') $baseUrl $runRoot $database
+        if ($LASTEXITCODE -ne 0) { throw "Inventory browser verification failed with exit code $LASTEXITCODE." }
     }
     Write-Host "Release smoke passed: client assets, health, registration/login/logout, character/room creation, battle round, and background scanners. Artifacts: $runRoot"
 }

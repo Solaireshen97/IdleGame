@@ -1,8 +1,8 @@
 .talents-page { display:flex; flex-direction:column; gap:.5rem; height:min(920px,calc(100dvh - 9.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))); min-height:360px; color:#e7eef3; }
-.talents-page__tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.25rem; flex:0 0 auto; padding:.25rem; border:1px solid #40566b; border-radius:.7rem; background:#132435; }
-.talents-page__tabs button { min-height:44px; border:0; border-radius:.45rem; background:transparent; color:#9db3c3; font-size:.8rem; font-weight:700; cursor:pointer; }
+.talents-page__tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.25rem; flex:0 0 auto; padding:.25rem; border:1px solid #40566b; border-radius:.7rem; background:#132435; }
+.talents-page__tabs button, .talents-page__tabs a { display:grid; place-items:center; min-height:44px; border:0; border-radius:.45rem; background:transparent; color:#9db3c3; font-size:.8rem; font-weight:700; cursor:pointer; text-decoration:none; }
 .talents-page__tabs button.active { background:#d7a85e22; color:#f4d498; box-shadow:inset 0 -2px #d7a85e; }
-.talents-page__tabs button:focus-visible { outline:2px solid #edc77f; outline-offset:-2px; }
+.talents-page__tabs button:focus-visible, .talents-page__tabs a:focus-visible { outline:2px solid #edc77f; outline-offset:-2px; }
 .talents-page__workspace { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; gap:.4rem; }
 .talents-page__workspace ::deep > .talent-board, .talents-page__workspace ::deep > .profession-board { flex:1; min-height:0; }
 .talents-page__workspace--library { overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
