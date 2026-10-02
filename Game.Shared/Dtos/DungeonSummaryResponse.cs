@@ -50,6 +50,8 @@ public sealed class DungeonDepthPreviewResponse
     public bool IsUnlocked { get; set; }
     public bool IsChallenge { get; set; }
     public decimal StatMultiplier { get; set; }
+    public decimal AttackMultiplier { get; set; } = 1m;
+    public int StatBaseDepth { get; set; } = 1;
     public bool UsesExplicitStats { get; set; }
     public List<string> AddedMechanics { get; set; } = [];
 }

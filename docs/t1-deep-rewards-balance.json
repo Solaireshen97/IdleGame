@@ -1,0 +1,434 @@
+{
+  "UpdatedDate": "2026-10-01",
+  "Status": "Implemented",
+  "Scope": "六属性共享新深层奖励；战斗时长仅火 LV1～LV4 已校准",
+  "Parameters": {
+    "RegularEnemyWeaponChancePercent": 1,
+    "BossWeaponChancePercent": 5,
+    "IndependentWeaponRolls": true,
+    "RegularEnemyCount": 4,
+    "BossCount": 1,
+    "ClearWeaponDrops": 0,
+    "ClearFragments": 5,
+    "ClearTokens": 1,
+    "ClearSoulImprintChancePercent": 1,
+    "WeaponExchangeCost": 60,
+    "FragmentExchange": {
+      "Tokens": 1,
+      "Fragments": 5
+    },
+    "SoulExchangeCost": 100,
+    "FirstClearExtraTokens": 2
+  },
+  "Progression": {
+    "TargetCopiesRequired": 4,
+    "SkillsAtGraduation": 3,
+    "SkillLevelAtGraduation": 10,
+    "RequiredSkillFragments": 186,
+    "EntryQualityRank": 0,
+    "InitiallyUnlockedSkills": 2
+  },
+  "Assumptions": {
+    "CharacterCountForRewards": 1,
+    "MinutesPerRun": 30,
+    "RunsPer24Hours": 48,
+    "InitialInventory": 0,
+    "Excluded": [
+      "首通额外徽记",
+      "精通追加",
+      "多账号合作加成",
+      "分解旧装备和多余武器",
+      "已有库存",
+      "战败和中断时间"
+    ],
+    "CoopPolicy": "按不同账号加成；同一账号五角色不增加掉率",
+    "Calculation": "每次五个独立掉落概率卷积；按完整通关次数求首次满足四把同款与186碎片的分布，徽记共用同一余额"
+  },
+  "DailyExpected": {
+    "TargetWeaponCopies": 4.32,
+    "TotalWeaponCopies": 8.64,
+    "FixedFragments": 240,
+    "FragmentsRemainingAfterOne": 54,
+    "Tokens": 48,
+    "WeaponRedeemUpperLimit": 0.8,
+    "ExchangeShareOfAllWeaponSupply": 0.0847457627118644
+  },
+  "Calculations": [
+    {
+      "Mode": "DropsOnly",
+      "TargetMeanHours": 24.950611090010995,
+      "FirstOfEitherMeanHours": 20.833937765732784,
+      "TargetQuantileHours": {
+        "0.5": 20.5,
+        "0.9": 37,
+        "0.95": 43
+      },
+      "TargetGraduatedAt24Hours": 0.6302916792692461,
+      "TargetGraduatedAt48Hours": 0.9744007662292856
+    },
+    {
+      "Mode": "WeaponOnly",
+      "TargetMeanHours": 23.76529644804271,
+      "FirstOfEitherMeanHours": 20.657820411616576,
+      "TargetQuantileHours": {
+        "0.5": 20.5,
+        "0.9": 30,
+        "0.95": 35
+      },
+      "TargetGraduatedAt24Hours": 0.6302916792692461,
+      "TargetGraduatedAt48Hours": 0.9923893375236079
+    },
+    {
+      "Mode": "WeaponAndFragments",
+      "TargetMeanHours": 21.387663078881104,
+      "FirstOfEitherMeanHours": 16.60048002643013,
+      "TargetQuantileHours": {
+        "0.5": 20.5,
+        "0.9": 30,
+        "0.95": 35
+      },
+      "TargetGraduatedAt24Hours": 0.6302916792692461,
+      "TargetGraduatedAt48Hours": 0.9923893375236079
+    }
+  ],
+  "Dungeons": [
+    {
+      "Code": "ragefire-heart",
+      "DefinitionRevision": 7,
+      "WeaponCodes": [
+        "t1-deep-embermark-axe",
+        "t1-deep-molten-armor-maul"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "ragefire-heart-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "ragefire-heart-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "ragefire-heart-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "ragefire-heart-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "ragefire-heart-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "ragefire-heart-output",
+          "Cost": 60,
+          "CurrencyCode": "ragefire-heart-token",
+          "WeaponCode": "t1-deep-embermark-axe"
+        },
+        {
+          "Code": "ragefire-heart-survival",
+          "Cost": 60,
+          "CurrencyCode": "ragefire-heart-token",
+          "WeaponCode": "t1-deep-molten-armor-maul"
+        }
+      ]
+    },
+    {
+      "Code": "frostspring-throne",
+      "DefinitionRevision": 2,
+      "WeaponCodes": [
+        "t1-deep-mirror-tide-blade",
+        "t1-deep-frostspring-ward-staff"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "frostspring-throne-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "frostspring-throne-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "frostspring-throne-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "frostspring-throne-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "frostspring-throne-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "frostspring-throne-output",
+          "Cost": 60,
+          "CurrencyCode": "frostspring-throne-token",
+          "WeaponCode": "t1-deep-mirror-tide-blade"
+        },
+        {
+          "Code": "frostspring-throne-survival",
+          "Cost": 60,
+          "CurrencyCode": "frostspring-throne-token",
+          "WeaponCode": "t1-deep-frostspring-ward-staff"
+        }
+      ]
+    },
+    {
+      "Code": "kobold-mine-depths",
+      "DefinitionRevision": 2,
+      "WeaponCodes": [
+        "t1-deep-riftstone-spear",
+        "t1-deep-stone-oath-maul"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "kobold-mine-depths-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "kobold-mine-depths-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "kobold-mine-depths-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "kobold-mine-depths-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "kobold-mine-depths-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "kobold-mine-depths-output",
+          "Cost": 60,
+          "CurrencyCode": "deep-mine-token",
+          "WeaponCode": "t1-deep-riftstone-spear"
+        },
+        {
+          "Code": "kobold-mine-depths-survival",
+          "Cost": 60,
+          "CurrencyCode": "deep-mine-token",
+          "WeaponCode": "t1-deep-stone-oath-maul"
+        }
+      ]
+    },
+    {
+      "Code": "windfury-spire",
+      "DefinitionRevision": 2,
+      "WeaponCodes": [
+        "t1-deep-swiftfeather-bow",
+        "t1-deep-gale-mark-ward-staff"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "windfury-spire-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "windfury-spire-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "windfury-spire-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "windfury-spire-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "windfury-spire-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "windfury-spire-output",
+          "Cost": 60,
+          "CurrencyCode": "windfury-spire-token",
+          "WeaponCode": "t1-deep-swiftfeather-bow"
+        },
+        {
+          "Code": "windfury-spire-survival",
+          "Cost": 60,
+          "CurrencyCode": "windfury-spire-token",
+          "WeaponCode": "t1-deep-gale-mark-ward-staff"
+        }
+      ]
+    },
+    {
+      "Code": "dawn-core",
+      "DefinitionRevision": 2,
+      "WeaponCodes": [
+        "t1-deep-radiant-prism-blade",
+        "t1-deep-dawn-ward-staff"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "dawn-core-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "dawn-core-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "dawn-core-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "dawn-core-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "dawn-core-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "dawn-core-output",
+          "Cost": 60,
+          "CurrencyCode": "dawn-core-token",
+          "WeaponCode": "t1-deep-radiant-prism-blade"
+        },
+        {
+          "Code": "dawn-core-survival",
+          "Cost": 60,
+          "CurrencyCode": "dawn-core-token",
+          "WeaponCode": "t1-deep-dawn-ward-staff"
+        }
+      ]
+    },
+    {
+      "Code": "plague-crypt-depths",
+      "DefinitionRevision": 2,
+      "WeaponCodes": [
+        "t1-deep-night-mark-twinblades",
+        "t1-deep-nether-oath-ward-staff"
+      ],
+      "KillProfiles": [
+        {
+          "Profile": "plague-crypt-depths-pack",
+          "IsBoss": false
+        },
+        {
+          "Profile": "plague-crypt-depths-pack-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "plague-crypt-depths-guard",
+          "IsBoss": false
+        },
+        {
+          "Profile": "plague-crypt-depths-guard-loot-2",
+          "IsBoss": false
+        },
+        {
+          "Profile": "plague-crypt-depths-boss",
+          "IsBoss": true
+        }
+      ],
+      "Offers": [
+        {
+          "Code": "plague-crypt-depths-output",
+          "Cost": 60,
+          "CurrencyCode": "plague-crypt-token",
+          "WeaponCode": "t1-deep-night-mark-twinblades"
+        },
+        {
+          "Code": "plague-crypt-depths-survival",
+          "Cost": 60,
+          "CurrencyCode": "plague-crypt-token",
+          "WeaponCode": "t1-deep-nether-oath-ward-staff"
+        }
+      ]
+    }
+  ],
+  "Verification": {
+    "PassedTests": 130,
+    "FailedTests": 0,
+    "IntegrationCases": 16,
+    "ConfigurationChangedKillProfiles": 30,
+    "ConfigurationChangedClears": 6,
+    "CombatAndWeaponTemplatesUnchanged": true,
+    "FirstClearRewardsUnchanged": true,
+    "RuntimeCodeUnchanged": true,
+    "ConfigOnlyChanges": [
+      "Rewards:30击杀池、6通关池",
+      "DungeonExchange:12把新武器取代36把旧武器",
+      "DungeonDepths:仅6本定义修订号"
+    ],
+    "FrozenRooms": "原房间与自动重复保留已冻结奖励；服务器重载后的新房间使用新规则",
+    "TestResultsFile": "C:\\Users\\sjh63\\AppData\\Local\\Temp\\idlegame-deep-rewards-ttMcMY\\test-results\\deep-rewards.trx"
+  },
+  "SourceSha256": {
+    "Game.Server/appsettings.json": "6273a66b98f4e530bdb5d898b6c39563a20400bcd391460e6b022ca95534bbdc",
+    "Game.Server/Services/RewardCatalog.cs": "3956aa1ee7230b4c9010c320e24db5574f4b1d3533f139e5fb953a6ace36dddc",
+    "Game.Server/Services/RewardService.cs": "7f1edcfba311a4c0bea4f2d82bc2733cd24f520adb7974b9699192cb065ddcfc",
+    "Game.Server/Services/DungeonRunRulesService.cs": "c62fd38d70b3c35bf325ff057636bdcc310e3d8582c365fd438404a5faf3a605",
+    "Game.Server/Services/DungeonRunService.cs": "dc2e072e5275fd8cd2b243ea2fe0235be26dff1a534b324641876e1f26b049fa",
+    "Game.Server/Services/ShopService.cs": "2ce9414fccdbaedd6422a9731898bfab6c691074299ca462794f0607f67e9bdb",
+    "Game.Server.Tests/DeepDungeonRewardIntegrationTests.cs": "83b4d910b0928edb12864c66eeea90fe026c30bfe28d849b0d6a0161b619da37",
+    "Game.Server.Tests/T1WeaponContentTests.cs": "32aa9bb1a0f5493752e457bf57279de03a3ffe176a141af85cd8ec7cb479cd8e",
+    "Game.Server.Tests/ShopConfigurationTests.cs": "2ebe719b73f730ba73e12bedae175d9b31144b623019836251821b56375c0756",
+    "Game.Server.Tests/WorldContentTests.cs": "bb63e704d1795dd04d4bf555dc0a5b62f6c5b9c5bc8559f8b4fd363034af508b",
+    "Game.Server.Tests/RegionLootTests.cs": "f28e971b17094713f9a35cc212f8c476bb42fd6106d023a90a42bc1252904b30"
+  },
+  "LaterWaterCombatCalibration": {
+    "UpdatedDate": "2026-10-01",
+    "ActiveWaterDefinitionRevision": 3,
+    "Reference": "t1-water-deep-lv1-balance.json",
+    "Scope": "更新水LV1的五波怪物、基础技能及局部首次冷却；奖励、武器、兑换配置完全不变。水LV1三十分钟基准已验证，其他四属性战斗仍未标定。",
+    "HistoricalVerification": "本奖励报告原SourceSha256及130项验证保留奖励接入当时版本，完整配置与执行器已被后续水战斗标定更新；当前战斗配置哈希和133项回归证据见水LV1报告。"
+  },
+  "LaterWaterLv2Calibration": {
+    "UpdatedDate": "2026-10-01",
+    "ActiveWaterDefinitionRevision": 4,
+    "CalibratedDepths": [
+      1,
+      2
+    ],
+    "Reference": "t1-water-deep-lv2-balance.json",
+    "Scope": "水LV2独立面板与一次深寒/个人余温接入；LV1基础战斗及所有武器、奖励、兑换数据不变。旧记录哈希保留其历史版本，当前581项验证及源文件哈希见LV2报告。",
+    "ExactWaterLv1RegressionRuns": 3
+  },
+  "LaterWaterLv3Calibration": {
+    "UpdatedDate": "2026-10-01",
+    "ActiveWaterDefinitionRevision": 5,
+    "CalibratedDepths": [
+      1,
+      2,
+      3
+    ],
+    "Reference": "t1-water-deep-lv3-balance.json",
+    "Scope": "水LV3独立面板与一次深寒增长/冻结联动接入；原水LV1/2战斗声明及所有武器、奖励、兑换保持不变。历史哈希与记录保留，当前598项验证及源码哈希见LV3报告。",
+    "ExactWaterLv2RegressionRuns": 3,
+    "ExactFireLv4RegressionRuns": 3
+  },
+  "LaterWaterLv4AttributeAlignment": {
+    "UpdatedDate": "2026-10-01",
+    "ActiveWaterDefinitionRevision": 7,
+    "CalibratedDepths": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "Reference": "t1-water-deep-lv4-balance.json",
+    "Scope": "水LV2～LV4使用土属性驱寒；LV3重新标定生命，LV4正式循环与独立数值接入，水LV1及LV2数值和所有奖励武器保持不变。",
+    "OriginalResultIsHistorical": false
+  }
+}

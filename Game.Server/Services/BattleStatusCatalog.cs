@@ -15,7 +15,7 @@ public sealed class BattleStatusCatalog
         {
             if (string.IsNullOrWhiteSpace(status.Code) || string.IsNullOrWhiteSpace(status.Name) ||
                 string.IsNullOrWhiteSpace(status.Description) ||
-                status.EffectType is not ("None" or "AttackPercent" or "ReductionPercent" or "DamageTakenPercent" or "DoubleAttackChancePercent" or "DamageOverTime" or "HealOverTime" or "SilenceNextIntent") ||
+                status.EffectType is not ("None" or "ActionBlocked" or "AttackPercent" or "ReductionPercent" or "DamageTakenPercent" or "DamageDealtPercent" or "DoubleAttackChancePercent" or "DamageOverTime" or "HealOverTime" or "SilenceNextIntent") ||
                 status.ValuePerStack == 0 && status.EffectType is not ("None" or "DamageOverTime" or "HealOverTime") ||
                 status.MaxStacks is < 1 or > 10 ||
                 status.Stacking is not ("RefreshDuration" or "AddStack" or "ReplaceIfStronger") ||
@@ -38,6 +38,12 @@ public sealed class BattleStatusCatalog
         AddHistoricalEcho("talent-sword-rhythm", "节奏追击", 25);
         AddHistoricalEcho("talent-intercept-echo", "截击追击", 50);
         AddHistoricalEcho("talent-guard-echo", "反攻追击", 75);
+        _definitions.Add(BattleStatusService.ActionSkippedCode, BattleStatusDefinition.Compile(new()
+        {
+            Code = BattleStatusService.ActionSkippedCode, Name = "本回合行动已跳过", Description = "解除控制后不补行动。",
+            EffectType = "None", IsPositive = true, IsDispellable = false, IsHidden = true,
+            Lifetime = BattleStatusLifetime.CurrentRound, CounterKind = BattleStatusCounterKind.None
+        }));
     }
 
     private void AddHistoricalEcho(string code, string name, decimal power)

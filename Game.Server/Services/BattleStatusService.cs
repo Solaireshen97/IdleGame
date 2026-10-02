@@ -19,6 +19,30 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
 {
     private readonly ProfessionMechanicDescription _mechanicDescriptions = new(mechanics ?? ProfessionMechanicCatalog.Default);
     public BattleStatusCatalog Catalog => catalog;
+    public const string ActionSkippedCode = "round-action-skipped";
+
+    public async Task<bool> IsActionBlockedAsync(Room room, int characterId) =>
+        await ModifierAsync(room, "Character", characterId, "ActionBlocked") > 0 ||
+        await HasAsync(room, "Character", characterId, ActionSkippedCode);
+
+    public async Task<bool> SkipBlockedActionAsync(Room room, int characterId)
+    {
+        if (!await IsActionBlockedAsync(room, characterId)) return false;
+        if (!await HasAsync(room, "Character", characterId, ActionSkippedCode))
+            await ApplyAsync(room, "Character", characterId, ActionSkippedCode, 0, [], "");
+        return true;
+    }
+
+    public async Task<int> IncreaseStacksAsync(Room room, string targetType, int targetId, string code, int count)
+    {
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+        var effect = (await GetActiveAsync(room, targetType, [targetId])).FirstOrDefault(s => s.EffectCode == code);
+        if (effect is null) return 0;
+        var before = effect.Stacks;
+        effect.Stacks = Math.Min(CatalogFor(room).Find(code)!.MaxStacks, effect.Stacks + count);
+        if (effect.Stacks != before) CaptureStatus(room, effect, BattleStatusChange.Refreshed, before, effect.Stacks);
+        return effect.Stacks;
+    }
     public BattleStatusCatalog CatalogFor(Room room) => runRules?.CombatFor(room).Statuses ?? catalog;
     public async Task PrepareAsync(Room room)
     {
@@ -199,7 +223,9 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     {
         var order = targetIds.Select((id, index) => (id, index)).ToDictionary(entry => entry.id, entry => entry.index);
         var effect = (await GetActiveAsync(room, targetType, targetIds))
-            .OrderBy(effect => order.GetValueOrDefault(effect.TargetId, int.MaxValue)).ThenBy(effect => effect.Id)
+            .OrderBy(effect => order.GetValueOrDefault(effect.TargetId, int.MaxValue))
+            .ThenBy(effect => !positive && CatalogFor(room).Find(effect.EffectCode)?.Mechanic == BattleStatusMechanic.PlaguePoison ? 0 : 1)
+            .ThenBy(effect => effect.Id)
             .FirstOrDefault(effect => CatalogFor(room).Find(effect.EffectCode) is { } definition &&
                 definition.IsPositive == positive && definition.IsDispellable);
         if (effect is null) return null;
@@ -370,6 +396,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
                      effect.ExpiresAfterRound >= room.RoundNumber))
         {
             var definition = CatalogFor(room).Find(effect.EffectCode);
+            if (definition?.Mechanic == BattleStatusMechanic.PlaguePoison) continue;
             if (healingOnly && definition?.EffectType != "HealOverTime") continue;
             if (definition?.EffectType == "HealOverTime")
             {
@@ -414,7 +441,9 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
             }
         }
 
-        RemoveStates(room, effects.Where(effect => effect.ExpiresAfterRound <= room.RoundNumber), BattleStatusChange.Expired);
+        // The plague phase must keep its final-round poison until after that round's tick.
+        RemoveStates(room, effects.Where(effect => effect.ExpiresAfterRound <= room.RoundNumber &&
+            CatalogFor(room).Find(effect.EffectCode)?.Mechanic != BattleStatusMechanic.PlaguePoison), BattleStatusChange.Expired);
     }
 
     public async Task ClearRunAsync(Room room)
@@ -435,6 +464,9 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
              effect.BoundTargetType == actorType && effect.BoundTargetId == actorId) && !effects.Contains(effect)));
         foreach (var effect in effects.Where(effect => db.Entry(effect).State != EntityState.Deleted))
         {
+            if (effect.TargetType == "Character" && db.Characters.Local.FirstOrDefault(c => c.Id == effect.TargetId) is { } character &&
+                catalog.Find(effect.EffectCode)?.Mechanic == BattleStatusMechanic.PlagueErosion)
+                character.BattleMaxHpLimit = null;
             var room = db.Rooms.Local.FirstOrDefault(entry => entry.Id == roomId);
             if (room is not null)
             {
@@ -475,6 +507,9 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     {
         foreach (var effect in effects.Where(effect => db.Entry(effect).State != EntityState.Deleted).ToList())
         {
+            if (effect.TargetType == "Character" && CatalogFor(room).Find(effect.EffectCode)?.Mechanic == BattleStatusMechanic.PlagueErosion &&
+                db.Characters.Local.FirstOrDefault(c => c.Id == effect.TargetId) is { } character)
+                character.BattleMaxHpLimit = null;
             CaptureStatus(room, effect, reason, effect.Stacks, 0);
             db.BattleStatusEffects.Remove(effect);
         }
@@ -490,7 +525,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     private BattleStatusSnapshot? Snapshot(Room room, BattleStatusEffect effect, int round, string? boundName = null)
     {
         var definition = CatalogFor(room).Find(effect.EffectCode);
-        if (definition is null) return null;
+        if (definition is null || definition.IsHidden) return null;
         var rounds = effect.Lifetime == BattleStatusLifetime.Rounds
             ? (int)Math.Clamp((long)effect.ExpiresAfterRound - round + 1, 0, int.MaxValue) : 0;
         var duration = effect.Lifetime switch

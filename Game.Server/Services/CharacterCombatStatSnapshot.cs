@@ -8,6 +8,7 @@ public sealed record CharacterCombatStatSnapshot
 {
     public int Attack { get; init; }
     public int MaxHp { get; init; }
+    public int UnrestrictedMaxHp { get; init; }
     public decimal AttackPercent { get; init; }
     public decimal CriticalChancePercent { get; init; }
     public decimal StaminaPercent { get; init; }
@@ -24,9 +25,16 @@ public sealed record CharacterCombatStatSnapshot
     public decimal HealingDonePercent { get; init; }
     public decimal HealingReceivedPercent { get; init; }
 
+    public CharacterCombatStatSnapshot WithCurrentMaxHp(Character character)
+    {
+        var maxHp = TalentRules.LimitBattleMaxHp(UnrestrictedMaxHp > 0 ? UnrestrictedMaxHp : MaxHp, character.BattleMaxHpLimit);
+        return maxHp == MaxHp ? this : this with { MaxHp = maxHp };
+    }
+
     public static CharacterCombatStatSnapshot Capture(Character character) => new()
     {
         Attack = TalentRules.EffectiveAttack(character), MaxHp = TalentRules.EffectiveMaxHp(character),
+        UnrestrictedMaxHp = TalentRules.EffectiveMaxHpWithoutBattleLimit(character),
         AttackPercent = character.WeaponAttackBonusPercent + character.TemporaryWeaponAttackBonusPercent,
         CriticalChancePercent = character.WeaponCriticalChancePercent + character.TemporaryWeaponCriticalChancePercent,
         StaminaPercent = character.WeaponStaminaPercent + character.TemporaryWeaponStaminaPercent,

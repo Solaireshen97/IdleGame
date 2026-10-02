@@ -77,6 +77,8 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             var eligibleIds = clearParticipants.Select(participant => participant.Character.Id).ToHashSet();
             var actualCharacterIds = actualRunCharacterIds is null ? eligibleIds.ToList()
                 : actualRunCharacterIds.Where(eligibleIds.Contains).Distinct().ToList();
+            await rewardService.RecordChallengeFirstClearsAsync(room,
+                clearParticipants.Where(item => actualCharacterIds.Contains(item.Character.Id)), now, logs);
             await _depthProgress.RecordCharacterClearsAsync(room, actualCharacterIds, logs);
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualCharacterIds,

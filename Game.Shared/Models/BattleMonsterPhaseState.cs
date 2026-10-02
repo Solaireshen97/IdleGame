@@ -13,6 +13,10 @@ public sealed class BattleMonsterPhaseState
     public bool IsActive { get; set; }
     public int ExpiresAfterRound { get; set; }
     public long WaterDamage { get; set; }
+    // The original persisted progress column also stores other damage-driven phases.
+    // Keep its database name for existing Fire rooms; no schema migration is required.
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public long ElementDamage { get => WaterDamage; set => WaterDamage = value; }
     public int? RewardStartsAtRound { get; set; }
     public int? LastActivationRound { get; set; }
     public int? LastBreakRound { get; set; }

@@ -17,6 +17,9 @@ public sealed class DungeonDepthDefinitionOptions
     public string PrerequisiteDungeonCode { get; set; } = string.Empty;
     public int MaximumDepth { get; set; } = 10;
     public decimal GrowthPercent { get; set; } = 10m;
+    // Missing fields preserve the shared growth rate in old frozen rooms.
+    public decimal? ChallengeHpGrowthPercent { get; set; }
+    public decimal? ChallengeAttackGrowthPercent { get; set; }
     public decimal GoldBonusPercent { get; set; } = 10m;
     public decimal KillExtraRollChancePercent { get; set; } = 10m;
     public decimal ClearExtraRollChancePercent { get; set; } = 10m;
@@ -24,4 +27,9 @@ public sealed class DungeonDepthDefinitionOptions
     public decimal ChallengeFragmentChancePercent { get; set; } = 10m;
     public int ChallengeFragmentQuantity { get; set; } = 1;
     public int ChallengeStartDepth { get; set; } = 5;
+    public Dictionary<int, int> ChallengeFragmentQuantities { get; set; } = [];
+    public string ChallengeFirstClearItemCode { get; set; } = string.Empty;
+    public Dictionary<int, int> ChallengeFirstClearQuantities { get; set; } = [];
+
+    public int ChallengeFragmentsAt(int depth) => ChallengeFragmentQuantities.GetValueOrDefault(depth, ChallengeFragmentQuantity);
 }

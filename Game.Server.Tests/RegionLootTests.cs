@@ -18,7 +18,7 @@ public sealed class RegionLootTests
     [InlineData("Wind")]
     [InlineData("Light")]
     [InlineData("Dark")]
-    public void EveryRegionalMonsterHasDistinctPrimaryAndSecondaryLootOfItsOwnElement(string element)
+    public void RegionalLootMatchesHuntEntryAndDeepDungeonRules(string element)
     {
         var config = Configuration();
         var rewards = config.GetSection(RewardOptions.SectionName).Get<RewardOptions>()!;
@@ -50,6 +50,19 @@ public sealed class RegionLootTests
                         Assert.Equal(15m, entryDrop.ChancePercent);
                         Assert.Equal(region.FeaturedElement, weapons.FindItem(entryDrop.Code)!.Element);
                     }
+                    continue;
+                }
+                if (dungeon.DungeonKind == "Dungeon" && dungeon.MinimumLevel == 10)
+                {
+                    Assert.Equal(2, drops.Count);
+                    Assert.Equal(2, drops.Select(drop => drop.Code).Distinct().Count());
+                    Assert.All(drops, drop =>
+                    {
+                        Assert.StartsWith("t1-deep-", drop.Code);
+                        Assert.Equal(region.FeaturedElement, weapons.FindItem(drop.Code)!.Element);
+                        Assert.Equal(1, drop.Quantity);
+                        Assert.Equal(monster.IsBoss ? 5m : 1m, drop.ChancePercent);
+                    });
                     continue;
                 }
                 Assert.InRange(drops.Count, dungeon.DungeonKind == "Hunt" && dungeon.RecommendedLevel == 1 ? 1 : 2, 3);
@@ -126,7 +139,7 @@ public sealed class RegionLootTests
     }
 
     [Fact]
-    public void DeepDungeonClearWeaponRewardsAlwaysStartAtNormalQuality()
+    public void DeepDungeonKillWeaponRewardsAlwaysStartAtNormalQuality()
     {
         var config = Configuration();
         IOptions<T> Bind<T>(string section) where T : class, new() => Options.Create(config.GetSection(section).Get<T>()!);
@@ -136,10 +149,12 @@ public sealed class RegionLootTests
             new MaterialCatalog(Bind<MaterialOptions>(MaterialOptions.SectionName)),
             new SoulImprintCatalog(Bind<SoulImprintOptions>(SoulImprintOptions.SectionName)), new FixedRandom(0));
 
-        var drops = rewards.Roll("kobold-mine-depths", true, 1, 1, "deep-clear", 1, 1)
+        var drops = rewards.Roll("kobold-mine-depths-boss", false, 1, 1, "monster:3:1", 1, 1)
             .Where(entry => entry.Kind == "Weapon").ToList();
-        Assert.NotEmpty(drops);
+        Assert.Equal(2, drops.Count);
         Assert.All(drops, entry => Assert.Equal(0, RewardCatalog.DeserializeWeapon(entry)!.QualityRank));
+        Assert.DoesNotContain(rewards.Roll("kobold-mine-depths", true, 1, 1, "clear", 1, 1),
+            entry => entry.Kind == "Weapon");
     }
 
     private sealed class FixedRandom(double roll) : Random

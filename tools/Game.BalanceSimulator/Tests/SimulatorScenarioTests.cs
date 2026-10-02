@@ -507,6 +507,22 @@ public sealed class SimulatorScenarioTests : IDisposable
         Assert.Equal("None", SimulatorMetrics.FailureCategory(true, RoomStatus.BattleOver, 1, 3, 250));
     }
 
+    [Fact]
+    public void ExpiringOrRemovingBossArmorDoesNotCountAsAnotherCast()
+    {
+        var metrics = new SimulatorMetrics([9]);
+        BattleEventResponse Armor(int round, BattleStatusChange change) => new()
+        {
+            RunSequence = 1, RoundNumber = round, Kind = BattleEventKind.Status,
+            ActionKind = BattleActionKind.Skill, SkillCode = "boss-armor", Source = new("Monster", 9),
+            Target = new("Monster", 9), StatusChange = change
+        };
+        metrics.Observe([Armor(3, BattleStatusChange.Added), Armor(5, BattleStatusChange.Expired),
+            Armor(6, BattleStatusChange.Removed), Armor(7, BattleStatusChange.Consumed),
+            Armor(11, BattleStatusChange.Refreshed)]);
+        Assert.Equal(2, metrics.BossSkillUses["boss-armor"]);
+    }
+
     private string[] Arguments(int depth) => ["--config", _config, "--world", _world, "--dungeon-code", "simulator-isolated-boss",
         "--depth", depth.ToString(), "--starting-potions", "0", "--stages", "starter", "--roles", "knight",
         "--runs", "1", "--seed-start", "7213", "--trace"];

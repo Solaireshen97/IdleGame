@@ -39,7 +39,8 @@ public sealed partial class BattleRoundExecutor
 
         async Task<bool> TryUseAsync(BattleParticipant participant, CharacterSkillSlot slot, bool automatic)
         {
-            if (monster.Hp <= 0) return false;
+            if (monster.Hp <= 0 || participant.Character.Hp <= 0) return false;
+            if (await Statuses.SkipBlockedActionAsync(room, participant.Character.Id)) return false;
             var levels = professionLevels.GetValueOrDefault(participant.Character.Id) ??
                 new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var skill = skillCatalog.Resolve(participant.Character, slot.SkillCode, levels);

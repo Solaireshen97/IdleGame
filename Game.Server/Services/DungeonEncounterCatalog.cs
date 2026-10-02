@@ -40,11 +40,11 @@ public sealed class DungeonEncounterCatalog
                 {
                     // A catalog without depth rules remains a supported LV1-only reader.
                     if (depthCatalog is null) continue;
-                    var remainingDepth = depthCatalog.Find(code)!.MaximumDepth - stats.Depth + 1;
+                    var maximumDepth = depthCatalog.Find(code)!.MaximumDepth;
                     try
                     {
-                        _ = depthCatalog.ScaleStat(stats.MaxHp, remainingDepth, code);
-                        _ = depthCatalog.ScaleStat(stats.Attack, remainingDepth, code);
+                        _ = depthCatalog.ScaleStat(stats.MaxHp, maximumDepth, code, stats.Depth);
+                        _ = depthCatalog.ScaleAttack(stats.Attack, maximumDepth, code, stats.Depth);
                     }
                     catch (OverflowException exception)
                     {
@@ -79,7 +79,7 @@ public sealed class DungeonEncounterCatalog
             return CreateMonster(dungeon.Code, waves[^1].Monsters[^1], waves.Count, waves[^1].Monsters.Count, depth);
         var legacy = CreateLegacyMonster(dungeon);
         legacy.Hp = legacy.MaxHp = legacy.BaseMaxHp = _depthCatalog?.ScaleStat(legacy.MaxHp, depth, dungeon.Code) ?? legacy.MaxHp;
-        legacy.Attack = _depthCatalog?.ScaleStat(legacy.Attack, depth, dungeon.Code) ?? legacy.Attack;
+        legacy.Attack = _depthCatalog?.ScaleAttack(legacy.Attack, depth, dungeon.Code) ?? legacy.Attack;
         return legacy;
     }
 
@@ -112,7 +112,7 @@ public sealed class DungeonEncounterCatalog
         {
             var legacy = CreateLegacyMonster(dungeon);
             legacy.Hp = legacy.MaxHp = legacy.BaseMaxHp = Scale(legacy.MaxHp);
-            legacy.Attack = Scale(legacy.Attack);
+            legacy.Attack = _depthCatalog?.ScaleAttack(legacy.Attack, depth, dungeon.Code) ?? legacy.Attack;
             return [legacy];
         }
 
@@ -125,7 +125,8 @@ public sealed class DungeonEncounterCatalog
     private Monster CreateMonster(string dungeonCode, EncounterMonsterOptions monster, int waveNumber, int position, int depth)
     {
         var authored = monster.DepthStats.Where(stats => stats.Depth <= depth).OrderBy(stats => stats.Depth).LastOrDefault();
-        int Scale(int value) => _depthCatalog?.ScaleStat(value, depth - (authored?.Depth ?? 1) + 1, dungeonCode) ?? value;
+        var baseDepth = authored?.Depth ?? 1;
+        int Scale(int value) => _depthCatalog?.ScaleStat(value, depth, dungeonCode, baseDepth) ?? value;
         var hp = Scale(authored?.MaxHp ?? monster.MaxHp);
         return new Monster
         {
@@ -134,7 +135,7 @@ public sealed class DungeonEncounterCatalog
             Hp = hp,
             BaseMaxHp = hp,
             MaxHp = hp,
-            Attack = Scale(authored?.Attack ?? monster.Attack),
+            Attack = _depthCatalog?.ScaleAttack(authored?.Attack ?? monster.Attack, depth, dungeonCode, baseDepth) ?? monster.Attack,
             Defense = monster.Defense,
             WaveNumber = waveNumber,
             Position = position,

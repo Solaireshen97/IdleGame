@@ -144,7 +144,11 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 Depths = !includeDefinitionDetails || definition is null ? [] : Enumerable.Range(1, definition.MaximumDepth).Select(depth => new DungeonDepthPreviewResponse
                 {
                     DepthLevel = depth, IsUnlocked = depth <= unlocked, IsChallenge = depth >= definition.ChallengeStartDepth,
-                    StatMultiplier = _depthCatalog.StatMultiplier(dungeon.Code, depth),
+                    StatBaseDepth = depth >= definition.ChallengeStartDepth ? definition.ChallengeStartDepth - 1 : 1,
+                    StatMultiplier = _depthCatalog.StatMultiplier(dungeon.Code, depth,
+                        depth >= definition.ChallengeStartDepth ? definition.ChallengeStartDepth - 1 : 1),
+                    AttackMultiplier = _depthCatalog.AttackMultiplier(dungeon.Code, depth,
+                        depth >= definition.ChallengeStartDepth ? definition.ChallengeStartDepth - 1 : 1),
                     UsesExplicitStats = encounterCatalog?.HasExplicitDepthStats(dungeon.Code, depth) == true,
                     AddedMechanics = encounterCatalog?.GetAddedMechanics(dungeon, depth).ToList() ?? []
                 }).ToList(),
@@ -177,7 +181,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
 
     public async Task<DungeonSummaryResponse?> GetDungeonAsync(int dungeonId, string? token, int depthLevel = 1)
     {
-        var result = (await GetDungeonSummariesAsync(dungeonId, token)).Dungeons.SingleOrDefault();
+        var summaries = await GetDungeonSummariesAsync(dungeonId, token);
+        var result = summaries.Dungeons.SingleOrDefault();
         if (result is null || !_depthCatalog.ValidateDepth(result.Code, depthLevel)) return null;
         var dungeon = (await dbContext.Dungeons.FindAsync(dungeonId))!;
         result.DepthLevel = depthLevel;
@@ -189,7 +194,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             result.MonsterName = representative?.Name ?? dungeon.MonsterName;
             result.MonsterElement = representative?.Element ?? dungeon.MonsterElement;
             result.MonsterMaxHp = representative?.MaxHp ?? _depthCatalog.ScaleStat(dungeon.MonsterMaxHp, depthLevel, dungeon.Code);
-            result.MonsterAttack = representative?.Attack ?? _depthCatalog.ScaleStat(dungeon.MonsterAttack, depthLevel, dungeon.Code);
+            result.MonsterAttack = representative?.Attack ?? _depthCatalog.ScaleAttack(dungeon.MonsterAttack, depthLevel, dungeon.Code);
             result.MonsterDefense = representative?.Defense ?? dungeon.MonsterDefense;
             if (depthLevel > result.UnlockedDepth)
             {
@@ -206,8 +211,18 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 {
                     Source = "挑战额外奖励", Kind = "Material", Code = definition.ChallengeFragmentCode,
                     Name = materialCatalog?.FindItem(definition.ChallengeFragmentCode)?.Name ?? definition.ChallengeFragmentCode,
-                    Quantity = definition.ChallengeFragmentQuantity, ChancePercent = definition.ChallengeFragmentChancePercent
+                    Quantity = definition.ChallengeFragmentsAt(depthLevel), ChancePercent = definition.ChallengeFragmentChancePercent
                 });
+            if (summaries.CharacterId is { } characterId && definition.ChallengeFirstClearQuantities.Count > 0)
+            {
+                var firstClears = await _depthProgress.UnclaimedChallengeFirstClearsAsync(dungeon.Code, characterId, depthLevel, definition);
+                if (firstClears.Count > 0) result.RewardPreview.Add(new DungeonRewardPreviewResponse
+                {
+                    Source = "挑战首通及补领", Kind = "Material", Code = definition.ChallengeFirstClearItemCode,
+                    Name = materialCatalog?.FindItem(definition.ChallengeFirstClearItemCode)?.Name ?? definition.ChallengeFirstClearItemCode,
+                    Quantity = firstClears.Sum(item => item.Value), ChancePercent = 100
+                });
+            }
         }
         return result;
     }
@@ -665,6 +680,10 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                         equippedWeapons.Where(weapon => weapon.CharacterId == character.Id), levels));
             }
         }
+        if (monsterCombatService is not null)
+            await monsterCombatService.Phases.RefreshPlagueHealthAsync(room, monster, slots
+                .Where(s => s.CharacterId.HasValue && characters.ContainsKey(s.CharacterId.Value))
+                .Select(s => new BattleParticipant(s, characters[s.CharacterId!.Value])).ToList());
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
             .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);
@@ -1056,7 +1075,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
 
     private static string RewardSourceName(string source, string baseName) => source switch
     {
-        "Mastery" => "精通追加", "Challenge" => "挑战奖励", _ => baseName
+        "Mastery" => "精通追加", "Challenge" => "挑战奖励", "ChallengeFirstClear" => "挑战首通", _ => baseName
     };
 
     private List<DungeonRewardPreviewResponse> BuildRewardPreview(Dungeon dungeon)

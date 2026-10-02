@@ -33,6 +33,8 @@ public class Character
     [NotMapped] public decimal CombatWeaponLowHpReductionPercent { get; set; }
     [NotMapped] public decimal CombatWeaponRampAttackPerRoundPercent { get; set; }
     [NotMapped] public decimal CombatWeaponElementAdvantagePercent { get; set; }
+    // Rebuilt from persisted encounter statuses; never overwrites the character's stored maximum life.
+    [NotMapped, System.Text.Json.Serialization.JsonIgnore] public int? BattleMaxHpLimit { get; set; }
     public int Level { get; set; } = 1;
     public int GatheringLevel { get; set; } = 1;
     public int AlchemyLevel { get; set; } = 1;

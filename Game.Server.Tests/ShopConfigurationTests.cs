@@ -41,16 +41,18 @@ public class ShopConfigurationTests
         Assert.Equal(new[] { 500, 1500, 4000 }, characterSlots.UnlockCosts);
         Assert.Contains(catalog.Items, item => item.Kind == "Consumable");
         Assert.Contains(catalog.Items, item => item.Kind == "Weapon");
-        Assert.Equal(48, exchanges.Offers.Count);
+        Assert.Equal(24, exchanges.Offers.Count);
         var weaponOffers = exchanges.Offers.Where(offer => offer.RewardKind == "Weapon").ToList();
         var fragmentOffers = exchanges.Offers.Where(offer => offer.RewardKind == "Material").ToList();
-        Assert.Equal(36, weaponOffers.Count);
+        Assert.Equal(12, weaponOffers.Count);
+        Assert.All(weaponOffers, offer => Assert.Equal(60, offer.Cost));
         Assert.Equal(6, fragmentOffers.Count);
         Assert.Equal(6, weaponOffers.Select(offer => weapons.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
         Assert.Equal(6, exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
         Assert.All(exchanges.Offers.GroupBy(offer => offer.DungeonCode), group =>
         {
-            Assert.Equal(6, group.Where(offer => offer.RewardKind == "Weapon")
+            Assert.Equal(2, group.Count(offer => offer.RewardKind == "Weapon"));
+            Assert.Equal(1, group.Where(offer => offer.RewardKind == "Weapon")
                 .Select(offer => weapons.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
             Assert.Single(group, offer => offer is
                 { RewardKind: "Material", RewardCode: "weapon-fragment-t1", Cost: 1 });

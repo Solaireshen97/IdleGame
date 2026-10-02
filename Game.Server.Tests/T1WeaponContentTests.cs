@@ -140,7 +140,7 @@ public sealed class T1WeaponContentTests
     }
 
     [Fact]
-    public void FinalTierHasSixLevelTenDungeonsWithMatchingElementLootAndSixElementExchanges()
+    public void FinalTierHasSixLevelTenDungeonsWithTwoMatchingDeepWeaponsAndSupplementaryExchanges()
     {
         var configuration = Configuration();
         var catalog = T1WeaponEffectTests.ProductionCatalog();
@@ -158,27 +158,6 @@ public sealed class T1WeaponContentTests
         var hardEnrage = Assert.Single(monsterCombat.Skills, skill => skill.Code == "endgame-hard-enrage");
         Assert.Equal((900, 42, 100),
             (hardEnrage.DamagePowerPercent, hardEnrage.RoomRoundAtLeast, hardEnrage.ForcedPriority));
-        var expectedEncounters = new Dictionary<string, (int[] Hp, int[] Attack, int[] Defense,
-            int SkillChance, string SignatureSkill, int SignaturePower, int SignatureCooldown,
-            string SignatureStatus, decimal StatusValue, int StatusMaxStacks, string StatusStacking,
-            string PhaseSkill, int PhaseHp, string PhaseStatus)>
-        {
-            ["kobold-mine-depths"] = ([5200, 5200, 7000, 7000, 57000], [32, 32, 43, 43, 170],
-                [15, 14, 16, 18, 24], 72, "goldtooth-smash", 165, 2,
-                "crushed-armor", -12, 2, "AddStack", "goldtooth-roar", 55, "monster-attack-up"),
-            ["plague-crypt-depths"] = ([4600, 4600, 6200, 6200, 52000], [32, 32, 40, 40, 165],
-                [10, 10, 12, 12, 15], 85, "widow-miasma", 55, 3,
-                "plague-venom", 7, 3, "AddStack", "widow-cocoon", 65, "silk-shell"),
-            ["frostspring-throne"] = ([5000, 5000, 6800, 6800, 56000], [32, 32, 42, 42, 170],
-                [14, 14, 16, 16, 22], 78, "frostking-blizzard", 65, 3,
-                "deep-chill", -10, 2, "AddStack", "frostking-armor", 70, "frost-armor"),
-            ["windfury-spire"] = ([4300, 4300, 6000, 6000, 50000], [40, 40, 52, 52, 185],
-                [10, 10, 11, 11, 14], 90, "matriarch-tempest", 75, 2,
-                "static-charge", -5, 3, "AddStack", "matriarch-song", 60, "monster-attack-up"),
-            ["dawn-core"] = ([4900, 4900, 6600, 6600, 55000], [35, 35, 46, 46, 178],
-                [14, 14, 15, 15, 20], 80, "dawnwarden-nova", 70, 3,
-                "arcane-weakness", -20, 1, "RefreshDuration", "dawnwarden-shield", 70, "dawn-barrier")
-        };
         var expectedSoulImprints = new Dictionary<string, (ElementType Element, SoulImprintEffectType Effect,
             int Power, int Secondary, int Duration, int InitialCooldown, int Cooldown, int AutoHpThreshold,
             string? StatusCode)>
@@ -196,19 +175,20 @@ public sealed class T1WeaponContentTests
             ["dawn-core"] = (ElementType.Light, SoulImprintEffectType.HealCleanse,
                 24, 1, 0, 3, 8, 75, null)
         };
-        var bossStatLines = new HashSet<(int Hp, int Attack, int Defense)>();
+        // Independently calibrated bosses may share a panel; their identities remain distinct.
+        var bossNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var dungeon in dungeons)
         {
             var waves = encounters.Dungeons[dungeon.Code];
             var isFireDeep = dungeon.Code == "ragefire-heart";
-            Assert.Equal(isFireDeep ? 5 : 3, waves.Count);
+            Assert.Equal(5, waves.Count);
             var monsters = waves.SelectMany(wave => wave.Monsters).ToList();
             Assert.Equal(5, monsters.Count);
             Assert.All(monsters.Take(4), monster => Assert.False(monster.IsBoss));
             Assert.True(monsters[^1].IsBoss);
             Assert.Equal((monsters[^1].MaxHp, monsters[^1].Attack, monsters[^1].Defense),
                 (dungeon.MonsterMaxHp, dungeon.MonsterAttack, dungeon.MonsterDefense));
-            Assert.True(bossStatLines.Add((monsters[^1].MaxHp, monsters[^1].Attack, monsters[^1].Defense)));
+            Assert.True(bossNames.Add(monsters[^1].Name));
             var bossProfile = monsterCombat.Profiles[monsters[^1].CombatProfileCode];
             if (isFireDeep)
             {
@@ -235,37 +215,133 @@ public sealed class T1WeaponContentTests
                 Assert.True(bossSkills[0].IsInterruptible);
                 Assert.False(bossSkills[1].IsInterruptible);
             }
+            else if (dungeon.Code == "frostspring-throne")
+            {
+                Assert.Equal(new[] { 420000, 490000, 560000, 650000, 1050000 }, monsters.Select(monster => monster.MaxHp));
+                Assert.Equal(new[] { 150, 190, 210, 250, 290 }, monsters.Select(monster => monster.Attack));
+                Assert.All(monsters, monster => Assert.Equal(0, monster.Defense));
+                Assert.All(waves, wave => Assert.Single(wave.Monsters));
+                Assert.Equal("凝霜冠主", monsters[^1].Name);
+                Assert.True(bossProfile.UseEncounterLocalSkillClock);
+                Assert.Equal(100, bossProfile.SkillUseChancePercent);
+                Assert.Equal(new[] { "water-deep-lv1-king-strike", "water-deep-lv1-king-tide" },
+                    bossProfile.Skills.Select(skill => skill.Code));
+                var bossSkills = bossProfile.Skills.Select(entry => monsterCombat.Skills.Single(skill => skill.Code == entry.Code)).ToList();
+                Assert.Equal(new[] { 160, 80 }, bossSkills.Select(skill => skill.DamagePowerPercent));
+                Assert.Equal(new[] { "Front", "AllAlive" }, bossSkills.Select(skill => skill.TargetType));
+                Assert.Equal(new[] { 1, 3 }, bossSkills.Select(skill => skill.InitialCooldownRounds));
+                Assert.All(bossSkills, skill =>
+                {
+                    Assert.Equal(3, skill.CooldownRounds);
+                    Assert.Null(skill.SelfHpBelowPercent);
+                    Assert.Null(skill.RoomRoundAtLeast);
+                    Assert.Equal("water-deep-lv1-chill-10", Assert.Single(skill.Statuses).StatusCode);
+                    Assert.Equal(2, skill.Statuses[0].DurationRounds);
+                });
+                Assert.True(bossSkills[0].IsInterruptible);
+                Assert.False(bossSkills[1].IsInterruptible);
+            }
+            else if (dungeon.Code == "kobold-mine-depths")
+            {
+                Assert.Equal(new[] { 380000, 480000, 550000, 620000, 1050000 }, monsters.Select(monster => monster.MaxHp));
+                Assert.Equal(new[] { 150, 190, 210, 250, 290 }, monsters.Select(monster => monster.Attack));
+                Assert.All(monsters, monster => Assert.Equal(0, monster.Defense));
+                Assert.All(waves, wave => Assert.Single(wave.Monsters));
+                Assert.Equal("沉岩督造者", monsters[^1].Name);
+                Assert.True(bossProfile.UseEncounterLocalSkillClock);
+                Assert.Equal(100, bossProfile.SkillUseChancePercent);
+                Assert.Equal(new[] { "earth-deep-lv1-overseer-pick", "earth-deep-lv1-overseer-rockfall",
+                    "earth-deep-lv1-overseer-armor" }, bossProfile.Skills.Select(skill => skill.Code));
+                Assert.DoesNotContain(bossProfile.Skills, skill => skill.Code == softEnrage.Code || skill.Code == hardEnrage.Code);
+                Assert.Null(bossProfile.FireCore);
+                Assert.Null(bossProfile.DeepCold);
+            }
+            else if (dungeon.Code == "windfury-spire")
+            {
+                Assert.Equal(new[] { 430000, 520000, 570000, 670000, 1080000 }, monsters.Select(monster => monster.MaxHp));
+                Assert.Equal(new[] { 150, 185, 215, 240, 280 }, monsters.Select(monster => monster.Attack));
+                Assert.All(monsters, monster => Assert.Equal(0, monster.Defense));
+                Assert.All(waves, wave => Assert.Single(wave.Monsters));
+                Assert.Equal("岚穹巢主", monsters[^1].Name);
+                Assert.True(bossProfile.UseEncounterLocalSkillClock);
+                Assert.Equal(100, bossProfile.SkillUseChancePercent);
+                Assert.Equal(new[] { "wind-deep-lv1-matriarch-dive", "wind-deep-lv1-matriarch-tempest",
+                    "wind-deep-lv1-matriarch-song" }, bossProfile.Skills.Select(skill => skill.Code));
+                Assert.DoesNotContain(bossProfile.Skills, skill => skill.Code == softEnrage.Code || skill.Code == hardEnrage.Code);
+                var randomPierce = monsterCombat.Skills.Single(s => s.Code == "wind-deep-lv1-hunter-pierce");
+                Assert.Equal("RandomAlive", randomPierce.TargetType);
+                Assert.All(bossProfile.Skills.Select(e => monsterCombat.Skills.Single(s => s.Code == e.Code)),
+                    s => Assert.DoesNotContain(s.Statuses, a => a.StatusCode == "static-charge"));
+            }
+            else if (dungeon.Code == "dawn-core")
+            {
+                Assert.Equal(new[] { 380000, 465000, 550000, 610000, 1020000 }, monsters.Select(monster => monster.MaxHp));
+                Assert.Equal(new[] { 150, 185, 210, 240, 280 }, monsters.Select(monster => monster.Attack));
+                Assert.All(monsters, monster => Assert.Equal(0, monster.Defense));
+                Assert.All(waves, wave => Assert.Single(wave.Monsters));
+                Assert.Equal("棱核守望者", monsters[^1].Name);
+                Assert.True(bossProfile.UseEncounterLocalSkillClock);
+                Assert.Equal(100, bossProfile.SkillUseChancePercent);
+                Assert.Equal(new[] { "light-deep-lv1-warden-pierce", "light-deep-lv1-warden-nova",
+                    "light-deep-lv1-warden-ward" }, bossProfile.Skills.Select(skill => skill.Code));
+                Assert.DoesNotContain(bossProfile.Skills, skill => skill.Code == softEnrage.Code || skill.Code == hardEnrage.Code);
+                var ward = monsterCombat.StatusEffects.Single(s => s.Code == "light-deep-lv1-ward");
+                Assert.Equal(("ReductionPercent", 20m, 1, true, true),
+                    (ward.EffectType, ward.ValuePerStack, ward.MaxStacks, ward.IsPositive, ward.IsDispellable));
+                Assert.Equal("RandomAlive", monsterCombat.Skills.Single(s => s.Code == "light-deep-lv1-wraith-bolt").TargetType);
+                Assert.Equal("RandomAlive", monsterCombat.Skills.Single(s => s.Code == "light-deep-lv1-conduit-beam").TargetType);
+                Assert.Null(bossProfile.FireCore);
+                Assert.Null(bossProfile.DeepCold);
+                Assert.Null(bossProfile.EarthArmor);
+                Assert.Null(bossProfile.StaticField);
+            }
             else
             {
-                var expected = expectedEncounters[dungeon.Code];
-                Assert.Equal(expected.Hp, monsters.Select(monster => monster.MaxHp));
-                Assert.Equal(expected.Attack, monsters.Select(monster => monster.Attack));
-                Assert.Equal(expected.Defense, monsters.Select(monster => monster.Defense));
-                Assert.Equal(expected.SkillChance, bossProfile.SkillUseChancePercent);
-                Assert.Equal(5, bossProfile.Skills.Count);
-                Assert.Contains(bossProfile.Skills, skill => skill.Code == softEnrage.Code);
-                Assert.Contains(bossProfile.Skills, skill => skill.Code == hardEnrage.Code);
-                var bossSkills = bossProfile.Skills.Select(profileSkill => monsterCombat.Skills
-                    .Single(skill => skill.Code == profileSkill.Code)).ToList();
-                var signatureSkill = Assert.Single(bossSkills, skill => skill.Code == expected.SignatureSkill);
-                Assert.Equal((expected.SignaturePower, expected.SignatureCooldown),
-                    (signatureSkill.DamagePowerPercent, signatureSkill.CooldownRounds));
-                Assert.Contains(signatureSkill.Statuses, status => status.StatusCode == expected.SignatureStatus);
-                var signatureStatus = Assert.Single(monsterCombat.StatusEffects,
-                    status => status.Code == expected.SignatureStatus);
-                Assert.Equal((expected.StatusValue, expected.StatusMaxStacks, expected.StatusStacking),
-                    (signatureStatus.ValuePerStack, signatureStatus.MaxStacks, signatureStatus.Stacking));
-                var forcedPhaseSkill = Assert.Single(bossSkills, skill => skill.ForcedPriority == 30);
-                Assert.Equal((expected.PhaseSkill, expected.PhaseHp),
-                    (forcedPhaseSkill.Code, forcedPhaseSkill.SelfHpBelowPercent));
-                Assert.Contains(forcedPhaseSkill.Statuses, status => status.StatusCode == expected.PhaseStatus);
+                Assert.Equal("plague-crypt-depths", dungeon.Code);
+                Assert.Equal(new[] { 370000, 450000, 500000, 570000, 950000 }, monsters.Select(monster => monster.MaxHp));
+                Assert.Equal(new[] { 145, 170, 195, 215, 230 }, monsters.Select(monster => monster.Attack));
+                Assert.All(monsters, monster => Assert.Equal(0, monster.Defense));
+                Assert.All(waves, wave => Assert.Single(wave.Monsters));
+                Assert.Equal("缄丝巢主", monsters[^1].Name);
+                Assert.True(bossProfile.UseEncounterLocalSkillClock);
+                Assert.Equal(100, bossProfile.SkillUseChancePercent);
+                Assert.Equal(new[] { "dark-deep-lv1-matriarch-fang", "dark-deep-lv1-matriarch-mist" },
+                    bossProfile.Skills.Select(skill => skill.Code));
+                var bossSkills = bossProfile.Skills.Select(entry => monsterCombat.Skills.Single(skill => skill.Code == entry.Code)).ToList();
+                Assert.Equal(new[] { 1, 3 }, bossSkills.Select(skill => skill.InitialCooldownRounds));
+                Assert.Equal(new[] { 3, 5 }, bossSkills.Select(skill => skill.CooldownRounds));
+                Assert.True(bossSkills[0].IsInterruptible);
+                Assert.False(bossSkills[1].IsInterruptible);
+                Assert.All(bossSkills, skill =>
+                {
+                    Assert.Null(skill.SelfHpBelowPercent);
+                    Assert.Null(skill.RoomRoundAtLeast);
+                    Assert.Empty(skill.Statuses);
+                    Assert.Equal(2, skill.Effects!.Count);
+                    Assert.Equal(("dark-deep-lv1-poison", 20m, 2),
+                        (skill.Effects[1].StatusCode, skill.Effects[1].AttackPowerPercent, skill.Effects[1].DurationRounds));
+                });
+                var poison = Assert.Single(monsterCombat.StatusEffects, s => s.Code == "dark-deep-lv1-poison");
+                Assert.Equal(("DamageOverTime", 1, "RefreshDuration", true, false),
+                    (poison.EffectType, poison.MaxStacks, poison.Stacking, poison.IsDispellable, poison.IsPositive));
+                Assert.DoesNotContain(bossProfile.Skills, s => s.Code.StartsWith("endgame-") || s.Code.StartsWith("widow-"));
+                Assert.Null(bossProfile.ReflectionMirror);
+                Assert.Null(bossProfile.FireCore);
+                Assert.Null(bossProfile.DeepCold);
+                Assert.Null(bossProfile.EarthArmor);
+                Assert.Null(bossProfile.StaticField);
             }
 
             var dungeonOffers = allOffers.Where(offer => offer.DungeonCode == dungeon.Code).ToList();
             var offers = dungeonOffers.Where(offer => offer.RewardKind == "Weapon").ToList();
-            Assert.Equal(6, offers.Count);
-            Assert.Equal(6, offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Element).Distinct().Count());
-            Assert.All(offers, offer => Assert.Equal(18, offer.Cost));
+            Assert.Equal(2, offers.Count);
+            Assert.Equal(2, offers.Select(offer => offer.EffectiveRewardCode).Distinct().Count());
+            Assert.All(offers, offer =>
+            {
+                Assert.Equal(60, offer.Cost);
+                Assert.StartsWith("t1-deep-", offer.EffectiveRewardCode);
+                Assert.Equal(dungeon.MonsterElement, catalog.FindItem(offer.EffectiveRewardCode)!.Element);
+            });
             var fragmentOffer = Assert.Single(dungeonOffers, offer => offer.RewardKind == "Material");
             Assert.Equal((1, "weapon-fragment-t1", 5),
                 (fragmentOffer.Cost, fragmentOffer.EffectiveRewardCode, fragmentOffer.RewardQuantity));
@@ -291,37 +367,44 @@ public sealed class T1WeaponContentTests
                 drop => drop.Kind == "SoulImprint");
             Assert.Equal((soulDefinition.Code, 1, 1m),
                 (soulDrop.Code, soulDrop.Quantity, soulDrop.ChancePercent));
-            var weaponDrops = rewards.DungeonClears[dungeon.Code].Drops
-                .Where(drop => drop.Kind == "Weapon").ToList();
-            Assert.Equal(6, weaponDrops.Count);
-            Assert.All(weaponDrops, drop =>
+            Assert.DoesNotContain(rewards.DungeonClears[dungeon.Code].Drops, drop => drop.Kind == "Weapon");
+            var clearFragments = Assert.Single(rewards.DungeonClears[dungeon.Code].Drops,
+                drop => drop.Code == "weapon-fragment-t1");
+            Assert.Equal(("Material", 5, 100m),
+                (clearFragments.Kind, clearFragments.Quantity, clearFragments.ChancePercent));
+            var clearToken = Assert.Single(rewards.DungeonClears[dungeon.Code].Drops,
+                drop => drop.Code == fragmentOffer.CurrencyCode);
+            Assert.Equal(("Material", 1, 100m), (clearToken.Kind, clearToken.Quantity, clearToken.ChancePercent));
+            foreach (var monster in monsters)
             {
-                Assert.Equal(1, drop.Quantity);
-                Assert.Equal(dungeon.MonsterElement, catalog.FindItem(drop.Code)!.Element);
-                Assert.Contains(allOffers, offer => offer.RewardKind == "Weapon" && offer.Cost == 18 &&
-                    offer.EffectiveRewardCode == drop.Code);
-            });
-            Assert.Equal(new[] { 6m, 4m, 3m, 2m, 2m, 1m }, weaponDrops.Select(drop => drop.ChancePercent));
-            Assert.Equal(offers.Single(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Element ==
-                dungeon.MonsterElement).EffectiveRewardCode, weaponDrops[0].Code);
-            // Advanced weapons remain gated by clearing the dungeon; boss kills can give lower-tier weapons.
-            Assert.DoesNotContain(rewards.MonsterKills[$"{dungeon.Code}-boss"].Drops,
-                drop => drop.Kind == "Weapon" && offers.Any(offer => offer.EffectiveRewardCode == drop.Code));
+                var drops = rewards.MonsterKills[monster.RewardProfileCode].Drops
+                    .Where(drop => drop.Kind == "Weapon").ToList();
+                Assert.Equal(offers.Select(offer => offer.EffectiveRewardCode).Order(),
+                    drops.Select(drop => drop.Code).Order());
+                Assert.All(drops, drop =>
+                {
+                    Assert.Equal(1, drop.Quantity);
+                    Assert.Equal(monster.IsBoss ? 5m : 1m, drop.ChancePercent);
+                });
+            }
             Assert.All(offers.Select(offer => catalog.FindItem(offer.EffectiveRewardCode)!), item =>
             {
                 Assert.Equal(1, item.ItemLevel);
                 Assert.All(item.Skills, skill => Assert.Equal(1, skill.Level));
-                Assert.InRange(item.Attack + item.MaxHp / 2.5m, 47, 51);
+                Assert.Contains(item.Attack + item.MaxHp, new[] { 240, 245 });
+                Assert.Equal(3, item.Skills.Count);
+                Assert.Equal(2, item.Skills.Count(skill => skill.UnlockQualityRank == 0));
+                Assert.Equal(3, item.Skills.Single(skill => skill.UnlockQualityRank > 0).UnlockQualityRank);
             });
         }
-        Assert.Equal(6, bossStatLines.Count);
+        Assert.Equal(6, bossNames.Count);
         Assert.Equal(6, soulImprints.Select(imprint => imprint.Element).Distinct().Count());
         Assert.Equal(6, soulImprints.Select(imprint => imprint.EffectType).Distinct().Count());
-        Assert.Equal(36, dungeons.SelectMany(dungeon => allOffers.Where(offer =>
+        Assert.Equal(12, dungeons.SelectMany(dungeon => allOffers.Where(offer =>
             offer.DungeonCode == dungeon.Code && offer.RewardKind == "Weapon"))
             .Select(offer => offer.EffectiveRewardCode).Distinct().Count());
-        Assert.Equal(36, dungeons.SelectMany(dungeon => rewards.DungeonClears[dungeon.Code].Drops
-            .Where(drop => drop.Kind == "Weapon")).Select(drop => drop.Code).Distinct().Count());
+        Assert.Empty(dungeons.SelectMany(dungeon => rewards.DungeonClears[dungeon.Code].Drops
+            .Where(drop => drop.Kind == "Weapon")));
     }
 
     [Fact]

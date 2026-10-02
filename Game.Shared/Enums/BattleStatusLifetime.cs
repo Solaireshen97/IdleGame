@@ -43,5 +43,8 @@ public enum BattleStatusMechanic
     GuardCounterattack,
     GuardCounterPermission,
     MageEchoUsed,
-    NormalAttackEcho
+    NormalAttackEcho,
+    // Its phase owns first-round ticks, growth and expiry, rather than the ordinary DoT loop.
+    PlaguePoison,
+    PlagueErosion
 }

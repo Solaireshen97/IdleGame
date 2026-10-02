@@ -30,6 +30,7 @@ public sealed partial class BattleRoundExecutor
         foreach (var participant in aliveSlots.OrderBy(entry => entry.Slot.SlotIndex))
         {
             if (monster.Hp <= 0) break;
+            if (participant.Character.Hp <= 0) continue;
             var imprint = equipped.SingleOrDefault(entry => entry.CharacterId == participant.Character.Id);
             var definition = soulImprintCatalog.Find(imprint?.SoulImprintCode);
             if (imprint is null || definition is null) continue;
@@ -43,9 +44,11 @@ public sealed partial class BattleRoundExecutor
             if (readyAtRound > room.RoundNumber ||
                 !await CanSoulImprintApplyAsync(room, monster, definition, participant, aliveSlots) ||
                 automatic && !await MeetsSoulImprintAutoConditionAsync(room, monster, definition, participant, aliveSlots)) continue;
+            if (await Statuses.SkipBlockedActionAsync(room, participant.Character.Id)) continue;
 
             var soulSource = BattleActor.ForCharacter(new(participant.Slot, participant.Character), battle.StatsFor(participant.Character));
             using var soulAction = _events.ActionScope(soulSource, definition.Code, definition.Name, BattleActionKind.SoulImprint);
+            using var reflection = Effects.Damage.BeginReflectionAction(battle, soulSource);
             async Task<int> DealSoulDamageAsync()
             {
                 var damageResult = await Effects.Damage.CharacterDamageAsync(battle,
@@ -124,6 +127,7 @@ public sealed partial class BattleRoundExecutor
                                     [target.Character.Id], false);
                                 if (removed is null) break;
                                 logs.Add($"魂印「{definition.Name}」移除了 {target.Slot.SlotIndex}号位 {target.Character.Name} 的 {removed.Name}。");
+                                await Effects.Damage.ObserveCleanseAsync(battle, target.Character.Id, removed.Code);
                             }
                         }
                     }
@@ -137,6 +141,7 @@ public sealed partial class BattleRoundExecutor
                     break;
             }
 
+            await reflection.CompleteAsync();
             if (cooldown is null)
             {
                 cooldown = new BattleSkillCooldown

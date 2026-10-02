@@ -31,7 +31,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         IReadOnlyCollection<int> autoCharacterIds, List<string> logs)
     {
         if (monsterCombatService is not null)
-            await monsterCombatService.Phases.BeginRoundAsync(room, monster, logs);
+            await monsterCombatService.Phases.BeginRoundAsync(room, monster, logs, slots);
         var aliveSlots = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
         var combatParticipants = slots.OrderBy(entry => entry.Slot.SlotIndex).ToList();
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -45,7 +45,8 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         var pendingTalentEcho = new Dictionary<int, decimal>();
         foreach (var entry in aliveSlots)
         {
-            pendingTalentEcho[entry.Character.Id] = await LegacyTalents.ConsumeEchoAsync(room, entry.Character.Id);
+            pendingTalentEcho[entry.Character.Id] = await Statuses.IsActionBlockedAsync(room, entry.Character.Id)
+                ? 0 : await LegacyTalents.ConsumeEchoAsync(room, entry.Character.Id);
         }
         await ApplySoulImprintsAsync(room, aliveSlots, monster, operationBonuses, autoCharacterIds, logs);
         await ApplyCombatSkillsAsync(room, aliveSlots, monster, mainWeaponElements,
@@ -55,6 +56,12 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
         foreach (var entry in aliveSlots)
         {
             if (monster.Hp <= 0) break;
+            if (entry.Character.Hp <= 0) continue;
+            if (await Statuses.SkipBlockedActionAsync(room, entry.Character.Id))
+            {
+                logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 本回合因冻结跳过攻击。");
+                continue;
+            }
             var stats = battle.StatsFor(entry.Character);
             var talentEcho = pendingTalentEcho[entry.Character.Id];
             var healthPercent = WeaponCombatRules.HealthDamagePercent(entry.Character.Hp, stats.MaxHp,
@@ -64,7 +71,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
             var coordinatedEcho = monsterCombatService is null ? 0 :
                 await monsterCombatService.Statuses.MechanicPowerAsync(room, "Character", entry.Character.Id, BattleStatusMechanic.HunterCoordinated);
             var hits = WeaponCombatRules.RollPercent(stats.DoubleAttackChancePercent + adrenalineChance, random) ? 2 : 1;
-            for (var hit = 0; hit < hits && monster.Hp > 0; hit++)
+            for (var hit = 0; hit < hits && monster.Hp > 0 && entry.Character.Hp > 0; hit++)
             {
                 var source = BattleActor.ForCharacter(new(entry.Slot, entry.Character), stats);
                 using var attackAction = _events.ActionScope(source, "normal-attack", hit == 0 ? "普通攻击" : "二连击", BattleActionKind.NormalAttack);
@@ -75,7 +82,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} {(hit == 0 ? "普通攻击" : "二连击")} {monster.Name}，造成 {damage} 点伤害{(critical ? "（暴击）" : "")}。");
                 var echo = WeaponCombatRules.EchoDamage(damage,
                     stats.NormalEchoPercent + talentEcho + coordinatedEcho);
-                if (monster.Hp > 0 && echo > 0)
+                if (monster.Hp > 0 && entry.Character.Hp > 0 && echo > 0)
                 {
                     var before = monster.Hp;
                     monster.Hp = Math.Max(0, monster.Hp - echo);
@@ -97,7 +104,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
                     operationBonuses, healingOnly: true);
             await LegacyTalents.VictoryAsync(battle, characterIds);
-            if (monsterCombatService is not null) await monsterCombatService.Phases.EndRoundAsync(room, monster, logs);
+            if (monsterCombatService is not null) await monsterCombatService.Phases.EndRoundAsync(room, monster, logs, combatParticipants, operationBonuses);
             return BattleRoundOutcome.MonsterDefeated;
         }
 
@@ -109,7 +116,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 mainWeaponElements, logs, operationBonuses);
             await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
                 operationBonuses);
-            await monsterCombatService.Phases.EndRoundAsync(room, monster, logs);
+            await monsterCombatService.Phases.EndRoundAsync(room, monster, logs, combatParticipants, operationBonuses);
         }
         else
         {

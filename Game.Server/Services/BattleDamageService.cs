@@ -10,7 +10,7 @@ namespace Game.Server.Services;
 public enum BattleDamageOrigin { NormalAttack, Skill, Counter, Mechanic, LegacyParry }
 
 /// <summary>One numerical pipeline, with explicit origin flags for the existing damage rules.</summary>
-public sealed class BattleDamageService(BattleStatusService? statuses, BattleGuardService guards, Random? random = null,
+public sealed partial class BattleDamageService(BattleStatusService? statuses, BattleGuardService guards, Random? random = null,
     BattleEventCollector? events = null, DungeonRunRulesService? runRules = null, IOptions<CombatDamageOptions>? damageOptions = null,
     MonsterPhaseService? phases = null)
 {
@@ -28,6 +28,8 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         decimal conditionalBonus = 0, decimal attackPowerBonus = 0, IReadOnlyList<decimal>? multipliers = null, ElementType? damageElement = null)
     {
         var character = source.Character ?? throw new InvalidOperationException("Character damage needs a character source.");
+        if (character.Hp <= 0) return new(0, 0, false);
+        if (statuses is not null && await statuses.IsActionBlockedAsync(battle.Room, source.Id)) return new(0, 0, false);
         var stats = battle.StatsFor(character);
         var monster = battle.Monster;
         if (monster.Hp <= 0) return new(0, 0, false);
@@ -53,21 +55,43 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         foreach (var multiplier in multipliers ?? [])
             damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * multiplier));
         if (statuses is not null) damage = await statuses.AmplifyDamageAsync(battle.Room, monster.Id, damage);
+        if (statuses is not null && !isLegacyParry)
+        {
+            var dealt = await statuses.ModifierAsync(battle.Room, "Character", source.Id, "DamageDealtPercent");
+            if (dealt != 0) damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * Math.Max(0m, 1m + dealt / 100m)));
+        }
         damage = await VaryAsync(battle.Room, damage);
         var before = monster.Hp;
         var actual = Math.Min(before, damage);
         monster.Hp = Math.Max(0, monster.Hp - damage);
         Events.Hp(battle.Room, BattleEventKind.Damage, source, battle.Enemy, damage, actual, before, critical,
             isLegacyParry ? null : element, isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, stats.ElementAdvantagePercent));
-        await ObserveDirectDamageAsync(battle, isLegacyParry ? null : element, actual);
+        await ObserveDirectDamageAsync(battle, isLegacyParry ? null : element, actual, isLegacyParry ? null : source.Id);
+        if (!isLegacyParry) await ReflectCharacterDamageAsync(battle, source, actual);
         return new(damage, actual, critical);
     }
 
-    public Task ObserveDirectDamageAsync(BattleExecutionContext battle, ElementType? element, int actualDamage) =>
-        phases?.ObserveDirectDamageAsync(battle, element, actualDamage) ?? Task.CompletedTask;
+    public Task ObserveDirectDamageAsync(BattleExecutionContext battle, ElementType? element, int actualDamage,
+        int? sourceCharacterId = null) =>
+        phases?.ObserveDirectDamageAsync(battle, element, actualDamage, sourceCharacterId) ?? Task.CompletedTask;
+
+    public async Task ObserveCleanseAsync(BattleExecutionContext battle, int characterId, string statusCode)
+    {
+        if (phases is null) return;
+        await phases.ObserveDeepColdCleanseAsync(battle, characterId, statusCode);
+        await phases.ObservePlagueCleanseAsync(battle, characterId, statusCode);
+    }
+
+    public Task ObserveDispelAsync(BattleExecutionContext battle, string statusCode) =>
+        phases?.ObserveReflectionMirrorDispelAsync(battle, statusCode) ?? Task.CompletedTask;
+
+    public async Task<bool> SuppressMonsterStatusAsync(BattleExecutionContext battle, int characterId, string statusCode) =>
+        phases is not null && (await phases.SuppressBasicColdAsync(battle.Room, battle.Monster, characterId, statusCode) ||
+            await phases.SuppressBasicPoisonAsync(battle.Room, battle.Monster, characterId, statusCode));
 
     public async Task<BattleDamageResult> MonsterDamageAsync(BattleExecutionContext battle, BattleActor target,
-        BattleSkillEffect effect, bool areaAttack, decimal skillReduction = 0, int legacyReduction = 0)
+        BattleSkillEffect effect, bool areaAttack, decimal skillReduction = 0, int legacyReduction = 0,
+        decimal skillBonusPercent = 0)
     {
         var character = target.Character ?? throw new InvalidOperationException("Monster direct damage needs a character target.");
         var stats = battle.StatsFor(character);
@@ -77,8 +101,9 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         var attack = statuses is null ? 0 : await statuses.ModifierAsync(battle.Room, "Monster", monster.Id, "AttackPercent");
         var reduction = statuses is null ? 0 : await statuses.ModifierAsync(battle.Room, "Character", target.Id, "ReductionPercent");
         var guard = await guards.DefenseAsync(battle.Room, target.Id);
-        var scaledAttack = effect.AttackPowerPercent > 0 ? Math.Max(1, (int)decimal.Floor(monster.Attack * effect.AttackPowerPercent / 100m * (1m - skillReduction / 100m))) : 0;
-        var scaledFlat = (int)decimal.Floor(effect.Power * (1m - skillReduction / 100m));
+        var skillMultiplier = (1m - skillReduction / 100m) * (1m + skillBonusPercent / 100m);
+        var scaledAttack = effect.AttackPowerPercent > 0 ? Math.Max(1, (int)decimal.Floor(monster.Attack * effect.AttackPowerPercent / 100m * skillMultiplier)) : 0;
+        var scaledFlat = (int)decimal.Floor(effect.Power * skillMultiplier);
         var damage = DamageCalculator.Calculate(scaledAttack, 0, scaledFlat, factors: new DamageFactors(AttackPercent: attack,
             ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
             ReductionPercent: WeaponCombatRules.CombinedDirectReductionPercent(guard.ReductionPercent + reduction + legacyReduction +

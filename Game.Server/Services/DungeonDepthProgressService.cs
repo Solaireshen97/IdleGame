@@ -9,6 +9,22 @@ namespace Game.Server.Services;
 public sealed class DungeonDepthProgressService(GameDbContext db, DungeonDepthCatalog? catalog = null,
     DungeonRunRulesService? runRules = null)
 {
+    public const string ChallengeFirstClearKind = "DungeonChallengeFirstClear";
+    public static string ChallengeFirstClearTarget(string dungeonCode, int depth) => $"{dungeonCode}:LV{depth}";
+
+    public async Task<IReadOnlyList<KeyValuePair<int, int>>> UnclaimedChallengeFirstClearsAsync(
+        string dungeonCode, int characterId, int depth, DungeonDepthDefinitionOptions definition)
+    {
+        var rewards = definition.ChallengeFirstClearQuantities.Where(item => item.Key <= depth).OrderBy(item => item.Key).ToList();
+        if (rewards.Count == 0) return [];
+        var targets = rewards.Select(item => ChallengeFirstClearTarget(dungeonCode, item.Key)).ToArray();
+        var saved = await db.CharacterBattleMilestones.Where(item => item.CharacterId == characterId &&
+            item.Kind == ChallengeFirstClearKind && targets.Contains(item.TargetCode)).Select(item => item.TargetCode).ToListAsync();
+        var claimed = saved.Concat(db.CharacterBattleMilestones.Local.Where(item => item.CharacterId == characterId &&
+            item.Kind == ChallengeFirstClearKind).Select(item => item.TargetCode)).ToHashSet();
+        return rewards.Where(item => !claimed.Contains(ChallengeFirstClearTarget(dungeonCode, item.Key))).ToList();
+    }
+
     public async Task<DungeonDepthDefinitionOptions?> DefinitionAsync(Room room)
     {
         if (runRules is not null) return (await runRules.EnsureAsync(room)).Depth;

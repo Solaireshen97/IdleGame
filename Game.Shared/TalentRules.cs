@@ -18,7 +18,13 @@ public static class TalentRules
         _ => throw new ArgumentOutOfRangeException(nameof(type))
     };
     public static int EffectiveAttack(Character character) => character.Attack;
-    public static int EffectiveMaxHp(Character character)
+    public static int EffectiveMaxHp(Character character) => LimitBattleMaxHp(
+        EffectiveMaxHpWithoutBattleLimit(character), character.BattleMaxHpLimit);
+
+    public static int LimitBattleMaxHp(int maxHp, int? limit) => limit.HasValue
+        ? Math.Max(1, Math.Min(maxHp, limit.Value)) : maxHp;
+
+    public static int EffectiveMaxHpWithoutBattleLimit(Character character)
     {
         var weaponHp = decimal.Floor(character.MaxHp *
             (1m + (character.WeaponHealthBonusPercent + character.TemporaryWeaponHealthBonusPercent) / 100m) *

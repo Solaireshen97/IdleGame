@@ -270,7 +270,8 @@ public sealed class DungeonDefinitionConfigurationTests
             var boss = representative.CombatProfileCode;
             Assert.Equal($"{boss}:depth-lv4", combat.ResolveDepthProfile(boss, 10));
             Assert.Equal(encounters.GetAddedMechanics(dungeon, 4), encounters.GetAddedMechanics(dungeon, 10));
-            Assert.Equal(3, encounters.GetAddedMechanics(dungeon, 4).Count);
+            Assert.Equal(dungeon.Code == "plague-crypt-depths" ? 4 : 3,
+                encounters.GetAddedMechanics(dungeon, 4).Count);
             Assert.Equal(DungeonRewardEligibility.ActualParticipants,
                 encounters.ResolveRewardEligibility(dungeon.Code, DungeonRewardEligibility.CurrentSlots));
         }

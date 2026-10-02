@@ -39,7 +39,18 @@
             <div class="depth-brief__copy">
                 <div class="depth-brief__title"><strong>@DepthName(selected.DepthLevel)</strong><span>@(selected.IsUnlocked ? "已开放" : "未开放")</span></div>
                 <p>@SelectionReward</p>
-                <div class="depth-brief__stats"><span>生命 / 攻击 <b>@(selected.UsesExplicitStats ? "按本层配置" : $"×{selected.StatMultiplier:0.##}")</b></span><span>@(selected.IsChallenge ? "沿用 LV4 机制" : $"新增机制 {selected.AddedMechanics.Count} 项")</span></div>
+                <div class="depth-brief__stats">
+                    @if (selected.IsChallenge)
+                    {
+                        <span>相对 LV@(selected.StatBaseDepth)：生命 <b>×@selected.StatMultiplier.ToString("0.##")</b> / 攻击 <b>×@selected.AttackMultiplier.ToString("0.##")</b></span>
+                    }
+                    else { <span>生命 / 攻击 <b>@(selected.UsesExplicitStats ? "按本层配置" : $"×{selected.StatMultiplier:0.##}")</b></span> }
+                    <span>@(selected.IsChallenge ? "沿用 LV4 机制" : $"新增机制 {selected.AddedMechanics.Count} 项")</span>
+                </div>
+                @if (selected.IsChallenge && Dungeon.RewardPreview.FirstOrDefault(item => item.Source == "挑战首通及补领") is { } firstClear)
+                {
+                    <p>本角色尚未领取的首通奖励：@firstClear.Name ×@firstClear.Quantity</p>
+                }
             </div>
         </section>
     }
@@ -63,6 +74,10 @@
             else { <p>本层使用原有基础技能。</p> }
             <p>首次通关解锁本角色的 Auto。精通收益累积保留，升级从下一轮生效；回刷低层也享受加成。</p>
             <p>击杀、通关追加均独立抽取常规物品，不复制掉落，不追加经验、首通或挑战碎片。</p>
+            @if (SelectedDepth?.IsChallenge == true)
+            {
+                <p>毕业后的自我挑战，通关与 Auto 能力取决于配装和战斗安排。每名参战角色的各层首通奖励只能领取一次；直接通关高层会补齐较低挑战层的未领首通奖励。</p>
+            }
             @if (Dungeon.UsesPlaceholderBalance) { <p>当前生命、攻击与新增技能为测试占位，正式机制和平衡仍待调整。</p> }
         </div>
     }
@@ -79,7 +94,9 @@
         ? $"账号通关 LV{Dungeon.DepthLevel - 1} 后开放；可提前查看敌情。"
         : Dungeon.DepthLevel >= 5
             ? Dungeon.RewardPreview.FirstOrDefault(item => item.Source is "挑战额外奖励" or "挑战奖励") is { } reward
-                ? $"通关 {reward.ChancePercent:0.##}% 获得 {reward.Name.Replace("通用突破碎片", "突破碎片")} ×{reward.Quantity}"
+                ? reward.ChancePercent == 100
+                    ? $"通关固定获得 {reward.Name.Replace("通用突破碎片", "突破碎片")} ×{reward.Quantity}"
+                    : $"通关 {reward.ChancePercent:0.##}% 获得 {reward.Name.Replace("通用突破碎片", "突破碎片")} ×{reward.Quantity}"
                 : "通关可获得本阶段通用突破材料。"
             : Dungeon.MasteryLevel >= Dungeon.DepthLevel ? "已获得本层精通，享受常规战利品。" : Dungeon.DepthLevel switch
             {

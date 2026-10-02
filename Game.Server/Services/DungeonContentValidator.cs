@@ -23,6 +23,8 @@ public sealed class DungeonContentValidator(WorldCatalog world, WeaponCatalog we
                     throw new InvalidOperationException($"Invalid ordinary dungeon prerequisite for {dungeon.Code}: {depth.PrerequisiteDungeonCode}");
                 if (materials.FindItem(depth.ChallengeFragmentCode) is null)
                     throw new InvalidOperationException($"Unknown challenge fragment for {dungeon.Code}: {depth.ChallengeFragmentCode}");
+                if (depth.ChallengeFirstClearQuantities.Count > 0 && materials.FindItem(depth.ChallengeFirstClearItemCode) is null)
+                    throw new InvalidOperationException($"Unknown challenge first-clear item for {dungeon.Code}: {depth.ChallengeFirstClearItemCode}");
             }
 
             ValidateCombinedStats(dungeon, encounters, depths, parties);

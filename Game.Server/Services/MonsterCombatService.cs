@@ -56,7 +56,12 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             SkillCode = selectedSkill?.Code,
             IsInterrupted = silenced,
             TargetType = targetType,
-            TargetCharacterId = targetType == "Front" ? await FindFrontCharacterIdAsync(room.Id) : null,
+            TargetCharacterId = targetType switch
+            {
+                "Front" => await FindFrontCharacterIdAsync(room.Id),
+                "RandomAlive" => await FindRandomAliveCharacterIdAsync(room.Id),
+                _ => null
+            },
             CreatedAtUtc = DateTime.UtcNow
         };
         dbContext.MonsterIntents.Add(intent);
@@ -155,6 +160,13 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         var intent = await EnsureIntentAsync(room, monster);
         dbContext.MonsterIntents.Remove(intent);
         var skill = intent.ActionType == "Skill" ? CatalogFor(room).ResolveSkill(intent.SkillCode) : null;
+        var isStaticThunder = skill is not null && Phases.StaticFieldDefinition(room, monster) is { ThunderAtStacks: > 0 } field &&
+            skill.Code == field.ThunderSkillCode;
+        if (isStaticThunder && !await Phases.CanReleaseStaticThunderAsync(room, monster))
+        {
+            await Phases.FinishStaticThunderAsync(room, monster, logs, released: false);
+            return;
+        }
         if (intent.IsInterrupted)
         {
             if (skill is not null) await StartCooldownAsync(room, monster, skill);
@@ -206,7 +218,8 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         if (reduction > 0) logs.Add($"{monster.Name} 的 {skill.Name} 受到奥术扰乱，直接伤害降低 {reduction}%。");
         await Effects.ExecuteAsync(new(battle, skill, battle.Enemy)
         {
-            IntentTargetId = intent.TargetCharacterId, MonsterSkillReduction = reduction
+            IntentTargetId = intent.TargetCharacterId, MonsterSkillReduction = reduction,
+            MonsterSkillBonusPercent = await Phases.StaticFieldSkillBonusAsync(room, monster, skill.Code)
         }, new LegacyMonsterDefenseAdapter(dbContext, Guards));
         if (Phases.Definition(room, monster) is { } core && skill.Code == core.LinkedSkillCode &&
             monster.Hp > 0 && await Phases.IsHeatedAsync(room, monster))
@@ -233,6 +246,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             }
         }
         await StartCooldownAsync(room, monster, skill);
+        if (isStaticThunder) await Phases.FinishStaticThunderAsync(room, monster, logs, released: true);
         await KnightMechanics.ResolveCountersAsync(battle, Guards, Effects.Damage, mechanics);
     }
 
@@ -283,13 +297,18 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
     {
         var profile = CatalogFor(room).ResolveProfile(monster.CombatProfileCode);
         if (profile is null || profile.Skills.Length == 0) return null;
+        if (await Phases.PendingStaticThunderAsync(room, monster) is { } thunderCode)
+            return CatalogFor(room).ResolveSkill(thunderCode);
+        var reservedThunder = Phases.StaticFieldDefinition(room, monster)?.ThunderSkillCode;
+        var initialCooldownRound = profile.UseEncounterLocalSkillClock
+            ? await Phases.EncounterSkillRoundAsync(room, monster) : room.RoundNumber;
         var cooldowns = await dbContext.BattleMonsterSkillCooldowns.Where(entry =>
             entry.RoomId == room.Id && entry.MonsterId == monster.Id).ToListAsync();
         foreach (var local in dbContext.BattleMonsterSkillCooldowns.Local.Where(entry =>
                      entry.RoomId == room.Id && entry.MonsterId == monster.Id))
             if (!cooldowns.Contains(local)) cooldowns.Add(local);
         var eligible = profile.Skills.Select(entry => (Entry: entry, Skill: CatalogFor(room).ResolveSkill(entry.Code)))
-            .Where(candidate => candidate.Skill is not null && candidate.Skill.InitialCooldownRounds <= room.RoundNumber &&
+            .Where(candidate => candidate.Skill is not null && candidate.Skill.Code != reservedThunder && candidate.Skill.InitialCooldownRounds <= initialCooldownRound &&
                 (candidate.Skill.SelfHpBelowPercent is null ||
                  (long)monster.Hp * 100 <= (long)monster.MaxHp * candidate.Skill.SelfHpBelowPercent) &&
                 (candidate.Skill.RoomRoundAtLeast is null || room.RoundNumber >= candidate.Skill.RoomRoundAtLeast) &&
@@ -314,6 +333,16 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     private Task<List<BattleStatusEffect>> GetActiveEffectsAsync(Room room, string targetType,
         IReadOnlyCollection<int> targetIds) => Statuses.GetActiveAsync(room, targetType, targetIds);
+
+    private async Task<int?> FindRandomAliveCharacterIdAsync(int roomId)
+    {
+        var candidates = await (from slot in dbContext.RoomSlots
+            join character in dbContext.Characters on slot.CharacterId equals character.Id
+            where slot.RoomId == roomId && character.Hp > 0
+            orderby slot.SlotIndex
+            select character.Id).ToListAsync();
+        return candidates.Count == 0 ? null : candidates[(random ?? Random.Shared).Next(candidates.Count)];
+    }
 
     private async Task<int?> FindFrontCharacterIdAsync(int roomId) => await (
         from slot in dbContext.RoomSlots

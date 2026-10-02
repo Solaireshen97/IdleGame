@@ -28,6 +28,7 @@ public readonly record struct BattleEffectTarget(BattleTargetSide Side, BattleTa
     {
         "Self" => new(BattleTargetSide.Self, BattleTargetSelection.Self, false, false, code),
         "Front" => new(BattleTargetSide.Opponent, BattleTargetSelection.Front, false, true, code),
+        "RandomAlive" => new(BattleTargetSide.Opponent, BattleTargetSelection.Primary, false, true, code),
         "AllAlive" => new(BattleTargetSide.Opponent, BattleTargetSelection.AllAlive, false, false, code),
         _ => throw new InvalidOperationException($"Invalid monster effect target: {code}")
     };
@@ -120,4 +121,5 @@ public sealed record MonsterSkillDefinition : BattleSkillDefinition
 }
 
 public sealed record MonsterProfileSkill(string Code, int Weight);
-public sealed record MonsterCombatProfile(int SkillUseChancePercent, ImmutableArray<MonsterProfileSkill> Skills);
+public sealed record MonsterCombatProfile(int SkillUseChancePercent, ImmutableArray<MonsterProfileSkill> Skills,
+    bool UseEncounterLocalSkillClock = false);

@@ -589,6 +589,8 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         var characters = await dbContext.Characters.Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
         var slots = slotRows.Where(x => characters.ContainsKey(x.CharacterId!.Value)).Select(x => new BattleParticipant(x, characters[x.CharacterId!.Value])).ToList();
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
+        if (monster is not null && monsterCombatService is not null)
+            await monsterCombatService.Phases.RefreshPlagueHealthAsync(room, monster, slots);
         return monster is null ? (room, slots, null, "MonsterNotFound") : (room, slots, monster, null);
     }
 }

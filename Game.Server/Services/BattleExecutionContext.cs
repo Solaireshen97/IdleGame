@@ -20,7 +20,7 @@ public sealed class BattleActor
     public string Name => Character?.Name ?? Monster!.Name;
     public string Label => Character is not null ? $"{SlotIndex}号位 {Name}" : Name;
     public int Hp { get => Character?.Hp ?? Monster!.Hp; set { if (Character is not null) Character.Hp = value; else Monster!.Hp = value; } }
-    public int MaxHp => Stats?.MaxHp ?? Monster!.MaxHp;
+    public int MaxHp => Character is { } character ? Stats!.WithCurrentMaxHp(character).MaxHp : Monster!.MaxHp;
     private BattleActor(BattleParticipant? participant, Monster? monster, CharacterCombatStatSnapshot? stats = null)
     {
         (Participant, Monster) = (participant, monster);
@@ -39,7 +39,7 @@ public sealed record BattleExecutionContext(Room Room, Monster Monster, IReadOnl
         .DistinctBy(entry => entry.Character.Id).ToDictionary(entry => entry.Character.Id,
             entry => CharacterCombatStatSnapshot.Capture(entry.Character));
     public CharacterCombatStatSnapshot StatsFor(Character character) => _characterStats.TryGetValue(character.Id, out var stats)
-        ? stats : CharacterCombatStatSnapshot.Capture(character);
+        ? stats.WithCurrentMaxHp(character) : CharacterCombatStatSnapshot.Capture(character);
     public BattleActor Enemy => BattleActor.ForMonster(Monster);
     public IReadOnlyList<BattleActor> Characters => Party.OrderBy(entry => entry.Slot.SlotIndex)
         .Select(entry => BattleActor.ForCharacter(entry, StatsFor(entry.Character))).ToList();
@@ -83,6 +83,7 @@ public sealed class BattleCastExecution
     public bool GuardCounterEligible { get; set; }
     public bool DeduplicateHealing { get; set; }
     public decimal MonsterSkillReduction { get; set; }
+    public decimal MonsterSkillBonusPercent { get; set; }
     public int LegacyGuardPower { get; set; }
     public bool IsBasicAttack { get; init; }
     public Dictionary<int, int> LegacyIncomingReduction { get; } = [];

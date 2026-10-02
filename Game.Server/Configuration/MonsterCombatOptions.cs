@@ -24,6 +24,7 @@ public sealed class BattleStatusOptions
     public string Stacking { get; set; } = "RefreshDuration";
     public bool IsPositive { get; set; }
     public bool IsDispellable { get; set; } = true;
+    public bool IsHidden { get; set; }
     public BattleStatusLifetime Lifetime { get; set; }
     public BattleStatusCounterKind CounterKind { get; set; }
     public BattleStatusMechanic Mechanic { get; set; }
@@ -62,9 +63,125 @@ public sealed class MonsterStatusApplicationOptions
 public sealed class MonsterCombatProfileOptions
 {
     public int SkillUseChancePercent { get; set; }
+    // Opt in so existing profiles and frozen room snapshots keep their original clock.
+    public bool UseEncounterLocalSkillClock { get; set; }
     public List<MonsterProfileSkillOptions> Skills { get; set; } = [];
     public string? DepthProgressionCode { get; set; }
     public FireCoreOptions? FireCore { get; set; }
+    public DeepColdOptions? DeepCold { get; set; }
+    public EarthArmorOptions? EarthArmor { get; set; }
+    public StaticFieldOptions? StaticField { get; set; }
+    public ReflectionMirrorOptions? ReflectionMirror { get; set; }
+    public PlaguePoisonOptions? PlaguePoison { get; set; }
+}
+
+public sealed class PlaguePoisonOptions
+{
+    // Frozen LV2/LV3 declarations keep their single HP trigger; LV4 uses a local schedule.
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    public int WindowRounds { get; set; }
+    public decimal BreakLightDamagePercent { get; set; }
+    public decimal AttackPercentPerStack { get; set; }
+    public string PoisonStatusCode { get; set; } = string.Empty;
+    public string TargetStatusCode { get; set; } = string.Empty;
+    public string TickUsedStatusCode { get; set; } = string.Empty;
+    public string RewardStatusCode { get; set; } = string.Empty;
+    public int RewardRounds { get; set; }
+    public List<string> BasicPoisonStatusCodes { get; set; } = [];
+    // Missing linkage keeps frozen LV2 rooms at ordinary four-round poison.
+    public int ErosionStartStacks { get; set; }
+    public decimal ErosionPercentPerStack { get; set; }
+    public string ErosionStatusCode { get; set; } = string.Empty;
+    public int LethalStacks { get; set; }
+}
+
+public sealed class ReflectionMirrorOptions
+{
+    // LV2/LV3 keep one HP trigger; LV4 follows the persistent encounter-local schedule.
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    public int WindowRounds { get; set; }
+    public int InitialStacks { get; set; }
+    public ElementType RemovalElement { get; set; } = ElementType.Dark;
+    public decimal ReflectPercentPerStack { get; set; }
+    public decimal MaxHpCapPercentPerStack { get; set; }
+    public string MirrorStatusCode { get; set; } = string.Empty;
+    public string HitUsedStatusCode { get; set; } = string.Empty;
+    public string BudgetStatusCode { get; set; } = string.Empty;
+    public string RewardStatusCode { get; set; } = string.Empty;
+    public int RewardRounds { get; set; }
+    // Optional LV3 linkage. Missing fields keep frozen LV2 rooms at fixed reflection strength.
+    public int GrowthRounds { get; set; }
+    public decimal ReflectGrowthPercentPerStack { get; set; }
+    public decimal MaxHpCapGrowthPercentPerStack { get; set; }
+    public string AmplificationStatusCode { get; set; } = string.Empty;
+}
+
+public sealed class StaticFieldOptions
+{
+    // LV2/LV3 retain a one-shot HP trigger; LV4 uses a fixed encounter-local schedule.
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    public ElementType RemovalElement { get; set; } = ElementType.Fire;
+    public int WindowRounds { get; set; }
+    public int InitialStacks { get; set; }
+    public int GrowthRounds { get; set; }
+    public int GrowthStacksPerRound { get; set; }
+    public string StaticStatusCode { get; set; } = string.Empty;
+    public string HitUsedStatusCode { get; set; } = string.Empty;
+    public string GrowthUsedStatusCode { get; set; } = string.Empty;
+    public string AmplifiedSkillCode { get; set; } = string.Empty;
+    public decimal SkillDamagePercentPerStack { get; set; }
+    public string RewardStatusCode { get; set; } = string.Empty;
+    public int RewardRounds { get; set; }
+    // LV3 optional linkage. Missing fields preserve existing LV2 frozen rooms.
+    public int ThunderAtStacks { get; set; }
+    public string ThunderSkillCode { get; set; } = string.Empty;
+    public string ThunderPendingStatusCode { get; set; } = string.Empty;
+}
+
+public sealed class EarthArmorOptions
+{
+    // LV2/LV3: one HP trigger. LV4: a fixed encounter-local schedule instead.
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    public int WindowRounds { get; set; }
+    public decimal BreakWindDamagePercent { get; set; }
+    public string ArmorStatusCode { get; set; } = string.Empty;
+    public string RewardStatusCode { get; set; } = string.Empty;
+    public int RewardRounds { get; set; }
+    // LV3 optional linkage: armor-round ends build persistent attack stacks; a break clears them.
+    public string ResonanceStatusCode { get; set; } = string.Empty;
+}
+
+public sealed class DeepColdOptions
+{
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    // Frozen water rooms authored before attribute alignment retain Fire when the field is absent.
+    public ElementType RemovalElement { get; set; } = ElementType.Fire;
+    public int WindowRounds { get; set; }
+    public int InitialStacks { get; set; }
+    public int RewardRounds { get; set; }
+    public string ColdStatusCode { get; set; } = string.Empty;
+    public string FieldStatusCode { get; set; } = string.Empty;
+    public string WarmStatusCode { get; set; } = string.Empty;
+    public string PendingStatusCode { get; set; } = string.Empty;
+    public string ClearedStatusCode { get; set; } = string.Empty;
+    public string MeltUsedStatusCode { get; set; } = string.Empty;
+    public List<string> BasicColdStatusCodes { get; set; } = [];
+    public int GrowthStacksPerRound { get; set; }
+    public int FreezeAtStacks { get; set; }
+    public string FreezeStatusCode { get; set; } = string.Empty;
+    public string FreezePendingStatusCode { get; set; } = string.Empty;
+    public string FreezeUsedStatusCode { get; set; } = string.Empty;
+    public string GrowthUsedStatusCode { get; set; } = string.Empty;
 }
 
 public sealed class FireCoreOptions

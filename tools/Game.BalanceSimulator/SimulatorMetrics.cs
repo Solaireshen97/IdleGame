@@ -18,7 +18,9 @@ public sealed class SimulatorMetrics(IEnumerable<int> bossIds)
         foreach (var fact in facts)
         {
             if (fact.Source is { ActorType: "Monster" } source && _bosses.Contains(source.ActorId) &&
-                fact.ActionKind == BattleActionKind.Skill && !string.IsNullOrEmpty(fact.SkillCode))
+                fact.ActionKind == BattleActionKind.Skill && !string.IsNullOrEmpty(fact.SkillCode) &&
+                !(fact.Kind == BattleEventKind.Status && fact.StatusChange is
+                    BattleStatusChange.Consumed or BattleStatusChange.Removed or BattleStatusChange.Expired))
                 _skillRounds.Add((fact.RunSequence, fact.RoundNumber, source.ActorId, fact.SkillCode));
             if (fact.Kind == BattleEventKind.Damage && fact.Target.ActorType == "Character" &&
                 fact.HpBefore is > 0 && fact.HpAfter == 0)

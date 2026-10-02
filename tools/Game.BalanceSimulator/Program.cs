@@ -133,7 +133,7 @@ var report = new
         DirectDamageVariancePercent = Bind<CombatDamageOptions>(CombatDamageOptions.SectionName).Value.VariancePercent,
         DirectDamageRounding = "Uniform symmetric multiplier after direct-damage formulas/amplification; fractional result rounds upward with probability equal to its fractional part, otherwise downward. Each actual target/segment rolls independently; derived echo damage does not reroll. Healing and damage-over-time do not vary.",
         WorldFile = worldPath, MetricsSchemaVersion = 2,
-        BossSkillUsesKey = "SkillCode", BossSkillUsesBasis = "Distinct monster/run/round/skill with at least one committed Skill event; not intent or attempted casts",
+        BossSkillUsesKey = "SkillCode", BossSkillUsesBasis = "Distinct monster/run/round/skill with at least one committed Skill event; exclude status consumption/removal/expiry, intent and attempted casts",
         RewardBasis = "Gold/MeanGold remain whole-party totals; Rewards splits settled earnings by character/account/team. Ordinary items are Base-source Consumable/Material/Weapon/SoulImprint quantities from regular monster:/clear events; exclude mastery, challenge, seeds, tutorial and first-clear grants. Quantities are item counts, not economic value. Pending ledger entries are not earnings.",
         WeaponElement = weaponElement?.ToString() ?? "SameAsDungeonRegion",
         MemberWeaponElements = memberWeaponElements.Length == 0 ? null : memberWeaponElements,
@@ -387,9 +387,13 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         if (room.RoundNumber != previousRounds)
         {
             foreach (var state in await db.BattleMonsterPhaseStates.Where(state => state.RoomId == room.Id && state.RunSequence == room.RunSequence).ToListAsync())
+            {
+                var earthArmor = combatCatalog.FindProfile(monsters.Single(m => m.Id == state.MonsterId).CombatProfileCode)?.EarthArmor;
                 phaseRounds.Add(new(state.MonsterId, previousRounds - state.EncounterStartRound + 1,
-                    state.IsActive, state.WaterDamage, state.ActivationCount, state.BreakCount, state.ExpiryCount,
-                    state.LinkedHitCount, state.LastActivationRound, state.LastBreakRound, state.LastExpiryRound));
+                    state.IsActive, earthArmor is null ? state.WaterDamage : 0, state.ActivationCount, state.BreakCount, state.ExpiryCount,
+                    state.LinkedHitCount, state.LastActivationRound, state.LastBreakRound, state.LastExpiryRound,
+                    earthArmor is null ? null : state.ElementDamage, earthArmor is null ? null : ElementType.Wind));
+            }
             metrics.Observe(result.Events);
             var participants = (await db.RoomSlots.Where(slot => slot.RoomId == room.Id && slot.CharacterId != null).ToListAsync())
                 .Select(slot => new BattleParticipant(slot, actors.Single(actor => actor.Id == slot.CharacterId))).ToList();
@@ -553,13 +557,17 @@ List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType e
         .OrderByDescending(item => item.Attack).ThenBy(item => item.Code, StringComparer.Ordinal).ToList();
     var bossCode = world.Regions.Single(region => region.FeaturedElement == element).FeaturedWeaponCode;
     var exchange = Bind<DungeonExchangeOptions>(DungeonExchangeOptions.SectionName).Value.Offers;
-    var mine = exchange.Single(offer => offer.DungeonCode == "kobold-mine-depths" && offer.RewardKind == "Weapon" &&
-        catalog.FindItem(offer.EffectiveRewardCode)!.Element == element).EffectiveRewardCode;
+    var mine = exchange.Where(offer => offer.DungeonCode == "kobold-mine-depths" && offer.RewardKind == "Weapon" &&
+        catalog.FindItem(offer.EffectiveRewardCode)!.Element == element)
+        .OrderByDescending(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Attack)
+        .ThenBy(offer => offer.EffectiveRewardCode, StringComparer.Ordinal).First().EffectiveRewardCode;
     var endgameCode = world.Dungeons.Single(dungeon => dungeon.RegionCode ==
         world.Regions.Single(region => region.FeaturedElement == element).Code &&
         dungeon.DungeonKind == "Dungeon" && dungeon.MinimumLevel == 10).Code;
-    var final = exchange.Single(offer => offer.DungeonCode == endgameCode && offer.RewardKind == "Weapon" &&
-        catalog.FindItem(offer.EffectiveRewardCode)!.Element == element).EffectiveRewardCode;
+    var final = exchange.Where(offer => offer.DungeonCode == endgameCode && offer.RewardKind == "Weapon" &&
+        catalog.FindItem(offer.EffectiveRewardCode)!.Element == element)
+        .OrderByDescending(offer => catalog.FindItem(offer.EffectiveRewardCode)!.Attack)
+        .ThenBy(offer => offer.EffectiveRewardCode, StringComparer.Ordinal).First().EffectiveRewardCode;
     var eliteNames = world.Dungeons.Where(d => d.DungeonKind == "Elite" && d.RegionCode == world.Regions.Single(r => r.FeaturedElement == element).Code).Select(d => d.Code).ToList();
     var rewards = Bind<RewardOptions>(RewardOptions.SectionName).Value;
     var elite = eliteNames.Select(code => rewards.MonsterKills[code].Drops
@@ -634,7 +642,9 @@ record Sample(string Stage, ElementType Element, string Profession, string SoulL
     List<MonsterPhaseObservation> MonsterPhaseRounds);
 
 record MonsterPhaseObservation(int MonsterId, int LocalRound, bool IsActive, long WaterDamage, int Activations,
-    int Breaks, int Expiries, int LinkedHits, int? LastActivationRound, int? LastBreakRound, int? LastExpiryRound);
+    int Breaks, int Expiries, int LinkedHits, int? LastActivationRound, int? LastBreakRound, int? LastExpiryRound,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ElementDamage = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ElementType? DamageElement = null);
 
 record MonsterBuild(string Name, int Wave, int Position, int MaxHp, int Attack, int Defense, string CombatProfileCode);
 

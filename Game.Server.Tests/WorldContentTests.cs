@@ -114,8 +114,8 @@ public sealed class WorldContentTests
             content.World.Regions.Select(region => region.FeaturedElement));
         Assert.Equal(6, content.Exchanges.Offers.Select(offer => offer.CurrencyCode).Distinct().Count());
         var weaponOffers = content.Exchanges.Offers.Where(offer => offer.RewardKind == "Weapon").ToList();
-        Assert.Equal(36, weaponOffers.Select(offer => offer.EffectiveRewardCode).Distinct().Count());
-        Assert.Equal(36, weaponOffers.Select(offer => content.Weapons.FindItem(offer.EffectiveRewardCode)!.Name).Distinct().Count());
+        Assert.Equal(12, weaponOffers.Select(offer => offer.EffectiveRewardCode).Distinct().Count());
+        Assert.Equal(12, weaponOffers.Select(offer => content.Weapons.FindItem(offer.EffectiveRewardCode)!.Name).Distinct().Count());
         var depthDefinitions = content.Bind<DungeonDepthOptions>(DungeonDepthOptions.SectionName).Value.Dungeons;
         Assert.Equal(6, depthDefinitions.Count);
 

@@ -16,9 +16,13 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
 
     public async Task<BattleSkillResult> ExecuteAsync(BattleCastExecution cast, ProfessionCastMechanic? mechanic = null)
     {
+        if (cast.Source.Hp <= 0) return cast.Result;
         if (statuses is not null) await statuses.PrepareAsync(cast.Battle.Room);
+        if (cast.Source.Kind == BattleActorKind.Character && statuses is not null &&
+            await statuses.SkipBlockedActionAsync(cast.Battle.Room, cast.Source.Id)) return cast.Result;
         using var action = Events.ActionScope(cast.Source, cast.Skill.Code, cast.Skill.Name,
             cast.IsBasicAttack ? BattleActionKind.NormalAttack : BattleActionKind.Skill);
+        using var reflection = damage.BeginReflectionAction(cast.Battle, cast.Source);
         mechanic ??= new ProfessionCastMechanic();
         await mechanic.PrepareAsync(cast, this);
         if (cast.CharacterSkill is { } skill)
@@ -38,6 +42,7 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
             await mechanic.AfterEffectAsync(cast, effect, outcomes, this);
         }
         await mechanic.AfterCastAsync(cast, this);
+        await reflection.CompleteAsync();
         return cast.Result;
     }
 
@@ -56,7 +61,7 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
                             cast.HealthPercentAtCast, cast.ConditionalDamageBonus, cast.AttackPowerBonus, cast.DamageMultipliers)
                         : await damage.MonsterDamageAsync(cast.Battle, target, effect,
                             effect.TargetPolicy.Selection == BattleTargetSelection.AllAlive, cast.MonsterSkillReduction,
-                            cast.LegacyIncomingReduction.GetValueOrDefault(target.Id));
+                            cast.LegacyIncomingReduction.GetValueOrDefault(target.Id), cast.MonsterSkillBonusPercent);
                     cast.Battle.Logs.Add(cast.IsBasicAttack
                         ? $"{cast.Source.Label} 普通攻击 {target.Label}，造成 {hit.CalculatedAmount} 点伤害。"
                         : $"{cast.Source.Label} 使用 {cast.Skill.Name} 攻击 {target.Label}，造成 {hit.CalculatedAmount} 点伤害{(hit.IsCritical ? "（暴击）" : "")}。");
@@ -94,6 +99,10 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
                         [target.Id], effect.Kind == BattleEffectKind.Dispel);
                     if (removed is null) continue;
                     LogRemoval(cast, target, removed, effect.Kind);
+                    if (effect.Kind == BattleEffectKind.Cleanse && target.Kind == BattleActorKind.Character)
+                        await damage.ObserveCleanseAsync(cast.Battle, target.Id, removed.Code);
+                    if (effect.Kind == BattleEffectKind.Dispel && target.Kind == BattleActorKind.Monster)
+                        await damage.ObserveDispelAsync(cast.Battle, removed.Code);
                     outcomes.Add(new(effect.Kind, target, true, RemovedStatus: removed));
                     // FirstDebuffed searches the ordered group for one removable status;
                     // all-target effects instead remove one status from each selected actor.
@@ -125,6 +134,9 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
         if (statuses is not null) await statuses.PrepareAsync(cast.Battle.Room);
         var definition = statuses?.CatalogFor(cast.Battle.Room).Find(effect.StatusCode);
         if (definition is null) return new(BattleEffectKind.ApplyStatus, target, false);
+        if (cast.Source.Kind == BattleActorKind.Monster && target.Kind == BattleActorKind.Character &&
+            await damage.SuppressMonsterStatusAsync(cast.Battle, target.Id, definition.Code))
+            return new(BattleEffectKind.ApplyStatus, target, false);
         int? snapshot = null;
         if (definition.EffectType == "DamageOverTime" && effect.AttackPowerPercent > 0)
         {
@@ -153,6 +165,8 @@ public sealed class BattleEffectExecutor(SkillCatalog skills, BattleStatusServic
         var removed = await statuses.RemoveFirstAsync(cast.Battle.Room, target.ActorType, [target.Id], false);
         if (removed is null) return null;
         LogRemoval(cast, target, removed, BattleEffectKind.Cleanse);
+        if (target.Kind == BattleActorKind.Character)
+            await damage.ObserveCleanseAsync(cast.Battle, target.Id, removed.Code);
         var outcome = new BattleEffectOutcome(BattleEffectKind.Cleanse, target, true, RemovedStatus: removed);
         cast.Result.Outcomes.Add(outcome);
         return outcome;

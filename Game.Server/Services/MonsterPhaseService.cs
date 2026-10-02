@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Game.Server.Services;
 
 /// <summary>Persistent, encounter-local phases. The caller owns the round transaction.</summary>
-public sealed class MonsterPhaseService(GameDbContext db, MonsterCombatCatalog catalog,
+public sealed partial class MonsterPhaseService(GameDbContext db, MonsterCombatCatalog catalog,
     BattleStatusService statuses, DungeonRunRulesService? runRules = null)
 {
     public FireCoreOptions? Definition(Room room, Monster monster) =>
@@ -19,9 +19,57 @@ public sealed class MonsterPhaseService(GameDbContext db, MonsterCombatCatalog c
         ?? await db.BattleMonsterPhaseStates.SingleOrDefaultAsync(state => state.RoomId == room.Id &&
             state.RunSequence == room.RunSequence && state.MonsterId == monster.Id);
 
-    public async Task BeginRoundAsync(Room room, Monster monster, List<string> logs)
+    // Zero-based skill clock. Reuse the persisted encounter state across intent previews/reloads.
+    public async Task<int> EncounterSkillRoundAsync(Room room, Monster monster)
+    {
+        var state = await FindAsync(room, monster);
+        if (state is null)
+        {
+            state = new BattleMonsterPhaseState
+            {
+                RoomId = room.Id, RunSequence = room.RunSequence, MonsterId = monster.Id,
+                EncounterStartRound = room.RoundNumber,
+                NextActivationRound = Definition(room, monster)?.FirstActivationRound ??
+                    DeepColdDefinition(room, monster)?.FirstActivationRound ??
+                    EarthArmorDefinition(room, monster)?.FirstActivationRound ??
+                    StaticFieldDefinition(room, monster)?.FirstActivationRound ??
+                    ReflectionMirrorDefinition(room, monster)?.FirstActivationRound ??
+                    PlaguePoisonDefinition(room, monster)?.FirstActivationRound ?? 0
+            };
+            db.BattleMonsterPhaseStates.Add(state);
+        }
+        return room.RoundNumber - state.EncounterStartRound;
+    }
+
+    public async Task BeginRoundAsync(Room room, Monster monster, List<string> logs,
+        IReadOnlyList<BattleParticipant>? participants = null)
     {
         if (runRules is not null) await runRules.EnsureAsync(room);
+        if (PlaguePoisonDefinition(room, monster) is { } poison)
+        {
+            await BeginPlagueRoundAsync(room, monster, poison, logs, participants);
+            return;
+        }
+        if (ReflectionMirrorDefinition(room, monster) is { } mirror)
+        {
+            await BeginReflectionMirrorRoundAsync(room, monster, mirror, logs, participants);
+            return;
+        }
+        if (StaticFieldDefinition(room, monster) is { } field)
+        {
+            await BeginStaticFieldRoundAsync(room, monster, field, logs);
+            return;
+        }
+        if (EarthArmorDefinition(room, monster) is { } armor)
+        {
+            await BeginEarthArmorRoundAsync(room, monster, armor, logs);
+            return;
+        }
+        if (DeepColdDefinition(room, monster) is { } cold)
+        {
+            await BeginDeepColdRoundAsync(room, monster, cold, logs, participants);
+            return;
+        }
         if (Definition(room, monster) is not { } core || monster.Hp <= 0) return;
         var state = await FindAsync(room, monster);
         if (state is null)
@@ -60,8 +108,31 @@ public sealed class MonsterPhaseService(GameDbContext db, MonsterCombatCatalog c
     public static long RequiredDamage(Monster monster, FireCoreOptions core) =>
         (long)decimal.Ceiling(monster.MaxHp * core.BreakWaterDamagePercent / 100m);
 
-    public async Task ObserveDirectDamageAsync(BattleExecutionContext battle, ElementType? element, int actualDamage)
+    public async Task ObserveDirectDamageAsync(BattleExecutionContext battle, ElementType? element, int actualDamage,
+        int? sourceCharacterId = null)
     {
+        if (PlaguePoisonDefinition(battle.Room, battle.Monster) is { } poison)
+        {
+            await ObservePlagueDamageAsync(battle, poison, element, actualDamage);
+            return;
+        }
+        if (ReflectionMirrorDefinition(battle.Room, battle.Monster) is { } mirror)
+        {
+            await ObserveReflectionMirrorDamageAsync(battle, mirror, element, actualDamage, sourceCharacterId);
+            return;
+        }
+        if (StaticFieldDefinition(battle.Room, battle.Monster) is { } field)
+        {
+            await ObserveStaticFieldDamageAsync(battle, field, element, actualDamage, sourceCharacterId);
+            return;
+        }
+        if (EarthArmorDefinition(battle.Room, battle.Monster) is { } armor)
+        {
+            await ObserveEarthArmorDamageAsync(battle, armor, element, actualDamage);
+            return;
+        }
+        if (sourceCharacterId.HasValue && element.HasValue && actualDamage > 0)
+            await MeltDeepColdAsync(battle, sourceCharacterId.Value, element.Value);
         if (element != ElementType.Water || actualDamage <= 0 || Definition(battle.Room, battle.Monster) is not { } core) return;
         var state = await FindAsync(battle.Room, battle.Monster);
         if (state is null || !state.IsActive || state.ExpiresAfterRound < battle.Room.RoundNumber) return;
@@ -97,8 +168,35 @@ public sealed class MonsterPhaseService(GameDbContext db, MonsterCombatCatalog c
         if (await FindAsync(room, monster) is { } state) state.LinkedHitCount++;
     }
 
-    public async Task EndRoundAsync(Room room, Monster monster, List<string> logs)
+    public async Task EndRoundAsync(Room room, Monster monster, List<string> logs,
+        IReadOnlyList<BattleParticipant>? participants = null,
+        IReadOnlyDictionary<int, OperationPotionBonuses>? operationBonuses = null)
     {
+        if (PlaguePoisonDefinition(room, monster) is { } poison)
+        {
+            await EndPlagueRoundAsync(room, monster, poison, logs, participants, operationBonuses);
+            return;
+        }
+        if (ReflectionMirrorDefinition(room, monster) is { } mirror)
+        {
+            await EndReflectionMirrorRoundAsync(room, monster, mirror, logs);
+            return;
+        }
+        if (StaticFieldDefinition(room, monster) is { } field)
+        {
+            await EndStaticFieldRoundAsync(room, monster, field, logs);
+            return;
+        }
+        if (EarthArmorDefinition(room, monster) is { } armor)
+        {
+            await EndEarthArmorRoundAsync(room, monster, armor, logs);
+            return;
+        }
+        if (DeepColdDefinition(room, monster) is { } cold)
+        {
+            await EndDeepColdRoundAsync(room, monster, cold, logs);
+            return;
+        }
         if (Definition(room, monster) is not { } core || await FindAsync(room, monster) is not { IsActive: true } state) return;
         if (monster.Hp <= 0) { state.IsActive = false; return; }
         if (room.RoundNumber < state.ExpiresAfterRound) return;

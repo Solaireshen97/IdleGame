@@ -65,6 +65,8 @@ public static class CharacterActivityManager
         var slots = await db.RoomSlots.Where(slot => slot.RoomId == room.Id).ToListAsync();
         foreach (var slot in slots)
         {
+            if (slot.CharacterId is { } id && db.Characters.Local.FirstOrDefault(c => c.Id == id) is { } character)
+                character.BattleMaxHpLimit = null;
             slot.CharacterId = null;
             slot.IsConfirmed = false;
             slot.IsAutoEnabled = false;

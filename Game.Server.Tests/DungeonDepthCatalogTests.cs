@@ -53,7 +53,7 @@ public sealed class DungeonDepthCatalogTests
             var dungeon = new Dungeon { Code = code };
             var baseMonsters = encounters.CreateMonsters(dungeon);
             Assert.Equal(5, baseMonsters.Count);
-            Assert.Equal(code == "ragefire-heart" ? 5 : 3, encounters.GetWaveCount(dungeon));
+            Assert.Equal(5, encounters.GetWaveCount(dungeon));
             for (var depth = 2; depth <= 10; depth++)
             {
                 var monsters = encounters.CreateMonsters(dungeon, depth);
@@ -62,25 +62,57 @@ public sealed class DungeonDepthCatalogTests
                     var monster = monsters[index];
                     var original = baseMonsters[index];
                     var explicitFire = code == "ragefire-heart";
+                    var explicitWater = code == "frostspring-throne";
+                    var explicitEarth = code == "kobold-mine-depths";
+                    var explicitWind = code == "windfury-spire";
+                    var explicitLight = code == "dawn-core";
+                    var explicitDark = code == "plague-crypt-depths";
+                    int[] darkHp = depth == 2 ? [440000, 540000, 610000, 690000, 1150000] : depth == 3
+                        ? [500000, 620000, 710000, 800000, 1350000] : [520000, 630000, 720000, 820000, 1400000];
+                    int[] darkAttack = depth == 2 ? [160, 195, 225, 250, 265] : depth == 3
+                        ? [185, 235, 270, 305, 310] : [205, 255, 295, 325, 330];
+                    int[] lightHp = depth == 2 ? [430000, 520000, 610000, 680000, 1140000] : depth == 3
+                        ? [500000, 600000, 700000, 790000, 1330000] : [510000, 610000, 710000, 800000, 1350000];
+                    int[] lightAttack = depth == 2 ? [165, 205, 240, 275, 310] : depth == 3
+                        ? [185, 230, 270, 310, 320] : [200, 245, 290, 320, 330];
+                    int[] windHp = depth == 2 ? [440000, 530000, 600000, 680000, 1120000] : depth == 3
+                        ? [490000, 600000, 690000, 770000, 1290000] : [550000, 650000, 750000, 850000, 1500000];
+                    int[] windAttack = depth == 2 ? [165, 210, 235, 270, 300] : depth == 3
+                        ? [195, 240, 280, 310, 325] : [215, 265, 310, 350, 390];
                     int[] fireHp = depth == 2 ? [450000, 520000, 600000, 670000, 1170000] : depth == 3
                         ? [495000, 575000, 690000, 735000, 1290000] : [500000, 580000, 700000, 740000, 1300000];
                     int[] fireAttack = depth == 2 ? [155, 185, 210, 235, 270] : depth == 3
                         ? [170, 205, 240, 270, 280] : [190, 230, 270, 310, 320];
-                    var scaleDepth = explicitFire ? Math.Max(1, depth - 3) : depth;
-                    Assert.Equal(depths.ScaleStat(explicitFire ? fireHp[index] : original.MaxHp,
-                        scaleDepth, code), monster.MaxHp);
+                    int[] waterHp = depth == 2 ? [430000, 500000, 570000, 660000, 1100000] : depth == 3
+                        ? [480000, 600000, 670000, 810000, 1320000] : [500000, 610000, 710000, 820000, 1390000];
+                    int[] waterAttack = depth == 2 ? [165, 210, 235, 280, 320] : depth == 3
+                        ? [180, 230, 265, 315, 360] : [210, 270, 315, 360, 420];
+                    int[] earthHp = depth == 2 ? [450000, 550000, 620000, 690000, 1180000] : depth == 3
+                        ? [500000, 600000, 680000, 770000, 1300000] : [530000, 630000, 730000, 820000, 1350000];
+                    int[] earthAttack = depth == 2 ? [165, 210, 235, 280, 320] : depth == 3
+                        ? [180, 230, 265, 300, 330] : [200, 250, 290, 325, 350];
+                    var statBaseDepth = explicitDark || explicitFire || explicitWater || explicitEarth || explicitWind || explicitLight ? Math.Min(depth, 4) : 1;
+                    Assert.Equal(depths.ScaleStat(explicitFire ? fireHp[index] : explicitWater ? waterHp[index] : explicitEarth ? earthHp[index] : explicitWind ? windHp[index] : explicitLight ? lightHp[index] : explicitDark ? darkHp[index] : original.MaxHp,
+                        depth, code, statBaseDepth), monster.MaxHp);
                     Assert.Equal(monster.MaxHp, monster.Hp);
                     Assert.Equal(monster.MaxHp, monster.BaseMaxHp);
-                    Assert.Equal(depths.ScaleStat(explicitFire ? fireAttack[index] : original.Attack,
-                        scaleDepth, code), monster.Attack);
+                    Assert.Equal(depths.ScaleAttack(explicitFire ? fireAttack[index] : explicitWater ? waterAttack[index] : explicitEarth ? earthAttack[index] : explicitWind ? windAttack[index] : explicitLight ? lightAttack[index] : explicitDark ? darkAttack[index] : original.Attack,
+                        depth, code, statBaseDepth), monster.Attack);
                     Assert.Equal(original.Defense, monster.Defense);
                     Assert.Equal(original.RewardProfileCode, monster.RewardProfileCode);
                     Assert.Equal((original.WaveNumber, original.Position), (monster.WaveNumber, monster.Position));
-                    if (explicitFire && depth <= 4)
+                    if ((explicitFire || explicitWater || explicitEarth || explicitWind || explicitLight) && depth <= 4)
                     {
                         var prior = encounters.CreateMonsters(dungeon, depth - 1)[index];
                         Assert.True(monster.MaxHp > prior.MaxHp, $"{monster.Name}: LV{depth} HP must exceed LV{depth - 1}.");
                         Assert.True(monster.Attack > prior.Attack, $"{monster.Name}: LV{depth} attack must exceed LV{depth - 1}.");
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                    }
+                    if (explicitDark && depth <= 4)
+                    {
+                        var prior = encounters.CreateMonsters(dungeon, depth - 1)[index];
+                        Assert.True(monster.MaxHp > prior.MaxHp);
+                        Assert.True(monster.Attack > prior.Attack);
                         Assert.False(definition.UsesPlaceholderAt(depth));
                     }
                     if (!monster.IsBoss)
@@ -90,6 +122,142 @@ public sealed class DungeonDepthCatalogTests
                     }
                     var profile = combat.FindProfile(monster.CombatProfileCode)!;
                     var originalProfile = combat.FindProfile(original.CombatProfileCode)!;
+                    if (code == "plague-crypt-depths")
+                    {
+                        Assert.Equal(new[] { 1, 2, 3, 4 }, definition.CalibratedDepths);
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                        Assert.True(profile.UseEncounterLocalSkillClock);
+                        Assert.Equal(2, originalProfile.Skills.Count);
+                        Assert.DoesNotContain(profile.Skills, s => s.Code.StartsWith("widow-") || s.Code.StartsWith("endgame-"));
+                        Assert.Null(profile.FireCore);
+                        Assert.Null(profile.DeepCold);
+                        Assert.Null(profile.EarthArmor);
+                        Assert.Null(profile.StaticField);
+                        Assert.Null(profile.ReflectionMirror);
+                        Assert.Null(originalProfile.PlaguePoison);
+                        Assert.NotNull(profile.PlaguePoison);
+                        Assert.Equal((depth < 4 ? 70 : (int?)null, 4, depth == 2 ? 2m : depth == 3 ? 4m : 6m, 10m, 3), (profile.PlaguePoison.TriggerHpPercent,
+                            profile.PlaguePoison.WindowRounds, profile.PlaguePoison.BreakLightDamagePercent,
+                            profile.PlaguePoison.AttackPercentPerStack, profile.PlaguePoison.RewardRounds));
+                        Assert.Equal(depth == 2 ? 0 : 3, profile.PlaguePoison.ErosionStartStacks);
+                        Assert.Equal(depth == 2 ? 0 : 5, profile.PlaguePoison.LethalStacks);
+                        Assert.Equal(depth == 2 ? 0m : 10m, profile.PlaguePoison.ErosionPercentPerStack);
+                        Assert.Equal(depth < 4 ? 0 : 6, profile.PlaguePoison.FirstActivationRound);
+                        Assert.Equal(depth < 4 ? 0 : 10, profile.PlaguePoison.CycleRounds);
+                        if (depth >= 3)
+                            Assert.Contains("腐巢侵蚀", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        Assert.Equal(2, profile.Skills.Count);
+                        Assert.DoesNotContain(profile.Skills,s => s.Code.StartsWith("depth-placeholder-"));
+                        if(depth>=4)Assert.Contains("瘟疫循环",combat.GetAddedMechanics(original.CombatProfileCode!,depth));
+                        Assert.Contains("疫巢剧毒", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        if (depth >= 5)
+                            Assert.Equal(encounters.CreateMonsters(dungeon, 4)[index].CombatProfileCode, monster.CombatProfileCode);
+                        continue;
+                    }
+                    if (code == "dawn-core")
+                    {
+                        Assert.Equal(new[] { 1, 2, 3, 4 }, definition.CalibratedDepths);
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                        Assert.True(profile.UseEncounterLocalSkillClock);
+                        Assert.Null(profile.FireCore);
+                        Assert.Null(profile.DeepCold);
+                        Assert.Null(profile.EarthArmor);
+                        Assert.Null(profile.StaticField);
+                        Assert.NotNull(profile.ReflectionMirror);
+                        Assert.Equal((depth < 4 ? 70 : (int?)null, 4, depth == 2 ? 3 : depth == 3 ? 4 : 6, 3), (profile.ReflectionMirror.TriggerHpPercent,
+                            profile.ReflectionMirror.WindowRounds, profile.ReflectionMirror.InitialStacks, profile.ReflectionMirror.RewardRounds));
+                        Assert.Equal(Game.Shared.Enums.ElementType.Dark, profile.ReflectionMirror.RemovalElement);
+                        Assert.Equal(2m, profile.ReflectionMirror.ReflectPercentPerStack);
+                        Assert.Equal(depth < 4 ? 5m : 3m, profile.ReflectionMirror.MaxHpCapPercentPerStack);
+                        Assert.Equal(depth == 2 ? 0 : 3, profile.ReflectionMirror.GrowthRounds);
+                        Assert.Equal(depth == 2 ? 0m : 0.5m, profile.ReflectionMirror.ReflectGrowthPercentPerStack);
+                        Assert.Equal(depth == 2 ? 0m : 1m, profile.ReflectionMirror.MaxHpCapGrowthPercentPerStack);
+                        Assert.Equal(depth == 2 ? string.Empty : depth == 3 ? "light-deep-lv3-amplification" : "light-deep-lv4-amplification", profile.ReflectionMirror.AmplificationStatusCode);
+                        Assert.Equal(depth < 4 ? 0 : 6, profile.ReflectionMirror.FirstActivationRound);
+                        Assert.Equal(depth < 4 ? 0 : 10, profile.ReflectionMirror.CycleRounds);
+                        Assert.Contains(profile.Skills, entry => entry.Code == "light-deep-lv1-warden-pierce");
+                        Assert.Contains(profile.Skills, entry => entry.Code == "light-deep-lv1-warden-nova");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code == "light-deep-lv1-warden-ward");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code.StartsWith("dawnwarden-") ||
+                            entry.Code.StartsWith("endgame-"));
+                        Assert.Equal(2, profile.Skills.Count);
+                        Assert.Null(originalProfile.ReflectionMirror);
+                        Assert.True(monster.MaxHp > original.MaxHp);
+                        Assert.True(monster.Attack > original.Attack);
+                        if (depth == 2)
+                            Assert.Equal("琉辉反镜", Assert.Single(combat.GetAddedMechanics(original.CombatProfileCode!, depth)));
+                        else
+                            Assert.Contains("圣光增幅", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        if (depth >= 4)
+                            Assert.Contains("黎明循环", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        if (depth >= 5)
+                            Assert.Equal(encounters.CreateMonsters(dungeon, 4)[index].CombatProfileCode, monster.CombatProfileCode);
+                        continue;
+                    }
+                    if (explicitWind)
+                    {
+                        Assert.Equal(new[] { 1, 2, 3, 4 }, definition.CalibratedDepths);
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                        Assert.NotNull(profile.StaticField);
+                        Assert.Equal(Game.Shared.Enums.ElementType.Fire, profile.StaticField.RemovalElement);
+                        Assert.Equal((depth < 4 ? 70 : (int?)null, 4, depth == 2 ? 2 : depth == 3 ? 3 : 4, 2, depth == 2 ? 1 : depth == 3 ? 2 : 3, 3), (profile.StaticField.TriggerHpPercent, profile.StaticField.WindowRounds,
+                            profile.StaticField.InitialStacks, profile.StaticField.GrowthRounds, profile.StaticField.GrowthStacksPerRound,
+                            profile.StaticField.RewardRounds));
+                        Assert.Equal(5m, profile.StaticField.SkillDamagePercentPerStack);
+                        Assert.Contains(profile.Skills, entry => entry.Code == "wind-deep-lv1-matriarch-dive");
+                        Assert.Contains(profile.Skills, entry => entry.Code == "wind-deep-lv1-matriarch-tempest");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code == "wind-deep-lv1-matriarch-song");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code.StartsWith("depth-placeholder-"));
+                        Assert.Equal(depth < 4 ? 0 : 6, profile.StaticField.FirstActivationRound);
+                        Assert.Equal(depth < 4 ? 0 : 10, profile.StaticField.CycleRounds);
+                        if (depth >= 4) Assert.Contains("风暴循环", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        Assert.Contains("静电领域", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        Assert.Equal(depth == 2 ? 0 : 5, profile.StaticField.ThunderAtStacks);
+                        if (depth >= 3)
+                        {
+                            Assert.Contains(profile.Skills, entry => entry.Code == "wind-deep-lv3-thunder");
+                            Assert.Contains("雷暴共鸣", combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                            Assert.Equal(150, combat.FindSkill("wind-deep-lv3-thunder")!.DamagePowerPercent);
+                        }
+                        if (depth == 2)
+                        {
+                            Assert.True(monster.MaxHp > original.MaxHp);
+                            Assert.True(monster.Attack > original.Attack);
+                            Assert.Equal("静电领域", Assert.Single(combat.GetAddedMechanics(original.CombatProfileCode!, depth)));
+                        }
+                        if (depth >= 5)
+                            Assert.Equal(encounters.CreateMonsters(dungeon, 4)[index].CombatProfileCode, monster.CombatProfileCode);
+                        continue;
+                    }
+                    if (explicitEarth)
+                    {
+                        Assert.NotNull(profile.EarthArmor);
+                        Assert.Null(profile.FireCore);
+                        Assert.Null(profile.DeepCold);
+                        Assert.Equal((depth <= 3 ? 70 : (int?)null, 5, depth == 2 ? 2m : depth == 3 ? 4m : 6m, 3), (profile.EarthArmor.TriggerHpPercent, profile.EarthArmor.WindowRounds,
+                            profile.EarthArmor.BreakWindDamagePercent, profile.EarthArmor.RewardRounds));
+                        Assert.Equal(depth < 4 ? 0 : 6, profile.EarthArmor.FirstActivationRound);
+                        Assert.Equal(depth < 4 ? 0 : 8, profile.EarthArmor.CycleRounds);
+                        Assert.Equal(depth == 2 ? string.Empty : "earth-deep-lv3-resonance", profile.EarthArmor.ResonanceStatusCode);
+                        Assert.Contains(profile.Skills, entry => entry.Code == "earth-deep-lv1-overseer-pick");
+                        Assert.Contains(profile.Skills, entry => entry.Code == "earth-deep-lv1-overseer-rockfall");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code == "earth-deep-lv1-overseer-armor");
+                        Assert.DoesNotContain(profile.Skills, entry => entry.Code.StartsWith("depth-placeholder-"));
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                        if (depth == 2)
+                        {
+                            Assert.True(monster.MaxHp > original.MaxHp);
+                            Assert.True(monster.Attack > original.Attack);
+                            Assert.Equal("矿脉护甲", Assert.Single(combat.GetAddedMechanics(original.CombatProfileCode!, depth)));
+                        }
+                        if (depth == 3)
+                            Assert.Equal(new[] { "矿脉护甲", "地脉共鸣" }, combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        if (depth >= 4)
+                            Assert.Equal(new[] { "矿脉护甲", "地脉共鸣", "深岩循环" }, combat.GetAddedMechanics(original.CombatProfileCode!, depth));
+                        if (depth >= 5)
+                            Assert.Equal(encounters.CreateMonsters(dungeon, 4)[index].CombatProfileCode, monster.CombatProfileCode);
+                        continue;
+                    }
                     if (explicitFire)
                     {
                         Assert.Equal(originalProfile.Skills.Count, profile.Skills.Count);
@@ -110,10 +278,24 @@ public sealed class DungeonDepthCatalogTests
                             Assert.Equal(encounters.CreateMonsters(dungeon, 4)[index].CombatProfileCode, monster.CombatProfileCode);
                         continue;
                     }
-                    Assert.Equal(originalProfile.Skills.Count + Math.Min(depth, 4) - 1, profile.Skills.Count);
+                    if (explicitWater)
+                    {
+                        Assert.NotNull(profile.DeepCold);
+                        Assert.Equal(depth <= 3 ? 70 : (int?)null, profile.DeepCold.TriggerHpPercent);
+                        Assert.Equal(4, profile.DeepCold.WindowRounds);
+                        Assert.Equal(depth == 2 ? 3 : 4, profile.DeepCold.InitialStacks);
+                        Assert.Equal(depth == 2 ? 0 : depth == 3 ? 1 : 2, profile.DeepCold.GrowthStacksPerRound);
+                        Assert.Equal(depth == 2 ? 0 : 5, profile.DeepCold.FreezeAtStacks);
+                        Assert.False(definition.UsesPlaceholderAt(depth));
+                        Assert.Equal(depth <= 3 ? 0 : 6, profile.DeepCold.FirstActivationRound);
+                        Assert.Equal(depth <= 3 ? 0 : 10, profile.DeepCold.CycleRounds);
+                        Assert.Equal(Math.Min(depth, 4), statBaseDepth);
+                    }
+                    var placeholderCount = explicitWater ? 0 : Math.Max(0, Math.Min(depth, 4) - 1);
+                    Assert.Equal(originalProfile.Skills.Count + placeholderCount, profile.Skills.Count);
                     Assert.All(originalProfile.Skills, skill => Assert.Contains(profile.Skills, entry => entry.Code == skill.Code));
                     var placeholders = profile.Skills.Where(skill => skill.Code.StartsWith("depth-placeholder-")).ToList();
-                    Assert.Equal(Math.Min(depth, 4) - 1, placeholders.Count);
+                    Assert.Equal(placeholderCount, placeholders.Count);
                     Assert.All(placeholders, entry =>
                     {
                         var skill = combat.FindSkill(entry.Code)!;

@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression,
+public sealed partial class RewardService(GameDbContext dbContext, RewardCatalog catalog, ProgressionService progression,
     ProductionService? production = null, PlantingCatalog? planting = null,
     DungeonDepthProgressService? depthProgress = null, DungeonRunRulesService? runRules = null)
 {
@@ -112,7 +112,7 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
                         RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
                         UserId = participant.UserId, CharacterId = participant.Character.Id,
                         Kind = "Material", Code = definition.ChallengeFragmentCode,
-                        Quantity = definition.ChallengeFragmentQuantity, RewardSource = "Challenge"
+                        Quantity = definition.ChallengeFragmentsAt(room.DepthLevel), RewardSource = "Challenge"
                     });
             }
             dbContext.RewardEntries.AddRange(entries);

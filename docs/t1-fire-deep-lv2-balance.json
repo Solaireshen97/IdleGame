@@ -820,5 +820,12 @@
       "CompleteFingerprintAndPhaseHistoryMatched": true
     },
     "HistoricalFields": "本文件原有ProductionIntegration、Verification、FollowUp等保留该层校准当时的状态、版本及配置哈希；当前火LV1～LV4配置以LV3记录为准。"
+  },
+  "LaterRewardCalibration": {
+    "UpdatedDate": "2026-10-01",
+    "ActiveFireDefinitionRevision": 7,
+    "Reference": "t1-deep-rewards-balance.json",
+    "Scope": "本次仅更新六本奖励与兑换，未更改怪物或武器面板、职业和机制",
+    "HistoricalVerification": "原战斗模拟与完整配置指纹保留为当时版本；其中旧奖励快照和旧配置修订号不代表当前奖励。新的结算与兑换证据见所引用的奖励报告，不覆盖旧模拟结果。"
   }
 }

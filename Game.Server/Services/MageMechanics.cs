@@ -32,7 +32,11 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
             {
                 using var action = executor.Events.ActionScope(source, "mage-spellbreak", "持续驱散", BattleActionKind.Mechanic);
                 var removed = await statuses.RemoveFirstAsync(battle.Room, "Monster", [battle.Monster.Id], true);
-                if (removed is not null) battle.Logs.Add($"{source.Label} 的法术反制持续驱散了 {battle.Monster.Name} 的 {removed.Name}。");
+                if (removed is not null)
+                {
+                    await executor.Damage.ObserveDispelAsync(battle, removed.Code);
+                    battle.Logs.Add($"{source.Label} 的法术反制持续驱散了 {battle.Monster.Name} 的 {removed.Name}。");
+                }
             }
             if (await DomainRankAsync(statuses, battle.Room, source.Id) > 0)
                 await AddDisorderAndEchoAsync(battle, source, executor, "mage-arcane-domain", catalog);
@@ -51,7 +55,7 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
     private static async Task TryEchoAsync(BattleExecutionContext battle, BattleActor source, BattleEffectExecutor executor,
         ProfessionMechanicCatalog mechanics, string? skillCode = null)
     {
-        if (battle.Monster.Hp <= 0 || executor.Statuses is not { } statuses ||
+        if (battle.Monster.Hp <= 0 || source.Hp <= 0 || executor.Statuses is not { } statuses ||
             (await statuses.MechanicStatesAsync(battle.Room, "Character", source.Id, BattleStatusMechanic.MageEchoUsed)).Count > 0 ||
             await DisorderStacksAsync(statuses, battle.Room, source.Id, battle.Monster.Id) < mechanics.Mage.EchoRequiredStacks) return;
         using var action = executor.Events.ActionScope(source, skillCode ?? "mage-disorder", "失序回响", BattleActionKind.Mechanic);
@@ -62,7 +66,7 @@ public sealed class MageMechanics(ProfessionMechanicCatalog? mechanics = null) :
         var hit = await executor.Damage.CharacterDamageAsync(battle, source,
             BattleSkillEffect.Damage(rank > 0 ? mechanics.Mage.DomainEchoAttackPowerPercent : mechanics.Mage.EchoAttackPowerPercent), BattleDamageOrigin.Mechanic, false);
         battle.Logs.Add($"{source.Label} 触发失序回响，对 {battle.Monster.Name} 造成 {hit.CalculatedAmount} 点伤害。");
-        if (battle.Monster.Hp > 0)
+        if (battle.Monster.Hp > 0 && source.Hp > 0)
         {
             var disruption = mechanics.TryMageDisruptionStatus(statuses.CatalogFor(battle.Room), rank);
             if (disruption is not null) await statuses.ApplyAsync(battle.Room, "Monster", battle.Monster.Id, disruption.Code, 0,
