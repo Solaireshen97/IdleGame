@@ -86,7 +86,7 @@ public static class MonsterArt
         ["焦砾蠕行者"] = "monster-079.png",
         ["灰炬狂信徒"] = "monster-080.png",
         ["燧渊熔甲卫"] = "monster-081.png",
-        ["烬核督战者"] = "monster-082.png",
+        ["熔火督军"] = "monster-082.png",
         ["镜泉冰咒师"] = "monster-083.png",
         ["冰碛守卫"] = "monster-084.png",
         ["霜纹唤岚者"] = "monster-085.png",
@@ -102,6 +102,7 @@ public static class MonsterArt
         ["失序光纹卫"] = "monster-095.png",
         ["裂隙引流者"] = "monster-096.png",
         ["棱核守望者"] = "monster-097.png",
+        ["烬核督战者"] = "monster-082.png",
     };
 
     public static string ForName(string? name) => name is not null && FilesByName.TryGetValue(name, out var file)

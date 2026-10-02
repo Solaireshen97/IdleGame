@@ -39,7 +39,7 @@
             <div class="depth-brief__copy">
                 <div class="depth-brief__title"><strong>@DepthName(selected.DepthLevel)</strong><span>@(selected.IsUnlocked ? "已开放" : "未开放")</span></div>
                 <p>@SelectionReward</p>
-                <div class="depth-brief__stats"><span>生命 / 攻击 <b>×@selected.StatMultiplier.ToString("0.##")</b></span><span>@(selected.IsChallenge ? "沿用 LV4 技能" : $"新增技能 {selected.AddedMechanics.Count} 项")</span></div>
+                <div class="depth-brief__stats"><span>生命 / 攻击 <b>@(selected.UsesExplicitStats ? "按本层配置" : $"×{selected.StatMultiplier:0.##}")</b></span><span>@(selected.IsChallenge ? "沿用 LV4 机制" : $"新增机制 {selected.AddedMechanics.Count} 项")</span></div>
             </div>
         </section>
     }

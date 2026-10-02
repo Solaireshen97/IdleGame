@@ -42,6 +42,7 @@ public sealed class MonsterCombatCatalog
             if (string.IsNullOrWhiteSpace(code) || profile.SkillUseChancePercent is < 0 or > 100 ||
                 profile.Skills.Any(skill => skill.Weight <= 0 || !_skills.ContainsKey(skill.Code)) ||
                 profile.Skills.Select(skill => skill.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count() != profile.Skills.Count ||
+                !ValidFireCore(profile) ||
                 !_profiles.TryAdd(code, profile))
                 throw new InvalidOperationException($"Invalid monster combat profile: {code}");
         }
@@ -100,6 +101,27 @@ public sealed class MonsterCombatCatalog
         };
     }
 
+    private bool ValidFireCore(MonsterCombatProfileOptions profile)
+    {
+        if (profile.FireCore is not { } core) return true;
+        var validTrigger = core.TriggerHpPercent is { } hp
+            ? hp is >= 1 and <= 99 && core.FirstActivationRound == 0 && core.CycleRounds == 0
+            : core.FirstActivationRound is >= 1 and <= 250 && core.CycleRounds is >= 1 and <= 250 &&
+                core.CycleRounds > core.WindowRounds + core.RewardRounds;
+        var validLink = core.ExtraTargetCount == 0
+            ? core.ExtraAttackPowerPercent == 0 && string.IsNullOrEmpty(core.LinkedSkillCode)
+            : core.ExtraTargetCount is >= 1 and <= 4 && core.ExtraAttackPowerPercent is > 0 and <= 1000 &&
+                profile.Skills.Any(skill => skill.Code == core.LinkedSkillCode) &&
+                _skills.TryGetValue(core.LinkedSkillCode, out var linked) && linked.TargetType == "Front";
+        return validTrigger && validLink &&
+            core.WindowRounds is >= 1 and <= 10 && core.RewardRounds is >= 1 and <= 10 &&
+            core.BreakWaterDamagePercent is > 0 and <= 100 &&
+            Statuses.Find(core.HeatingStatusCode) is { EffectType: "AttackPercent", IsDispellable: false, IsPositive: true,
+                Lifetime: Game.Shared.Enums.BattleStatusLifetime.Rounds, ValuePerStack: > 0 } &&
+            Statuses.Find(core.RewardStatusCode) is { EffectType: "DamageTakenPercent", IsDispellable: false, IsPositive: false,
+                Lifetime: Game.Shared.Enums.BattleStatusLifetime.Rounds, ValuePerStack: > 0 };
+    }
+
     public string ResolveDepthProfile(string baseProfileCode, int depth)
     {
         if (depth <= 1 || !_depthStages.TryGetValue(baseProfileCode, out var stages)) return baseProfileCode;
@@ -112,8 +134,15 @@ public sealed class MonsterCombatCatalog
         if (!_profiles.TryGetValue(baseProfileCode, out var original)) return [];
         var resolved = ResolveProfile(ResolveDepthProfile(baseProfileCode, depth));
         var originalCodes = original.Skills.Select(skill => skill.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return resolved is null ? [] : resolved.Skills.Where(skill => !originalCodes.Contains(skill.Code))
-            .Select(skill => _definitions[skill.Code].Name).Distinct().ToArray();
+        var names = resolved is null ? [] : resolved.Skills.Where(skill => !originalCodes.Contains(skill.Code))
+            .Select(skill => _definitions[skill.Code].Name).Distinct().ToList();
+        if (FindProfile(ResolveDepthProfile(baseProfileCode, depth))?.FireCore is { } core)
+        {
+            names.Add(Statuses.Find(core.HeatingStatusCode)!.Name);
+            if (core.ExtraTargetCount > 0) names.Add("熔火扩散");
+            if (core.TriggerHpPercent is null) names.Add("火山循环");
+        }
+        return names.Distinct().ToArray();
     }
 
     // Export authored declarations, never the generated profiles, so rebuilding cannot generate twice.
@@ -130,6 +159,7 @@ public sealed class MonsterCombatCatalog
     private static MonsterCombatProfileOptions CopyProfile(MonsterCombatProfileOptions source) => new()
     {
         SkillUseChancePercent = source.SkillUseChancePercent,
+        FireCore = source.FireCore is null ? null : JsonSerializer.Deserialize<FireCoreOptions>(JsonSerializer.Serialize(source.FireCore)),
         Skills = source.Skills.Select(skill => new MonsterProfileSkillOptions { Code = skill.Code, Weight = skill.Weight }).ToList()
     };
 

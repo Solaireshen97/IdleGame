@@ -13,6 +13,8 @@ public sealed class RewardEvent
     public int RoomId { get; set; }
     public int Sequence { get; set; }
     public string EventKey { get; set; } = string.Empty;
+    public int CoopParticipantCount { get; set; }
+    public decimal CoopDropBonusPercent { get; set; }
 }
 
 public sealed class RewardEntry

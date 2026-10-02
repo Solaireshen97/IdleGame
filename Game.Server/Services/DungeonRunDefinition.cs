@@ -12,6 +12,7 @@ public sealed class DungeonRunDefinition
     public string DungeonCode { get; set; } = string.Empty;
     public string DungeonKind { get; set; } = string.Empty;
     public int DepthLevel { get; set; }
+    public decimal DirectDamageVariancePercent { get; set; }
     public DungeonRewardEligibility RewardEligibility { get; set; }
     public DungeonDepthDefinitionOptions? Depth { get; set; }
     public int[] PartyHpPercentages { get; set; } = [];
@@ -44,6 +45,7 @@ public sealed record DungeonMonsterDefinition(int WaveNumber, int Position, stri
 
 public sealed class DungeonRewardRules
 {
+    public CoopDropBonusOptions CoopDropBonus { get; set; } = new();
     public Dictionary<string, RewardBundleOptions> Kills { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, RewardBundleOptions> Clears { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, WeaponRewardSnapshot> Weapons { get; set; } = new(StringComparer.OrdinalIgnoreCase);

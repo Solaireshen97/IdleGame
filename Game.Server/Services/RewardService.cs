@@ -1,4 +1,6 @@
 using Game.Server.Data;
+using Game.Server.Configuration;
+using Game.Shared;
 using Game.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -34,8 +36,11 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
         return (isClear ? frozen.Clears : frozen.Kills).ContainsKey(rewardCode);
     }
 
+    public async Task<CoopDropBonusOptions> GetCoopDropBonusAsync(Room room) => runRules is null
+        ? catalog.CoopDropBonus : (await runRules.EnsureAsync(room)).Rewards.CoopDropBonus;
+
     public async Task<bool> RecordAsync(Room room, string dungeonCode, IEnumerable<RewardParticipant> participants,
-        string eventKey, bool isClear)
+        string eventKey, bool isClear, IReadOnlyCollection<int>? actualParticipantCharacterIds = null)
     {
         var frozen = runRules is null ? null : (await runRules.EnsureAsync(room)).Rewards;
         var run = await GetRunAsync(room);
@@ -44,16 +49,27 @@ public sealed class RewardService(GameDbContext dbContext, RewardCatalog catalog
             await dbContext.RewardEvents.AnyAsync(entry => entry.RoomId == room.Id &&
                 entry.Sequence == room.RunSequence && entry.EventKey == eventKey)) return false;
 
+        var recipients = participants.DistinctBy(entry => entry.Character.Id).ToList();
+        var isRegular = eventKey == "clear" || eventKey.StartsWith("monster:", StringComparison.Ordinal);
+        var actualIds = actualParticipantCharacterIds?.ToHashSet() ?? [];
+        var eligibleCoopRecipients = isRegular ? recipients.Where(participant => actualIds.Contains(participant.Character.Id) &&
+            participant.UserId > 0 && participant.UserId == participant.Character.UserId).ToList() : [];
+        var coopCharacterIds = eligibleCoopRecipients.Select(participant => participant.Character.Id).ToHashSet();
+        var coopUserCount = eligibleCoopRecipients.Select(participant => participant.Character.UserId).Distinct().Count();
+        var coopPolicy = frozen?.CoopDropBonus ?? catalog.CoopDropBonus;
+        var coopBonus = CoopDropBonusRules.CalculateBonusPercent(coopUserCount,
+            coopPolicy.PercentPerAdditionalUser, coopPolicy.MaximumPercent);
         dbContext.RewardEvents.Add(new RewardEvent
         {
-            RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey
+            RoomId = room.Id, Sequence = room.RunSequence, EventKey = eventKey,
+            CoopParticipantCount = coopUserCount, CoopDropBonusPercent = coopBonus
         });
         var definition = await _depthProgress.DefinitionAsync(room);
-        var isRegular = eventKey == "clear" || eventKey.StartsWith("monster:", StringComparison.Ordinal);
-        foreach (var participant in participants.DistinctBy(entry => entry.Character.Id))
+        foreach (var participant in recipients)
         {
             var entries = catalog.Roll(dungeonCode, isClear, room.Id, room.RunSequence,
-                eventKey, participant.UserId, participant.Character.Id, frozen).ToList();
+                eventKey, participant.UserId, participant.Character.Id, frozen,
+                coopCharacterIds.Contains(participant.Character.Id) ? coopBonus : 0).ToList();
             if (definition is not null && isRegular)
             {
                 var mastery = await _depthProgress.RunMasteryAsync(room, participant.Character.Id);

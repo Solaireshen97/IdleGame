@@ -16,6 +16,33 @@ namespace Game.Server.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.6");
+            modelBuilder.Entity("Game.Shared.Models.BattleMonsterPhaseState", b =>
+            {
+                b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
+                b.Property<int>("RoomId").HasColumnType("INTEGER");
+                b.Property<int>("RunSequence").HasColumnType("INTEGER");
+                b.Property<int>("MonsterId").HasColumnType("INTEGER");
+                b.Property<int>("EncounterStartRound").HasColumnType("INTEGER");
+                b.Property<int>("LastPreparedRound").HasColumnType("INTEGER");
+                b.Property<int>("NextActivationRound").HasColumnType("INTEGER");
+                b.Property<bool>("IsActive").HasColumnType("INTEGER");
+                b.Property<int>("ExpiresAfterRound").HasColumnType("INTEGER");
+                b.Property<long>("WaterDamage").HasColumnType("INTEGER");
+                b.Property<int?>("RewardStartsAtRound").HasColumnType("INTEGER");
+                b.Property<int?>("LastActivationRound").HasColumnType("INTEGER");
+                b.Property<int?>("LastBreakRound").HasColumnType("INTEGER");
+                b.Property<int?>("LastExpiryRound").HasColumnType("INTEGER");
+                b.Property<int>("ActivationCount").HasColumnType("INTEGER");
+                b.Property<int>("BreakCount").HasColumnType("INTEGER");
+                b.Property<int>("ExpiryCount").HasColumnType("INTEGER");
+                b.Property<int>("LinkedHitCount").HasColumnType("INTEGER");
+                b.HasKey("Id");
+                b.HasIndex("RoomId", "RunSequence", "MonsterId").IsUnique();
+                b.ToTable("BattleMonsterPhaseStates");
+                b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId")
+                    .OnDelete(DeleteBehavior.Cascade).IsRequired();
+            });
+
             modelBuilder.Entity("Game.Shared.Models.DungeonRunRuleSnapshot", b =>
             {
                 b.Property<int>("RoomId").HasColumnType("INTEGER");
@@ -491,6 +518,8 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("RoomId").HasColumnType("INTEGER");
                     b.Property<int>("Sequence").HasColumnType("INTEGER");
                     b.Property<string>("EventKey").HasColumnType("TEXT");
+                    b.Property<int>("CoopParticipantCount").HasColumnType("INTEGER");
+                    b.Property<decimal>("CoopDropBonusPercent").HasColumnType("TEXT");
                     b.HasKey("RoomId", "Sequence", "EventKey");
                     b.ToTable("RewardEvents");
                 });

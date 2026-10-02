@@ -1153,5 +1153,101 @@
     "group": "琉辉旧庭·深层LV1",
     "subject": "a short faceted voidglass dagger with translucent violet blade, angular silver guard and charcoal grip",
     "palette": "violet, cold silver, charcoal"
+  },
+  {
+    "code": "t1-deep-embermark-axe",
+    "name": "烬纹战斧",
+    "element": "Fire",
+    "shape": "axe",
+    "file": "t1-deep-embermark-axe.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-molten-armor-maul",
+    "name": "熔甲战锤",
+    "element": "Fire",
+    "shape": "hammer",
+    "file": "t1-deep-molten-armor-maul.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-mirror-tide-blade",
+    "name": "镜潮猎刃",
+    "element": "Water",
+    "shape": "saber",
+    "file": "t1-deep-mirror-tide-blade.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-frostspring-ward-staff",
+    "name": "寒泉护杖",
+    "element": "Water",
+    "shape": "staff",
+    "file": "t1-deep-frostspring-ward-staff.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-riftstone-spear",
+    "name": "裂岩战矛",
+    "element": "Earth",
+    "shape": "spear",
+    "file": "t1-deep-riftstone-spear.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-stone-oath-maul",
+    "name": "磐誓重锤",
+    "element": "Earth",
+    "shape": "hammer",
+    "file": "t1-deep-stone-oath-maul.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-swiftfeather-bow",
+    "name": "疾翎长弓",
+    "element": "Wind",
+    "shape": "bow",
+    "file": "t1-deep-swiftfeather-bow.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-gale-mark-ward-staff",
+    "name": "岚纹护杖",
+    "element": "Wind",
+    "shape": "staff",
+    "file": "t1-deep-gale-mark-ward-staff.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-radiant-prism-blade",
+    "name": "辉棱长刃",
+    "element": "Light",
+    "shape": "saber",
+    "file": "t1-deep-radiant-prism-blade.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-dawn-ward-staff",
+    "name": "晨辉守杖",
+    "element": "Light",
+    "shape": "scepter",
+    "file": "t1-deep-dawn-ward-staff.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-night-mark-twinblades",
+    "name": "夜纹双刃",
+    "element": "Dark",
+    "shape": "dagger",
+    "file": "t1-deep-night-mark-twinblades.png",
+    "source": "master"
+  },
+  {
+    "code": "t1-deep-nether-oath-ward-staff",
+    "name": "冥誓守杖",
+    "element": "Dark",
+    "shape": "staff",
+    "file": "t1-deep-nether-oath-ward-staff.png",
+    "source": "master"
   }
 ]

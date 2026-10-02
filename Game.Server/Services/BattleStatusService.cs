@@ -349,6 +349,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
     {
         if (damage <= 0) return damage;
         var amplification = await MechanicPowerAsync(room, "Monster", monsterId, BattleStatusMechanic.HunterVulnerability);
+        amplification += await ModifierAsync(room, "Monster", monsterId, "DamageTakenPercent");
         return amplification == 0 ? damage : (int)Math.Min(int.MaxValue,
             decimal.Floor(damage * (1m + amplification / 100m)));
     }

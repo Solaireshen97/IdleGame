@@ -30,6 +30,8 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
     public async Task<BattleRoundOutcome> ExecuteAsync(Room room, Monster monster, List<BattleParticipant> slots,
         IReadOnlyCollection<int> autoCharacterIds, List<string> logs)
     {
+        if (monsterCombatService is not null)
+            await monsterCombatService.Phases.BeginRoundAsync(room, monster, logs);
         var aliveSlots = slots.Where(entry => entry.Character.Hp > 0).OrderBy(entry => entry.Slot.SlotIndex).ToList();
         var combatParticipants = slots.OrderBy(entry => entry.Slot.SlotIndex).ToList();
         var characterIds = aliveSlots.Select(entry => entry.Character.Id).ToList();
@@ -82,6 +84,8 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                         element: mainWeaponElements.TryGetValue(source.Id, out var echoElement) ? echoElement : null, modifier: WeaponCombatRules.ElementAttackPercent(
                             mainWeaponElements.TryGetValue(source.Id, out var echoModifierElement) ? echoModifierElement : null, monster.Element, stats.ElementAdvantagePercent));
                     logs.Add($"{entry.Slot.SlotIndex}号位 {entry.Character.Name} 对 {monster.Name} 造成 {echo} 点普攻追击伤害。");
+                    await Effects.Damage.ObserveDirectDamageAsync(battle,
+                        mainWeaponElements.TryGetValue(source.Id, out var waterEchoElement) ? waterEchoElement : null, before - monster.Hp);
                 }
             }
             if (monster.Hp <= 0) break;
@@ -93,6 +97,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
                     operationBonuses, healingOnly: true);
             await LegacyTalents.VictoryAsync(battle, characterIds);
+            if (monsterCombatService is not null) await monsterCombatService.Phases.EndRoundAsync(room, monster, logs);
             return BattleRoundOutcome.MonsterDefeated;
         }
 
@@ -104,6 +109,7 @@ public sealed partial class BattleRoundExecutor(GameDbContext dbContext, Consuma
                 mainWeaponElements, logs, operationBonuses);
             await monsterCombatService.ResolveEndOfRoundAsync(room, monster, combatParticipants, logs,
                 operationBonuses);
+            await monsterCombatService.Phases.EndRoundAsync(room, monster, logs);
         }
         else
         {

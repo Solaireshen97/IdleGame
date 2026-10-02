@@ -103,7 +103,7 @@ public sealed class WorldContentTests
     }
 
     [Fact]
-    public void ProductionWorldHasSixCompleteRegionsWithExclusiveBossLootAndIndependentExchanges()
+    public void ProductionWorldHasSixCompleteRegionsWithEntryPreparationAndIndependentDeepExchanges()
     {
         var content = new Content();
         content.World.ValidateContent(content.Weapons, content.Encounters, content.Rewards, content.Exchanges);
@@ -147,11 +147,11 @@ public sealed class WorldContentTests
             Assert.Equal(region.FeaturedDungeonCode, dungeon.Code);
             Assert.Equal(4, content.Encounters.GetWaveCount(dungeon));
             var monsters = content.Encounters.CreateMonsters(dungeon);
-            Assert.Equal(7, monsters.Count);
+            Assert.Equal(4, monsters.Count);
             var boss = Assert.Single(monsters, monster => monster.IsBoss);
             Assert.Same(monsters.Last(), boss);
             Assert.Equal(region.FeaturedElement, boss.Element);
-            Assert.Equal(3, content.Combat.FindProfile(boss.CombatProfileCode)!.Skills.Count);
+            Assert.InRange(content.Combat.FindProfile(boss.CombatProfileCode)!.Skills.Count, 3, 4);
 
             var bossWeapon = content.Weapons.FindItem(region.FeaturedWeaponCode)!;
             Assert.Equal(region.FeaturedElement, bossWeapon.Element);
@@ -163,8 +163,10 @@ public sealed class WorldContentTests
             Assert.Empty(offers);
             Assert.Empty(allOffers);
             var repeatDrop = Assert.Single(content.RewardOptions.DungeonClears[dungeon.Code].Drops, drop => drop.Kind == "Material");
-            Assert.Equal(("weapon-fragment-t1", 1, 100m), (repeatDrop.Code, repeatDrop.Quantity, repeatDrop.ChancePercent));
-            Assert.Empty(content.RewardOptions.DungeonClears[$"{dungeon.Code}-first-clear"].Drops);
+            Assert.Equal(("weapon-fragment-t1", 12, 100m), (repeatDrop.Code, repeatDrop.Quantity, repeatDrop.ChancePercent));
+            var firstDrop = Assert.Single(content.RewardOptions.DungeonClears[$"{dungeon.Code}-first-clear"].Drops,
+                drop => drop.Kind == "Material");
+            Assert.Equal(("weapon-fragment-t1", 20, 100m), (firstDrop.Code, firstDrop.Quantity, firstDrop.ChancePercent));
         }
     }
 
@@ -226,15 +228,18 @@ public sealed class WorldContentTests
             }
             var fragments = await db.CharacterItemStacks.SingleAsync(stack =>
                 stack.CharacterId == character.Id && stack.ItemCode == "weapon-fragment-t1");
-            Assert.Equal(run, fragments.Quantity);
+            Assert.Equal(20 + run * 12, fragments.Quantity);
             await rewards.SettleAsync(room, true, DateTime.UtcNow, []);
             await db.SaveChangesAsync();
-            Assert.Equal(run, fragments.Quantity);
+            Assert.Equal(20 + run * 12, fragments.Quantity);
         }
         Assert.Single(await db.UserDungeonClears.ToListAsync());
         Assert.True(character.Gold > 0);
-        Assert.DoesNotContain(await db.RewardEntries.ToListAsync(), entry =>
-            entry.Kind == "Weapon" || entry.Code.EndsWith("-token"));
+        Assert.DoesNotContain(await db.RewardEntries.ToListAsync(), entry => entry.Code.EndsWith("-token"));
+        var allowedWeapons = content.RewardOptions.DungeonClears[dungeonCode].Drops
+            .Where(drop => drop.Kind == "Weapon").Select(drop => drop.Code).ToArray();
+        Assert.All(await db.RewardEntries.Where(entry => entry.Kind == "Weapon").ToListAsync(),
+            entry => Assert.Contains(entry.Code, allowedWeapons));
     }
 
     [Fact]
@@ -330,14 +335,14 @@ public sealed class WorldContentTests
         Assert.Equal(new[] { ElementType.Earth, ElementType.Earth, ElementType.Earth,
             ElementType.Earth, ElementType.Water, ElementType.Light }, monsters.Select(monster => monster.Element));
         Assert.Equal(new[] { 0, 41, 252, 21, 31, 11 }, monsters.Select(monster => monster.Hp));
-        Assert.Equal(new[] { "烛矿采掘者", "烛矿掘道者", "砾牙矿主", "砾牙矿主", "隐藏旧内容", "未关联怪物" },
+        Assert.Equal(new[] { "岩芽幼狼", "岩牙野猪", "砾牙矿主", "砾牙矿主", "隐藏旧内容", "未关联怪物" },
             monsters.Select(monster => monster.Name));
-        Assert.Equal("/art/monsters/monster-009.png", Game.Client.Services.MonsterArt.ForName(monsters[0].Name));
+        Assert.Equal("/art/monsters/monster-005.png", Game.Client.Services.MonsterArt.ForName(monsters[0].Name));
         Assert.Equal("/art/monsters/monster-015.png", Game.Client.Services.MonsterArt.ForName(monsters[3].Name));
         var active = monsters[1];
-        Assert.Equal((140, 252, 15, 5, "saved-profile", "kobold-mine-worker-loot-2"),
+        Assert.Equal((140, 252, 15, 5, "saved-profile", "kobold-mine-entry-lv3"),
             (active.BaseMaxHp, active.MaxHp, active.Attack, active.Defense, active.CombatProfileCode, active.RewardProfileCode));
-        Assert.Equal("kobold-mine-goldtooth", monsters[3].RewardProfileCode);
+        Assert.Equal("kobold-mine-entry-boss", monsters[3].RewardProfileCode);
         var saved = await db.Rooms.FindAsync(room.Id);
         Assert.Equal((202, RoomStatus.Preparing, 2, 4, 7, 3, 2, 10, true),
             (saved!.MonsterId, saved.Status, saved.CurrentWaveNumber, saved.TotalWaveCount,
@@ -379,7 +384,7 @@ public sealed class WorldContentTests
         await DbInitializer.InitializeAsync(db, world: content.World, encounters: content.Encounters);
         db.ChangeTracker.Clear();
         var monster = await db.Monsters.SingleAsync();
-        Assert.Equal("kobold-mine-worker-loot-2", monster.RewardProfileCode);
+        Assert.Equal("kobold-mine-entry-lv3", monster.RewardProfileCode);
         Assert.Equal((41, 140, 140, 15, 5), (monster.Hp, monster.MaxHp, monster.BaseMaxHp, monster.Attack, monster.Defense));
         var savedRoom = await db.Rooms.SingleAsync();
         Assert.Equal((2, 4, 2, 8), (savedRoom.CurrentWaveNumber, savedRoom.RoundNumber, savedRoom.RunSequence, savedRoom.Version));

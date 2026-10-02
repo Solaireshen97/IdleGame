@@ -137,6 +137,18 @@ public static class WeaponArt
         ["奥风长弓"] = "arcwind-bow",
         ["黎明核心权杖"] = "dawncore-scepter",
         ["虚空晶匕"] = "voidglass-dagger",
+        ["烬纹战斧"] = "t1-deep-embermark-axe",
+        ["熔甲战锤"] = "t1-deep-molten-armor-maul",
+        ["镜潮猎刃"] = "t1-deep-mirror-tide-blade",
+        ["寒泉护杖"] = "t1-deep-frostspring-ward-staff",
+        ["裂岩战矛"] = "t1-deep-riftstone-spear",
+        ["磐誓重锤"] = "t1-deep-stone-oath-maul",
+        ["疾翎长弓"] = "t1-deep-swiftfeather-bow",
+        ["岚纹护杖"] = "t1-deep-gale-mark-ward-staff",
+        ["辉棱长刃"] = "t1-deep-radiant-prism-blade",
+        ["晨辉守杖"] = "t1-deep-dawn-ward-staff",
+        ["夜纹双刃"] = "t1-deep-night-mark-twinblades",
+        ["冥誓守杖"] = "t1-deep-nether-oath-ward-staff",
     };
 
     public static string ForCode(string code) => $"/art/weapons/{code}.png";

@@ -45,6 +45,7 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
     public DbSet<MonsterIntent> MonsterIntents => Set<MonsterIntent>();
     public DbSet<BattleStatusEffect> BattleStatusEffects => Set<BattleStatusEffect>();
     public DbSet<BattleMonsterSkillCooldown> BattleMonsterSkillCooldowns => Set<BattleMonsterSkillCooldown>();
+    public DbSet<BattleMonsterPhaseState> BattleMonsterPhaseStates => Set<BattleMonsterPhaseState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -188,6 +189,10 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
         modelBuilder.Entity<BattleMonsterSkillCooldown>()
             .HasIndex(cooldown => new { cooldown.RoomId, cooldown.MonsterId, cooldown.SkillCode })
             .IsUnique();
+        modelBuilder.Entity<BattleMonsterPhaseState>()
+            .HasIndex(state => new { state.RoomId, state.RunSequence, state.MonsterId }).IsUnique();
+        modelBuilder.Entity<BattleMonsterPhaseState>().HasOne<Room>().WithMany()
+            .HasForeignKey(state => state.RoomId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CharacterWeapon>()
             .Property(weapon => weapon.Origin).HasConversion<string>();
         modelBuilder.Entity<CharacterWeapon>()

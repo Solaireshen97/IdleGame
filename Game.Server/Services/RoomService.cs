@@ -137,7 +137,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             {
                 SupportsDepths = definition is not null, Stage = definition?.Stage ?? 0,
                 MaximumDepth = definition?.MaximumDepth ?? 1, UnlockedDepth = unlocked,
-                CharacterHighestDepth = highest, MasteryLevel = mastery, UsesPlaceholderBalance = definition?.UsesPlaceholderBalance == true,
+                CharacterHighestDepth = highest, MasteryLevel = mastery, UsesPlaceholderBalance = definition?.UsesPlaceholderAt(1) == true,
                 GoldBonusPercent = mastery >= 2 ? definition!.GoldBonusPercent : 0,
                 KillExtraRollChancePercent = mastery >= 3 ? definition!.KillExtraRollChancePercent : 0,
                 ClearExtraRollChancePercent = mastery >= 4 ? definition!.ClearExtraRollChancePercent : 0,
@@ -145,6 +145,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                 {
                     DepthLevel = depth, IsUnlocked = depth <= unlocked, IsChallenge = depth >= definition.ChallengeStartDepth,
                     StatMultiplier = _depthCatalog.StatMultiplier(dungeon.Code, depth),
+                    UsesExplicitStats = encounterCatalog?.HasExplicitDepthStats(dungeon.Code, depth) == true,
                     AddedMechanics = encounterCatalog?.GetAddedMechanics(dungeon, depth).ToList() ?? []
                 }).ToList(),
                 DungeonId = dungeon.Id, Code = dungeon.Code, Name = dungeon.Name,
@@ -180,6 +181,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         if (result is null || !_depthCatalog.ValidateDepth(result.Code, depthLevel)) return null;
         var dungeon = (await dbContext.Dungeons.FindAsync(dungeonId))!;
         result.DepthLevel = depthLevel;
+        result.UsesPlaceholderBalance = _depthCatalog.Find(result.Code)?.UsesPlaceholderAt(depthLevel) == true;
         if (result.SupportsDepths)
         {
             result.Name = _depthCatalog.DisplayName(dungeon.Name, depthLevel);
@@ -628,6 +630,22 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var slots = await dbContext.RoomSlots.Where(x => x.RoomId == room.Id).OrderBy(x => x.SlotIndex).ToListAsync();
         var characterIds = slots.Where(x => x.CharacterId.HasValue).Select(x => x.CharacterId!.Value).ToList();
         var characters = await dbContext.Characters.Where(x => characterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+        var coopDropRules = await rewardService.GetCoopDropBonusAsync(room);
+        CoopDropBonusPreviewResponse? coopDropPreview = null;
+        if (coopDropRules.PercentPerAdditionalUser > 0 && coopDropRules.MaximumPercent > 0)
+        {
+            var teamPlayerCount = slots.Where(slot => slot.UserId is > 0 && slot.CharacterId.HasValue &&
+                    characters.TryGetValue(slot.CharacterId.Value, out var character) && character.UserId == slot.UserId.Value)
+                .Select(slot => slot.UserId!.Value).Distinct().Count();
+            coopDropPreview = new()
+            {
+                TeamPlayerCount = teamPlayerCount,
+                BonusPercent = CoopDropBonusRules.CalculateBonusPercent(teamPlayerCount,
+                    coopDropRules.PercentPerAdditionalUser, coopDropRules.MaximumPercent),
+                PerAdditionalPlayerPercent = coopDropRules.PercentPerAdditionalUser,
+                MaximumPercent = coopDropRules.MaximumPercent
+            };
+        }
         var activeConsumableBuffs = room.Status == RoomStatus.BattleOver || room.ClosedAtUtc.HasValue
             ? []
             : await dbContext.BattleConsumableBuffs.Where(buff => buff.RoomId == room.Id &&
@@ -736,6 +754,7 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
         var highestDepth = definition is not null && activeCharacterId.HasValue
             ? await _depthProgress.HighestAsync(activeCharacterId.Value, dungeon.Id) : 0;
         var history = battleLogStore?.GetSnapshot(room.Id);
+        var directDamageVariancePercent = runRules is null ? 0m : (await runRules.EnsureAsync(room)).DirectDamageVariancePercent;
         return new RoomDetailResponse
         {
             RoomId = room.Id, RoomVersion = room.Version, OwnerUserId = room.OwnerUserId, DungeonId = dungeon.Id,
@@ -778,6 +797,8 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
             BattleEvents = history?.Events.Where(fact => fact.SettlementVersion <= room.Version).ToList() ?? [],
             CumulativeRewards = rewards?.CumulativeRewards,
             Rewards = rewards?.Rewards,
+            CoopDropBonus = coopDropPreview,
+            DirectDamageVariancePercent = directDamageVariancePercent,
             Slots = slots.Select(slot =>
             {
                 characters.TryGetValue(slot.CharacterId ?? 0, out var character);

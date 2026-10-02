@@ -41,6 +41,7 @@ builder.Services.AddScoped<PartyScalingService>();
 builder.Services.AddScoped<MonsterCombatService>();
 builder.Services.AddScoped<BattleEventCollector>();
 builder.Services.AddScoped<BattleStatusService>();
+builder.Services.AddScoped<MonsterPhaseService>();
 builder.Services.AddScoped<BattleGuardService>();
 builder.Services.AddScoped<BattleDamageService>();
 builder.Services.AddScoped<BattleEffectExecutor>();
@@ -65,6 +66,10 @@ builder.Services.Configure<SkillOptions>(builder.Configuration.GetSection(SkillO
 builder.Services.Configure<WeaponOptions>(builder.Configuration.GetSection(WeaponOptions.SectionName));
 builder.Services.Configure<SoulImprintOptions>(builder.Configuration.GetSection(SoulImprintOptions.SectionName));
 builder.Services.Configure<RewardOptions>(builder.Configuration.GetSection(RewardOptions.SectionName));
+builder.Services.AddOptions<CombatDamageOptions>()
+    .Bind(builder.Configuration.GetSection(CombatDamageOptions.SectionName))
+    .Validate(options => options.VariancePercent is >= 0 and <= 100, "Damage variance must be between 0 and 100 percent.")
+    .ValidateOnStart();
 builder.Services.Configure<DungeonEncounterOptions>(builder.Configuration.GetSection(DungeonEncounterOptions.SectionName));
 builder.Services.Configure<DungeonDepthOptions>(builder.Configuration.GetSection(DungeonDepthOptions.SectionName));
 builder.Services.Configure<WeaponBreakthroughOptions>(builder.Configuration.GetSection(WeaponBreakthroughOptions.SectionName));

@@ -12,6 +12,8 @@ public sealed class DungeonDepthDefinitionOptions
     public int Revision { get; set; } = 1;
     public int Stage { get; set; } = 1;
     public bool UsesPlaceholderBalance { get; set; } = true;
+    public List<int> CalibratedDepths { get; set; } = [];
+    public bool UsesPlaceholderAt(int depth) => UsesPlaceholderBalance && !CalibratedDepths.Contains(depth);
     public string PrerequisiteDungeonCode { get; set; } = string.Empty;
     public int MaximumDepth { get; set; } = 10;
     public decimal GrowthPercent { get; set; } = 10m;

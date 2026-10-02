@@ -1,15 +1,28 @@
 using Game.Shared;
 using Game.Shared.Enums;
 using Game.Shared.Dtos;
+using Game.Server.Configuration;
+using Game.Shared.Models;
+using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
 public enum BattleDamageOrigin { NormalAttack, Skill, Counter, Mechanic, LegacyParry }
 
 /// <summary>One numerical pipeline, with explicit origin flags for the existing damage rules.</summary>
-public sealed class BattleDamageService(BattleStatusService? statuses, BattleGuardService guards, Random? random = null, BattleEventCollector? events = null)
+public sealed class BattleDamageService(BattleStatusService? statuses, BattleGuardService guards, Random? random = null,
+    BattleEventCollector? events = null, DungeonRunRulesService? runRules = null, IOptions<CombatDamageOptions>? damageOptions = null,
+    MonsterPhaseService? phases = null)
 {
+    private readonly decimal _variancePercent = DamageVariance.ValidatePercent(damageOptions?.Value.VariancePercent ?? 0);
     public BattleEventCollector Events { get; } = events ?? statuses?.Events ?? new();
+
+    private async Task<int> VaryAsync(Room room, int damage)
+    {
+        if (damage <= 0) return damage;
+        var percent = runRules is null ? _variancePercent : (await runRules.EnsureAsync(room)).DirectDamageVariancePercent;
+        return DamageVariance.Roll(damage, percent, random ?? Random.Shared);
+    }
     public async Task<BattleDamageResult> CharacterDamageAsync(BattleExecutionContext battle, BattleActor source,
         BattleSkillEffect effect, BattleDamageOrigin origin, bool rollCritical, decimal? healthSnapshot = null,
         decimal conditionalBonus = 0, decimal attackPowerBonus = 0, IReadOnlyList<decimal>? multipliers = null, ElementType? damageElement = null)
@@ -40,13 +53,18 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
         foreach (var multiplier in multipliers ?? [])
             damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * multiplier));
         if (statuses is not null) damage = await statuses.AmplifyDamageAsync(battle.Room, monster.Id, damage);
+        damage = await VaryAsync(battle.Room, damage);
         var before = monster.Hp;
         var actual = Math.Min(before, damage);
         monster.Hp = Math.Max(0, monster.Hp - damage);
         Events.Hp(battle.Room, BattleEventKind.Damage, source, battle.Enemy, damage, actual, before, critical,
             isLegacyParry ? null : element, isLegacyParry ? 0 : WeaponCombatRules.ElementAttackPercent(element, monster.Element, stats.ElementAdvantagePercent));
+        await ObserveDirectDamageAsync(battle, isLegacyParry ? null : element, actual);
         return new(damage, actual, critical);
     }
+
+    public Task ObserveDirectDamageAsync(BattleExecutionContext battle, ElementType? element, int actualDamage) =>
+        phases?.ObserveDirectDamageAsync(battle, element, actualDamage) ?? Task.CompletedTask;
 
     public async Task<BattleDamageResult> MonsterDamageAsync(BattleExecutionContext battle, BattleActor target,
         BattleSkillEffect effect, bool areaAttack, decimal skillReduction = 0, int legacyReduction = 0)
@@ -65,6 +83,7 @@ public sealed class BattleDamageService(BattleStatusService? statuses, BattleGua
             ElementPercent: ElementMatchup.MonsterAttackPercent(monster.Element, element),
             ReductionPercent: WeaponCombatRules.CombinedDirectReductionPercent(guard.ReductionPercent + reduction + legacyReduction +
                 (areaAttack ? potion.AreaDamageReductionPercent : 0) - potion.DamageTakenPercent, stats, character.Hp)));
+        damage = await VaryAsync(battle.Room, damage);
         var before = character.Hp;
         var actual = Math.Min(before, damage);
         character.Hp = Math.Max(0, character.Hp - damage);

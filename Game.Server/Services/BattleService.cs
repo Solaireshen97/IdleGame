@@ -21,7 +21,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
     private BattleGuardService _guards => _guardService ??= _effectExecutor?.Guards ?? new(Statuses);
     private BattleEffectExecutor? _effectExecutor = battleEffects;
     private BattleEffectExecutor Effects => _effectExecutor ??= new(skillCatalog, Statuses, _guards,
-        new BattleDamageService(Statuses, _guards, random, _events));
+        new BattleDamageService(Statuses, _guards, random, _events, runRules, phases: monsterCombatService?.Phases));
     private BattleRoundExecutor? _roundExecutor;
     private BattleRoundExecutor Rounds => _roundExecutor ??= new(dbContext, consumableCatalog, skillCatalog,
         Statuses, Effects, monsterCombatService, weaponCatalog, soulImprintCatalog, random, mechanics);

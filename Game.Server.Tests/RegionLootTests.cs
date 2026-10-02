@@ -40,7 +40,16 @@ public sealed class RegionLootTests
                 var drops = rewards.MonsterKills[profile].Drops.Where(drop => drop.Kind == "Weapon").ToList();
                 if (dungeon.DungeonKind == "Dungeon" && dungeon.MinimumLevel < 10)
                 {
-                    Assert.Empty(drops);
+                    if (monster.IsBoss) Assert.Empty(drops);
+                    else
+                    {
+                        var hunt = challenges.Single(hunt => hunt.DungeonKind == "Hunt" && hunt.MonsterName == monster.Name);
+                        var primary = rewards.MonsterKills[hunt.Code].Drops.First(drop => drop.Kind == "Weapon");
+                        var entryDrop = Assert.Single(drops);
+                        Assert.Equal(primary.Code, entryDrop.Code);
+                        Assert.Equal(15m, entryDrop.ChancePercent);
+                        Assert.Equal(region.FeaturedElement, weapons.FindItem(entryDrop.Code)!.Element);
+                    }
                     continue;
                 }
                 Assert.InRange(drops.Count, dungeon.DungeonKind == "Hunt" && dungeon.RecommendedLevel == 1 ? 1 : 2, 3);

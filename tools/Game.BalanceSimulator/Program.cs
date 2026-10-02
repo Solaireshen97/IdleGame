@@ -31,6 +31,7 @@ var dungeonCode = arguments.DungeonCode;
 var depth = arguments.Depth;
 var mastery = arguments.Mastery;
 var startingPotions = arguments.StartingPotions;
+var players = arguments.Players;
 var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(Option("--config", "Game.Server/appsettings.json"))).Build();
 var boundSections = new Dictionary<(Type, string), object>();
 var talentBuildPath = Option("--talent-builds", string.Empty);
@@ -81,12 +82,20 @@ var compositions = Option("--composition", string.Empty)
 if (compositions.Count > 0 && compositions.Any(members => members.Length != compositions[0].Length))
     throw new ArgumentException("Every --composition entry must have the same party size");
 var partySize = compositions.Count > 0 ? compositions[0].Length : int.Parse(Option("--party", "1"));
+var memberWeaponElements = arguments.Contains("--weapon-elements")
+    ? Option("--weapon-elements", string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(Enum.Parse<ElementType>).ToArray()
+    : Array.Empty<ElementType>();
+if (arguments.Contains("--weapon-elements") && (arguments.Contains("--weapon-element") ||
+    memberWeaponElements.Length != partySize || memberWeaponElements.Any(value => !Enum.IsDefined(value))))
+    throw new ArgumentException("--weapon-elements requires one valid element per party member and cannot be combined with --weapon-element.");
 var soulLoadouts = Option("--soul-loadouts", "native")
     .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .Select(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
     .ToList();
 var controlMode = Option("--mode", "auto").ToLowerInvariant();
 if (runs is < 1 or > 100 || partySize is < 1 or > 5) throw new ArgumentOutOfRangeException("runs / party");
+if (players > partySize) throw new ArgumentException("--players cannot exceed the scenario's party size");
 if (seedStart < 1 || seedStart > int.MaxValue - runs) throw new ArgumentOutOfRangeException("seed-start");
 if (compositions.Count == 0 && partySize > 1)
 {
@@ -112,29 +121,41 @@ foreach (var target in targets)
     for (var seed = seedStart; seed < seedStart + runs; seed++) results.Add(await Simulate(stage, element, scenario.Label, target,
         partySize, seed, controlMode, scenario.Members, soulLoadout));
     var group = results.TakeLast(runs).ToList();
-    Console.WriteLine($"{stage}/{element}/{scenario.Label}/{string.Join('+', soulLoadout)}/{target}/party{partySize}: {group.Count(x => x.Victory)}/{runs}, {group.Average(x => x.Rounds):0.0} rounds, {group.Average(x => x.CycleSeconds)/60:0.0} min, {group.Average(x => x.PotionsUsed):0.0} potions");
+    Console.WriteLine($"{stage}/{element}/{scenario.Label}/{string.Join('+', soulLoadout)}/{target}/party{partySize}/players{players}: {group.Count(x => x.Victory)}/{runs}, {group.Average(x => x.Rounds):0.0} rounds, {group.Average(x => x.CycleSeconds)/60:0.0} min, {group.Average(x => x.PotionsUsed):0.0} potions");
 }
 var report = new
 {
     GeneratedAtUtc = DateTime.UtcNow,
     SourceFiles = sourceFiles,
     SourcesUnchangedDuringRun = sourceFiles.SequenceEqual(SourceHashes()),
-    Assumptions = new { RunsPerScenario = runs, SeedStart = seedStart, MaxRounds = 250, PartySize = partySize, ControlMode = controlMode,
+    Assumptions = new { RunsPerScenario = runs, SeedStart = seedStart, MaxRounds = 250, PartySize = partySize, Players = players, ControlMode = controlMode,
         DungeonCode = dungeonCode, Depth = depth, Mastery = mastery, StartingPotionsPerActor = startingPotions,
+        DirectDamageVariancePercent = Bind<CombatDamageOptions>(CombatDamageOptions.SectionName).Value.VariancePercent,
+        DirectDamageRounding = "Uniform symmetric multiplier after direct-damage formulas/amplification; fractional result rounds upward with probability equal to its fractional part, otherwise downward. Each actual target/segment rolls independently; derived echo damage does not reroll. Healing and damage-over-time do not vary.",
         WorldFile = worldPath, MetricsSchemaVersion = 2,
         BossSkillUsesKey = "SkillCode", BossSkillUsesBasis = "Distinct monster/run/round/skill with at least one committed Skill event; not intent or attempted casts",
+        RewardBasis = "Gold/MeanGold remain whole-party totals; Rewards splits settled earnings by character/account/team. Ordinary items are Base-source Consumable/Material/Weapon/SoulImprint quantities from regular monster:/clear events; exclude mastery, challenge, seeds, tutorial and first-clear grants. Quantities are item counts, not economic value. Pending ledger entries are not earnings.",
         WeaponElement = weaponElement?.ToString() ?? "SameAsDungeonRegion",
+        MemberWeaponElements = memberWeaponElements.Length == 0 ? null : memberWeaponElements,
         TalentBuildsFile = talentBuildPath.Length == 0 ? null : talentBuildPath,
         TraceSchemaVersion = BattleRoundTrace.SchemaVersion, IncludesRoundTrace = includeTrace,
         Compositions = compositions.Count > 0 ? compositions : null,
         SoulLoadouts = soulLoadouts,
         Description = "Production combat and reward services; deterministic seeds; preset equipment and level-unlocked native skills; inactive combat talent trees excluded; region weapon element unless overridden; Auto access and account admission pre-unlocked independently of starting character mastery; full health and explicitly reported starting potions; excludes acquisition time. Raid/native presets measure farming, not first-clear access. Auto uses production conditions. Manual queues equipped skills before each round, reserving Guard for Deadly intents; fixed policy, not optimal human play. Successful cycle time includes the next run's first-round interval; failures do not restart. Boss skill counts use committed effect facts, not localized logs. Failure categories describe observed terminal state, not inferred causes." },
-    Summary = results.GroupBy(x => new { x.Stage, x.Element, x.Profession, x.SoulLoadout, x.Dungeon, x.PartySize, x.Depth, x.Mastery, x.StartingPotions }).Select(group => new
+    Summary = results.GroupBy(x => new { x.Stage, x.Element, x.Profession, x.SoulLoadout, x.Dungeon, x.PartySize, x.Players, x.Depth, x.Mastery, x.StartingPotions, x.DirectDamageVariancePercent }).Select(group => new
     {
         group.Key, Runs = group.Count(), Victories = group.Count(x => x.Victory),
         MeanRounds = group.Average(x => x.Rounds), MeanCycleSeconds = group.Average(x => x.CycleSeconds),
         MeanPotionsUsed = group.Average(x => x.PotionsUsed), MeanPotionDrops = group.Average(x => x.PotionDrops),
         MeanGold = group.Average(x => x.Gold), MeanRemainingHp = group.Average(x => x.RemainingHp),
+        MeanGoldPerCharacter = group.Average(x => (double)x.Gold / x.PartySize),
+        MeanOrdinaryItemQuantity = group.Average(x => x.Rewards.Team.OrdinaryItemQuantity),
+        MeanOrdinaryItemQuantityPerCharacter = group.Average(x => (double)x.Rewards.Team.OrdinaryItemQuantity / x.PartySize),
+        Accounts = group.SelectMany(x => x.Rewards.Accounts).GroupBy(x => x.UserId).OrderBy(x => x.Key).Select(account => new
+        {
+            UserId = account.Key, CharacterIds = account.First().CharacterIds,
+            MeanGold = account.Average(x => x.Earned.Gold), MeanOrdinaryItemQuantity = account.Average(x => x.Earned.OrdinaryItemQuantity)
+        }),
         MaxRounds = group.Max(x => x.Rounds),
         P95Rounds = group.Select(x => x.Rounds).Order().ElementAt((int)Math.Ceiling(group.Count() * .95) - 1),
         SoftEnrageSamples = group.Count(x => x.SoftEnrageCasts > 0),
@@ -208,8 +229,12 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
     await db.Database.EnsureCreatedAsync();
     var dungeon = JsonSerializer.Deserialize<Dungeon>(JsonSerializer.Serialize(definition))!;
-    var user = new User { Id = 1, UserName = "simulation", PasswordHash = "unused", ActiveCharacterId = 1 };
-    db.AddRange(user, dungeon);
+    var accounts = Enumerable.Range(1, players).Select(id => new User
+    {
+        Id = id, UserName = players == 1 ? "simulation" : $"simulation-{id}", PasswordHash = "unused", ActiveCharacterId = id
+    }).ToList();
+    db.Users.AddRange(accounts);
+    db.Dungeons.Add(dungeon);
     await db.SaveChangesAsync();
     var room = new Room { DungeonId = dungeon.Id, OwnerUserId = 1, IsOwnerAutoEnabled = true, SlotCount = 5, Status = RoomStatus.NotStarted, IsPreparationTimeoutEnabled = false, TotalWaveCount = encounters.GetWaveCount(dungeon), DepthLevel = depth,
         DepthDefinitionJson = depthCatalog.Find(dungeon.Code) is { } depthDefinition ? JsonSerializer.Serialize(depthDefinition) : null };
@@ -222,7 +247,8 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     db.Monsters.AddRange(monsters);
     await db.SaveChangesAsync();
     room.MonsterId = monsters[0].Id;
-    db.UserDungeonClears.Add(new UserDungeonClear { UserId = 1, DungeonId = dungeon.Id, HighestDepth = depth, ClearedAtUtc = DateTime.UtcNow });
+    db.UserDungeonClears.AddRange(accounts.Select(account => new UserDungeonClear
+        { UserId = account.Id, DungeonId = dungeon.Id, HighestDepth = depth, ClearedAtUtc = DateTime.UtcNow }));
     var actors = new List<Character>();
     var actorBuilds = new List<ActorBuild>();
     for (var index = 1; index <= party; index++)
@@ -232,9 +258,11 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         var build = ResolveRole(role);
         var baseProfession = skills.FindProfession(build.BaseProfession)?.Code ??
             throw new ArgumentException($"Role {role} has no configured native profession.");
-        var character = new Character { Id = index, UserId = 1, Name = $"{role}-{index}", ProfessionCode = baseProfession,
-            Level = stage == "starter" ? 1 : stage == "shop" ? 5 : 10 };
-        var loadout = Loadout(weapons, stage, weaponElement ?? element, index);
+        var userId = (index - 1) % players + 1;
+        var character = new Character { Id = index, UserId = userId, Name = $"{role}-{index}", ProfessionCode = baseProfession,
+            Level = stage == "entry" ? 8 : stage == "starter" ? 1 : stage == "shop" ? 5 : 10 };
+        var memberWeaponElement = memberWeaponElements.Length == 0 ? weaponElement ?? element : memberWeaponElements[index - 1];
+        var loadout = Loadout(weapons, stage, memberWeaponElement, index, baseProfession);
         character.Attack = loadout.Sum(item => item.Attack);
         character.MaxHp = loadout.Sum(item => item.MaxHp);
         var talentCodes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -262,9 +290,9 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
             LastAtUtc = DateTime.UtcNow
         });
         db.CharacterWeapons.AddRange(loadout);
-        db.RoomSlots.Add(new RoomSlot { RoomId = room.Id, SlotIndex = index, UserId = 1, CharacterId = index, IsAutoEnabled = true });
+        db.RoomSlots.Add(new RoomSlot { RoomId = room.Id, SlotIndex = index, UserId = userId, CharacterId = index, IsAutoEnabled = true });
         if (startingPotions > 0) db.CharacterItemStacks.Add(new CharacterItemStack { CharacterId = index, ItemCode = "minor-healing-potion", Quantity = startingPotions });
-        db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = 70 });
+        db.CharacterConsumableSlots.Add(new CharacterConsumableSlot { CharacterId = index, SlotIndex = 1, ItemCode = "minor-healing-potion", AutoUseEnabled = true, AutoHpThresholdPercent = stage == "entry" ? 50 : 70 });
         foreach (var (code, rank) in talentCodes) db.CharacterSkillTalents.Add(new CharacterSkillTalent { CharacterId = index, NodeCode = code, PointsSpent = rank });
         var learned = skills.LearnedSkills(character, talentCodes).Select(skill => skill.Code).ToHashSet();
         var preferred = build.Profile?.Skills.ToArray() ?? skills.NativeSkills(character)
@@ -274,11 +302,13 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         var selected = preferred.Where(learned.Contains).Take(5).ToList();
         if (selected.Count == 0 || selected.Any(code => skills.Resolve(character, code) is null))
             throw new InvalidOperationException($"Role {role} has no valid equipped native skills at level {character.Level}.");
-        actorBuilds.Add(new ActorBuild(index, baseProfession, character.Level, weaponElement ?? element, selected, talentCodes,
+        actorBuilds.Add(new ActorBuild(index, baseProfession, character.Level, memberWeaponElement, selected, talentCodes,
             loadout.Select(weapon => new WeaponBuild(weapon.EquippedSlotIndex!.Value, weapon.WeaponCode,
                 weapon.TemplateRevision, weapon.Element, weapon.ItemLevel, weapon.QualityRank, weapon.Attack, weapon.MaxHp,
                 weapon.Skills.OrderBy(skill => skill.SlotIndex).Select(skill =>
-                    new WeaponSkillBuild(skill.SlotIndex, skill.SkillCode, skill.Level, skill.EnhancementLevel)).ToList())).ToList()));
+                    new WeaponSkillBuild(skill.SlotIndex, skill.SkillCode, skill.Level, skill.EnhancementLevel)).ToList())).ToList(),
+            new EquipmentBuildStats(character.Attack, character.MaxHp, TalentRules.EffectiveMaxHp(character),
+                weapons.CalculateBonuses(loadout).Effects.ToDictionary(effect => effect.EffectType.ToString(), effect => effect.TotalPercent))));
         for (var slot = 0; slot < selected.Count; slot++) db.CharacterSkillSlots.Add(new CharacterSkillSlot
         { CharacterId = index, SlotIndex = slot + 1, SkillCode = selected[slot], AutoUseEnabled = true, AutoHpThresholdPercent = 75 });
         if (stage == "raid")
@@ -300,17 +330,19 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     await db.SaveChangesAsync();
     var progression = new ProgressionService(Bind<ProgressionOptions>(ProgressionOptions.SectionName));
     var users = new UserService(db, progression, skills, weapons);
-    var runRules = new DungeonRunRulesService(db, combatCatalog, rewards, partyScalingCatalog, depthCatalog, encounters: encounters);
+    var runRules = new DungeonRunRulesService(db, combatCatalog, rewards, partyScalingCatalog, depthCatalog,
+        encounters: encounters, damageOptions: Bind<CombatDamageOptions>(CombatDamageOptions.SectionName));
     var ruleDefinition = await runRules.EnsureAsync(room);
     await db.SaveChangesAsync();
     var depthProgress = new DungeonDepthProgressService(db, depthCatalog, runRules);
     var events = new BattleEventCollector();
     var statuses = new BattleStatusService(db, combatCatalog.Statuses, events, runRules: runRules);
+    var phases = new MonsterPhaseService(db, combatCatalog, statuses, runRules);
     var guards = new BattleGuardService(statuses);
-    var damage = new BattleDamageService(statuses, guards, random, events);
+    var damage = new BattleDamageService(statuses, guards, random, events, runRules: runRules, phases: phases);
     var effects = new BattleEffectExecutor(skills, statuses, guards, damage);
     var rewardService = new RewardService(db, rewards, progression, depthProgress: depthProgress, runRules: runRules);
-    var monsterCombat = new MonsterCombatService(db, combatCatalog, random, statuses, skills, effects, runRules: runRules);
+    var monsterCombat = new MonsterCombatService(db, combatCatalog, random, statuses, skills, effects, runRules: runRules, phases: phases);
     var runService = new DungeonRunService(db, rewardService, monsterCombat, depthProgress: depthProgress, runRules: runRules);
     var battle = new BattleService(db, users, consumables, skills, rewardService, runService, monsterCombat,
         random: random, weaponCatalog: weapons, soulImprintCatalog: soulImprints,
@@ -318,6 +350,7 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var seconds = 0d;
     var logs = new List<string>();
     var traces = new List<BattleRoundTrace>();
+    var phaseRounds = new List<MonsterPhaseObservation>();
     var metrics = new SimulatorMetrics(monsters.Where(monster => monster.IsBoss).Select(monster => monster.Id));
     var roundCounts = monsters.Select(monster => monster.Name).Distinct().ToDictionary(name => name, _ => 0);
     bool victory = false;
@@ -353,6 +386,10 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         logs.AddRange(result.Logs);
         if (room.RoundNumber != previousRounds)
         {
+            foreach (var state in await db.BattleMonsterPhaseStates.Where(state => state.RoomId == room.Id && state.RunSequence == room.RunSequence).ToListAsync())
+                phaseRounds.Add(new(state.MonsterId, previousRounds - state.EncounterStartRound + 1,
+                    state.IsActive, state.WaterDamage, state.ActivationCount, state.BreakCount, state.ExpiryCount,
+                    state.LinkedHitCount, state.LastActivationRound, state.LastBreakRound, state.LastExpiryRound));
             metrics.Observe(result.Events);
             var participants = (await db.RoomSlots.Where(slot => slot.RoomId == room.Id && slot.CharacterId != null).ToListAsync())
                 .Select(slot => new BattleParticipant(slot, actors.Single(actor => actor.Id == slot.CharacterId))).ToList();
@@ -385,6 +422,12 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
     var bossSkillUses = metrics.BossSkillUses;
     var failureCategory = SimulatorMetrics.FailureCategory(victory, room.Status, actors.Count(actor => actor.Hp > 0), room.RoundNumber, 250);
     var potionUses = await db.BattleHealingPotionStates.Where(state => state.RoomId == room.Id && state.RunSequence == room.RunSequence).SumAsync(state => state.UsesUsed);
+    var rewardEntries = await db.RewardEntries.Where(entry => entry.RoomId == room.Id && entry.Sequence == room.RunSequence).ToListAsync();
+    var settlementStatus = (await db.RewardRuns.FindAsync(room.Id, room.RunSequence))?.Status ?? "NoRewards";
+    var earnedRewards = SimulatorRewardSummary.Build(actors, rewardEntries, settlementStatus);
+    var rewardEvents = (await db.RewardEvents.Where(entry => entry.RoomId == room.Id && entry.Sequence == room.RunSequence).ToListAsync())
+        .OrderBy(entry => entry.EventKey, StringComparer.Ordinal).Select(entry => new SimulatorCoopRewardEvent(
+            entry.EventKey, entry.CoopParticipantCount, entry.CoopDropBonusPercent)).ToList();
     return new Sample(stage, element, profession, string.Join('+', soulLoadout), dungeon.Code, party, mode, seed, victory, room.RoundNumber, seconds,
         potionUses, potionDrops, actors.Sum(actor => actor.Gold), actors.Sum(actor => actor.Hp), actors[0].Attack,
         TalentRules.EffectiveMaxHp(actors[0]), finalMonster.Hp, finalMonster.MaxHp, roundCounts, bossSkillUses,
@@ -393,11 +436,118 @@ async Task<Sample> Simulate(string stage, ElementType element, string profession
         bossSkillUses.GetValueOrDefault("endgame-hard-enrage"),
         BattleRoundTrace.EncounterFingerprint(traces), includeTrace ? traces : null,
         depth, mastery, startingPotions, failureCategory, party - actors.Count(actor => actor.Hp > 0), stock,
-        metrics.CharacterDeaths, initialMonsters, ruleDefinition.Revision);
+        metrics.CharacterDeaths, initialMonsters, ruleDefinition.Revision, players, earnedRewards, rewardEvents,
+        ruleDefinition.DirectDamageVariancePercent, phaseRounds);
 }
 
-List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType element, int characterId)
+List<CharacterWeapon> Loadout(WeaponCatalog catalog, string stage, ElementType element, int characterId, string profession)
 {
+    if (stage is "deep-entry" or "deep-two" or "deep-three" or "deep-four")
+    {
+        var regionCode = world.Regions.Single(region => region.FeaturedElement == element).Code;
+        var kills = Bind<RewardOptions>(RewardOptions.SectionName).Value.MonsterKills;
+        var huntWeapons = new[] { 1, 3, 5 }.Select(level =>
+        {
+            var hunt = world.Dungeons.Single(dungeon => dungeon.IsVisible && dungeon.RegionCode == regionCode &&
+                dungeon.DungeonKind == "Hunt" && dungeon.MinimumLevel == level);
+            return kills[hunt.Code].Drops.Where(drop => drop.Kind == "Weapon" && catalog.FindItem(drop.Code)?.Element == element)
+                .OrderByDescending(drop => drop.ChancePercent).ThenBy(drop => drop.Code, StringComparer.Ordinal).First().Code;
+        }).ToArray();
+        List<string> benchmarkCodes;
+        if (stage is "deep-three" or "deep-four")
+        {
+            // LV3 uses one of each deep template; LV4 uses two of each.
+            var deepWeapons = Bind<WeaponOptions>(WeaponOptions.SectionName).Value.Items
+                .Where(item => item.Element == element && item.Code.StartsWith("t1-deep-", StringComparison.Ordinal))
+                .OrderBy(item => item.Code, StringComparer.Ordinal).ToList();
+            if (deepWeapons.Count != 2 || deepWeapons.Any(item => item.Skills.Count != 3))
+                throw new InvalidOperationException($"{stage} requires the two three-skill deep templates for {element}.");
+            benchmarkCodes = stage == "deep-four"
+                ? deepWeapons.SelectMany(item => new[] { item.Code, item.Code })
+                    .Concat(huntWeapons.SelectMany(code => new[] { code, code })).ToList()
+                : deepWeapons.Select(item => item.Code)
+                    .Concat(new[] { 0, 1, 2, 0, 1, 2, 1, 2 }.Select(index => huntWeapons[index])).ToList();
+        }
+        else if (stage == "deep-two")
+        {
+            // Tanks/healers select the regional survival template; DPS select the output template.
+            var defensive = profession is "swordsman" or "acolyte";
+            var deepCode = (element, defensive) switch
+            {
+                (ElementType.Fire, false) => "t1-deep-embermark-axe",
+                (ElementType.Fire, true) => "t1-deep-molten-armor-maul",
+                (ElementType.Water, false) => "t1-deep-mirror-tide-blade",
+                (ElementType.Water, true) => "t1-deep-frostspring-ward-staff",
+                (ElementType.Earth, false) => "t1-deep-riftstone-spear",
+                (ElementType.Earth, true) => "t1-deep-stone-oath-maul",
+                (ElementType.Wind, false) => "t1-deep-swiftfeather-bow",
+                (ElementType.Wind, true) => "t1-deep-gale-mark-ward-staff",
+                (ElementType.Light, false) => "t1-deep-radiant-prism-blade",
+                (ElementType.Light, true) => "t1-deep-dawn-ward-staff",
+                (ElementType.Dark, false) => "t1-deep-night-mark-twinblades",
+                (ElementType.Dark, true) => "t1-deep-nether-oath-ward-staff",
+                _ => throw new ArgumentOutOfRangeException(nameof(element))
+            };
+            if (catalog.FindItem(deepCode)?.Skills.Count != 3)
+                throw new InvalidOperationException($"deep-two requires the three-skill template {deepCode}.");
+            benchmarkCodes = new[] { deepCode }.Concat(Enumerable.Range(0, 9).Select(index => huntWeapons[index % 3])).ToList();
+        }
+        else
+        {
+            // Four Lv1, three Lv3, three Lv5 drops; five complete Lv10 weapons and five complete Lv7 weapons.
+            benchmarkCodes = new[] { 0, 1, 2, 0, 1, 0, 1, 2, 0, 2 }.Select(index => huntWeapons[index]).ToList();
+        }
+        return benchmarkCodes.Select((code, slot) =>
+        {
+            var weapon = catalog.CreateRewardSnapshot(code).ToCharacterWeapon(characterId);
+            weapon.EquippedSlotIndex = slot + 1;
+            weapon.QualityRank = WeaponRules.MaxQualityBonusLevels;
+            catalog.UnlockSkillsForQuality(weapon);
+            var level = stage is "deep-three" or "deep-four" || slot < (stage == "deep-two" ? 6 : 5) ? 10 : 7;
+            foreach (var skill in weapon.Skills)
+            {
+                if (skill.BaseLevel > level || level > WeaponRules.MaximumSkillLevel(weapon.QualityRank))
+                    throw new InvalidOperationException($"Invalid {stage} skill level for {weapon.WeaponCode}.");
+                skill.QualityBonusLevel = 0;
+                skill.EnhancementLevel = level - skill.BaseLevel;
+                skill.Level = level;
+                skill.SpentFragments = Enumerable.Range(0, skill.EnhancementLevel).Sum(catalog.EnhancementCost);
+            }
+            return weapon;
+        }).ToList();
+    }
+    if (stage == "entry")
+    {
+        // The first two regional hunts supply the reference entry equipment, in progression order.
+        var regionCode = world.Regions.Single(region => region.FeaturedElement == element).Code;
+        var kills = Bind<RewardOptions>(RewardOptions.SectionName).Value.MonsterKills;
+        var huntWeapons = world.Dungeons.Where(dungeon => dungeon.IsVisible && dungeon.RegionCode == regionCode &&
+                dungeon.DungeonKind == "Hunt").OrderBy(dungeon => dungeon.SortOrder).Take(2)
+            .Select(dungeon => kills[dungeon.Code].Drops.First(drop => drop.Kind == "Weapon").Code).ToArray();
+        if (huntWeapons.Length != 2) throw new InvalidOperationException($"Missing entry hunt equipment for {element}.");
+        var loadout = new List<CharacterWeapon>();
+        for (var slot = 0; slot < 10; slot++)
+        {
+            var weapon = catalog.CreateRewardSnapshot(slot < 2 ? huntWeapons[slot] :
+                $"t1-shop-{element.ToString().ToLowerInvariant()}").ToCharacterWeapon(characterId);
+            weapon.EquippedSlotIndex = slot + 1;
+            if (slot == 0)
+            {
+                weapon.QualityRank = 3;
+                catalog.UnlockSkillsForQuality(weapon);
+            }
+            var enhancement = slot == 0 ? 9 : slot == 1 ? 3 : 0;
+            foreach (var skill in weapon.Skills)
+            {
+                skill.QualityBonusLevel = 0;
+                skill.EnhancementLevel = enhancement;
+                skill.Level = skill.BaseLevel + enhancement;
+                skill.SpentFragments = Enumerable.Range(0, enhancement).Sum(catalog.EnhancementCost);
+            }
+            loadout.Add(weapon);
+        }
+        return loadout;
+    }
     var all = Bind<WeaponOptions>(WeaponOptions.SectionName).Value.Items;
     var field = all.Where(item => item.Element == element && item.Code.StartsWith("t1-") && !item.Code.StartsWith("t1-shop-"))
         .OrderByDescending(item => item.Attack).ThenBy(item => item.Code, StringComparer.Ordinal).ToList();
@@ -479,14 +629,20 @@ record Sample(string Stage, ElementType Element, string Profession, string SoulL
     int SoftEnrageCasts, int HardEnrageCasts, string BattleFingerprint,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<BattleRoundTrace>? RoundTrace,
     int Depth, int Mastery, int StartingPotions, string FailureCategory, int Casualties, int RemainingPotions,
-    int CharacterDeathEvents, List<MonsterBuild> InitialMonsters, string RuleRevision);
+    int CharacterDeathEvents, List<MonsterBuild> InitialMonsters, string RuleRevision, int Players, SimulatorRewards Rewards,
+    List<SimulatorCoopRewardEvent> CoopRewardEvents, decimal DirectDamageVariancePercent,
+    List<MonsterPhaseObservation> MonsterPhaseRounds);
+
+record MonsterPhaseObservation(int MonsterId, int LocalRound, bool IsActive, long WaterDamage, int Activations,
+    int Breaks, int Expiries, int LinkedHits, int? LastActivationRound, int? LastBreakRound, int? LastExpiryRound);
 
 record MonsterBuild(string Name, int Wave, int Position, int MaxHp, int Attack, int Defense, string CombatProfileCode);
 
 record RoleBuild(string BaseProfession, TalentBuildProfile? Profile = null);
 record TalentBuildProfile(string Role, Dictionary<string, int>? Nodes, List<string> Skills);
 record ActorBuild(int Slot, string Profession, int Level, ElementType WeaponElement,
-    List<string> EquippedSkills, Dictionary<string, int> TalentRanks, List<WeaponBuild> Weapons);
+    List<string> EquippedSkills, Dictionary<string, int> TalentRanks, List<WeaponBuild> Weapons, EquipmentBuildStats Stats);
+record EquipmentBuildStats(int BaseAttack, int BaseMaxHp, int MaxHp, Dictionary<string, decimal> Bonuses);
 record WeaponBuild(int Slot, string Code, int TemplateRevision, ElementType Element, int ItemLevel, int QualityRank,
     int Attack, int MaxHp, List<WeaponSkillBuild> Skills);
 record WeaponSkillBuild(int Slot, string Code, int Level, int EnhancementLevel);

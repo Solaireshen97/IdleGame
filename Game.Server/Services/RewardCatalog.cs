@@ -17,6 +17,7 @@ public sealed class RewardCatalog
     private readonly MaterialCatalog? _materials;
     private readonly SoulImprintCatalog? _soulImprints;
     private readonly bool _grantFirstHuntWeapon;
+    private readonly CoopDropBonusOptions _coopDropBonus;
     private readonly Random _random;
 
     public RewardCatalog(IOptions<RewardOptions> options, ConsumableCatalog consumables, WeaponCatalog weapons,
@@ -27,6 +28,10 @@ public sealed class RewardCatalog
         _materials = materials;
         _soulImprints = soulImprints;
         _grantFirstHuntWeapon = options.Value.GrantFirstHuntWeapon;
+        var coop = options.Value.CoopDropBonus;
+        if (coop is null || coop.PercentPerAdditionalUser is < 0 or > 100 || coop.MaximumPercent is < 0 or > 400)
+            throw new InvalidOperationException("Invalid cooperative drop bonus configuration.");
+        _coopDropBonus = new() { PercentPerAdditionalUser = coop.PercentPerAdditionalUser, MaximumPercent = coop.MaximumPercent };
         _random = random ?? Random.Shared;
         _kills = Validate(options.Value.MonsterKills);
         _clears = Validate(options.Value.DungeonClears);
@@ -56,7 +61,7 @@ public sealed class RewardCatalog
 
     public DungeonRewardRules CaptureRules(string dungeonCode, IEnumerable<string> killCodes)
     {
-        var rules = new DungeonRewardRules { FirstHuntWeapon = FirstHuntWeapon(dungeonCode) };
+        var rules = new DungeonRewardRules { FirstHuntWeapon = FirstHuntWeapon(dungeonCode), CoopDropBonus = CoopDropBonus };
         foreach (var code in killCodes.Distinct(StringComparer.OrdinalIgnoreCase))
             if (_kills.TryGetValue(code, out var bundle)) rules.Kills.Add(code, bundle);
         foreach (var code in new[] { dungeonCode, $"{dungeonCode}-first-clear" })
@@ -67,8 +72,13 @@ public sealed class RewardCatalog
         return JsonSerializer.Deserialize<DungeonRewardRules>(JsonSerializer.Serialize(rules))!;
     }
 
+    public CoopDropBonusOptions CoopDropBonus => new()
+    {
+        PercentPerAdditionalUser = _coopDropBonus.PercentPerAdditionalUser, MaximumPercent = _coopDropBonus.MaximumPercent
+    };
+
     public IReadOnlyList<RewardEntry> Roll(string dungeonCode, bool isClear, int roomId, int sequence,
-        string eventKey, int userId, int characterId, DungeonRewardRules? frozen = null)
+        string eventKey, int userId, int characterId, DungeonRewardRules? frozen = null, decimal dropChanceBonusPercent = 0)
     {
         var bundles = frozen is null ? isClear ? _clears : _kills : isClear ? frozen.Clears : frozen.Kills;
         if (!bundles.TryGetValue(dungeonCode, out var bundle)) return [];
@@ -77,8 +87,9 @@ public sealed class RewardCatalog
         if (bundle.Experience > 0) entries.Add(NewEntry("Experience", "", bundle.Experience));
         foreach (var drop in bundle.Drops)
         {
-            if (drop.ChancePercent <= 0 || drop.ChancePercent < 100 &&
-                (decimal)_random.NextDouble() * 100 >= drop.ChancePercent) continue;
+            var chance = CoopDropBonusRules.ApplyToChance(drop.ChancePercent, dropChanceBonusPercent);
+            if (chance <= 0 || chance < 100 &&
+                (decimal)_random.NextDouble() * 100 >= chance) continue;
             if (drop.Kind == "Weapon")
             {
                 for (var index = 0; index < drop.Quantity; index++)

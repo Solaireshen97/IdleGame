@@ -16,8 +16,9 @@ namespace Game.Server.Services;
 /// </summary>
 public sealed class DungeonRunRulesService(GameDbContext db, MonsterCombatCatalog combat,
     RewardCatalog rewards, PartyScalingCatalog parties, DungeonDepthCatalog depths, PlantingCatalog? plants = null,
-    DungeonEncounterCatalog? encounters = null)
+    DungeonEncounterCatalog? encounters = null, IOptions<CombatDamageOptions>? damageOptions = null)
 {
+    private readonly decimal _damageVariancePercent = DamageVariance.ValidatePercent(damageOptions?.Value.VariancePercent ?? 0);
     private readonly Dictionary<int, (DungeonRunRuleSnapshot Row, DungeonRunDefinition Definition, MonsterCombatCatalog Combat)> _loaded = [];
 
     public async Task<DungeonRunDefinition> EnsureAsync(Room room)
@@ -37,6 +38,7 @@ public sealed class DungeonRunRulesService(GameDbContext db, MonsterCombatCatalo
             var definition = new DungeonRunDefinition
             {
                 DungeonCode = dungeon.Code, DungeonKind = dungeon.DungeonKind, DepthLevel = room.DepthLevel,
+                DirectDamageVariancePercent = _damageVariancePercent,
                 Depth = depth,
                 RewardEligibility = encounters?.ResolveRewardEligibility(dungeon.Code,
                     depth is null ? DungeonRewardEligibility.CurrentSlots : DungeonRewardEligibility.ActualParticipants)
@@ -61,7 +63,8 @@ public sealed class DungeonRunRulesService(GameDbContext db, MonsterCombatCatalo
         var loaded = JsonSerializer.Deserialize<DungeonRunDefinition>(row.DefinitionJson)
             ?? throw new InvalidOperationException("Empty dungeon rule snapshot.");
         if (loaded.SchemaVersion != 1 || loaded.DepthLevel != room.DepthLevel || loaded.PartyHpPercentages.Length != 5 ||
-            !Enum.IsDefined(loaded.RewardEligibility)) throw new InvalidOperationException("Unsupported dungeon rule snapshot.");
+            !Enum.IsDefined(loaded.RewardEligibility) || loaded.DirectDamageVariancePercent is < 0 or > 100)
+            throw new InvalidOperationException("Unsupported dungeon rule snapshot.");
         loaded.Revision = row.Revision;
         loaded.Rewards.Kills = new(loaded.Rewards.Kills, StringComparer.OrdinalIgnoreCase);
         loaded.Rewards.Clears = new(loaded.Rewards.Clears, StringComparer.OrdinalIgnoreCase);

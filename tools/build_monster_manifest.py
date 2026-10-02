@@ -11,6 +11,7 @@ SUBJECTS = ROOT / "assets" / "monster-art" / "subjects.json"
 ENCOUNTERS = ROOT / "Game.Server" / "appsettings.json"
 MANIFEST = ROOT / "assets" / "monster-art" / "manifest.json"
 CLIENT_MAP = ROOT / "Game.Client" / "Services" / "MonsterArt.cs"
+LEGACY_NAMES = {"烬核督战者": "熔火督军"}
 
 
 def main() -> None:
@@ -43,6 +44,10 @@ def main() -> None:
     ]
     for item in manifest:
         lines.append(f'        ["{item["name"]}"] = "{item["file"]}",')
+    # Frozen room definitions retain their original monster names.
+    for old_name, current_name in LEGACY_NAMES.items():
+        item = next(item for item in manifest if item["name"] == current_name)
+        lines.append(f'        ["{old_name}"] = "{item["file"]}",')
     lines += [
         "    };",
         "",

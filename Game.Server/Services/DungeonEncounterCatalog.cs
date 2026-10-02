@@ -30,7 +30,28 @@ public sealed class DungeonEncounterCatalog
                         string.IsNullOrWhiteSpace(monster.RewardProfileCode) ? code : monster.RewardProfileCode, false)))
                 throw new InvalidOperationException($"Invalid dungeon encounter: {code}");
             foreach (var monster in waves.SelectMany(wave => wave.Monsters))
+            {
                 depthCatalog?.ValidateStats(code, monster.MaxHp, monster.Attack, monster.Name);
+                if (monster.DepthStats.Select(stats => stats.Depth).Distinct().Count() != monster.DepthStats.Count ||
+                    monster.DepthStats.Any(stats => stats.Depth is < 2 or > 100 || depthCatalog is not null && !depthCatalog.ValidateDepth(code, stats.Depth) ||
+                        stats.MaxHp <= 0 || stats.Attack < 0))
+                    throw new InvalidOperationException($"Invalid dungeon depth stats: {code}, {monster.Name}");
+                foreach (var stats in monster.DepthStats)
+                {
+                    // A catalog without depth rules remains a supported LV1-only reader.
+                    if (depthCatalog is null) continue;
+                    var remainingDepth = depthCatalog.Find(code)!.MaximumDepth - stats.Depth + 1;
+                    try
+                    {
+                        _ = depthCatalog.ScaleStat(stats.MaxHp, remainingDepth, code);
+                        _ = depthCatalog.ScaleStat(stats.Attack, remainingDepth, code);
+                    }
+                    catch (OverflowException exception)
+                    {
+                        throw new InvalidOperationException($"Invalid dungeon depth stats: {code}, {monster.Name}", exception);
+                    }
+                }
+            }
             _dungeons.Add(code, waves);
         }
         foreach (var code in depthCatalog?.DungeonCodes ?? [])
@@ -42,6 +63,8 @@ public sealed class DungeonEncounterCatalog
     }
 
     public bool HasDefinition(string code) => _dungeons.ContainsKey(code);
+    public bool HasExplicitDepthStats(string code, int depth) => _dungeons.TryGetValue(code, out var waves) &&
+        waves.SelectMany(wave => wave.Monsters).Any(monster => monster.DepthStats.Any(stats => stats.Depth <= depth));
 
     public IReadOnlyCollection<string> DungeonCodes => _dungeons.Keys;
 
@@ -101,8 +124,9 @@ public sealed class DungeonEncounterCatalog
 
     private Monster CreateMonster(string dungeonCode, EncounterMonsterOptions monster, int waveNumber, int position, int depth)
     {
-        int Scale(int value) => _depthCatalog?.ScaleStat(value, depth, dungeonCode) ?? value;
-        var hp = Scale(monster.MaxHp);
+        var authored = monster.DepthStats.Where(stats => stats.Depth <= depth).OrderBy(stats => stats.Depth).LastOrDefault();
+        int Scale(int value) => _depthCatalog?.ScaleStat(value, depth - (authored?.Depth ?? 1) + 1, dungeonCode) ?? value;
+        var hp = Scale(authored?.MaxHp ?? monster.MaxHp);
         return new Monster
         {
             Name = monster.Name,
@@ -110,7 +134,7 @@ public sealed class DungeonEncounterCatalog
             Hp = hp,
             BaseMaxHp = hp,
             MaxHp = hp,
-            Attack = Scale(monster.Attack),
+            Attack = Scale(authored?.Attack ?? monster.Attack),
             Defense = monster.Defense,
             WaveNumber = waveNumber,
             Position = position,

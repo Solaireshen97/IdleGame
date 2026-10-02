@@ -14,6 +14,8 @@ public sealed class DungeonDepthCatalog
         {
             if (string.IsNullOrWhiteSpace(code) || definition.Revision < 1 || definition.Stage < 1 ||
                 definition.MaximumDepth is < 1 or > 100 || definition.GrowthPercent < 0 ||
+                definition.CalibratedDepths.Any(depth => depth < 1 || depth > definition.MaximumDepth) ||
+                definition.CalibratedDepths.Distinct().Count() != definition.CalibratedDepths.Count ||
                 definition.GoldBonusPercent < 0 ||
                 definition.KillExtraRollChancePercent is < 0 or > 100 ||
                 definition.ClearExtraRollChancePercent is < 0 or > 100 ||

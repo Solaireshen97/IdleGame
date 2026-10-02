@@ -10,8 +10,14 @@ namespace Game.Server.Tests;
 
 public class DungeonEncounterCatalogTests
 {
-    [Fact]
-    public void ProductionConfigurationDefinesKoboldMineAndValidRewardProfiles()
+    [Theory]
+    [InlineData("ragefire-chasm")]
+    [InlineData("frostspring-cavern")]
+    [InlineData("kobold-mine")]
+    [InlineData("windfury-nest")]
+    [InlineData("dawn-ruins")]
+    [InlineData("spider-canyon")]
+    public void ProductionEntryDungeonsReuseRegionalHuntsWithValidPreparationRewards(string code)
     {
         var path = TestRepository.File("Game.Server", "appsettings.json");
         var configuration = new ConfigurationBuilder().AddJsonFile(path).Build();
@@ -37,19 +43,44 @@ public class DungeonEncounterCatalogTests
         var rewards = new RewardCatalog(Options.Create(rewardOptions), consumables, weapons, materials, soulImprints);
         var combat = new MonsterCombatCatalog(Options.Create(combatOptions));
         var encounters = new DungeonEncounterCatalog(Options.Create(encounterOptions), combat, rewards);
-        var mine = new Dungeon { Code = "kobold-mine" };
-        var monsters = encounters.CreateMonsters(mine);
+        var world = WorldCatalog.LoadDefault();
+        var dungeon = world.Dungeons.Single(dungeon => dungeon.Code == code);
+        var monsters = encounters.CreateMonsters(dungeon);
+        var hunts = world.Dungeons.Where(hunt => hunt.IsVisible && hunt.RegionCode == dungeon.RegionCode &&
+            hunt.DungeonKind == "Hunt").OrderBy(hunt => hunt.SortOrder).ToList();
 
-        Assert.Equal(4, encounters.GetWaveCount(mine));
-        Assert.Equal(7, encounters.GetMonsterCount(mine));
-        Assert.Equal("砾牙矿主", monsters[^1].Name);
+        Assert.Equal(4, encounters.GetWaveCount(dungeon));
+        Assert.Equal(4, encounters.GetMonsterCount(dungeon));
+        Assert.Equal(new[] { 1, 2, 3, 4 }, monsters.Select(monster => monster.WaveNumber));
+        Assert.All(monsters, monster => Assert.Equal(1, monster.Position));
+        Assert.Equal(hunts.Select(hunt => hunt.MonsterName), monsters.Take(3).Select(monster => monster.Name));
+        Assert.All(monsters.Take(3), monster => Assert.False(monster.IsBoss));
         Assert.True(monsters[^1].IsBoss);
-        Assert.Equal("kobold-mine-goldtooth", monsters[^1].RewardProfileCode);
-        Assert.DoesNotContain(rewards.GetDropPreview("kobold-mine-goldtooth", false),
+        Assert.Equal(DungeonRewardEligibility.ActualParticipants,
+            encounters.ResolveRewardEligibility(code, DungeonRewardEligibility.CurrentSlots));
+        var expectedWeapons = hunts.Select(hunt => rewards.GetDropPreview(hunt.Code, false)
+            .First(drop => drop.Kind == "Weapon").Code).ToArray();
+        for (var index = 0; index < 3; index++)
+        {
+            Assert.True(monsters[index].MaxHp > hunts[index].MonsterMaxHp);
+            Assert.True(monsters[index].Attack > hunts[index].MonsterAttack);
+            var drop = Assert.Single(rewards.GetDropPreview(monsters[index].RewardProfileCode, false));
+            Assert.Equal(("Weapon", expectedWeapons[index], 15m), (drop.Kind, drop.Code, drop.ChancePercent));
+        }
+        Assert.DoesNotContain(rewards.GetDropPreview(monsters[^1].RewardProfileCode, false),
             reward => reward.Kind == "Weapon");
-        Assert.Contains(rewards.GetDropPreview("kobold-mine", true),
-            reward => reward.Code == "weapon-fragment-t1" && reward.Quantity == 1);
-        Assert.Empty(rewards.GetDropPreview("kobold-mine-first-clear", true));
+        Assert.Equal(expectedWeapons, rewards.GetDropPreview(code, true).Where(drop => drop.Kind == "Weapon")
+            .Select(drop => drop.Code));
+        Assert.All(rewards.GetDropPreview(code, true).Where(drop => drop.Kind == "Weapon"),
+            drop => Assert.Equal(65m, drop.ChancePercent));
+        Assert.Contains(rewards.GetDropPreview(code, true),
+            reward => reward.Code == "weapon-fragment-t1" && reward.Quantity == 12);
+        Assert.Contains(rewards.GetDropPreview($"{code}-first-clear", true),
+            reward => reward.Code == "weapon-fragment-t1" && reward.Quantity == 20);
+        Assert.Equal(200, monsters.Sum(monster => rewardOptions.MonsterKills[monster.RewardProfileCode].Gold) +
+            rewardOptions.DungeonClears[code].Gold);
+        Assert.Equal(250, monsters.Sum(monster => rewardOptions.MonsterKills[monster.RewardProfileCode].Experience) +
+            rewardOptions.DungeonClears[code].Experience);
     }
 
     [Fact]

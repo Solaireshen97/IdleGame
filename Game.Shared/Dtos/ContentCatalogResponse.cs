@@ -50,7 +50,7 @@ public sealed class DungeonDefinitionResponse
         Depths = source.Depths.Select(depth => new DungeonDepthDefinitionResponse
         {
             DepthLevel = depth.DepthLevel, IsChallenge = depth.IsChallenge,
-            StatMultiplier = depth.StatMultiplier, AddedMechanics = depth.AddedMechanics.ToList()
+            StatMultiplier = depth.StatMultiplier, UsesExplicitStats = depth.UsesExplicitStats, AddedMechanics = depth.AddedMechanics.ToList()
         }).ToList(),
         Code = source.Code, Name = source.Name, RegionName = source.RegionName, RegionCode = source.RegionCode,
         DungeonKind = source.DungeonKind, PartyScalingProfileCode = source.PartyScalingProfileCode,
@@ -70,6 +70,7 @@ public sealed class DungeonDefinitionResponse
         Depths = Depths.Select(depth => new DungeonDepthPreviewResponse
         {
             DepthLevel = depth.DepthLevel, IsChallenge = depth.IsChallenge, StatMultiplier = depth.StatMultiplier,
+            UsesExplicitStats = depth.UsesExplicitStats,
             AddedMechanics = depth.AddedMechanics.ToList(), IsUnlocked = depth.DepthLevel <= (progress?.UnlockedDepth ?? 0)
         }).ToList(),
         Code = Code, Name = Name, RegionName = RegionName, RegionCode = RegionCode, DungeonKind = DungeonKind,
@@ -93,6 +94,7 @@ public sealed class DungeonDepthDefinitionResponse
     public int DepthLevel { get; set; }
     public bool IsChallenge { get; set; }
     public decimal StatMultiplier { get; set; }
+    public bool UsesExplicitStats { get; set; }
     public List<string> AddedMechanics { get; set; } = [];
 }
 

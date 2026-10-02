@@ -4,8 +4,16 @@ public sealed class RewardOptions
 {
     public const string SectionName = "Rewards";
     public bool GrantFirstHuntWeapon { get; set; }
+    public CoopDropBonusOptions CoopDropBonus { get; set; } = new();
     public Dictionary<string, RewardBundleOptions> MonsterKills { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, RewardBundleOptions> DungeonClears { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CoopDropBonusOptions
+{
+    // Zero defaults preserve old room snapshots and callers without an explicit policy.
+    public decimal PercentPerAdditionalUser { get; set; }
+    public decimal MaximumPercent { get; set; }
 }
 
 public sealed class RewardBundleOptions

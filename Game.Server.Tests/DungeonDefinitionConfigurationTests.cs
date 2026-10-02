@@ -14,6 +14,58 @@ namespace Game.Server.Tests;
 public sealed class DungeonDefinitionConfigurationTests
 {
     [Fact]
+    public void ExplicitDepthStatsPreserveLv1AndScaleFromTheLatestAuthoredDepth()
+    {
+        var options = EncounterOptions();
+        options.Dungeons["configured"][1].Monsters[0].DepthStats = [new() { Depth = 4, MaxHp = 1300, Attack = 33 }];
+        var catalog = new DungeonEncounterCatalog(Options.Create(options),
+            new MonsterCombatCatalog(Options.Create(CombatOptions())), depthCatalog: Depths());
+        Assert.Equal((500, 20), Stats(1));
+        Assert.Equal((605, 25), Stats(3));
+        Assert.Equal((1300, 33), Stats(4));
+        Assert.Equal((1430, 37), Stats(5));
+        (int, int) Stats(int depth)
+        {
+            var monster = catalog.GetRepresentativeMonster(Dungeon(), depth);
+            return (monster.MaxHp, monster.Attack);
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 100, 20)]
+    [InlineData(6, 100, 20)]
+    [InlineData(4, 0, 20)]
+    [InlineData(4, 100, -1)]
+    [InlineData(4, int.MaxValue, 20)]
+    public void InvalidExplicitDepthStatsCannotReachCombat(int depth, int hp, int attack)
+    {
+        var options = EncounterOptions();
+        options.Dungeons["configured"][1].Monsters[0].DepthStats = [new() { Depth = depth, MaxHp = hp, Attack = attack }];
+        Assert.Throws<InvalidOperationException>(() => new DungeonEncounterCatalog(Options.Create(options),
+            new MonsterCombatCatalog(Options.Create(CombatOptions())), depthCatalog: Depths()));
+    }
+
+    [Fact]
+    public void DuplicateExplicitDepthStatsAreRejected()
+    {
+        var options = EncounterOptions();
+        options.Dungeons["configured"][1].Monsters[0].DepthStats =
+            [new() { Depth = 4, MaxHp = 100, Attack = 20 }, new() { Depth = 4, MaxHp = 200, Attack = 30 }];
+        Assert.Throws<InvalidOperationException>(() => new DungeonEncounterCatalog(Options.Create(options),
+            new MonsterCombatCatalog(Options.Create(CombatOptions())), depthCatalog: Depths()));
+    }
+
+    [Fact]
+    public void Lv1OnlyCatalogCanReadProductionOptionsContainingHigherDepthStats()
+    {
+        var options = EncounterOptions();
+        options.Dungeons["configured"][1].Monsters[0].DepthStats = [new() { Depth = 4, MaxHp = 1300, Attack = 33 }];
+        var catalog = new DungeonEncounterCatalog(Options.Create(options), new MonsterCombatCatalog(Options.Create(CombatOptions())));
+        Assert.Equal(500, catalog.GetRepresentativeMonster(Dungeon()).MaxHp);
+        Assert.Throws<ArgumentOutOfRangeException>(() => catalog.GetRepresentativeMonster(Dungeon(), 4));
+    }
+
+    [Fact]
     public void DifferentProfilesUseDeclaredStagesReplacementAndLastStageBeyondItsDepth()
     {
         var catalog = new MonsterCombatCatalog(Options.Create(CombatOptions()));

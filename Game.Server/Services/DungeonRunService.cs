@@ -36,7 +36,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
         var rewardProfileCode = string.IsNullOrWhiteSpace(defeatedMonster.RewardProfileCode)
             ? dungeon.Code
             : defeatedMonster.RewardProfileCode;
-        if (await rewardService.RecordAsync(room, rewardProfileCode, killParticipants, eventKey, false))
+        if (await rewardService.RecordAsync(room, rewardProfileCode, killParticipants, eventKey, false, actualMonsterCharacterIds))
             await (battleMilestones ?? new BattleMilestoneService(dbContext)).RecordAsync(
                 actualMonsterCharacterIds ?? participants.Select(participant => participant.Character.Id),
                 BattleMilestoneService.MonsterKillKind, rewardProfileCode, now);
@@ -72,7 +72,7 @@ public sealed class DungeonRunService(GameDbContext dbContext, RewardService rew
             : participants;
         var firstClearUserIds = await RecordDungeonClearsAsync(room.DungeonId,
             clearParticipants.Select(participant => participant.UserId), now, room.DepthLevel);
-        if (await rewardService.RecordAsync(room, dungeon.Code, clearParticipants, "clear", true))
+        if (await rewardService.RecordAsync(room, dungeon.Code, clearParticipants, "clear", true, actualRunCharacterIds))
         {
             var eligibleIds = clearParticipants.Select(participant => participant.Character.Id).ToHashSet();
             var actualCharacterIds = actualRunCharacterIds is null ? eligibleIds.ToList()

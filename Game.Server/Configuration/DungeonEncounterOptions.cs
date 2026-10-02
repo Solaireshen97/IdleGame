@@ -26,4 +26,12 @@ public sealed class EncounterMonsterOptions
     public string CombatProfileCode { get; set; } = string.Empty;
     public string RewardProfileCode { get; set; } = string.Empty;
     public bool IsBoss { get; set; }
+    public List<EncounterDepthStatsOptions> DepthStats { get; set; } = [];
+}
+
+public sealed class EncounterDepthStatsOptions
+{
+    public int Depth { get; set; }
+    public int MaxHp { get; set; }
+    public int Attack { get; set; }
 }

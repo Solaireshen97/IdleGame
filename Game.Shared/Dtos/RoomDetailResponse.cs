@@ -61,6 +61,8 @@ public class RoomDetailResponse
     public List<RoomSlotResponse> Slots { get; set; } = new();
     public List<RoomOperationResponse> Operations { get; set; } = [];
     public RoomRewardSummaryResponse? Rewards { get; set; }
+    public CoopDropBonusPreviewResponse? CoopDropBonus { get; set; }
+    public decimal DirectDamageVariancePercent { get; set; }
     public RoomCumulativeRewardsResponse? CumulativeRewards { get; set; }
     public List<BattleLogResponse> BattleLogs { get; set; } = [];
     public List<BattleEventResponse> BattleEvents { get; set; } = [];

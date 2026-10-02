@@ -15,7 +15,7 @@ public sealed class BattleStatusCatalog
         {
             if (string.IsNullOrWhiteSpace(status.Code) || string.IsNullOrWhiteSpace(status.Name) ||
                 string.IsNullOrWhiteSpace(status.Description) ||
-                status.EffectType is not ("None" or "AttackPercent" or "ReductionPercent" or "DoubleAttackChancePercent" or "DamageOverTime" or "HealOverTime" or "SilenceNextIntent") ||
+                status.EffectType is not ("None" or "AttackPercent" or "ReductionPercent" or "DamageTakenPercent" or "DoubleAttackChancePercent" or "DamageOverTime" or "HealOverTime" or "SilenceNextIntent") ||
                 status.ValuePerStack == 0 && status.EffectType is not ("None" or "DamageOverTime" or "HealOverTime") ||
                 status.MaxStacks is < 1 or > 10 ||
                 status.Stacking is not ("RefreshDuration" or "AddStack" or "ReplaceIfStronger") ||

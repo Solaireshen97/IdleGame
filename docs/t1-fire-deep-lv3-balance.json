@@ -1,0 +1,1054 @@
+{
+  "SchemaVersion": 1,
+  "Date": "2026-10-01",
+  "Status": "ProductionLv3Integrated",
+  "DungeonCode": "ragefire-heart",
+  "Depth": 3,
+  "Scope": "火深层LV3按每人两把深层武器、八把满技能过渡装备校准，一次血量触发的熔岩核心与熔火扩散已接入。",
+  "Benchmark": {
+    "CharacterLevel": 10,
+    "PartyRoles": [
+      "swordsman",
+      "acolyte",
+      "mage",
+      "hunter",
+      "rogue"
+    ],
+    "MainCaseElements": [
+      "Earth",
+      "Light",
+      "Water",
+      "Water",
+      "Fire"
+    ],
+    "WeaponsPerCharacter": 10,
+    "DeepWeaponCount": 2,
+    "DeepWeaponDistribution": {
+      "Output": 1,
+      "Survival": 1
+    },
+    "DeepWeaponQualityRank": 3,
+    "DeepWeaponSkillsPerWeapon": 3,
+    "DeepWeaponSkillLevel": 10,
+    "TransitionWeaponCount": 8,
+    "HuntWeaponDistribution": {
+      "Lv1": 2,
+      "Lv3": 3,
+      "Lv5": 3
+    },
+    "TransitionWeaponQualityRank": 3,
+    "TransitionWeaponSkillsPerWeapon": 2,
+    "TransitionWeaponSkillLevel": 10,
+    "TotalUnlockedWeaponSkills": 22,
+    "AllEquipmentBonusesIncluded": true,
+    "NativeSkills": "角色等级10实际解锁的原生技能与生产Auto；全盘同属性。",
+    "HealingPotionsAtStart": 0,
+    "HealingPotionsUsedAcrossAllSamples": 0,
+    "SoulImprints": false,
+    "OperationPotions": false,
+    "ConsumableBuffs": false,
+    "Ownership": "五名角色由一个账号持有，以固定基础掉落抽样条件；此处校准五角色战斗，不作为五个独立账号掉率采样。",
+    "Admission": "预先解锁入场与Auto，精通从0开始；装备数量是数值基准，不新增硬性装备数量限制。"
+  },
+  "Encounters": [
+    {
+      "Wave": 1,
+      "Name": "烬核火卫",
+      "Element": "Fire",
+      "Depth": 3,
+      "MaxHp": 495000,
+      "Attack": 170,
+      "Defense": 0,
+      "CombatProfileCode": "fire-deep-lv1-monster-1",
+      "RewardProfileCode": "ragefire-heart-pack",
+      "IsBoss": false
+    },
+    {
+      "Wave": 2,
+      "Name": "焦砾蠕行者",
+      "Element": "Fire",
+      "Depth": 3,
+      "MaxHp": 575000,
+      "Attack": 205,
+      "Defense": 0,
+      "CombatProfileCode": "fire-deep-lv1-monster-2",
+      "RewardProfileCode": "ragefire-heart-pack-loot-2",
+      "IsBoss": false
+    },
+    {
+      "Wave": 3,
+      "Name": "灰炬狂信徒",
+      "Element": "Fire",
+      "Depth": 3,
+      "MaxHp": 690000,
+      "Attack": 240,
+      "Defense": 0,
+      "CombatProfileCode": "fire-deep-lv1-monster-3",
+      "RewardProfileCode": "ragefire-heart-guard",
+      "IsBoss": false
+    },
+    {
+      "Wave": 4,
+      "Name": "燧渊熔甲卫",
+      "Element": "Fire",
+      "Depth": 3,
+      "MaxHp": 735000,
+      "Attack": 270,
+      "Defense": 0,
+      "CombatProfileCode": "fire-deep-lv1-monster-4",
+      "RewardProfileCode": "ragefire-heart-guard-loot-2",
+      "IsBoss": false
+    },
+    {
+      "Wave": 5,
+      "Name": "熔火督军",
+      "Element": "Fire",
+      "Depth": 3,
+      "MaxHp": 1290000,
+      "Attack": 280,
+      "Defense": 0,
+      "CombatProfileCode": "fire-deep-lv1-monster-5:depth-lv3",
+      "RewardProfileCode": "ragefire-heart-boss",
+      "IsBoss": true
+    }
+  ],
+  "Lv1ToLv4Stats": [
+    {
+      "Depth": 1,
+      "Monsters": [
+        {
+          "Name": "烬核火卫",
+          "MaxHp": 420000,
+          "Attack": 140
+        },
+        {
+          "Name": "焦砾蠕行者",
+          "MaxHp": 500000,
+          "Attack": 170
+        },
+        {
+          "Name": "灰炬狂信徒",
+          "MaxHp": 580000,
+          "Attack": 190
+        },
+        {
+          "Name": "燧渊熔甲卫",
+          "MaxHp": 650000,
+          "Attack": 210
+        },
+        {
+          "Name": "熔火督军",
+          "MaxHp": 1100000,
+          "Attack": 240
+        }
+      ]
+    },
+    {
+      "Depth": 2,
+      "Monsters": [
+        {
+          "Name": "烬核火卫",
+          "MaxHp": 450000,
+          "Attack": 155
+        },
+        {
+          "Name": "焦砾蠕行者",
+          "MaxHp": 520000,
+          "Attack": 185
+        },
+        {
+          "Name": "灰炬狂信徒",
+          "MaxHp": 600000,
+          "Attack": 210
+        },
+        {
+          "Name": "燧渊熔甲卫",
+          "MaxHp": 670000,
+          "Attack": 235
+        },
+        {
+          "Name": "熔火督军",
+          "MaxHp": 1170000,
+          "Attack": 270
+        }
+      ]
+    },
+    {
+      "Depth": 3,
+      "Monsters": [
+        {
+          "Name": "烬核火卫",
+          "MaxHp": 495000,
+          "Attack": 170
+        },
+        {
+          "Name": "焦砾蠕行者",
+          "MaxHp": 575000,
+          "Attack": 205
+        },
+        {
+          "Name": "灰炬狂信徒",
+          "MaxHp": 690000,
+          "Attack": 240
+        },
+        {
+          "Name": "燧渊熔甲卫",
+          "MaxHp": 735000,
+          "Attack": 270
+        },
+        {
+          "Name": "熔火督军",
+          "MaxHp": 1290000,
+          "Attack": 280
+        }
+      ]
+    },
+    {
+      "Depth": 4,
+      "Monsters": [
+        {
+          "Name": "烬核火卫",
+          "MaxHp": 500000,
+          "Attack": 190
+        },
+        {
+          "Name": "焦砾蠕行者",
+          "MaxHp": 580000,
+          "Attack": 230
+        },
+        {
+          "Name": "灰炬狂信徒",
+          "MaxHp": 700000,
+          "Attack": 270
+        },
+        {
+          "Name": "燧渊熔甲卫",
+          "MaxHp": 740000,
+          "Attack": 310
+        },
+        {
+          "Name": "熔火督军",
+          "MaxHp": 1300000,
+          "Attack": 320
+        }
+      ]
+    }
+  ],
+  "FireCore": {
+    "Trigger": {
+      "HpAtMostPercent": 65,
+      "MaximumActivationsPerBossEncounter": 1,
+      "Activation": "首次达到血量条件后的下一次完整玩家回合开始；不按房间累计回合触发。"
+    },
+    "WindowFullPlayerRounds": 4,
+    "HeatedAttackBonusPercent": 25,
+    "LinkedSlash": {
+      "FrontPowerPercent": 160,
+      "AdditionalDistinctLivingTargets": 2,
+      "AdditionalTargetPowerPercent": 80,
+      "InterruptedSlashCancelsAllHits": true,
+      "BreakClearsHeatingAndSplashImmediately": true
+    },
+    "Break": {
+      "ActualDirectWaterDamagePercentOfBossMaximumHp": 5,
+      "RequiredDamage": 64500,
+      "Included": "水属性普攻、二连、职业或魂印直接技能、普攻追击、有水属性的直接反击；按实际扣血逐段累计。",
+      "Excluded": "持续伤害、非水属性伤害、溢出伤害、蓄热开始前的伤害。"
+    },
+    "Success": {
+      "RewardStartsNextFullPlayerRound": true,
+      "RewardFullPlayerRounds": 3,
+      "DamageTakenBonusPercent": 20
+    },
+    "Expiry": "四个完整玩家回合结束后蓄热与扩散一同解除，恢复常态；不永久叠层、不追加失败攻击、不重复触发，也不给成功奖励。"
+  },
+  "SimulationSummaries": {
+    "mage-hunter": {
+      "Runs": 30,
+      "Seeds": [
+        7213,
+        7214,
+        7215,
+        7216,
+        7217,
+        7218,
+        7219,
+        7220,
+        7221,
+        7222,
+        7223,
+        7224,
+        7225,
+        7226,
+        7227,
+        7228,
+        7229,
+        7230,
+        7231,
+        7232,
+        7233,
+        7234,
+        7235,
+        7236,
+        7237,
+        7238,
+        7239,
+        7240,
+        7241,
+        7242
+      ],
+      "Victories": 30,
+      "AllFiveAlive": 30,
+      "MeanRounds": 89.33333333333333,
+      "MeanCycleMinutes": 29.71107713294445,
+      "MinimumRounds": 86,
+      "MaximumRounds": 92,
+      "MeanEnemyRounds": {
+        "烬核火卫": 12.166666666666666,
+        "焦砾蠕行者": 13.766666666666667,
+        "灰炬狂信徒": 16.433333333333334,
+        "燧渊熔甲卫": 17.166666666666668,
+        "熔火督军": 29.8
+      },
+      "PotionsUsed": 0,
+      "DeathEvents": 0,
+      "Core": {
+        "Activations": 30,
+        "Breaks": 27,
+        "Expiries": 3,
+        "LinkedHits": 6
+      },
+      "MinimumObservedHpPercentAfterDamagePerSlot": {
+        "1": 7.62953896368829,
+        "2": 74.64114832535886,
+        "3": 89.68253968253968,
+        "4": 89.65314520870076,
+        "5": 76.24250969333804
+      },
+      "SourcesUnchangedDuringRun": true
+    },
+    "mage-rogue": {
+      "Runs": 10,
+      "Seeds": [
+        7213,
+        7214,
+        7215,
+        7216,
+        7217,
+        7218,
+        7219,
+        7220,
+        7221,
+        7222
+      ],
+      "Victories": 10,
+      "AllFiveAlive": 10,
+      "MeanRounds": 88.5,
+      "MeanCycleMinutes": 29.4332947995,
+      "MinimumRounds": 87,
+      "MaximumRounds": 90,
+      "MeanEnemyRounds": {
+        "烬核火卫": 12.1,
+        "焦砾蠕行者": 13.7,
+        "灰炬狂信徒": 16.4,
+        "燧渊熔甲卫": 17.2,
+        "熔火督军": 29.1
+      },
+      "PotionsUsed": 0,
+      "DeathEvents": 0,
+      "Core": {
+        "Activations": 10,
+        "Breaks": 10,
+        "Expiries": 0,
+        "LinkedHits": 0
+      },
+      "MinimumObservedHpPercentAfterDamagePerSlot": {
+        "1": 10.199918400652795,
+        "2": 84.11483253588517,
+        "3": 90.68195179306291,
+        "4": 84.80789566443427,
+        "5": 90.65255731922399
+      },
+      "SourcesUnchangedDuringRun": true
+    },
+    "hunter-rogue": {
+      "Runs": 10,
+      "Seeds": [
+        7213,
+        7214,
+        7215,
+        7216,
+        7217,
+        7218,
+        7219,
+        7220,
+        7221,
+        7222
+      ],
+      "Victories": 10,
+      "AllFiveAlive": 10,
+      "MeanRounds": 88.5,
+      "MeanCycleMinutes": 29.43329485,
+      "MinimumRounds": 87,
+      "MaximumRounds": 91,
+      "MeanEnemyRounds": {
+        "烬核火卫": 12,
+        "焦砾蠕行者": 13.8,
+        "灰炬狂信徒": 16.4,
+        "燧渊熔甲卫": 17,
+        "熔火督军": 29.3
+      },
+      "PotionsUsed": 0,
+      "DeathEvents": 0,
+      "Core": {
+        "Activations": 10,
+        "Breaks": 10,
+        "Expiries": 0,
+        "LinkedHits": 2
+      },
+      "MinimumObservedHpPercentAfterDamagePerSlot": {
+        "1": 8.731130150958792,
+        "2": 84.44976076555024,
+        "3": 85.90059922453295,
+        "4": 89.7119341563786,
+        "5": 89.68253968253968
+      },
+      "SourcesUnchangedDuringRun": true
+    },
+    "single-water": {
+      "Runs": 10,
+      "Seeds": [
+        7213,
+        7214,
+        7215,
+        7216,
+        7217,
+        7218,
+        7219,
+        7220,
+        7221,
+        7222
+      ],
+      "Victories": 10,
+      "AllFiveAlive": 10,
+      "MeanRounds": 92,
+      "MeanCycleMinutes": 30.59996105433334,
+      "MinimumRounds": 89,
+      "MaximumRounds": 94,
+      "MeanEnemyRounds": {
+        "烬核火卫": 12.5,
+        "焦砾蠕行者": 14.2,
+        "灰炬狂信徒": 16.6,
+        "燧渊熔甲卫": 17.7,
+        "熔火督军": 31
+      },
+      "PotionsUsed": 0,
+      "DeathEvents": 0,
+      "Core": {
+        "Activations": 10,
+        "Breaks": 0,
+        "Expiries": 10,
+        "LinkedHits": 6
+      },
+      "MinimumObservedHpPercentAfterDamagePerSlot": {
+        "1": 9.710322317421461,
+        "2": 82.39234449760765,
+        "3": 89.564961787184,
+        "4": 83.64469510045824,
+        "5": 83.3627070849489
+      },
+      "SourcesUnchangedDuringRun": true
+    },
+    "no-water": {
+      "Runs": 10,
+      "Seeds": [
+        7213,
+        7214,
+        7215,
+        7216,
+        7217,
+        7218,
+        7219,
+        7220,
+        7221,
+        7222
+      ],
+      "Victories": 10,
+      "AllFiveAlive": 10,
+      "MeanRounds": 94,
+      "MeanCycleMinutes": 31.26662754433333,
+      "MinimumRounds": 93,
+      "MaximumRounds": 95,
+      "MeanEnemyRounds": {
+        "烬核火卫": 12.8,
+        "焦砾蠕行者": 14.4,
+        "灰炬狂信徒": 17.2,
+        "燧渊熔甲卫": 18.1,
+        "熔火督军": 31.5
+      },
+      "PotionsUsed": 0,
+      "DeathEvents": 0,
+      "Core": {
+        "Activations": 10,
+        "Breaks": 0,
+        "Expiries": 10,
+        "LinkedHits": 20
+      },
+      "MinimumObservedHpPercentAfterDamagePerSlot": {
+        "1": 11.913504691962466,
+        "2": 81.7224880382775,
+        "3": 79.41487486781811,
+        "4": 82.55199154035954,
+        "5": 79.30912936200212
+      },
+      "SourcesUnchangedDuringRun": true
+    }
+  },
+  "Interpretation": {
+    "MainBenchmark": "土坦、光奶、水法、水猎、火盗：30/30全员通关，27/30破核；平均29.71分钟，Boss29.8回合。",
+    "AlternativeDoubleWater": "三种双水组合合计50/50全员通关、47/50破核。",
+    "SingleWater": "仅水法10/10全员通关，0/10破核，平均30.6分钟。",
+    "NoWater": "无水队10/10全员通关，0/10破核，平均31.27分钟；仍可硬打。",
+    "LinkedPressure": {
+      "mage-hunter": {
+        "LinkedHits": 6,
+        "Note": "提前破核或打断火焰斩可以避免扩散。"
+      },
+      "mage-rogue": {
+        "LinkedHits": 0,
+        "Note": "提前破核或打断火焰斩可以避免扩散。"
+      },
+      "hunter-rogue": {
+        "LinkedHits": 2,
+        "Note": "提前破核或打断火焰斩可以避免扩散。"
+      },
+      "single-water": {
+        "LinkedHits": 6,
+        "Note": "提前破核或打断火焰斩可以避免扩散。"
+      },
+      "no-water": {
+        "LinkedHits": 20,
+        "Note": "提前破核或打断火焰斩可以避免扩散。"
+      }
+    },
+    "SurvivalMargin": {
+      "MinimumTankHpPercentMainCase": 7.62953896368829,
+      "Note": "通过降低第四波与Boss攻击提高前排余量，仍有血线压力；装备基准未使用魂印或药剂。"
+    },
+    "ComparisonLimit": "不同元素装备的词条与随机触发不同，配队时长差异不能直接用作破核奖励的纯收益。",
+    "SampleLimit": "结果来自固定装备与确定随机种子的受控样本，不是所有配装的胜率保证。"
+  },
+  "Adjustment": {
+    "InitialCandidates": [
+      {
+        "Scenario": "mage-hunter",
+        "Adopted": false,
+        "Runs": 5,
+        "InitialMonsters": [
+          {
+            "Name": "烬核火卫",
+            "Wave": 1,
+            "Position": 1,
+            "MaxHp": 475000,
+            "Attack": 170,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-1"
+          },
+          {
+            "Name": "焦砾蠕行者",
+            "Wave": 2,
+            "Position": 1,
+            "MaxHp": 550000,
+            "Attack": 205,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-2"
+          },
+          {
+            "Name": "灰炬狂信徒",
+            "Wave": 3,
+            "Position": 1,
+            "MaxHp": 650000,
+            "Attack": 240,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-3"
+          },
+          {
+            "Name": "燧渊熔甲卫",
+            "Wave": 4,
+            "Position": 1,
+            "MaxHp": 705000,
+            "Attack": 275,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-4"
+          },
+          {
+            "Name": "熔火督军",
+            "Wave": 5,
+            "Position": 1,
+            "MaxHp": 1230000,
+            "Attack": 300,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-5:depth-lv3"
+          }
+        ],
+        "Victories": 5,
+        "AllFiveAlive": 5,
+        "MeanRounds": 85.2,
+        "MeanCycleMinutes": 28.33329469233333
+      },
+      {
+        "Scenario": "mage-rogue",
+        "Adopted": false,
+        "Runs": 5,
+        "InitialMonsters": [
+          {
+            "Name": "烬核火卫",
+            "Wave": 1,
+            "Position": 1,
+            "MaxHp": 475000,
+            "Attack": 170,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-1"
+          },
+          {
+            "Name": "焦砾蠕行者",
+            "Wave": 2,
+            "Position": 1,
+            "MaxHp": 550000,
+            "Attack": 205,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-2"
+          },
+          {
+            "Name": "灰炬狂信徒",
+            "Wave": 3,
+            "Position": 1,
+            "MaxHp": 650000,
+            "Attack": 240,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-3"
+          },
+          {
+            "Name": "燧渊熔甲卫",
+            "Wave": 4,
+            "Position": 1,
+            "MaxHp": 705000,
+            "Attack": 275,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-4"
+          },
+          {
+            "Name": "熔火督军",
+            "Wave": 5,
+            "Position": 1,
+            "MaxHp": 1230000,
+            "Attack": 300,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-5:depth-lv3"
+          }
+        ],
+        "Victories": 5,
+        "AllFiveAlive": 5,
+        "MeanRounds": 84.4,
+        "MeanCycleMinutes": 28.06662764766667
+      },
+      {
+        "Scenario": "hunter-rogue",
+        "Adopted": false,
+        "Runs": 5,
+        "InitialMonsters": [
+          {
+            "Name": "烬核火卫",
+            "Wave": 1,
+            "Position": 1,
+            "MaxHp": 475000,
+            "Attack": 170,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-1"
+          },
+          {
+            "Name": "焦砾蠕行者",
+            "Wave": 2,
+            "Position": 1,
+            "MaxHp": 550000,
+            "Attack": 205,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-2"
+          },
+          {
+            "Name": "灰炬狂信徒",
+            "Wave": 3,
+            "Position": 1,
+            "MaxHp": 650000,
+            "Attack": 240,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-3"
+          },
+          {
+            "Name": "燧渊熔甲卫",
+            "Wave": 4,
+            "Position": 1,
+            "MaxHp": 705000,
+            "Attack": 275,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-4"
+          },
+          {
+            "Name": "熔火督军",
+            "Wave": 5,
+            "Position": 1,
+            "MaxHp": 1230000,
+            "Attack": 300,
+            "Defense": 0,
+            "CombatProfileCode": "fire-deep-lv1-monster-5:depth-lv3"
+          }
+        ],
+        "Victories": 5,
+        "AllFiveAlive": 5,
+        "MeanRounds": 83.6,
+        "MeanCycleMinutes": 27.799960480333333
+      }
+    ],
+    "HighAttackTrial": {
+      "BossAttack": 300,
+      "Runs": 70,
+      "AllFiveAlive": 70,
+      "MinimumTankHpPercent": 2.203182374541004,
+      "ConfigurationSha256": "999ca65d47bef0d58c749ac427b1a0224dc7cbb37b5051354b3e00f4bc9eba5d",
+      "Adopted": false,
+      "Reason": "Boss后期消耗造成前排生存余量过小。"
+    },
+    "IntermediateAttackTrial": {
+      "BossAttack": 285,
+      "Runs": 10,
+      "AllFiveAlive": 10,
+      "MinimumTankHpPercent": 6.079151366789066,
+      "Adopted": false
+    },
+    "Decision": "初始三种双水组合约27.8～28.3分钟，血量调至49.5/57.5/69/73.5/129万；最终攻击170/205/240/270/280，保留5%阈值。",
+    "DepthGradient": "五波生命和攻击均严格按LV1<LV2<LV3<LV4排列，修正旧LV3生命高于LV4的倒挂。LV3到LV4的核心差异是周期化与三水门槛，独立血量增幅不强制相同。"
+  },
+  "ProductionIntegration": {
+    "Configuration": "Game.Server/appsettings.json",
+    "DepthDefinitionRevision": 6,
+    "BossReplacementProfile": "fire-deep-lv3-boss",
+    "ResolvedBossProfile": "fire-deep-lv1-monster-5:depth-lv3",
+    "CalibratedDepths": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "RemovedLv3Placeholders": true,
+    "ExistingFireLv1Lv2Lv4Preserved": true,
+    "OtherElementsAndRewardsPreserved": true,
+    "DeepWeaponAcquisition": "本轮未新增深层武器掉落或兑换。",
+    "Persistence": "复用既有FireCore阶段与BattleMonsterPhaseStates持久化，一次触发与联动直接组合，无需新增数据库字段或迁移。",
+    "Activation": "服务重新加载后新建房间使用新配置；已有房间与其连续挑战沿用冻结快照。",
+    "Lv5Plus": "沿用LV4机制和原有10%占位成长，仍需单独校准。"
+  },
+  "Verification": {
+    "ServerRelatedCasesPassed": 69,
+    "SimulatorCasesPassed": 58,
+    "Coverage": "一次血量触发联动、随机不同目标、打断及提前破核取消扩散、实际水伤、完整处理及奖励回合、服务重建持久化、配置引用、面板梯度和六属性装备基准。",
+    "AllFormalPreviewParity": [
+      {
+        "Scenario": "mage-hunter",
+        "ComparedSeeds": 30,
+        "CompleteBattleFingerprintAndPhaseHistoryMatch": true
+      },
+      {
+        "Scenario": "mage-rogue",
+        "ComparedSeeds": 10,
+        "CompleteBattleFingerprintAndPhaseHistoryMatch": true
+      },
+      {
+        "Scenario": "hunter-rogue",
+        "ComparedSeeds": 10,
+        "CompleteBattleFingerprintAndPhaseHistoryMatch": true
+      },
+      {
+        "Scenario": "single-water",
+        "ComparedSeeds": 10,
+        "CompleteBattleFingerprintAndPhaseHistoryMatch": true
+      },
+      {
+        "Scenario": "no-water",
+        "ComparedSeeds": 10,
+        "CompleteBattleFingerprintAndPhaseHistoryMatch": true
+      }
+    ],
+    "ActualWaterWindowAndLinkedTargetAuditPassed": true,
+    "ExistingDepthRegressions": [
+      {
+        "Depth": 2,
+        "ComparedSeeds": [
+          7213,
+          7214,
+          7215
+        ],
+        "CompleteFingerprintAndPhaseHistoryUnchanged": true
+      },
+      {
+        "Depth": 4,
+        "ComparedSeeds": [
+          7213,
+          7214,
+          7215
+        ],
+        "CompleteFingerprintAndPhaseHistoryUnchanged": true
+      }
+    ],
+    "UnrelatedConfigurationAuditPassed": true,
+    "ProductionConfigurationSha256": "b2b8ecfdb94f01a0ba92518e97b2bb8b6a9fec09832cad044986a220b0bc203c",
+    "SourceFiles": {
+      "Game.Server/Configuration/ActivityOptions.cs": "7943D7704192426E5935C53076363270190435FD452D7A73684CCE89CC564064",
+      "Game.Server/Configuration/CharacterSlotOptions.cs": "077063CDAFF91CE5F26B097C5A40B6DB54ACCCC190443866B0A55CE447FB0954",
+      "Game.Server/Configuration/CombatDamageOptions.cs": "18D87B74275496E236462CE16E140433D1DABD00A0E763BFBC47F97048FC628D",
+      "Game.Server/Configuration/ConsumableOptions.cs": "F052448ABF292FD25333E84F6D747B04CD6C539CDB98BE9C37424DA16FB7FE33",
+      "Game.Server/Configuration/DungeonDepthOptions.cs": "B716DB3B8F5C258513C6D8FBD2A8AE6D3CA2912614AEB27895C9CF5D938EB8AA",
+      "Game.Server/Configuration/DungeonEncounterOptions.cs": "B06971F4683C2F8DC2E64479E4B4F0D6125F0F77769D48D4ACF4565133EC6CA0",
+      "Game.Server/Configuration/DungeonExchangeOptions.cs": "791EA5F13731662AF772DB1D5F824F50EB7C55851CC6D0151FB6B7D88B4DA364",
+      "Game.Server/Configuration/GatheringOptions.cs": "D9409C7F96840D72111984776ADBB5D8E046C974335D5193B4E3D6023B5605E2",
+      "Game.Server/Configuration/MaterialOptions.cs": "06DF2B3340A897CB4951783DA16822AB686D6F3848760DB6CA2AE19D18EA9CEA",
+      "Game.Server/Configuration/MonsterCombatOptions.cs": "C24E11A98E031B156214986AD4A2E72B4051C5F417BDA2B53322C673D8FC02E3",
+      "Game.Server/Configuration/PartyScalingOptions.cs": "8163C524CDFAF359387C27887A9871582B300964B7C0D307378515A4AE406800",
+      "Game.Server/Configuration/PlantingOptions.cs": "B258B5A586FBA1BAA62A6D956679ACBEF1E2FF0B2A7F187C1BA70A6820E04FF4",
+      "Game.Server/Configuration/ProductionOptions.cs": "E815688326B59BDB1599E3227D28C9689DAF5CCD6C0B34FCBA1F1EF3A7A90947",
+      "Game.Server/Configuration/ProfessionProgressionOptions.cs": "084BA8F15BEEE63678B3EDCA5903FB80E71724F74AD7F68347B7B339183000C4",
+      "Game.Server/Configuration/ProgressionOptions.cs": "073769DEEA4C734B94D56375ED8148736B3B40858B05297DCE407C3772B008DD",
+      "Game.Server/Configuration/RewardOptions.cs": "1B46AD9C8B909B9A377BDA229073DA74514137C67E2B8F2D5A55E4729097ED0A",
+      "Game.Server/Configuration/SessionCleanupOptions.cs": "993350B8738922CE3A0B0C9DC7A691B741544CF908426D17883181DF28955F9B",
+      "Game.Server/Configuration/ShopOptions.cs": "2E5C3F56DF1A7C4086053426D0FE2108A5E776D4394ECC8F523D5CF09E7CEABF",
+      "Game.Server/Configuration/SkillOptions.cs": "DE962044D68B73E15078420FCE8295121C6B5DD29C261A382F8E066794ABFF6A",
+      "Game.Server/Configuration/SoulImprintOptions.cs": "861D73C42CD3860697EEB42F96A0E75732A0C7601C9BCF174EC1C85B15E786EB",
+      "Game.Server/Configuration/WeaponBreakthroughOptions.cs": "CAE6315A0D323A7D8D1C81D10616B62EAC89C17C0254806EC2C8339ED7C118B4",
+      "Game.Server/Configuration/WeaponOptions.cs": "4F5FF9BB925267C3CEBCE09FACA4019FDC69AB7B3098DD97D2AF25F59FE6E2FE",
+      "Game.Server/Configuration/WorldOptions.cs": "070D7714B94568E1C7A727002CF704B85AF0F1BE14BE0CA5C35CC4FEEEAE645F",
+      "Game.Server/Services/AcolyteMechanics.cs": "5D63770FAA19D60E6BEF2BE5CBB19F74F3F44B30242105BB0E70462A5FBA5DEF",
+      "Game.Server/Services/BackgroundCycleHealth.cs": "42C457C9587F39860A721B40684E07431276F4491E370003D135AF2EB4EABA72",
+      "Game.Server/Services/BattleConsumableBonusCalculator.cs": "EA76895BA7F82C4911F98B54D0F88BD1AE1C86E7DC20254B83F67CA3B9AE4BA1",
+      "Game.Server/Services/BattleConsumableStatus.cs": "018962369437341E2323BACA9A4DA0BAD20087A8D164046E8CADE4912A04AEFF",
+      "Game.Server/Services/BattleDamageService.cs": "278BBF3B3234CF61760281C5493C511A34BFFF29259F43AB0ED8FC651E207512",
+      "Game.Server/Services/BattleEffectExecutor.cs": "DBA541C03B6A7DCAEA9CECD4666483E0458B0F945E65FE7902E03B81C7693CD7",
+      "Game.Server/Services/BattleEventCollector.cs": "AC9E77A0C548EE7F796570703946C51FEECD2ED40A5F37B5014690C5EFE35476",
+      "Game.Server/Services/BattleExecutionContext.cs": "3F2BF54B79D474190977F3ED8FD21B8690B4F49D13B67428BC29E93ECE5F364D",
+      "Game.Server/Services/BattleGuardService.cs": "14EDEEC57FE85A1A7862AEB100EB2BAED2D9C081B2E16E0014FD8483F6EBA17C",
+      "Game.Server/Services/BattleLogStore.cs": "3D25F53E917B86D93500C3DAA24ADF2793CC5C43A11C39B42F66D0DEADD4A630",
+      "Game.Server/Services/BattleMilestoneService.cs": "1405148F8855B9D69EA172028FEF6406C17676933006B0660C07772F49B7EE5E",
+      "Game.Server/Services/BattleRoundExecutor.Consumables.cs": "A1AA34ABAADEFE0D197E1D1198482FCA636A98C08BD60A0D9EC4BEA30A48FEEA",
+      "Game.Server/Services/BattleRoundExecutor.Skills.cs": "6B81F1EA68A6047D0324A4F64AABC16C82C36215ED68B589DB213D0DDC6F8FD1",
+      "Game.Server/Services/BattleRoundExecutor.SoulImprints.cs": "67880FF2539AC045A90EA9AA8FC8425A52F9E175617520E1A16A6B3F2E10CEE1",
+      "Game.Server/Services/BattleRoundExecutor.cs": "8CA96171A49C59384894AEF5ABB8E2F9289CBB887BEC96CE34FFD6FE0E05CAC5",
+      "Game.Server/Services/BattleRoundTrace.cs": "308C6D7FBD9C13799BBCF76D425DAC8C6F82129A8957C0CB5AB5CB1B614AF677",
+      "Game.Server/Services/BattleService.Consumables.cs": "0DC13E8C20C39315437A69EB0215962CB87860B5EE95029D56992F1D8A00A5F7",
+      "Game.Server/Services/BattleService.cs": "2C6666EDEBB55289160C6083F9E334276913B243320ACE515379AF56E405A95B",
+      "Game.Server/Services/BattleSkillDefinition.cs": "E32215931FF506D2A6CBF643B6C133B9E1B5715F313149E1B64E21A2372115B9",
+      "Game.Server/Services/BattleStatusCatalog.cs": "4766B2160E9BE714277876D6DB4C279BDBF91FAEB57A84A7288458274F60BDBB",
+      "Game.Server/Services/BattleStatusDefinition.cs": "FE5AA8E37A08742243FA2BC1D98D17CDFB13E3045F825B317E1945D229288552",
+      "Game.Server/Services/BattleStatusService.cs": "6569546D3F76C4E8C68F3E77F9957F09A030DC6AC267F48E8CBCEA2935013942",
+      "Game.Server/Services/BattleSynchronizationService.cs": "0E60D4ECCD293D637887C2618CD11BEE3E03052C113EE0FFB60A77ACD54F52AD",
+      "Game.Server/Services/BattleWeaponBonusSnapshot.cs": "73051EB7D05D3D1669B339D380CE50D90F263A855871313E47CA58C52798B627",
+      "Game.Server/Services/CharacterAccessResolver.cs": "2B485E1C3E6CA1DAA482352681E0B398DB2B56D6F6E61F94CC31A93FA286375C",
+      "Game.Server/Services/CharacterActivityManager.cs": "3717305FA7B20593D3CD0FF023C9519D5600708DA3389118359B74EEE18214BA",
+      "Game.Server/Services/CharacterCombatStatSnapshot.cs": "AAC13169CEC3C488D3051582ACBF23172D4854FEF1032BBA7B8E448FACEA7C32",
+      "Game.Server/Services/CharacterEquipmentStats.cs": "1D268C9D63A6788AB32C247A0F7D01E26D76255369DAA8BB6BE34FC94389B18D",
+      "Game.Server/Services/CharacterLifecycleService.cs": "A069DEF62AF223CA2576AF2FDA92EF98AFC342708E4A1142BF7024C8D565755C",
+      "Game.Server/Services/CharacterSlotCatalog.cs": "47EE9ECA60E741C2D1B7D896D4CCA8CD602899A350000D0467B97181014A5A37",
+      "Game.Server/Services/CombatProfessionProgressStore.cs": "BE87A92BEA157D9402E2F7B8863601D699BDB4F18E02B847C184298E78BC872E",
+      "Game.Server/Services/CombatProfessionService.cs": "855AE0B5CBBEAB416DBFCE3C5F760FD1187400124A7E68D1E4C8E10035C420EB",
+      "Game.Server/Services/CombatSkillLoadoutCodec.cs": "FF55F88516C5DA93722EB4C18606FECE046600CFAF6E0A51BB5497013A6B29A3",
+      "Game.Server/Services/ConsumableCatalog.cs": "972A6644B17381375F5572D92B6B5F75B94C9F90CA743E9364C2720726C1FD5F",
+      "Game.Server/Services/ConsumableService.cs": "16D9FBF5946FF2C9F26890F1C30E8952B1FB096505B67FDF63C8FC161353D8BC",
+      "Game.Server/Services/ConsumableUsePolicy.cs": "D23CAB672B3A04461815E28D8E6AD0607AD68CB0B78708793FEDF231AC3BFCE6",
+      "Game.Server/Services/ContentCatalogStore.cs": "E83245B68EA3D9D64A34BA29BA610D4883355AF992AF7CB8C7FA1D2BA7B3E8F6",
+      "Game.Server/Services/DamageCalculator.cs": "32A036B964FE9542FD0C708B95DEE8EC59BCA865723363BAEDA664C7D13F7A34",
+      "Game.Server/Services/DamageVariance.cs": "A694A20ED053F926335D6DEDC0019C37148B1F74AEE7F4921F259EBB9C74129B",
+      "Game.Server/Services/DungeonContentValidator.cs": "0D71E20F8C2E6E0A2237E738B9370B6B1FC8BA9172C6146CB0B5DC03447131D3",
+      "Game.Server/Services/DungeonDepthCatalog.cs": "1E9CEF2D120B8206E4B5AAF65E7B74F7064635FB1AB3E2D13E987F00EB778020",
+      "Game.Server/Services/DungeonDepthProgressService.cs": "A4A40A2D41F9FDD91D53C94101733048AF343A1852A213D4388E0A81569C9410",
+      "Game.Server/Services/DungeonEncounterCatalog.cs": "7D8F6C2FFFA95F5C7945A2A81C6297F5166CAD22E8E2A255A65104D72D956510",
+      "Game.Server/Services/DungeonExchangeCatalog.cs": "0ABDE5B6E71AAF67332BCC281A72F7F855E8882F6F8754AB311E22772F28B675",
+      "Game.Server/Services/DungeonRunDefinition.cs": "D76F537D40A6D4764FEDCB5DBF060107A5818097532F5F92DE2B24DEF40307CC",
+      "Game.Server/Services/DungeonRunLifecycleService.cs": "0CC5028A232C03266E47583A77E081CB5C8E7B74562355930340057CD1E265CB",
+      "Game.Server/Services/DungeonRunRulesService.cs": "C62FD38D70B3C35BF325FF057636BDCC310E3D8582C365FD438404A5FAF3A605",
+      "Game.Server/Services/DungeonRunService.cs": "C823F5D5DAB949742CF396A1F1EAF83CE100DC89AE6804CF3A3ABC9E2E1179C0",
+      "Game.Server/Services/GatheringCatalog.cs": "032554EF5AEE4757ED181EA9213FF4A39A10685FC3831F487E4A639BCAE9315C",
+      "Game.Server/Services/GatheringCycleService.cs": "9401244993E7B7E33358E8ACE39AF2617F36A80978A6C3AF894AFC7DFB953449",
+      "Game.Server/Services/GatheringOpportunityService.cs": "E5EE40F60116386C61677A4A2B9B12CEA13FF44995CADB25405902878BFA55C0",
+      "Game.Server/Services/GatheringService.cs": "DE9E4DFC9D539CE0E670C88044F3BC31BD70DB7123B934225CA60681796CE867",
+      "Game.Server/Services/HunterMechanics.cs": "4FC50810CF5CA33C3DB9E552AA8E23AD83E1E1238F4B00EDBA10A40C131C4FBA",
+      "Game.Server/Services/KnightMechanics.cs": "A49A529D1BDCAB247DD78F48835E379B66184A99CD865E0A9A8FE61954374079",
+      "Game.Server/Services/LegacyBattleTalentService.cs": "9F4FC09132EE691D967A93F659808C384C2CC5ABC0BE07FB644F500EAE202C4E",
+      "Game.Server/Services/LegacyMonsterDefenseAdapter.cs": "7E1BE6ED25C2D029F4815AF9FAF2D893BC601192797E846CD8D0FC8C83268E7C",
+      "Game.Server/Services/LegacySkillTalentAdapter.cs": "910E291BAFEE9C75A4DD3303409EDC46732FC2657A06E3518D325502BDFF3D52",
+      "Game.Server/Services/MageMechanics.cs": "3A2B04F46E24FFC4C316AE839DD142A1A66E1F2DA4FA70081D310D60E83EFD84",
+      "Game.Server/Services/MaterialCatalog.cs": "A7CFB2009CAE3604246F9B3C664E1DFCC8AFEF774AEEEA4D1C83B9F007A3C702",
+      "Game.Server/Services/MonsterCombatCatalog.cs": "1712FA89277FB103E480BDEEDC77D9AFD0350CCFE21CBD51E200800784011A24",
+      "Game.Server/Services/MonsterCombatService.cs": "14E0E213E3480F1482A69DE4E918ABDA56847D28A54BC954548A7000B7833237",
+      "Game.Server/Services/MonsterPhaseService.cs": "2B616B09EF07DDB64EDEBCA85351345AD1A037057CFA16B9CA93019E2BA1F837",
+      "Game.Server/Services/OperationPotionBonuses.cs": "457DDEBC5DA94816404DC31815CF2CD4D76892B2B3BA014BB65C5EAB4FEA61A0",
+      "Game.Server/Services/PartyScalingCatalog.cs": "F33B16267E7CCE2F15E02432FFC389FA7E8C79D713F09841F3E5E412E2CFBBE1",
+      "Game.Server/Services/PartyScalingService.cs": "EBC2340392F7043ACBB5E07F0A0D4EA4024C11B8B73CF387F8FD767B78901F1F",
+      "Game.Server/Services/PlantingCatalog.cs": "40E67EAD2CA34EB7A59C7D913B7895B57647B207482E307906FF79053E854806",
+      "Game.Server/Services/PlantingService.cs": "877BF70ABBA2D3DEB5E57E81502D3C23FCFC5DE26B286F4E8EF0CADD9953DBFF",
+      "Game.Server/Services/ProductionCatalog.cs": "AA13D75B3D71A9CB8EB388C404039163AC512C5B9A7F3F5A031F389125F16720",
+      "Game.Server/Services/ProductionCycleService.cs": "202497593A13AAAE57D3CB9DA009D1F5B17741A6B98CBB1A4F75311ADB1931E2",
+      "Game.Server/Services/ProductionService.cs": "99DCC52A8319CD0006AAAD8B947CBC354A1C45EC20CF3B7A5C5071E4C25405AC",
+      "Game.Server/Services/ProfessionCatalog.cs": "52450A59AF6361E6E1DECDADDE52AA6EB8B061B60C7E70CDB46B3FBC662E0BA3",
+      "Game.Server/Services/ProfessionMechanic.cs": "DA4CC3FA5F0C0BDCEE5E7EB61CE2EB7D22198C32311659E4F4A2E14A2CB2ED28",
+      "Game.Server/Services/ProfessionMechanicCatalog.cs": "C56782664F4559DE03ECCF31A5A5421741CD76B69469C2B9E080FC5504727C76",
+      "Game.Server/Services/ProfessionMechanicDefinition.cs": "31CAEEF6BA19667DC3DB85B7C13293A9E606E18CE77255987C2A8EC44022285F",
+      "Game.Server/Services/ProfessionMechanicDescription.cs": "E6FD2F25E6EEA97799B2EF8184B1344E086B9D19E21CE5AC3FC640651F2272D2",
+      "Game.Server/Services/ProfessionService.cs": "43CE0F10221907DECC12739539821A3717EF6ED75C68D0CD41C58AAD54695437",
+      "Game.Server/Services/ProgressionService.cs": "386B30C3669585E61EBCF72620B7F8C01A4B9B1011E5BA86856BFF06E302D38D",
+      "Game.Server/Services/RareSeedService.cs": "3F1F8B430C3019070011846481DEF73F48CD5E1FFE6FA3062F368EA4E8B5AFFF",
+      "Game.Server/Services/RewardCatalog.cs": "793CE6B7547F31EDD1E6202E568152C7E457109A142B14039F5398835C88FC73",
+      "Game.Server/Services/RewardService.cs": "87465638D9A4C0234A5C8A75C428B80AC63557BC4E68DEF16163AB48E4561CCB",
+      "Game.Server/Services/RogueMechanics.cs": "E60F21A0FB91FF1A2EB9B817A36F0EE5A1097CABB44D274D93B7FB5895403798",
+      "Game.Server/Services/RoomAutoPolicy.cs": "695990DAD083644E1D00103212AFFAAD953C91111ED5EF66EB4EAA2E4A933EE0",
+      "Game.Server/Services/RoomCycleService.cs": "2F0D42CB1EE0402765EF32097F66FCDB73D594E87BFAE319078A6CC480E46E98",
+      "Game.Server/Services/RoomListQuery.cs": "FA2A6BDCC85B474CF6959E4B832D8F71401032160EF8BB55EE9130378267883F",
+      "Game.Server/Services/RoomProjectionCache.cs": "3DDEED1B2E48132C30F4FDA08BF52F96EEA0D554A0354531566FFF4E0FBF9C63",
+      "Game.Server/Services/RoomService.Operations.cs": "42EA9243437E146D753F9985C3D7D178936D6E38319B04912992A20AEC281B02",
+      "Game.Server/Services/RoomService.Synchronization.cs": "AEF395837301C69FD153120A6FCE768B593368AC1264F186B34521A4A09BDFA3",
+      "Game.Server/Services/RoomService.cs": "07CE960F130CF8A7EF8868A06384615BB8D60152067478BA444155CD774324FD",
+      "Game.Server/Services/SessionCleanupService.cs": "34D1F6EFA8B8C258FE60DF4FAE51CC48A8D283F9DDE28723932AFF2BB0EF33B2",
+      "Game.Server/Services/ShopCatalog.cs": "D122BDB7B2D7A468414C43C08A32CB20D7623FF00061964F4F940D348BE530B7",
+      "Game.Server/Services/ShopService.cs": "9AC42C0165EC6E4369408CB93D86935DEFBA7E9A39A201DEEAE6AC5C5DFEDCAD",
+      "Game.Server/Services/SkillBattlePolicy.cs": "7EB06DB566327D708E3A7D18D8F9489DD7A74F5155571C8C6EA201462C8B520B",
+      "Game.Server/Services/SkillBattleSnapshotFactory.cs": "A243CA282F3205E2BC91C7941137878C2C6A0E1D8EAB905B11058C77009885F5",
+      "Game.Server/Services/SkillCatalog.cs": "7FE130E5485FC81DB71830D5917BB79EFACA7D348C40A5147ECED810795F95B7",
+      "Game.Server/Services/SkillInformationService.cs": "89AF7343E773B5EEF77D42831B2DEE502F4D8B1EC814DCF1026D646FDC78CA7F",
+      "Game.Server/Services/SkillService.cs": "6FCC1CD5A16DAAD922BC45F4CB210A92F43437ABA7D6B11E6D6E3410D5CF57E7",
+      "Game.Server/Services/SoulImprintCatalog.cs": "ECDDC5E262CC57F2D7F0F27A0664D3333C770CEB47E952A2D41308F61DE9C033",
+      "Game.Server/Services/SoulImprintService.cs": "4721D60EAA12A48F2EA056E1627B0DAE878C38F35C561DAB80924B7AF4C11472",
+      "Game.Server/Services/UserService.cs": "BAE4165AA70A6B593DD5512CEFF3C23B3894CDF8574229AD10FC12A314F9476B",
+      "Game.Server/Services/WeaponBreakthroughCatalog.cs": "35076AE8639C112CB5E9824472B63021817550D8DD354439EDCF911784607912",
+      "Game.Server/Services/WeaponCatalog.cs": "C2B8B7C6DF130C11AEF4388D05896695CD174DA8F9C99C93B1403A3C2B40D7C9",
+      "Game.Server/Services/WeaponService.cs": "6BD7AEFF2E81D6B45667269EA8824DC33C85F5119146A72D253ABF3794BEF33C",
+      "Game.Server/Services/WorldCatalog.cs": "582AC94ED468F71B8A71F199E67E5A5874BA1FBD21AE6E05C2090CAB32BD93E1",
+      "Game.Server/appsettings.json": "8FF5CFA7FDC316E5D9E321808B932801E284A4F3B1AA1E99B474ADEB8D60E21F",
+      "Game.Server/world.json": "703843DDBED07BC62266A06724FFD78F854042B53D7198B47DF3D7D71C78A9E7",
+      "Game.Shared/BattleRules.cs": "36635DAC8F8E7AD10F3A082AEAA0EC257493ABB76C094013C9ACDA89124A080D",
+      "Game.Shared/ConsumableRules.cs": "DC3EA535FE5BDC5F6F4FB870831B18A4B11CF50DBC205366CA2EEF7D48711251",
+      "Game.Shared/CoopDropBonusRules.cs": "97559BB9C876AD4B423FD9F3D1BFC2B005E3486EE7448BA0AC39BECC66115C2D",
+      "Game.Shared/Dtos/AssignRoomSlotRequest.cs": "1AB6901A0BDD88E6DE6061944E8E58F52F48BBCF382FC4C14BA8CDECBBFAACDB",
+      "Game.Shared/Dtos/Auth/AuthResponse.cs": "EB0B8E676A4B4DD16D84CEE08AB59A1AD6FF06C1E4DA1C8F7E40DEE062963215",
+      "Game.Shared/Dtos/Auth/CurrentUserResponse.cs": "A0775A9377CDAE783FEDA3A49F0CED289471B648281319413FB43C8B5FB9A065",
+      "Game.Shared/Dtos/Auth/LoginRequest.cs": "FED07F473C88E143A1F420C85C30C81AE74912D87196F44225F97D6715A7F344",
+      "Game.Shared/Dtos/Auth/RegisterRequest.cs": "B3088FF8C90FE1D56E4E1EE624968BEC91782159A85C66DDE0F81D9F99223DA7",
+      "Game.Shared/Dtos/BattleEventResponse.cs": "0FD687FC1A2568FB0E4F6E7071D81DE6ED2AADE31B40E4A679AC3116E0E05336",
+      "Game.Shared/Dtos/BattleRequest.cs": "EDCAC83C90FAD1BE8C8D0E46BC23E08654DB493621390F6E2F9D2BFF178012CC",
+      "Game.Shared/Dtos/BattleResult.cs": "9EF538684AD18C14B4299C1E98FB4B1EEC0AE2A958BD5D0B0DCDDFBA0540ABB4",
+      "Game.Shared/Dtos/BattleStatusEffectResponse.cs": "C441E29EE2E5244B14A8CDCF387D4705D0E4CB3269141329735BCB238C0B82A3",
+      "Game.Shared/Dtos/BattleSyncResponse.cs": "499CC3F498B1AE1991DE4F812BC8BEF32AB7492CBF7F6DC57339AF83A1CE3828",
+      "Game.Shared/Dtos/Characters/CharacterCombatProfessionsResponse.cs": "8856FF0151BDCE839F79F5728348D032DC20619344EF1565A90F97203E9924A6",
+      "Game.Shared/Dtos/Characters/CharacterConsumablesResponse.cs": "1944DA11F6ACEA871532D3EECC95960EE8934149162D90554F3F863C0A810D6F",
+      "Game.Shared/Dtos/Characters/CharacterSkillsResponse.cs": "ECF74057C9944B60C3797A9F53179EE2F48D18793EDFE783B1BCBC352D2454CC",
+      "Game.Shared/Dtos/Characters/CharacterSoulImprintsResponse.cs": "24C2E57A67C013730B4337BB5E8E80584FE97E4F419B901BB66FFA1975F625FE",
+      "Game.Shared/Dtos/Characters/CharacterSummaryResponse.cs": "85A8CB0116A5BCB942E48401935D5E294E3E1BD5AC54AA2EA62F7099955FA2CB",
+      "Game.Shared/Dtos/Characters/CharacterWeaponsResponse.cs": "CF61FD23EEFBD6B03FA427291196D245EC294BBF0C91D77A922EEE986292AFB7",
+      "Game.Shared/Dtos/Characters/CraftWeaponBreakthroughStoneRequest.cs": "B5D23876B89E4E2E292CB051D28BC353BDCA281C4C89FD8CAF0A22963AEE6ADD",
+      "Game.Shared/Dtos/Characters/CreateCharacterRequest.cs": "8BD89861E4E7D513BFDDF1213BA4028657FB4030480928658128B6C28AEEA2FB",
+      "Game.Shared/Dtos/Characters/CurrentCharacterResponse.cs": "70C21DB175472EB894D6013F8E83E8A973D3C521677108B00E69F2E372703C0C",
+      "Game.Shared/Dtos/Characters/EnhanceWeaponSkillRequest.cs": "256CE1E72FFECCBC71A6A657EFE413F01F4D4FBE2AA9E58D7E4392F942BEFA63",
+      "Game.Shared/Dtos/Characters/SelectCharacterRequest.cs": "49793415A5F073CB392264DCA94EB77A4BC23B605784B07F51E4E5F17D750591",
+      "Game.Shared/Dtos/Characters/SetConsumableSlotRequest.cs": "BA8816D60C2F2EEE6D48E2EC6DFF578BA114C52901BB7A9B374C98390813168A",
+      "Game.Shared/Dtos/Characters/SetQuickSkillCastRequest.cs": "671DD370B64BED2EA6C36BBB8B21725A66331CF5244D5E8C43E31F7A09699B3D",
+      "Game.Shared/Dtos/Characters/SetWeaponLockRequest.cs": "2299CDF40E2C4BF7377C90042D91F33BD2BB29D3C581F72DE08ABC5218173C3D",
+      "Game.Shared/Dtos/Characters/SetWeaponSlotRequest.cs": "6895B8DCA498908F2906082CE6EF4D52204B9AC0CAF32E9DF24D8CBDA0159576",
+      "Game.Shared/Dtos/Characters/UpgradeWeaponQualityRequest.cs": "606B158D1C470601800F8CB2E962FD2988E67977B8B00073E6E3714E50F00776",
+      "Game.Shared/Dtos/Characters/WeaponBatchRequest.cs": "D3CC91C78FA73A0E18F37E1B86FC00BB7CA7428509DCBBF1E0A709BD2D0C014F",
+      "Game.Shared/Dtos/ContentCatalogResponse.cs": "F322B9C2845F907765CC565295C8EE043D461F4B8677718EEEA023E01C11D3DB",
+      "Game.Shared/Dtos/CoopDropBonusPreviewResponse.cs": "53FA45F947B5E0934F17970FA9F186D8629015E4F0B798310895405EFD46D9D5",
+      "Game.Shared/Dtos/CreateRoomRequest.cs": "E5A132F750F8D0826CD2F2360153A3BC2714BBB9374E2C1D0580FE4337E1B361",
+      "Game.Shared/Dtos/DungeonSummaryResponse.cs": "7BD9AD49BA131299CF929F05C2C622BC40B9D6D1A24EBF4FB120FDD5DD9D0442",
+      "Game.Shared/Dtos/Gathering/GatheringOverviewResponse.cs": "5C824C38D6C30909B5EBEE3420A66D0BF1DB4574F9763CD3BDA4FD123FF1DA23",
+      "Game.Shared/Dtos/Gathering/StartGatheringRequest.cs": "46B2D956863B97960441F170CDF7FD65831BDFAB1F8C6F78B6058A4F4A3342FF",
+      "Game.Shared/Dtos/JoinRoomRequest.cs": "17B7E2FFA26CC56030D205BF8FF5EFC72D47B3CF4AC6EF4AAA9DD2242901DE2B",
+      "Game.Shared/Dtos/MonsterPreviewResponse.cs": "922CE98B67E61CE4FC5C7224B263D75F242F69697F4D7C3372E3C3B51A58E6ED",
+      "Game.Shared/Dtos/Planting/PlantingDtos.cs": "F43E4E7E6F6180945D03E4C740882F9DC6AB40236BB6767855098A46A551BE78",
+      "Game.Shared/Dtos/Production/ProductionOverviewResponse.cs": "9B08326FDD49E4B70F4D47340B311CBA5B514717C8809809BAAE904282A6CC36",
+      "Game.Shared/Dtos/Production/StartProductionRequest.cs": "C3B01976E0A73AFE206F298AEBB980BB872F9233ED7379004CCD3EEA314E1FBB",
+      "Game.Shared/Dtos/Professions/ProfessionProgressResponse.cs": "191FAD80164C274757755E5756C846D8F2788AB1D6EAB69D2AC18DF25A98EEB1",
+      "Game.Shared/Dtos/QueueConsumableRequest.cs": "334174895EE38C837B415A9758ED17DAA3185DD4D5A6B689B1BB719E7048CAE3",
+      "Game.Shared/Dtos/QueueSkillRequest.cs": "71E01ED653B3F9C0C4D8B2FB243865B00932F7F0444C985426274A82159B50AE",
+      "Game.Shared/Dtos/QueueSoulImprintRequest.cs": "5C93758774D4AF01F679EF32DD124759503A18750ED6A0DCF48F0EB84C2B03D5",
+      "Game.Shared/Dtos/RegionSummaryResponse.cs": "50ABEA588A517CF12E6014CB2B452BFCB9344673CD2FEA4ACE33C9E313EA239C",
+      "Game.Shared/Dtos/RoomCumulativeRewardsResponse.cs": "0125EAAB0A40E54AE81CABC40CE3CD1874578BE77757A5BB793FF1DBEFB3A03B",
+      "Game.Shared/Dtos/RoomDetailResponse.cs": "FAA2426161A70E9BB3C8FC2A3A5A2579001CFC4A1182F643D39C263A0E20EE27",
+      "Game.Shared/Dtos/RoomOperationResponse.cs": "F636EC5200379D318C22DDAA5C7B9019F497C3A38CC12D24D452064CFE870685",
+      "Game.Shared/Dtos/RoomRewardSummaryResponse.cs": "D6C22661B1D572FCEE2B3918ED8E6715B7DB12BAF940040609DEFDC55A4BA8A6",
+      "Game.Shared/Dtos/RoomRewardsResponse.cs": "860676BEAB3E387FAF06E416AEF2B68C18FD0F2C50B31DAFA37FB1C401AFA371",
+      "Game.Shared/Dtos/RoomSlotResponse.cs": "C67A32A5904F5D755FD01C95084EC58626BD4B335854083E2DC5EFC377B37B68",
+      "Game.Shared/Dtos/RoomSummaryResponse.cs": "BA22B69728D45D6698A517A16D47B38ED904AAB8EE2ADAC72BDAC7DCB117EB64",
+      "Game.Shared/Dtos/SetRoomVisibilityRequest.cs": "8408494BE8FF9961A40F749B7EEFDC22BE610FFA51B8053A8494C61AE3B9A00C",
+      "Game.Shared/Dtos/SetSlotAutoRequest.cs": "FBF77A4D1C1E2037335F459792EB7C232D11063D617F55AD0A841538868CA6B6",
+      "Game.Shared/Dtos/SetSlotAutoResponse.cs": "046463AC33AEB74F41ADA3D0C82FDEDAA698FAA83832313ED91F9D5E6B3B8E30",
+      "Game.Shared/Dtos/Shop/ExchangeDungeonWeaponRequest.cs": "9F7BCE09AF6DAE8C652B0613EDF7DFBA4EDA4F6C9469868F35051CEAF82482C4",
+      "Game.Shared/Dtos/Shop/PurchaseShopItemRequest.cs": "584C2B08A54E1AFA6811C3C007182356A9ABFCB2D44CA9CD08957C8527550A30",
+      "Game.Shared/Dtos/Shop/ShopResponse.cs": "3EE1739283E044B90ECD735D8A383D40A4C71D4352B3994B56E78FFC57CD54C2",
+      "Game.Shared/ElementMatchupRules.cs": "BA8CAAB5698B8C80D242F90C04CC5FE4CEEFCEF5E82499135F19F46A632C744B",
+      "Game.Shared/Enums/BattleStatusLifetime.cs": "431C7713B3185EB7001B1590587B42EB9109907DC1EEF0446A1FBDB853A8A873",
+      "Game.Shared/Enums/DungeonRewardEligibility.cs": "08F8DB13DD3832835514A97426674D6C4501523E21B79E64CD9093A340F58C86",
+      "Game.Shared/Enums/ElementType.cs": "239C797732B7F87C1BA3840F3F12038ADCCD9DA2E1A48DE835418AB19BD9F002",
+      "Game.Shared/Enums/RoomOperationKind.cs": "3B1148C6D856987851EDA23DBBDB39604F711BCDAB0CC5A51DEB6665AF3D9255",
+      "Game.Shared/Enums/RoomStatus.cs": "287ECC7F1E0A4A342E398B732B6AA8898D2E974AD1C28575FCE0017A526643BE",
+      "Game.Shared/Enums/SoulImprintEffectType.cs": "2FC4DD7518C419E1FF9402DE03DA3C64347EA41068C45CFC7CA41301DC9D09AB",
+      "Game.Shared/Enums/TalentType.cs": "E95119ECDC8FF98A1A13D0990D76786E0FBF9F1085D959D78754CF6CF8E78F54",
+      "Game.Shared/Enums/WeaponOrigin.cs": "C9B38151A785685A7C8B918D733F0BCB93D069AF256C9F67F48FBCCCF2BD6EB0",
+      "Game.Shared/Enums/WeaponSkillEffectType.cs": "AA309F0E1971336287E7A9E095872A8B88AA01C63E0F4F6B43956771B47D3B7F",
+      "Game.Shared/Models/BattleConsumableBuff.cs": "93C89E056BA29747868DA50EC6B4E5B46BE946184AE144663466F28AAACE84AD",
+      "Game.Shared/Models/BattleConsumableCooldown.cs": "731ECDCEC0B8FEDCA505968BA0690483255075C3FAF94AB2D296614B9CEDF447",
+      "Game.Shared/Models/BattleHealingPotionState.cs": "48709F3403E8488C8BAF2FA060D674D5F1F2FB9FC3672EF2E41EB4F908769446",
+      "Game.Shared/Models/BattleMonsterPhaseState.cs": "4DD21593EA99CFEC523897D17B0EA0CF0697018FF2202485B70527992173D5BA",
+      "Game.Shared/Models/BattleMonsterSkillCooldown.cs": "1861BB11F3B6F39B049B2C952204ABC7EE2AC017EFBE41A4A22720426972CF48",
+      "Game.Shared/Models/BattleOperationPotionState.cs": "DD2525B20670FC92B2D672CAA2B3055E8B8AEBAACA41AA02A4AC8AAD5C6C4905",
+      "Game.Shared/Models/BattleSkillCooldown.cs": "E8597776F8E4525A1B54ED98E815554D8C9C8210B45CB6BF1F7E163AC9F9EDEF",
+      "Game.Shared/Models/BattleStatusEffect.cs": "EE5020B2989E954EF0AE74FD59BFEAE181086DBBBC0958E07CFBEA7BED87B361",
+      "Game.Shared/Models/Character.cs": "75AF67F7CA5A0DD96050B84AC43A3494453672954A3C8E90267C09C9D8843B98",
+      "Game.Shared/Models/CharacterActivity.cs": "21CB75FD8A2F5BA15B4CC5C2731856AC8AA8FEB8E90E35E69A51D81468574999",
+      "Game.Shared/Models/CharacterBattleMilestone.cs": "79105BF4A1C250FEF70BF0845897797E72C4A307380053F1A0ED4F41ED1E9031",
+      "Game.Shared/Models/CharacterCombatProfession.cs": "0CD592F0E072C86A5B1BA2023AB68137EB8A39C01FB7B970D4285E54D144C32A",
+      "Game.Shared/Models/CharacterConsumableSlot.cs": "60E5523D54B2FBB764AA421C79AD4A10755F3D5B5E26661D43FC440C6FE7FEF5",
+      "Game.Shared/Models/CharacterDungeonProgress.cs": "11D249E06DFDFB54D880F89A7A51693ECB606415758CD947F66FFE1B0B13426C",
+      "Game.Shared/Models/CharacterGardenPlot.cs": "E852C7772C3A47CF361F1686E666A1B44504355EAE2B357A7164A27CCCEB2FE6",
+      "Game.Shared/Models/CharacterGatheringOpportunity.cs": "5D851B59D4463A2D7B531295F869AD0C58F61F25733C9CE6286BD82E5F5C0E3F",
+      "Game.Shared/Models/CharacterItemStack.cs": "E2179C6CBB645101FA570768E88F6E0F7186F5A5F5DECF8B741E053868567434",
+      "Game.Shared/Models/CharacterProfessionTalent.cs": "2A19E8298B98ED0D0B873A5B05A6AB28352C70C31D9E0F064074D004F51A6399",
+      "Game.Shared/Models/CharacterSkillSlot.cs": "671DD1A565FFBBE2A4FBEA9EAA261772689A45DCAC00BB515AF9BC8532807CA9",
+      "Game.Shared/Models/CharacterSkillTalent.cs": "44C8879F0F8E35FE2CC4A8DA8EC2FB40AA854C2FAF597DFD5EB9C13DD3C09FD4",
+      "Game.Shared/Models/CharacterSoulImprint.cs": "3D7CB3B70AB98E94EF07A3F3FCB444FFEB3A239C8DF3FC61DA5E6F78C597B7A1",
+      "Game.Shared/Models/CharacterWeapon.cs": "94129B378DC67E5752FC85EC8F83D673E056090A990C9B4ED7E5C35E88A2EEAA",
+      "Game.Shared/Models/CharacterWeaponSkill.cs": "6B83C0A1E09FB109D541408CCE674ACC7418D6601B0C441F4DAD123ADDFE6C3B",
+      "Game.Shared/Models/Dungeon.cs": "5BF4D3B75EC265F3BE203545EA622AB69ACD2B3BC686BA5F4B44DE260E436853",
+      "Game.Shared/Models/DungeonRunRuleSnapshot.cs": "159A5857E892A32BC288CD638922C5EEF4949DDCE2223DF31AAB28039A1B33C2",
+      "Game.Shared/Models/GatheringTask.cs": "956ED0A651BC6622E4023249C14F4BA81FE27052E7DAC29736435EA26F1D45EA",
+      "Game.Shared/Models/LogisticsRequest.cs": "E2B3E069FCF8A9574D7D5A2C3F2B68CDB10CDD35C6A6B3DF2ED7E6D650AD96FE",
+      "Game.Shared/Models/Monster.cs": "CA82F2E15ACC05134900FEFE8A51B1D8428C1C524F0A572C558C11650A67A495",
+      "Game.Shared/Models/MonsterIntent.cs": "62A8EF365409DB6487FE0FED43CC95CB65FC5B69E30A12219E449EC1D798D670",
+      "Game.Shared/Models/ProductionTask.cs": "5DAB75AF0EA5422367C387899BA97380BB3A0B470D454B3728BF57A09519BB2D",
+      "Game.Shared/Models/RewardRun.cs": "8028301F9D3C6C9B9417AD2CC950EE49674980B85AEA74693243CC1B7ECD6B74",
+      "Game.Shared/Models/Room.cs": "5E3CC304442C74AF1218D9E36D137A110C3856B7F0EE3A69D09B0B617E200BB7",
+      "Game.Shared/Models/RoomOperation.cs": "EDD5573691D948206030DF4DDFCA28000801053C87F66ADCEDDDBAAFC97754FB",
+      "Game.Shared/Models/RoomSlot.cs": "8E8F34C066A89BBF7BCEC53193F7765DE209988059F7B20FBC9F8E0C45F74610",
+      "Game.Shared/Models/User.cs": "57BE15A3D7B41CA0071419C5FEE82952A3E684841EF7404E255D8F4DD58225DD",
+      "Game.Shared/Models/UserDungeonClear.cs": "97A063D337B4C9017D9E6D1F5BFFA37027F933D751BA293C75A3616DD884DB23",
+      "Game.Shared/Models/UserLoginSession.cs": "684F8A3F83979159A685D503C34358ECDC0039065EFB261B4FF83E49229BB0D8",
+      "Game.Shared/SkillAutoRules.cs": "082A8D02B3476670E03D9EB76D90A37E9C1C27E4B41CF6EC7CD52353326EBA30",
+      "Game.Shared/SkillQueueRules.cs": "035D3AD07412EF9AE3F8C7609D9B5E9F8A21C6545CF245FCFFD8055DF3378A6C",
+      "Game.Shared/SkillRules.cs": "58E3CA9C01B83358617B8E5FA362E7FD537FBC05F2A13B08CA87231DFA228720",
+      "Game.Shared/SkillTargetRules.cs": "461E38CD183BAD88A6BCC731C402EEE8DDA79E6A7B775AA308EE52214E1C29D7",
+      "Game.Shared/SoulImprintRules.cs": "4ADA23DD7B6CBAB5DD0DE3E5E5EFB82E500F864B15D20D605EE355E13B471E8B",
+      "Game.Shared/TalentRules.cs": "45116F3F44E3A312EE3B127FBE8780287B934D92FDF8DC32DA9E557E6C804291",
+      "Game.Shared/WeaponEffectLabels.cs": "B874BBEF12D47E676D3342362501AC8D12FB9381EDAB3DA74851DB161E3883A3",
+      "Game.Shared/WeaponRules.cs": "96B5A4B2632DAB8B31547A6A70954593A04ED1F8DAC178D13AAEBEF73C13943D",
+      "tools/Game.BalanceSimulator/Program.cs": "F0EE371C97C87C6F54494FEF1906E2461399DA2CDBAA51375118DC8A5A3C7DB0",
+      "tools/Game.BalanceSimulator/SimulatorArguments.cs": "E23E9C1E72036796900FC4E9FF1F0E14E974A7E6915262467D5A6B39496A5358",
+      "tools/Game.BalanceSimulator/SimulatorMetrics.cs": "542D661C166AE9FABDF45ED5BA0CDB87F4AB7562BF1184E22647DD07E9A37DDE",
+      "tools/Game.BalanceSimulator/SimulatorRewardSummary.cs": "DA120153530510B35CFC02A499C4EA3016007AD68281A7477919EA759F4CB5D8"
+    }
+  },
+  "NextStep": "火深层LV1～LV4已完成本轮校准，后续逐个设计其他属性深层副本。"
+}

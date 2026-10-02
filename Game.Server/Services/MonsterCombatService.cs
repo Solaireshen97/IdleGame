@@ -11,15 +11,18 @@ namespace Game.Server.Services;
 
 public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatCatalog catalog, Random? random = null,
     BattleStatusService? statuses = null, SkillCatalog? characterSkills = null, BattleEffectExecutor? battleEffects = null,
-    SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
+    SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null,
+    MonsterPhaseService? phases = null)
 {
     private readonly SkillInformationService _information = skillInformation ?? new(catalog.Statuses, mechanics);
     public BattleStatusService Statuses { get; } = statuses ?? new BattleStatusService(dbContext, catalog.Statuses, mechanics: mechanics, runRules: runRules);
+    private MonsterPhaseService? _phases = phases;
+    public MonsterPhaseService Phases => _phases ??= new(dbContext, catalog, Statuses, runRules);
     private BattleGuardService? _guards = battleEffects?.Guards;
     private BattleGuardService Guards => _guards ??= new(Statuses);
     private BattleEffectExecutor? _effects = battleEffects;
     private BattleEffectExecutor Effects => _effects ??= new(characterSkills ?? new SkillCatalog(Options.Create(new SkillOptions())),
-        Statuses, Guards, new BattleDamageService(Statuses, Guards, random));
+        Statuses, Guards, new BattleDamageService(Statuses, Guards, random, runRules: runRules, phases: Phases));
     private MonsterCombatCatalog CatalogFor(Room room) => runRules?.CombatFor(room) ?? catalog;
     public async Task<MonsterIntent> EnsureIntentAsync(Room room, Monster monster)
     {
@@ -71,15 +74,18 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
             "AllAlive" => "全体角色",
             _ => await GetCharacterTargetLabelAsync(room.Id, intent.TargetCharacterId)
         };
+        var linked = Phases.Definition(room, monster) is { } core && skill?.Code == core.LinkedSkillCode &&
+            await Phases.WillBeHeatedAsync(room, monster);
+        var linkedDescription = linked ? $"蓄热未解除时，另随机攻击{Phases.Definition(room, monster)!.ExtraTargetCount}名其他存活角色，各造成{Phases.Definition(room, monster)!.ExtraAttackPowerPercent}%攻击伤害。" : "";
         return new MonsterIntentResponse
         {
             ActionType = intent.ActionType,
             SkillCode = intent.SkillCode,
             ActionName = skill?.Name ?? "普通攻击",
-            Description = skill?.Description ?? "攻击预告中指定的前排角色。",
+            Description = (skill?.Description ?? "攻击预告中指定的前排角色。") + linkedDescription,
             TargetType = intent.TargetType,
             TargetCharacterId = intent.TargetCharacterId,
-            TargetLabel = targetLabel,
+            TargetLabel = linked ? targetLabel + "及随机其他角色（蓄热未解除时）" : targetLabel,
             IsInterruptible = skill?.IsInterruptible == true,
             IsInterrupted = intent.IsInterrupted,
             DangerLevel = skill?.DangerLevel ?? "Normal",
@@ -202,6 +208,30 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
         {
             IntentTargetId = intent.TargetCharacterId, MonsterSkillReduction = reduction
         }, new LegacyMonsterDefenseAdapter(dbContext, Guards));
+        if (Phases.Definition(room, monster) is { } core && skill.Code == core.LinkedSkillCode &&
+            monster.Hp > 0 && await Phases.IsHeatedAsync(room, monster))
+        {
+            var candidates = participants.Where(entry => entry.Character.Hp > 0 && entry.Character.Id != intent.TargetCharacterId)
+                .OrderBy(entry => entry.Slot.SlotIndex).ToList();
+            var splash = new MonsterSkillDefinition
+            {
+                Code = "fire-core-splash", Name = "熔火扩散", Description = "蓄热期间，火焰斩波及其他角色。",
+                CooldownRounds = 0, InitialCooldownRounds = 0,
+                TargetType = "Front", DangerLevel = "Dangerous", IsInterruptible = skill.IsInterruptible,
+                Effects = [new(BattleEffectKind.Damage, BattleEffectTarget.ForMonster("Front"), AttackPowerPercent: core.ExtraAttackPowerPercent)]
+            };
+            for (var hit = 0; hit < core.ExtraTargetCount && candidates.Count > 0; hit++)
+            {
+                var index = (random ?? Random.Shared).Next(candidates.Count);
+                var target = candidates[index];
+                candidates.RemoveAt(index);
+                await Effects.ExecuteAsync(new(battle, splash, battle.Enemy)
+                {
+                    IntentTargetId = target.Character.Id, MonsterSkillReduction = reduction
+                }, new LegacyMonsterDefenseAdapter(dbContext, Guards));
+                await Phases.RecordLinkedHitAsync(room, monster);
+            }
+        }
         await StartCooldownAsync(room, monster, skill);
         await KnightMechanics.ResolveCountersAsync(battle, Guards, Effects.Damage, mechanics);
     }
@@ -233,6 +263,7 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     public async Task ResetRoomStateAsync(int roomId)
     {
+        await Phases.ResetRoomAsync(roomId);
         dbContext.MonsterIntents.RemoveRange(await dbContext.MonsterIntents.Where(entry => entry.RoomId == roomId).ToListAsync());
         dbContext.BattleStatusEffects.RemoveRange(await dbContext.BattleStatusEffects.Where(entry => entry.RoomId == roomId).ToListAsync());
         dbContext.BattleMonsterSkillCooldowns.RemoveRange(await dbContext.BattleMonsterSkillCooldowns.Where(entry => entry.RoomId == roomId).ToListAsync());

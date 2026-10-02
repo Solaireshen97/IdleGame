@@ -7,8 +7,8 @@ public sealed class SimulatorArguments
     private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
     {
         "--config", "--world", "--dungeon-code", "--depth", "--mastery", "--starting-potions",
-        "--talent-builds", "--runs", "--seed-start", "--elements", "--weapon-element", "--roles",
-        "--stages", "--targets", "--composition", "--party", "--soul-loadouts", "--mode", "--output"
+        "--talent-builds", "--runs", "--seed-start", "--elements", "--weapon-element", "--weapon-elements", "--roles",
+        "--stages", "--targets", "--composition", "--party", "--players", "--soul-loadouts", "--mode", "--output"
     };
     private readonly Dictionary<string, string> _values;
     private SimulatorArguments(Dictionary<string, string> values) => _values = values;
@@ -16,6 +16,7 @@ public sealed class SimulatorArguments
     public int Depth => Number("--depth", 1, 1, 100);
     public int Mastery => Number("--mastery", 0, 0, 4);
     public int StartingPotions => Number("--starting-potions", 1000, 0, 1_000_000);
+    public int Players => Number("--players", 1, 1, 5);
     public string Value(string name, string fallback) => _values.GetValueOrDefault(name, fallback);
     public bool Contains(string name) => _values.ContainsKey(name);
 
@@ -36,6 +37,7 @@ public sealed class SimulatorArguments
         _ = parsed.Depth;
         _ = parsed.Mastery;
         _ = parsed.StartingPotions;
+        _ = parsed.Players;
         if (parsed.DungeonCode is not null && parsed.Contains("--targets"))
             throw new ArgumentException("Use either --dungeon-code or --targets, not both.");
         return parsed;

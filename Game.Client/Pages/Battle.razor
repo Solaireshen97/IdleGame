@@ -91,6 +91,29 @@ else
                     <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
                     <small>深层 LV@(_roomDetail.DepthLevel) · @(_roomDetail.IsRepeatBattle ? "固定此层重复挑战" : "单次挑战") · 新精通从下轮生效</small>
                 }
+                @if (_roomDetail.ClosedAtUtc is null && _roomDetail.CoopDropBonus is { } coopDropBonus)
+                {
+                    <details class="coop-drop-bonus">
+                        <summary>
+                            <span>当前阵容预计道具掉率 +@(coopDropBonus.BonusPercent.ToString("0.##"))%（相对） · @coopDropBonus.TeamPlayerCount 个账号</span>
+                            <span class="coop-drop-bonus__note">以实际参战结算，同账号角色不叠加</span>
+                        </summary>
+                        <div class="coop-drop-bonus__scope">
+                            <p>每多一个参战账号增加 @(coopDropBonus.PerAdditionalPlayerPercent.ToString("0.##"))%，最多 @(coopDropBonus.MaximumPercent.ToString("0.##"))%。例如原掉率 20% 时，+10% 后为 22%。</p>
+                            <p>适用于击杀与通关的基础随机道具掉落。金币、经验、首次通关奖励、新手保底、精通额外抽取、挑战碎片和独立稀有种子不受影响。</p>
+                        </div>
+                    </details>
+                }
+                @if (_roomDetail.ClosedAtUtc is null && _roomDetail.DirectDamageVariancePercent > 0)
+                {
+                    <details class="damage-variance">
+                        <summary>直接伤害波动 ±@(_roomDetail.DirectDamageVariancePercent.ToString("0.##"))%</summary>
+                        <div class="damage-variance__scope">
+                            <p>普通攻击、技能、魂印主击与反击的直接伤害会轻微波动。小伤害采用概率取整，偶尔相差 1 点；派生追加伤害随主击计算，不重复波动。</p>
+                            <p>治疗、护盾及持续伤害不单独波动。技能描述中的攻击百分比仍是基础值。</p>
+                        </div>
+                    </details>
+                }
             </div>
             <div class="battle-stage__meta">
                 <span class="battle-mode">第 @scene.CurrentWaveNumber / @scene.TotalWaveCount 波</span>

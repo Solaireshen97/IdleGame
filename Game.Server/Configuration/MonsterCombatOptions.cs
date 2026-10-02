@@ -64,6 +64,23 @@ public sealed class MonsterCombatProfileOptions
     public int SkillUseChancePercent { get; set; }
     public List<MonsterProfileSkillOptions> Skills { get; set; } = [];
     public string? DepthProgressionCode { get; set; }
+    public FireCoreOptions? FireCore { get; set; }
+}
+
+public sealed class FireCoreOptions
+{
+    // When set, activate once at the next player-round start at or below this HP percentage.
+    public int? TriggerHpPercent { get; set; }
+    public int FirstActivationRound { get; set; }
+    public int CycleRounds { get; set; }
+    public int WindowRounds { get; set; }
+    public decimal BreakWaterDamagePercent { get; set; }
+    public string HeatingStatusCode { get; set; } = string.Empty;
+    public string RewardStatusCode { get; set; } = string.Empty;
+    public int RewardRounds { get; set; }
+    public string LinkedSkillCode { get; set; } = string.Empty;
+    public int ExtraTargetCount { get; set; }
+    public int ExtraAttackPowerPercent { get; set; }
 }
 
 public sealed class MonsterDepthStageOptions
