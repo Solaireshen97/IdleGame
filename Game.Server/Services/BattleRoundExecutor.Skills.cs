@@ -26,6 +26,8 @@ public sealed partial class BattleRoundExecutor
             .Where(slot => characterIds.Contains(slot.CharacterId) && slot.SkillCode != null)
             .OrderBy(slot => slot.SlotIndex).ToListAsync();
         if (equipment.Count == 0) return;
+        var roomSlots = aliveSlots.ToDictionary(entry => entry.Character.Id, entry => entry.Slot);
+        equipment = equipment.Select(slot => BattleAutoPolicyResolver.Skill(roomSlots[slot.CharacterId], slot)).ToList();
         var cooldowns = await dbContext.BattleSkillCooldowns
             .Where(cooldown => cooldown.RoomId == room.Id && characterIds.Contains(cooldown.CharacterId)).ToListAsync();
         var purchasedNodes = await LegacyTalents.RanksAsync(characterIds);

@@ -4,6 +4,11 @@ namespace Game.Shared.Dtos;
 
 public class RoomSlotResponse
 {
+    public int? SourceFormationId { get; set; }
+    public int? SourceFormationVersion { get; set; }
+    public string? SourceFormationName { get; set; }
+    public bool HasAutoPolicyOverrides { get; set; }
+    public bool HasNewFormationVersion { get; set; }
     public int SlotIndex { get; set; }
     public int? CharacterId { get; set; }
     public int PendingConsumableSlotMask { get; set; }
@@ -56,6 +61,10 @@ public sealed class RoomSoulImprintResponse
     public int CooldownRounds { get; set; }
     public int CooldownRoundsRemaining { get; set; }
     public bool AutoUseEnabled { get; set; }
+    public string AutoCondition { get; set; } = "Always";
+    public string DefaultAutoCondition { get; set; } = "Always";
+    public string? AutoConditionOverride { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
 }
 
 public class RoomSkillSlotResponse

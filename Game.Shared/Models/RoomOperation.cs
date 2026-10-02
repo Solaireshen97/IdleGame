@@ -18,4 +18,11 @@ public class RoomOperation
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? FinishedAtUtc { get; set; }
     public int Version { get; set; }
+    public int? SourceFormationId { get; set; }
+    public int? SourceFormationVersion { get; set; }
+    public string? SourceFormationName { get; set; }
+    public string? RequestedLoadoutJson { get; set; }
+    public bool RememberForEncounter { get; set; }
+    public string? RequestId { get; set; }
+    public string? RequestFingerprint { get; set; }
 }

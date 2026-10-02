@@ -4,7 +4,7 @@
     bottom: max(.55rem, env(safe-area-inset-bottom));
     left: 50%;
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     width: min(calc(100vw - 1.3rem), 720px);
     min-height: 4rem;
     padding: .3rem;

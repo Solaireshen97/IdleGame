@@ -1,0 +1,61 @@
+@using Game.Shared.Dtos
+@using Game.Client.Services
+
+<div class="statistics-metrics" role="group" aria-label="选择统计指标">
+    @foreach (var item in Modes)
+    {
+        <button type="button" aria-pressed="@(Mode == item.Key ? "true" : "false")" @onclick="() => ModeChanged.InvokeAsync(item.Key)">@item.Label</button>
+    }
+</div>
+<div class="statistics-actors" aria-label="角色战斗统计">
+    @foreach (var actor in OrderedActors)
+    {
+        <button type="button" class="statistics-actor @(SelectedCharacterId == actor.CharacterId ? "is-selected" : null)"
+                aria-pressed="@(SelectedCharacterId == actor.CharacterId ? "true" : "false")" @onclick="() => CharacterSelected.InvokeAsync(actor.CharacterId)">
+            <span class="statistics-actor__identity"><strong>@BattleStatisticsPresentation.ActorName(actor)</strong><small>@(actor.IsOwn ? "我的角色 · " : "")@(Historical ? "历史参战" : actor.IsPresent ? "在队" : "已离队")@(actor.HasMixedConfigurations ? " · 多个配置" : "")</small></span>
+            @if (Mode == "damage")
+            {
+                <span><small>实际伤害</small><strong>@Number(actor.Metrics.DamageDealt)</strong></span>
+                <span><small>回合均伤</small><strong>@Decimal(actor.DamagePerRound)</strong></span>
+                <span><small>占比</small><strong>@(actor.DamageSharePercent is decimal share ? $"{share:0.#}%" : "—")</strong></span>
+            }
+            else if (Mode == "healing")
+            {
+                <span><small>有效治疗</small><strong>@Number(actor.Metrics.HealingDone)</strong></span>
+                <span><small>队友治疗</small><strong>@Number(actor.Metrics.HealingDone - actor.Metrics.SelfHealing)</strong></span>
+                <span><small>自疗</small><strong>@Number(actor.Metrics.SelfHealing)</strong></span>
+            }
+            else if (Mode == "survival")
+            {
+                <span><small>承受伤害</small><strong>@Number(actor.Metrics.DamageTaken)</strong></span>
+                <span><small>受到治疗</small><strong>@Number(actor.Metrics.HealingReceived)</strong></span>
+                <span><small>阵亡</small><strong>@Number(actor.Metrics.Deaths)</strong></span>
+            }
+            else
+            {
+                <span><small>净化</small><strong>@Number(actor.Metrics.Cleanses)</strong></span>
+                <span><small>驱散</small><strong>@Number(actor.Metrics.Dispels)</strong></span>
+                <span><small>打断</small><strong>@Number(actor.Metrics.Interrupts)</strong></span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BattleStatisticsActorResponse> Actors { get; set; } = [];
+    [Parameter] public string Mode { get; set; } = "damage";
+    [Parameter] public bool Historical { get; set; }
+    [Parameter] public EventCallback<string> ModeChanged { get; set; }
+    [Parameter] public int? SelectedCharacterId { get; set; }
+    [Parameter] public EventCallback<int> CharacterSelected { get; set; }
+    private static readonly (string Key, string Label)[] Modes = [("damage", "输出"), ("healing", "治疗"), ("survival", "生存"), ("support", "辅助")];
+    private IEnumerable<BattleStatisticsActorResponse> OrderedActors => Actors.OrderByDescending(actor => Mode switch
+    {
+        "healing" => actor.Metrics.HealingDone,
+        "survival" => actor.Metrics.DamageTaken,
+        "support" => actor.Metrics.Cleanses + actor.Metrics.Dispels + actor.Metrics.Interrupts,
+        _ => actor.Metrics.DamageDealt
+    }).ThenBy(actor => actor.SlotIndex).ThenBy(actor => actor.CharacterId);
+    private static string Number(long value) => value.ToString("N0");
+    private static string Decimal(decimal? value) => value?.ToString("N1") ?? "—";
+}

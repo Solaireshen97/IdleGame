@@ -33,7 +33,7 @@ public static class SkillAutoRules
 
     public static string Describe(string condition, int threshold) => condition switch
     {
-        "Always" => "技能就绪",
+        "Always" => "就绪即用",
         "LowestHpBelowThreshold" => $"技能目标生命值 ≤ {threshold}%",
         "SelfHpBelowThreshold" => $"自身生命值 ≤ {threshold}%",
         "AllyHpBelowThreshold" => $"任一存活队友生命值 ≤ {threshold}%（含自己）",

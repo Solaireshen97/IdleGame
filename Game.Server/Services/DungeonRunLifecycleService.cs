@@ -17,6 +17,8 @@ public sealed class DungeonRunLifecycleService(GameDbContext db, DungeonRunServi
     public async Task<Monster> BeginNextRunAsync(Room room, IReadOnlyList<BattleParticipant> party,
         DateTime startsAtUtc, bool automatic)
     {
+        var statistics = new BattleStatisticsWriter(db);
+        await statistics.FinishRunAsync(room, startsAtUtc);
         var monster = await runs.ResetEncounterAsync(room);
         foreach (var participant in party)
         {
@@ -55,6 +57,7 @@ public sealed class DungeonRunLifecycleService(GameDbContext db, DungeonRunServi
         room.BattleEndedAtUtc = null;
         await scaling.SynchronizeAsync(room, party.Select(item => item.Slot).ToList());
         if (combat is not null) await combat.EnsureIntentAsync(room, monster);
+        await statistics.RegisterRunAsync(room, startsAtUtc);
         return monster;
     }
 

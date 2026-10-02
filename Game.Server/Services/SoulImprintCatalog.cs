@@ -1,4 +1,5 @@
 using Game.Server.Configuration;
+using Game.Shared;
 using Game.Shared.Enums;
 using Game.Shared.Models;
 using Microsoft.Extensions.Options;
@@ -18,7 +19,7 @@ public sealed class SoulImprintCatalog
                 string.IsNullOrWhiteSpace(item.Description) || string.IsNullOrWhiteSpace(item.DungeonCode) ||
                 item.Tier <= 0 || !Enum.IsDefined(item.Element) || !Enum.IsDefined(item.EffectType) ||
                 item.PowerPercent < 0 || item.SecondaryPowerPercent < 0 || item.DurationRounds < 0 ||
-                item.AutoHpThresholdPercent is < 1 or > 100 ||
+                !SkillAutoRules.Conditions.Contains(item.AutoCondition, StringComparer.Ordinal) ||
                 (item.EffectType is SoulImprintEffectType.DamageArmorBreak or SoulImprintEffectType.GuardCounter &&
                     string.IsNullOrWhiteSpace(item.StatusCode)) ||
                 item.InitialCooldownRounds < 0 || item.CooldownRounds <= 0 || item.DismantleFragments <= 0 ||

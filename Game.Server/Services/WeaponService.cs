@@ -106,6 +106,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
+        if (await FormationItemReferencePolicy.WeaponsAsync(dbContext, characterId, ids) is { } referenceError)
+            return (null, referenceError);
         var gold = weapons.Sum(weapon => weapon.SellGold);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
@@ -135,6 +137,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         if (weapons.Count != ids.Count) return (null, "WeaponNotOwned");
         if (weapons.Any(weapon => weapon.EquippedSlotIndex.HasValue)) return (null, "WeaponEquipped");
         if (weapons.Any(weapon => weapon.IsLocked)) return (null, "WeaponLocked");
+        if (await FormationItemReferencePolicy.WeaponsAsync(dbContext, characterId, ids) is { } referenceError)
+            return (null, referenceError);
         if (weapons.Any(weapon => !weaponCatalog.CanDismantle(weapon)))
             return (null, "WeaponCannotBeDismantled");
         var returns = weapons.GroupBy(weapon => WeaponRules.FragmentTier(weapon.ItemLevel))
@@ -264,6 +268,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
                     StringComparison.OrdinalIgnoreCase)) return (null, "QualityMaterialMustMatch");
             if (material.EquippedSlotIndex.HasValue) return (null, "WeaponEquipped");
             if (material.IsLocked) return (null, "WeaponLocked");
+            if (await FormationItemReferencePolicy.WeaponsAsync(dbContext, characterId, [material.Id]) is { } referenceError)
+                return (null, referenceError);
             if (material.Origin == WeaponOrigin.Starter) return (null, "StarterWeaponCannotBeConsumed");
         }
 
@@ -342,16 +348,8 @@ public sealed class WeaponService(GameDbContext dbContext, UserService userServi
         dbContext.CharacterWeapons.Include(weapon => weapon.Skills)
             .Where(weapon => weapon.CharacterId == characterId && ids.Contains(weapon.Id)).ToListAsync();
 
-    private async Task<string?> GetArmoryLockErrorAsync(int characterId)
-    {
-        var room = await (from slot in dbContext.RoomSlots
-            join candidate in dbContext.Rooms on slot.RoomId equals candidate.Id
-            where slot.CharacterId == characterId
-            select candidate).SingleOrDefaultAsync();
-        return room is not null && room.Status != RoomStatus.BattleOver &&
-               (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)
-            ? "LoadoutLocked" : null;
-    }
+    private Task<string?> GetArmoryLockErrorAsync(int characterId) =>
+        CombatLoadoutMutationPolicy.LockErrorAsync(dbContext, characterId);
 
     private void RecalculateCharacter(Character character, IReadOnlyCollection<CharacterWeapon> weapons)
     {

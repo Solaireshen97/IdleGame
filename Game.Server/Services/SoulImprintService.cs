@@ -14,6 +14,8 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
         string? token, int characterId)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is null && await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId) is { } roomSlot &&
+            BattleAutoPolicyResolver.ValidationError(roomSlot) is { } snapshotError) return (null, snapshotError);
         return error is null ? (await BuildResponseAsync(character!), null) : (null, error);
     }
 
@@ -88,12 +90,39 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
         if (error is not null) return (null, error);
+        var condition = SkillAutoRules.Normalize(request.AutoConditionOverride);
+        if (!SkillAutoRules.IsValidOverride(condition)) return (null, "InvalidAutoCondition");
+        if (request.AutoHpThresholdPercent is < 1 or > 100) return (null, "InvalidHpThreshold");
         var imprint = await dbContext.CharacterSoulImprints.SingleOrDefaultAsync(item =>
             item.Id == soulImprintId && item.CharacterId == characterId);
         if (imprint is null) return (null, "SoulImprintNotOwned");
-        if (imprint.AutoUseEnabled == request.AutoUseEnabled) return (await BuildResponseAsync(character!), null);
-        imprint.AutoUseEnabled = request.AutoUseEnabled;
-        imprint.Version++;
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is not null && BattleAutoPolicyResolver.ValidationError(roomSlot) is { } policyError)
+            return (null, policyError);
+        var current = roomSlot is null
+            ? new BattleAutoPolicyResolver.SkillPolicy(imprint.AutoUseEnabled, imprint.AutoConditionOverride, imprint.AutoHpThresholdPercent)
+            : BattleAutoPolicyResolver.Soul(roomSlot, imprint);
+        var threshold = request.AutoHpThresholdPercent ?? current.AutoHpThresholdPercent;
+        if (request.AutoHpThresholdPercent is null && request.AutoConditionOverride is null)
+            condition = current.AutoConditionOverride;
+        if (roomSlot is not null)
+        {
+            if (imprint.EquippedSlotIndex != 1) return (null, "SoulImprintNotEquipped");
+            var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+            if (room is null) return (null, "NotFound");
+            roomSlot.AutoPolicyOverridesJson = BattleAutoPolicyResolver.WithSoul(roomSlot, request.AutoUseEnabled, condition, threshold);
+            room.Version++;
+        }
+        else
+        {
+            if (imprint.AutoUseEnabled == request.AutoUseEnabled && imprint.AutoConditionOverride == condition &&
+                imprint.AutoHpThresholdPercent == threshold) return (await BuildResponseAsync(character!), null);
+            imprint.AutoUseEnabled = request.AutoUseEnabled;
+            imprint.AutoConditionOverride = condition;
+            imprint.AutoHpThresholdPercent = threshold;
+            imprint.Version++;
+            character!.Version++;
+        }
         try
         {
             await dbContext.SaveChangesAsync();
@@ -119,6 +148,8 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
         if (imprints.Count != ids.Count) return (null, "SoulImprintNotOwned");
         if (imprints.Any(item => item.EquippedSlotIndex.HasValue)) return (null, "SoulImprintEquipped");
         if (imprints.Any(item => item.IsLocked)) return (null, "SoulImprintLocked");
+        if (await FormationItemReferencePolicy.SoulImprintsAsync(dbContext, characterId, ids) is { } referenceError)
+            return (null, referenceError);
 
         var returns = imprints.Select(item => catalog.Find(item.SoulImprintCode)!)
             .GroupBy(item => item.Tier)
@@ -166,16 +197,8 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
         return await new CharacterAccessResolver(dbContext).OwnedAsync(user!, characterId);
     }
 
-    private async Task<string?> GetLoadoutLockErrorAsync(int characterId)
-    {
-        var room = await (from slot in dbContext.RoomSlots
-            join candidate in dbContext.Rooms on slot.RoomId equals candidate.Id
-            where slot.CharacterId == characterId
-            select candidate).SingleOrDefaultAsync();
-        return room is not null && room.Status != RoomStatus.BattleOver &&
-               (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)
-            ? "LoadoutLocked" : null;
-    }
+    private Task<string?> GetLoadoutLockErrorAsync(int characterId) =>
+        CombatLoadoutMutationPolicy.LockErrorAsync(dbContext, characterId);
 
     private async Task<CharacterSoulImprintsResponse> BuildResponseAsync(Character character)
     {
@@ -183,6 +206,7 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             .OrderBy(item => item.EquippedSlotIndex == null).ThenBy(item => item.Id).ToListAsync();
         var fragmentStacks = await dbContext.CharacterItemStacks.Where(stack =>
             stack.CharacterId == character.Id && stack.ItemCode.StartsWith("weapon-fragment-t")).ToListAsync();
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == character.Id);
         var maximumTier = Math.Max(1, catalog.Items.Select(item => item.Tier).DefaultIfEmpty(1).Max());
         return new CharacterSoulImprintsResponse
         {
@@ -198,6 +222,9 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
             SoulImprints = imprints.Select(item =>
             {
                 var definition = catalog.Find(item.SoulImprintCode)!;
+                var policy = roomSlot is not null && item.EquippedSlotIndex == 1
+                    ? BattleAutoPolicyResolver.Soul(roomSlot, item)
+                    : new(item.AutoUseEnabled, item.AutoConditionOverride, item.AutoHpThresholdPercent);
                 return new CharacterSoulImprintResponse
                 {
                     Id = item.Id, Code = definition.Code, Name = definition.Name,
@@ -208,7 +235,10 @@ public sealed class SoulImprintService(GameDbContext dbContext, UserService user
                     InitialCooldownRounds = definition.InitialCooldownRounds,
                     CooldownRounds = definition.CooldownRounds,
                     DismantleFragments = definition.DismantleFragments,
-                    IsEquipped = item.EquippedSlotIndex == 1, AutoUseEnabled = item.AutoUseEnabled,
+                    IsEquipped = item.EquippedSlotIndex == 1, AutoUseEnabled = policy.AutoUseEnabled,
+                    DefaultAutoCondition = definition.AutoCondition,
+                    AutoCondition = policy.AutoConditionOverride ?? definition.AutoCondition,
+                    AutoConditionOverride = policy.AutoConditionOverride, AutoHpThresholdPercent = policy.AutoHpThresholdPercent,
                     IsLocked = item.IsLocked
                 };
             }).ToList()

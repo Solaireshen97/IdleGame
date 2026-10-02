@@ -20,11 +20,19 @@ public partial class BattleServiceTests
     public async Task SkillAutoConditionPersistsAcrossSessionsAndAppearsInBothResponses(string? condition)
     {
         await using var test = await BattleTestContext.CreateAsync();
+        // Prepare the base configuration before occupying a room; admission now locks equipment.
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync();
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         var settings = MakeSkillSettingsService(test.Db);
         var (equipped, equipError) = await settings.SetSlotAsync(test.Token, 1, 1,
             new SetSkillSlotRequest { SkillCode = "knight-strike", AutoConditionOverride = condition });
         Assert.Null(equipError);
         Assert.Equal(condition, equipped!.Slots[0].AutoConditionOverride);
+        admissionSlot.CharacterId = 1;
+        await test.Db.SaveChangesAsync();
+        Assert.Equal("LoadoutLocked", (await settings.SetSlotAsync(test.Token, 1, 1,
+            new SetSkillSlotRequest { SkillCode = "knight-guard" })).Error);
         var (_, saveError) = await settings.SetAutoAsync(test.Token, 1, 1,
             new SetSkillAutoRequest { AutoUseEnabled = true, AutoConditionOverride = condition, AutoHpThresholdPercent = 37 });
         Assert.Null(saveError);
@@ -134,6 +142,9 @@ public partial class BattleServiceTests
     public async Task AutoConditionFollowsSkillWhenSwappedAndIsClearedWhenUnequipped()
     {
         await using var test = await BattleTestContext.CreateAsync();
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync();
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         test.Character.ProfessionCode = "knight";
         test.Character.Level = 3;
         var settings = MakeSkillSettingsService(test.Db);
@@ -158,6 +169,8 @@ public partial class BattleServiceTests
         Assert.Null(unequipped!.Slots[0].AutoConditionOverride);
         Assert.Null((await test.Db.CharacterSkillSlots.SingleAsync(slot => slot.SlotIndex == 1)).AutoConditionOverride);
         Assert.Equal("MonsterHpBelowThreshold", unequipped.Slots[1].AutoConditionOverride);
+        admissionSlot.CharacterId = 1;
+        await test.Db.SaveChangesAsync();
     }
 
     [Theory]

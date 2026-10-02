@@ -1027,7 +1027,8 @@
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch
     {
         null or "" => null,
-        "LoadoutLocked" => "战斗进行时不能调整武器盘。",
+        var message when message.StartsWith("FormationItemReferenced:", StringComparison.Ordinal) => $"该武器被编队“{message["FormationItemReferenced:".Length..]}”引用，请先替换或移除编队中的引用，再出售、分解或用作强化素材。",
+        "LoadoutLocked" => "角色已入场，请先离场或移出角色后再调整武器盘。",
         "WeaponNotOwned" => "这把武器不属于当前角色。",
         "WeaponEquipped" => "已装备的武器不能出售或分解，请先卸下。",
         "WeaponLocked" => "锁定的武器不能出售或分解。",

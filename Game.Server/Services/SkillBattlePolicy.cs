@@ -86,12 +86,19 @@ public static class SkillBattlePolicy
         int hpThresholdPercent, bool legacySelfCleanse = false)
     {
         if (conditionOverride is null && legacySelfCleanse && state.Caster.HasRemovableDebuff) return true;
+        return MeetsAutoCondition(state, conditionOverride ?? skill.AutoCondition, hpThresholdPercent,
+            HpConditionTarget(skill, state)?.Id);
+    }
+
+    public static bool MeetsAutoCondition(SkillBattleSnapshot state, string condition, int hpThresholdPercent,
+        int? hpConditionTargetId = null)
+    {
         var alive = state.Allies.Where(actor => actor.IsAlive).OrderBy(actor => actor.SlotIndex).ToArray();
         bool HpMatches(SkillBattleActor actor) => (long)actor.Hp * 100 <= (long)actor.MaxHp * hpThresholdPercent;
-        return (conditionOverride ?? skill.AutoCondition) switch
+        return condition switch
         {
             "Always" => true,
-            "LowestHpBelowThreshold" => HpConditionTarget(skill, state) is { } target && HpMatches(target),
+            "LowestHpBelowThreshold" => state.Allies.FirstOrDefault(actor => actor.Id == hpConditionTargetId) is { } target && HpMatches(target),
             "SelfHpBelowThreshold" => HpMatches(state.Caster),
             "AllyHpBelowThreshold" => alive.Any(HpMatches),
             "FrontAllyHpBelowThreshold" => alive.FirstOrDefault() is { } front && HpMatches(front),

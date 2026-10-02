@@ -2,6 +2,7 @@
 @using Game.Client.Services
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Auth
+@using Game.Shared.Dtos.Formations
 @using Game.Shared.Dtos.Characters
 @using Game.Shared
 @inject ApiService ApiService
@@ -12,6 +13,19 @@
 @implements IAsyncDisposable
 
 <PageTitle>战斗房间</PageTitle>
+@if (_roomDetail?.LoadoutIntegrityError is { } integrityError) { <p role="alert">战斗配置需要修复：@integrityError</p> }
+@if (_admissionCharacterId is int admissionCharacterId)
+{
+    <div class="formation-admission-overlay"><section class="formation-admission-dialog" role="dialog" aria-modal="true" aria-labelledby="formation-admission-title">
+        <h2 id="formation-admission-title">选择出战编队</h2>
+        <p>@_admissionCharacterName · @_admissionSlotIndex 号位 · @(_roomDetail?.DungeonName) LV@(_roomDetail?.DepthLevel)</p>
+        @if (_admissionDungeonCode is not null) { <FormationSelector Disabled="_isBusy" CharacterId="admissionCharacterId" DungeonCode="@_admissionDungeonCode" DepthLevel="@(_roomDetail?.DepthLevel ?? 1)" SelectionChanged="AdmissionSelectionChanged" ValidityChanged="valid => _admissionValid = valid" /> }
+        else { <p>正在读取副本信息…</p> }
+        @if (_message is not null) { <p role="alert">@_message</p> }
+        <button type="button" class="button button--primary" disabled="@(_isBusy || !_admissionValid)" @onclick="ConfirmAdmissionAsync">确认@(_admissionIsAssign ? "上阵 / 预约" : "加入 / 预约")</button>
+        <button type="button" class="button button--secondary" disabled="@_isBusy" @onclick="CloseAdmission">取消</button>
+    </section></div>
+}
 
 <div class="battle-page @(_roomDetail is { ClosedAtUtc: null } || _combatScene is not null ? "battle-page--focused" : null) @(IsBattlePanelOpen ? "battle-page--panel-open" : null)" @onkeydown="HandleBattleLogKeyDown">
     <header class="battle-page__header">
@@ -53,16 +67,7 @@ else if (_roomDetail.ClosedAtUtc.HasValue && _combatScene is null)
             <DungeonMastery UnlockedDepth="_roomDetail.UnlockedDepth" MasteryLevel="_roomDetail.MasteryLevel" HighestDepth="_roomDetail.CharacterHighestDepth" />
             <p>本次挑战深层 LV@(_roomDetail.DepthLevel) · 新获得的精通从下轮生效。</p>
         }
-        @if (_roomDetail.CumulativeRewards is { } cumulative)
-        {
-            <p>已结算 @cumulative.CompletedRuns 轮</p>
-            <div class="battle-rewards__loot"><RoomRewards Rewards="cumulative" /></div>
-        }
-        @if (_rewardError is not null)
-        {
-            <p role="alert">@_rewardError</p>
-            <button type="button" @onclick="RefreshRewardsAsync">重试读取战利品</button>
-        }
+        <div class="battle-rewards__loot"><BattleInformationPanel Room="_roomDetail" Visible="true" /></div>
         @if (IsOwner)
         {
             <button class="button button--danger" @onclick="DismissRoomAsync" disabled="@_isBusy">删除记录</button>
@@ -388,6 +393,19 @@ else
                             </button>
                         }
                     </div>
+                    @if (mobileActionSlot.SoulImprint is { } configurableSoul)
+                    {
+                        <details class="skill-dialog__automation">
+                            <summary>魂印自动释放：@SkillAutoRules.Describe(configurableSoul.AutoCondition, configurableSoul.AutoHpThresholdPercent)</summary>
+                            <label><input type="checkbox" checked="@configurableSoul.AutoUseEnabled" disabled="@(_isBusy || _isSoulAutoSaving)"
+                                @onchange="e => SetSoulAutoAsync(mobileActionSlot, configurableSoul, (bool)e.Value!, configurableSoul.AutoConditionOverride, configurableSoul.AutoHpThresholdPercent)" /> 自动使用魂印</label>
+                            <SkillAutoConditionPicker ConditionOverride="@configurableSoul.AutoConditionOverride"
+                                DefaultCondition="@configurableSoul.DefaultAutoCondition" DefaultLabel="魂印默认"
+                                Threshold="@configurableSoul.AutoHpThresholdPercent" Disabled="@(_isBusy || _isSoulAutoSaving)"
+                                OnConditionChanged="condition => SetSoulAutoAsync(mobileActionSlot, configurableSoul, configurableSoul.AutoUseEnabled, condition, configurableSoul.AutoHpThresholdPercent)"
+                                OnThresholdChanged="threshold => SetSoulAutoAsync(mobileActionSlot, configurableSoul, configurableSoul.AutoUseEnabled, configurableSoul.AutoConditionOverride, threshold)" />
+                        </details>
+                    }
                 }
                 else
                 {
@@ -467,7 +485,7 @@ else
                         @onclick="OpenRewards"
                         @ref="_rewardsTrigger"
                         aria-haspopup="dialog">
-                    <span aria-hidden="true">✦</span> 战利品
+                    <span aria-hidden="true">✦</span> 统计信息
                 </button>
             }
         </div>
@@ -501,36 +519,21 @@ else
         </div>
     }
 
-    @if (_isRewardsOpen)
-    {
-        <div class="battle-log-overlay battle-reward-overlay" @onclick="CloseRewards">
+        <div class="battle-log-overlay battle-reward-overlay" hidden="@(!_isRewardsOpen)" @onclick="CloseRewards">
             <section class="battle-log-dialog battle-reward-dialog" role="dialog" aria-modal="true" aria-labelledby="battle-reward-title" @onclick:stopPropagation>
                 <header class="battle-log-dialog__header">
                     <div>
-                        <span class="section-kicker">ROOM LOOT</span>
-                        <h2 id="battle-reward-title">房间累计战利品</h2>
-                        <p>当前第 @_roomDetail.RunSequence 轮</p>
+                        <span class="section-kicker">BATTLE INFORMATION</span>
+                        <h2 id="battle-reward-title">统计信息</h2>
+                        <p>当前第 @_roomDetail.RunSequence 次挑战</p>
                     </div>
-                    <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭战利品">×</button>
+                    <button type="button" class="battle-log-dialog__close" @onclick="CloseRewards" @ref="_rewardsCloseButton" aria-label="关闭统计信息">×</button>
                 </header>
                 <div class="battle-log-dialog__content battle-reward-dialog__content">
-                    @if (_roomDetail.CumulativeRewards is { } dialogRewards)
-                    {
-                        <RoomRewards Rewards="dialogRewards" />
-                    }
-                    else
-                    {
-                        <p>@(_rewardError ?? "正在读取累计战利品…")</p>
-                    }
-                    @if (_rewardError is not null)
-                    {
-                        <button type="button" @onclick="RefreshRewardsAsync">重试</button>
-                    }
+                    <BattleInformationPanel Room="_roomDetail" Visible="_isRewardsOpen" />
                 </div>
             </section>
         </div>
-    }
-
     @if (GetStatusDialogCharacter() is { } statusCharacter)
     {
         var positiveEffects = statusCharacter.StatusEffects.Where(effect => effect.IsPositive).ToList();
@@ -802,6 +805,9 @@ else
                                 @if (slot.IsOccupied)
                                 {
                                     <div class="party-slot__identity"><h3>@slot.CharacterName</h3><span>@slot.PlayerName · Lv @slot.CharacterLevel</span></div>
+                                    @if (slot.SourceFormationName is not null) { <p>@slot.SourceFormationName / 入场版本 @slot.SourceFormationVersion</p> }
+                                    @if (slot.HasNewFormationVersion) { <p>预设有新版本，下次入场使用。</p> }
+                                    @if (slot.HasAutoPolicyOverrides) { <p>本房间已调整临时自动策略。</p> }
                                     <div class="party-slot__hp"><span>HP @slot.CharacterHp / @slot.CharacterMaxHp</span><span>@(slot.IsAlive ? "存活" : "已阵亡")</span></div>
                                     <progress class="health-bar" value="@slot.CharacterHp" max="@slot.CharacterMaxHp"></progress>
                                     <div class="party-slot__experience">
@@ -925,11 +931,6 @@ else
     private ElementReference _monsterStatusDialogCloseButton;
     private bool _isLogOpen;
     private bool _isRewardsOpen;
-    private bool _isLoadingRewards;
-    private bool _rewardRefreshPending;
-    private string? _rewardError;
-    private int _rewardVersion = -1;
-    private DateTime _rewardsLoadedAt;
     private string _historyEpoch = "";
     private long _afterEventId;
     private long _afterLogId;
@@ -1175,53 +1176,11 @@ else
         _focusManagementTrigger = true;
     }
 
-    private async Task OpenRewards()
+    private void OpenRewards()
     {
         ClearCombatFeedback();
         _isRewardsOpen = true;
         _focusRewardsCloseButton = true;
-        await RefreshRewardsAsync();
-    }
-
-    private Task RefreshRewardsAsync() => RefreshRewardsCoreAsync(allowFollowup: true);
-
-    private async Task RefreshRewardsCoreAsync(bool allowFollowup)
-    {
-        if (_roomDetail is not { } room || _refreshCancellation.IsCancellationRequested) return;
-        if (_isLoadingRewards) { _rewardRefreshPending = true; return; }
-        var context = ApiService.SessionRevision;
-        _isLoadingRewards = true;
-        _rewardRefreshPending = false;
-        _rewardError = null;
-        try
-        {
-            var rewards = await ApiService.GetRoomRewardsAsync(room.RoomId, _refreshCancellation.Token);
-            if (context != ApiService.SessionRevision || room.RoomId != RoomId || _refreshCancellation.IsCancellationRequested) return;
-            if (rewards is null) { _rewardError = "战利品暂时读取失败，请重试。"; return; }
-            if (_roomDetail is not { } latest) return;
-            if (latest.RunSequence != rewards.RunSequence || rewards.RoomVersion < latest.RoomVersion)
-            {
-                _rewardRefreshPending = latest.RoomVersion != room.RoomVersion;
-                _rewardError = "战利品刚刚更新，正在重新读取。";
-                return;
-            }
-            latest.Rewards = rewards.Rewards;
-            latest.CumulativeRewards = rewards.CumulativeRewards;
-            _rewardVersion = rewards.RoomVersion;
-            _rewardsLoadedAt = DateTime.UtcNow;
-        }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
-        { _rewardError = "战利品暂时读取失败，请重试。"; }
-        finally
-        {
-            _isLoadingRewards = false;
-            if (allowFollowup && _rewardRefreshPending && context == ApiService.SessionRevision &&
-                !_refreshCancellation.IsCancellationRequested && (_isRewardsOpen || _roomDetail?.ClosedAtUtc is not null))
-            {
-                _rewardRefreshPending = false;
-                await RefreshRewardsCoreAsync(allowFollowup: false);
-            }
-        }
     }
 
     private void CloseRewards()
@@ -1315,8 +1274,14 @@ else
 
     private async Task AssignSlotAsync(int slotIndex)
     {
-        if (await RunRoomOperationAsync(() => ApiService.AssignRoomSlotAsync(RoomId, slotIndex, _selectedCharacterIds[slotIndex]), "调整队伍失败。"))
-            foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0;
+        var characterId = _selectedCharacterIds[slotIndex];
+        if (GetFormationCharacterSlot(characterId) is not null)
+        {
+            if (await RunRoomOperationAsync(() => ApiService.AssignRoomSlotAsync(RoomId, slotIndex, characterId), "调整队伍失败。"))
+                foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0;
+            return;
+        }
+        await OpenAdmissionAsync(characterId, slotIndex, true);
     }
 
     private async Task RemoveSlotAsync(int slotIndex) =>
@@ -1402,8 +1367,42 @@ else
         }
     }
 
-    private async Task JoinRoomAsync(int slotIndex) =>
-        await RunRoomOperationAsync(() => ApiService.JoinRoomAsync(RoomId, slotIndex), "加入房间失败。");
+    private async Task JoinRoomAsync(int slotIndex)
+    {
+        if (ActiveCharacterState.Current is { } character) await OpenAdmissionAsync(character.CharacterId, slotIndex, false);
+    }
+
+    private int? _admissionCharacterId;
+    private string? _admissionCharacterName, _admissionDungeonCode, _admissionRequestId;
+    private int _admissionSlotIndex, _admissionRoomId, _admissionGeneration;
+    private bool _admissionIsAssign, _admissionValid;
+    private LoadoutSelection? _admissionSelection;
+    private async Task OpenAdmissionAsync(int characterId, int slotIndex, bool assign)
+    {
+        if (_roomDetail is null || _isBusy) return;
+        var generation = ++_admissionGeneration;
+        _message = null;
+        _admissionRoomId = RoomId; _admissionCharacterId = characterId;
+        _admissionCharacterName = _characters.FirstOrDefault(c => c.CharacterId == characterId)?.Name ?? ActiveCharacterState.Current?.Name;
+        _admissionSlotIndex = slotIndex; _admissionIsAssign = assign; _admissionValid = false;
+        _admissionDungeonCode = null; _admissionSelection = null; _admissionRequestId = null;
+        var dungeon = await ApiService.GetDungeonAsync(_roomDetail.DungeonId, _roomDetail.DepthLevel);
+        if (generation != _admissionGeneration || RoomId != _admissionRoomId) return;
+        if (dungeon is null) { _message = "副本信息读取失败，请取消后重试。"; return; }
+        _admissionDungeonCode = dungeon.Code;
+    }
+    private void AdmissionSelectionChanged(LoadoutSelection selection) { _admissionSelection = selection; _admissionRequestId = null; }
+    private void CloseAdmission() { ++_admissionGeneration; _admissionCharacterId = null; _admissionValid = false; }
+    private async Task ConfirmAdmissionAsync()
+    {
+        if (!_admissionValid || _admissionCharacterId is not int characterId || RoomId != _admissionRoomId) return;
+        _admissionRequestId ??= Guid.NewGuid().ToString("N");
+        var selection = _admissionSelection;
+        var success = await RunRoomOperationAsync(() => _admissionIsAssign
+            ? ApiService.AssignRoomSlotAsync(_admissionRoomId, _admissionSlotIndex, characterId, selection, _admissionRequestId)
+            : ApiService.JoinRoomAsync(_admissionRoomId, _admissionSlotIndex, characterId, selection, _admissionRequestId), "入场失败，请检查编队。");
+        if (success) { CloseAdmission(); foreach (var index in _selectedCharacterIds.Keys.ToList()) _selectedCharacterIds[index] = 0; }
+    }
 
     private async Task SetRoomVisibilityAsync(bool isPublic)
     {
@@ -1562,6 +1561,22 @@ else
             (!_selectedSkillTargetId.HasValue || _roomDetail?.Slots.FirstOrDefault(slot => slot.CharacterId == _selectedSkillTargetId) is not { } target ||
              !CanSelectSkillTarget(context.Skill, target))) return;
         if (await ToggleSkillAsync(context.Character, context.Skill, _selectedSkillTargetId)) CloseSkillDialog();
+    }
+
+    private bool _isSoulAutoSaving;
+    private async Task SetSoulAutoAsync(RoomSlotResponse character, RoomSoulImprintResponse soul, bool enabled, string? condition, int threshold)
+    {
+        if (_isBusy || _isSoulAutoSaving || character.CharacterId is null) return;
+        _isSoulAutoSaving = true;
+        _skillMessage = null;
+        try
+        {
+            var (response, error) = await ApiService.SetSoulImprintAutoAsync(character.CharacterId.Value, soul.Id, enabled, condition, threshold);
+            if (response is null) _skillMessage = error;
+            else await RefreshRoomDetailAsync();
+        }
+        catch { _skillMessage = "连接失败，魂印自动释放设置未保存。"; }
+        finally { _isSoulAutoSaving = false; }
     }
 
     private async Task SetSkillAutoAsync(SkillDialogContext context, bool enabled, int threshold, string? condition)
@@ -1902,9 +1917,6 @@ else
             MergeRoomBattleLogs(_roomDetail);
         }
         if (_roomDetail is not null) { _serverTimeUtc = _roomDetail.ServerTimeUtc; _serverTimeReceivedAtUtc = DateTime.UtcNow; }
-        if ((_isRewardsOpen || latest.ClosedAtUtc.HasValue) &&
-            (_rewardVersion != latest.RoomVersion || DateTime.UtcNow - _rewardsLoadedAt > TimeSpan.FromSeconds(10)))
-            await RefreshRewardsAsync();
         return true;
     }
 

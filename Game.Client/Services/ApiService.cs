@@ -282,10 +282,10 @@ public partial class ApiService
         return response.IsSuccessStatusCode ? await ReadContextResponseAsync<DungeonSummaryResponse>(response) : null;
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> JoinRoomAsync(int roomId, int slotIndex, int? characterId = null, Game.Shared.Dtos.Formations.LoadoutSelection? selection = null, string? requestId = null)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true);
-        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Join, SlotIndex = slotIndex });
+        var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: characterId.HasValue ? ApiRequestScope.Room : ApiRequestScope.CurrentCharacter);
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Join, SlotIndex = slotIndex, CharacterId = characterId, LoadoutSelection = selection, RequestId = requestId });
         return await HandleRoomDetailResponseAsync(await SendTrackedAsync(request), "加入房间失败。");
     }
 
@@ -364,9 +364,12 @@ public partial class ApiService
         return (await ReadContextResponseAsync<BattleResult>(response), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(CreateRoomRequest options)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> CreateRoomAsync(CreateRoomRequest options, int? characterId = null, Game.Shared.Dtos.Formations.LoadoutSelection? selection = null, string? requestId = null)
     {
-        var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true);
+        if (characterId.HasValue) options.CharacterId = characterId;
+        if (selection is not null) options.LoadoutSelection = selection;
+        if (requestId is not null) options.RequestId = requestId;
+        var request = await CreateRequestAsync(HttpMethod.Post, "api/rooms", requiresAuth: true, scope: options.CharacterId.HasValue ? ApiRequestScope.Room : ApiRequestScope.CurrentCharacter);
         request.Content = JsonContent.Create(options);
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
@@ -376,16 +379,16 @@ public partial class ApiService
             {
                 errorMessage = "创建房间失败。";
             }
-            return (null, errorMessage);
+            return (null, TranslateFormationAdmissionError(errorMessage));
         }
 
         return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
     }
 
-    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId)
+    public async Task<(RoomDetailResponse? Detail, string? ErrorMessage)> AssignRoomSlotAsync(int roomId, int slotIndex, int characterId, Game.Shared.Dtos.Formations.LoadoutSelection? selection = null, string? requestId = null)
     {
         var request = await CreateRequestAsync(HttpMethod.Post, $"api/rooms/{roomId}/operations", requiresAuth: true, scope: ApiRequestScope.Room);
-        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Assign, SlotIndex = slotIndex, CharacterId = characterId });
+        request.Content = JsonContent.Create(new SubmitRoomOperationRequest { Kind = Game.Shared.Enums.RoomOperationKind.Assign, SlotIndex = slotIndex, CharacterId = characterId, LoadoutSelection = selection, RequestId = requestId });
         var response = await SendTrackedAsync(request);
         if (!response.IsSuccessStatusCode)
         {
@@ -400,7 +403,7 @@ public partial class ApiService
                 errorMessage = "上阵角色失败。";
             }
 
-            return (null, errorMessage);
+            return (null, TranslateFormationAdmissionError(errorMessage));
         }
 
         return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
@@ -452,7 +455,7 @@ public partial class ApiService
                 "InvalidDungeonDepth" => "房间的深层层级暂不可用。",
                 _ => error
             };
-            return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : error);
+            return (null, string.IsNullOrWhiteSpace(error) ? fallbackMessage : TranslateFormationAdmissionError(error));
         }
 
         return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
@@ -488,7 +491,7 @@ public partial class ApiService
                 errorMessage = "战斗请求失败。";
             }
 
-            return (null, errorMessage);
+            return (null, TranslateFormationAdmissionError(errorMessage));
         }
 
         return (await ReadContextResponseAsync<BattleResult>(response), null);
@@ -572,7 +575,7 @@ public partial class ApiService
                 errorMessage = "重置战斗失败。";
             }
 
-            return (null, errorMessage);
+            return (null, TranslateFormationAdmissionError(errorMessage));
         }
 
         return (await ReadContextResponseAsync<RoomDetailResponse>(response), null);
@@ -847,10 +850,11 @@ public partial class ApiService
             new SetSoulImprintLockRequest { IsLocked = isLocked });
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> SetSoulImprintAutoAsync(
-        int characterId, int soulImprintId, bool autoUseEnabled) =>
+        int characterId, int soulImprintId, bool autoUseEnabled, string? condition = null, int? threshold = null) =>
         SendSoulImprintRequestAsync(HttpMethod.Put,
             $"api/user/characters/{characterId}/soul-imprints/{soulImprintId}/auto",
-            new SetSoulImprintAutoRequest { AutoUseEnabled = autoUseEnabled });
+            new SetSoulImprintAutoRequest { AutoUseEnabled = autoUseEnabled,
+                AutoConditionOverride = condition, AutoHpThresholdPercent = threshold });
 
     public Task<(CharacterSoulImprintsResponse? Response, string? ErrorMessage)> DismantleSoulImprintsAsync(
         int characterId, params int[] soulImprintIds) =>
@@ -870,10 +874,13 @@ public partial class ApiService
             var error = (await response.Content.ReadAsStringAsync()).Trim('"');
             return (null, error switch
             {
-                "LoadoutLocked" => "战斗已经开始，当前不能修改魂印。",
+                "LoadoutLocked" => "角色已入场，请先离场或移出角色后再调整魂印。",
+                var message when message.StartsWith("FormationItemReferenced:", StringComparison.Ordinal) => $"该魂印被编队“{message["FormationItemReferenced:".Length..]}”引用，请先替换或移除编队中的引用，再进行分解。",
                 "SoulImprintEquipped" => "请先卸下魂印再进行分解。",
                 "SoulImprintLocked" => "已锁定的魂印不能分解。",
                 "SoulImprintNotOwned" => "该魂印已不在当前角色背包中。",
+                "InvalidAutoCondition" => "请选择有效的自动释放条件。",
+                "InvalidHpThreshold" => "生命值阈值需要设置在 1% 到 100% 之间。",
                 "ConcurrencyConflict" => "魂印状态刚刚发生变化，请刷新后重试。",
                 _ => "魂印操作失败，请稍后重试。"
             });

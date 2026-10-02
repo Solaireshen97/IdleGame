@@ -1,0 +1,19 @@
+.battle-information { color: #e1ebf2; }
+button, select { color: #e1ebf2; border: 1px solid #526a7e; border-radius: .5rem; background: #152638; padding: .5rem .7rem; font: inherit; cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 2px solid #e3ba72; outline-offset: 3px; }
+button:disabled { opacity: .45; cursor: default; }
+.information-tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
+.information-tabs button { flex: 1; min-height: 42px; }
+.information-tabs button[aria-selected=true] { color: #f2cf8e; border-color: #e3ba72; background: #303c44; }
+.information-filters { display: flex; flex-wrap: wrap; gap: .7rem; }
+.information-filters label { display: flex; flex: 1; align-items: center; gap: .5rem; min-width: 160px; font-size: .8rem; color: #b4c7d5; }
+.information-filters select { min-width: 0; flex: 1; width: 100%; }
+.information-heading { font-size: .88rem; font-weight: 600; margin-top: 1rem; }
+.information-hint { color: #b1c4d2; font-size: .75rem; line-height: 1.5; }
+.information-hint button { font-size: .7rem; padding: .25rem .4rem; margin-left: .3rem; }
+.information-error { color: #f2b29f; font-size: .85rem; }
+.information-totals { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: .5rem; margin-top: .9rem; padding: .8rem; background: #102133; border-radius: .6rem; }
+.information-totals div { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.information-totals small { font-size: .7rem; color: #abc0d0; }
+.information-totals strong { color: #edc477; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@media (max-width: 380px) { .information-filters label { min-width: 100%; } }

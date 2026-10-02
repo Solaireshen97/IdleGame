@@ -1,0 +1,11 @@
+.statistics-metrics { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1rem 0 .75rem; }
+button { color: #e3edf4; background: #152638; border: 1px solid #435a70; border-radius: .5rem; cursor: pointer; }
+.statistics-metrics button { padding: .5rem .85rem; }
+button[aria-pressed=true] { border-color: #e3ba72; background: #2d3b43; }
+button:focus-visible { outline: 2px solid #e3ba72; outline-offset: 3px; }
+.statistics-actors { display: grid; gap: .5rem; }
+.statistics-actor { display: grid; grid-template-columns: minmax(95px, 1.3fr) repeat(3, minmax(0, 1fr)); gap: .5rem; width: 100%; text-align: left; padding: .75rem; }
+.statistics-actor span { min-width: 0; display: flex; flex-direction: column; gap: .2rem; }
+.statistics-actor strong { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-size: .9rem; }
+.statistics-actor small { color: #acbfce; font-size: .7rem; }
+@media (max-width: 420px) { .statistics-actor { grid-template-columns: repeat(3, minmax(0, 1fr)); } .statistics-actor__identity { grid-column: 1/-1; } }

@@ -378,7 +378,7 @@
     private static string? GetError(string? error) => error?.Trim().Trim('"') switch
     {
         null or "" => null,
-        "LoadoutLocked" => "战斗正在进行，请在战斗结束后调整补给槽。",
+        "LoadoutLocked" => "角色已入场，请先离场或移出角色后再调整补给槽。",
         "ConsumableAlreadyEquipped" => "该道具已装备在另一个补给槽。",
         "InvalidHpThreshold" => "HP 阈值必须在 1%～100% 之间。",
         "UnknownConsumable" => "道具不存在，请刷新背包。",

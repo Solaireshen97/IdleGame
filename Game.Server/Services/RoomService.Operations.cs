@@ -14,28 +14,50 @@ public partial class RoomService
     {
         var (user, authError) = await userService.GetCurrentUserEntityAsync(token);
         if (authError is not null) return (null, authError);
+        if (request.RequestId is not null && (string.IsNullOrWhiteSpace(request.RequestId) || request.RequestId.Length > 100))
+            return (null, "InvalidRequestId");
+        var fingerprint = CombatLoadoutCodec.Hash(System.Text.Json.JsonSerializer.Serialize(new
+            { roomId, request.Kind, request.SlotIndex, request.CharacterId, request.LoadoutSelection }));
+        if (request.RequestId is not null)
+        {
+            var previous = await dbContext.RoomOperations.AsNoTracking().SingleOrDefaultAsync(o => o.UserId == user!.Id && o.RequestId == request.RequestId);
+            if (previous is not null)
+            {
+                if (previous.RequestFingerprint != fingerprint) return (null, "RequestIdConflict");
+                dbContext.ChangeTracker.Clear();
+                var previousRoom = await dbContext.Rooms.FindAsync(previous.RoomId);
+                return previousRoom is null ? (null, "NotFound") : (await BuildRoomDetailAsync(previousRoom, user!.Id), null);
+            }
+        }
         await using var transaction = await dbContext.Database.BeginTransactionAsync();
         try
         {
             var room = await dbContext.Rooms.FindAsync(roomId);
             if (room is null) return (null, "NotFound");
             var joiningCharacterId = request.Kind == RoomOperationKind.Join
-                ? await new CharacterAccessResolver(dbContext).ActiveIdAsync(user!) : null;
+                ? request.CharacterId ?? await new CharacterAccessResolver(dbContext).ActiveIdAsync(user!) : null;
             var operation = new RoomOperation
             {
                 RoomId = roomId, UserId = user!.Id, Kind = request.Kind,
                 SlotIndex = request.SlotIndex, CharacterId = request.Kind == RoomOperationKind.Assign
                     ? request.CharacterId ?? 0 : joiningCharacterId ?? 0,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = DateTime.UtcNow, RequestId = request.RequestId, RequestFingerprint = fingerprint
             };
             var error = await ValidateOperationAsync(room, operation, capture: true);
+            if (error is not null) return (null, error);
+            error = await CaptureOperationLoadoutAsync(operation, request.LoadoutSelection);
             if (error is not null) return (null, error);
             var pending = await dbContext.RoomOperations.Where(item => item.RoomId == roomId &&
                 item.UserId == user.Id && item.Status == "Pending").ToListAsync();
             var duplicate = pending.FirstOrDefault(item => item.Kind == operation.Kind &&
+                (request.RequestId == null || item.RequestId == request.RequestId) &&
                 item.SlotIndex == operation.SlotIndex && item.CharacterId == operation.CharacterId &&
                 item.ExpectedTargetCharacterId == operation.ExpectedTargetCharacterId &&
-                item.ExpectedSourceSlotIndex == operation.ExpectedSourceSlotIndex);
+                item.ExpectedSourceSlotIndex == operation.ExpectedSourceSlotIndex &&
+                item.RequestedLoadoutJson == operation.RequestedLoadoutJson &&
+                item.SourceFormationId == operation.SourceFormationId &&
+                item.SourceFormationVersion == operation.SourceFormationVersion &&
+                item.RememberForEncounter == operation.RememberForEncounter);
             if (duplicate is not null) return (await BuildRoomDetailAsync(room, user.Id), null);
 
             // Independent changes can coexist; a newer conflicting choice replaces the old choice.
@@ -63,6 +85,17 @@ public partial class RoomService
         {
             await transaction.RollbackAsync();
             dbContext.ChangeTracker.Clear();
+            await transaction.DisposeAsync();
+            if (request.RequestId is not null)
+            {
+                var previous = await dbContext.RoomOperations.AsNoTracking().SingleOrDefaultAsync(o => o.UserId == user!.Id && o.RequestId == request.RequestId);
+                if (previous is not null)
+                {
+                    if (previous.RequestFingerprint != fingerprint) return (null, "RequestIdConflict");
+                    var previousRoom = await dbContext.Rooms.FindAsync(previous.RoomId);
+                    return previousRoom is null ? (null, "NotFound") : (await BuildRoomDetailAsync(previousRoom, user!.Id), null);
+                }
+            }
             return (null, "ConcurrencyConflict");
         }
     }
@@ -124,6 +157,8 @@ public partial class RoomService
                         continue;
                     }
                 }
+                // Admission rollback clears tracked entities; reload the claimed request before finishing it.
+                operation = await dbContext.RoomOperations.FindAsync(id) ?? operation;
                 FinishOperation(operation, error is null ? "Completed" : "Failed", error);
                 await dbContext.SaveChangesAsync();
                 await transaction.CommitAsync();
@@ -206,10 +241,10 @@ public partial class RoomService
         var result = operation.Kind switch
         {
             RoomOperationKind.Join => await JoinRoomCoreAsync(operation.RoomId, new JoinRoomRequest { SlotIndex = operation.SlotIndex },
-                user, (await dbContext.Characters.FindAsync(operation.CharacterId))!),
+                user, (await dbContext.Characters.FindAsync(operation.CharacterId))!, operation),
             RoomOperationKind.Leave => await LeaveRoomCoreAsync(operation.RoomId, user),
             RoomOperationKind.Assign => await AssignSlotCoreAsync(operation.RoomId,
-                new AssignRoomSlotRequest { SlotIndex = operation.SlotIndex, CharacterId = operation.CharacterId }, user),
+                new AssignRoomSlotRequest { SlotIndex = operation.SlotIndex, CharacterId = operation.CharacterId }, user, operation),
             _ => await RemoveSlotCoreAsync(operation.RoomId, operation.SlotIndex, user)
         };
         return result.Error;
@@ -239,6 +274,7 @@ public partial class RoomService
         return operations.Select(item => new RoomOperationResponse
         {
             Id = item.Id, Kind = item.Kind, SlotIndex = item.SlotIndex, CharacterName = item.CharacterName,
+            SourceFormationName = item.SourceFormationName, SourceFormationVersion = item.SourceFormationVersion,
             Status = item.Status, Error = item.Error, Message = GetOperationMessage(item)
         }).ToList();
     }
@@ -272,6 +308,10 @@ public partial class RoomService
         "NotOwner" or "NotCharacterOwner" => "已无权执行此操作。",
         "NotRoomParticipant" or "AlreadyInRoom" => "角色的组队状态已变化。",
         "BattleOver" => "该房间已结束战斗，无法加入。",
+        "MainWeaponRequired" or "WeaponNotOwned" => "预约编队的武器已不可用，请重新配置。",
+        "SkillNotLearned" => "预约编队的技能已不可用，请重新配置。",
+        "SoulImprintNotOwned" or "SoulImprintUnavailable" => "预约编队的魂印已不可用。",
+        "UnsupportedLoadoutSnapshot" => "预约配装数据无法读取，请重新预约。",
         _ => "角色或房间状态已变化，请重新操作。"
     };
 }

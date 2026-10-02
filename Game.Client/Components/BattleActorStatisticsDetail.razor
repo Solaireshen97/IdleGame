@@ -1,0 +1,47 @@
+@using Game.Shared.Dtos
+@using Game.Client.Services
+
+<section class="actor-detail" aria-label="@($"{BattleStatisticsPresentation.ActorName(Actor)}的战斗明细")">
+    <h3>@BattleStatisticsPresentation.ActorName(Actor) <small>@BattleStatisticsPresentation.Profession(Actor.ProfessionCode) · @BattleStatisticsPresentation.Element(Actor.Element)</small></h3>
+    @if (Actor.HasUnknownIdentity) { <p>部分来源身份未能记录。</p> }
+    @if (Actor.HasMixedConfigurations) { <p>本范围使用过多个配置，以下数值为合计。</p> }
+    @foreach (var configuration in Actor.Configurations)
+    {
+        <p class="actor-detail__configuration">@BattleStatisticsPresentation.Profession(configuration.ProfessionCode) · @(configuration.FormationName ?? "未使用编队") @(configuration.FormationVersion is int version ? $"v{version}" : "")</p>
+    }
+    <dl>
+        <div><dt>在场 / 存活回合</dt><dd>@Actor.Metrics.PresentRounds / @Actor.Metrics.AliveRounds</dd></div>
+        <div><dt>承受伤害</dt><dd>@Actor.Metrics.DamageTaken.ToString("N0")</dd></div>
+        <div><dt>有效治疗</dt><dd>@Actor.Metrics.HealingDone.ToString("N0")</dd></div>
+        <div><dt>受到治疗</dt><dd>@Actor.Metrics.HealingReceived.ToString("N0")</dd></div>
+        <div><dt>对队友治疗 / 自疗</dt><dd>@((Actor.Metrics.HealingDone - Actor.Metrics.SelfHealing).ToString("N0")) / @Actor.Metrics.SelfHealing.ToString("N0")</dd></div>
+        <div><dt>其中药水恢复</dt><dd>@Actor.Metrics.PotionHealing.ToString("N0")</dd></div>
+        <div><dt>阵亡次数</dt><dd>@Actor.Metrics.Deaths</dd></div>
+        <div><dt>净化 / 驱散 / 打断</dt><dd>@Actor.Metrics.Cleanses / @Actor.Metrics.Dispels / @Actor.Metrics.Interrupts</dd></div>
+    </dl>
+    <h4>伤害与治疗来源</h4>
+    <div class="actor-source-mode"><button type="button" aria-pressed="@(!_healing ? "true" : "false")" @onclick="() => _healing = false">按伤害</button><button type="button" aria-pressed="@(_healing ? "true" : "false")" @onclick="() => _healing = true">按治疗</button></div>
+    @if (Actor.Abilities.Count == 0)
+    {
+        <p>当前范围暂无已记录的伤害或治疗来源。</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var ability in Actor.Abilities.OrderByDescending(SourceValue))
+            {
+                <li><div><strong>@BattleStatisticsPresentation.Ability(ability)</strong><small>@BattleStatisticsPresentation.Action(ability.ActionKind)</small></div>
+                    <span>伤害 @ability.DamageDealt.ToString("N0") · 治疗 @ability.HealingDone.ToString("N0")</span>
+                    <progress value="@SourceValue(ability)" max="@Maximum" aria-label="@($"{BattleStatisticsPresentation.Ability(ability)}，{(_healing ? "治疗" : "伤害")}{SourceValue(ability)}")"></progress>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public BattleStatisticsActorResponse Actor { get; set; } = new();
+    private bool _healing;
+    private long SourceValue(BattleStatisticsAbilityResponse ability) => _healing ? ability.HealingDone : ability.DamageDealt;
+    private long Maximum => Math.Max(1, Actor.Abilities.Select(SourceValue).DefaultIfEmpty().Max());
+}

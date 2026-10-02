@@ -1,4 +1,5 @@
 @using Game.Shared
+@using Game.Shared.Dtos.Formations
 @using Game.Client.Services
 @using Game.Shared.Dtos
 @using Game.Shared.Dtos.Characters
@@ -191,7 +192,8 @@
             {
                 <p class="monster-create-message" role="alert">@CreateError</p>
             }
-            <button type="button" class="button button--primary monster-create-button" disabled="@(IsCreating || _isLoadingDepth || _depthError is not null || !CurrentDungeon.CanEnter || SelectedDepth?.IsUnlocked == false || Character is null)" @onclick="CreateAsync"><span>@CreateButtonLabel</span><span aria-hidden="true">@(SelectedDepth?.IsUnlocked == false ? "" : "→")</span></button>
+            @if (Character is not null) { <FormationSelector Disabled="IsCreating" CharacterId="Character.CharacterId" DungeonCode="@CurrentDungeon.Code" DepthLevel="CurrentDungeon.DepthLevel" SelectionChanged="FormationChanged" ValidityChanged="valid => _formationValid = valid" /> }
+            <button type="button" class="button button--primary monster-create-button" disabled="@(IsCreating || !_formationValid || _isLoadingDepth || _depthError is not null || !CurrentDungeon.CanEnter || SelectedDepth?.IsUnlocked == false || Character is null)" @onclick="CreateAsync"><span>@CreateButtonLabel</span><span aria-hidden="true">@(SelectedDepth?.IsUnlocked == false ? "" : "→")</span></button>
         </footer>
     </section>
 
@@ -283,9 +285,16 @@
         }
     }
 
+    private LoadoutSelection? _loadoutSelection;
+    private bool _formationValid;
+    private string? _admissionRequestId;
+    private void FormationChanged(LoadoutSelection selection) { _loadoutSelection = selection; _admissionRequestId = null; }
     private void SelectMonster(int index) => _selectedMonsterIndex = index;
     private Task CreateAsync() => OnCreate.InvokeAsync(new CreateRoomRequest
     {
+        CharacterId = Character?.CharacterId,
+        LoadoutSelection = _loadoutSelection,
+        RequestId = _admissionRequestId ??= Guid.NewGuid().ToString("N"),
         DungeonId = CurrentDungeon.DungeonId,
         DepthLevel = CurrentDungeon.DepthLevel,
         IsRepeatBattle = _isRepeatBattle,

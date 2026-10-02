@@ -4,6 +4,7 @@ namespace Game.Shared.Dtos;
 
 public class RoomDetailResponse
 {
+    public string? LoadoutIntegrityError { get; set; }
     public int RoomId { get; set; }
     public int RoomVersion { get; set; }
     public string BattleHistoryEpoch { get; set; } = "";

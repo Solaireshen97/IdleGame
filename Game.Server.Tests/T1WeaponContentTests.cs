@@ -159,21 +159,21 @@ public sealed class T1WeaponContentTests
         Assert.Equal((900, 42, 100),
             (hardEnrage.DamagePowerPercent, hardEnrage.RoomRoundAtLeast, hardEnrage.ForcedPriority));
         var expectedSoulImprints = new Dictionary<string, (ElementType Element, SoulImprintEffectType Effect,
-            int Power, int Secondary, int Duration, int InitialCooldown, int Cooldown, int AutoHpThreshold,
+            int Power, int Secondary, int Duration, int InitialCooldown, int Cooldown, string AutoCondition,
             string? StatusCode)>
         {
             ["kobold-mine-depths"] = (ElementType.Earth, SoulImprintEffectType.DamageArmorBreak,
-                150, 20, 3, 3, 8, 100, "armor-break"),
+                70, 5, 1, 3, 8, "Always", "soul-earth-vulnerability"),
             ["plague-crypt-depths"] = (ElementType.Dark, SoulImprintEffectType.DamageEcho,
-                170, 35, 0, 3, 7, 100, null),
+                110, 35, 0, 3, 7, "Always", null),
             ["ragefire-heart"] = (ElementType.Fire, SoulImprintEffectType.Interrupt,
-                125, 0, 0, 2, 6, 100, null),
+                100, 0, 0, 2, 7, "InterruptibleIntent", null),
             ["frostspring-throne"] = (ElementType.Water, SoulImprintEffectType.GuardCounter,
-                115, 50, 0, 2, 7, 100, "soul-frost-guard"),
+                90, 30, 0, 2, 7, "SelfHpBelowThreshold", "soul-frost-guard"),
             ["windfury-spire"] = (ElementType.Wind, SoulImprintEffectType.CooldownReduction,
-                0, 2, 0, 3, 7, 100, null),
+                60, 1, 0, 3, 7, "Always", null),
             ["dawn-core"] = (ElementType.Light, SoulImprintEffectType.HealCleanse,
-                24, 1, 0, 3, 8, 75, null)
+                10, 1, 0, 3, 9, "AllyHpBelowThreshold", null)
         };
         // Independently calibrated bosses may share a panel; their identities remain distinct.
         var bossNames = new HashSet<string>(StringComparer.Ordinal);
@@ -349,11 +349,11 @@ public sealed class T1WeaponContentTests
             var expectedSoul = expectedSoulImprints[dungeon.Code];
             Assert.Equal((expectedSoul.Element, expectedSoul.Effect, expectedSoul.Power, expectedSoul.Secondary,
                     expectedSoul.Duration, expectedSoul.InitialCooldown, expectedSoul.Cooldown,
-                    expectedSoul.AutoHpThreshold, expectedSoul.StatusCode),
+                    expectedSoul.AutoCondition, expectedSoul.StatusCode),
                 (soulDefinition.Element, soulDefinition.EffectType, soulDefinition.PowerPercent,
                     soulDefinition.SecondaryPowerPercent, soulDefinition.DurationRounds,
                     soulDefinition.InitialCooldownRounds, soulDefinition.CooldownRounds,
-                    soulDefinition.AutoHpThresholdPercent, soulDefinition.StatusCode));
+                    soulDefinition.AutoCondition, soulDefinition.StatusCode));
             if (soulDefinition.StatusCode is not null)
             {
                 var soulStatus = Assert.Single(monsterCombat.StatusEffects,

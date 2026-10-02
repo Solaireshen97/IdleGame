@@ -1,0 +1,13 @@
+.formations-page { max-width:1100px; margin:auto; padding:24px; }
+.formation-elements,.formation-actions { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+.formation-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+.formation-card { padding:16px; border:1px solid #43546c; border-radius:12px; background:#172331; color:inherit; text-align:left; display:flex; flex-direction:column; gap:8px; }
+.formation-card:hover,.formation-card:focus { border-color:#8bc5ec; }
+.formation-editor { margin-top:24px; padding:24px; border:1px solid #43546c; border-radius:12px; }
+.formation-editor label { display:inline-flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px; }
+.formation-editor select,.formation-editor input:not([type=checkbox]) { max-width:100%; padding:8px; border-radius:6px; }
+.formation-editor input[type=number] { width:80px; }
+.formation-slot { padding:8px 0; border-bottom:1px solid #43546c; }
+@media(max-width:600px) { .formations-page,.formation-editor { padding:12px; } .formation-editor label { display:flex; } .formation-editor select { width:100%; } }
+.formation-editor fieldset { border:0; padding:0; min-width:0; }
+.formation-elements button[aria-pressed=true] { outline:2px solid #d8a957; }

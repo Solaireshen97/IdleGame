@@ -33,14 +33,16 @@ public sealed class CombatConsumableMigrationTests
             new CharacterItemStack { CharacterId = 1, ItemCode = "minor-healing-potion", Quantity = 17 },
             new CharacterConsumableSlot { CharacterId = 1, SlotIndex = 1, ItemCode = "whetstone-oil", AutoUseEnabled = true },
             new CharacterConsumableSlot { CharacterId = 2, SlotIndex = 3, ItemCode = "northshire-battle-draught" },
-            new RoomOperation { RoomId = 7, UserId = 1, CharacterId = 2, CharacterName = "Production",
-                SlotIndex = 2, CreatedAtUtc = now },
             new ProductionTask { Id = 3, CharacterId = 2, UserId = 1, RecipeCode = "minor-healing-potion",
                 OutputCode = "minor-healing-potion", OutputQuantity = 1, IngredientsJson = "[]", CycleSeconds = 10,
                 StartedAtUtc = now, EndsAtUtc = now.AddHours(1), NextCycleAtUtc = now.AddSeconds(10),
                 CompletedCycles = 5, TotalQuantity = 5 },
             new RewardRun { RoomId = 7, Sequence = 1, Status = "Settled", SettledAtUtc = now });
         await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO RoomOperations(RoomId,UserId,Kind,SlotIndex,CharacterId,CharacterName,Status,CreatedAtUtc,Version)
+            VALUES(7,1,0,2,2,'Production','Pending',{now},0);
+            """);
         await db.Database.ExecuteSqlRawAsync("""
             INSERT INTO RewardEntries (RoomId,Sequence,CharacterId,UserId,EventKey,Kind,Code,Quantity)
             VALUES (7,1,1,1,'preserved','Gold','',50);
@@ -58,13 +60,13 @@ public sealed class CombatConsumableMigrationTests
         Assert.Empty(await db.CharacterActivities.Where(activity => activity.Kind == "Battle").ToListAsync());
         Assert.Equal("Production", (await db.CharacterActivities.SingleAsync()).Kind);
         Assert.Empty(await db.CharacterConsumableSlots.ToListAsync());
-        Assert.All(await db.RoomSlots.ToListAsync(), slot =>
+        Assert.All(await db.RoomSlots.Select(slot => new { slot.CharacterId, slot.UserId, slot.PendingConsumableSlotMask }).ToListAsync(), slot =>
         {
             Assert.Null(slot.CharacterId);
             Assert.Null(slot.UserId);
             Assert.Equal(0, slot.PendingConsumableSlotMask);
         });
-        Assert.NotEqual("Pending", (await db.RoomOperations.SingleAsync()).Status);
+        Assert.NotEqual("Pending", await db.RoomOperations.Select(operation => operation.Status).SingleAsync());
         Assert.Equal(17, (await db.CharacterItemStacks.SingleAsync()).Quantity);
         var character = await db.Characters.FindAsync(1);
         Assert.Equal(37, character!.Hp);

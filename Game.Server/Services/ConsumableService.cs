@@ -28,14 +28,7 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         if (item is not null && !ConsumableRules.CanEquip(slotIndex, item.Kind)) return (null, "WrongConsumableSlot");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
-        Room? room = null;
-        if (roomSlot is not null)
-        {
-            room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
-            if (room is not null && room.Status != RoomStatus.BattleOver &&
-                (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0))
-                return (null, "LoadoutLocked");
-        }
+        if (roomSlot is not null) return (null, "LoadoutLocked");
 
         var equipped = await dbContext.CharacterConsumableSlots
             .Where(slot => slot.CharacterId == characterId)
@@ -58,9 +51,6 @@ public sealed class ConsumableService(GameDbContext dbContext, UserService userS
         slotToUpdate.AutoUseEnabled = item is { Kind: "Healing" or "CombatBuff" } && request.AutoUseEnabled;
         slotToUpdate.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
-        if (room is not null) room.Version++;
-        if (roomSlot is not null)
-            roomSlot.PendingConsumableSlotMask &= ~ConsumableRules.SlotMask(slotIndex);
 
         try
         {

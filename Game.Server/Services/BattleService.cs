@@ -9,11 +9,12 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null, BattleContextPreparation? contextPreparation = null)
+public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null, BattleContextPreparation? contextPreparation = null, BattleLoadoutIntegrityService? loadoutIntegrity = null)
 {
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default, runRules);
     private readonly BattleContextPreparation _contextPreparation = contextPreparation ?? new(runRules, monsterCombatService?.Phases);
     private readonly SkillBattleSnapshotFactory _skillSnapshots = new(dbContext, skillCatalog, monsterCombatService, mechanics);
+    private readonly BattleStatisticsWriter _statistics = new(dbContext);
     private readonly BattleEventCollector _events = battleEffects?.Events ?? monsterCombatService?.Statuses.Events ?? new();
     private BattleStatusService? _statusService;
     private BattleStatusService Statuses => _statusService ??= _effectExecutor?.Statuses ?? monsterCombatService?.Statuses ??
@@ -56,6 +57,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
             ClearRoundState(room, slots);
             SetBattleOver(room, now);
             await Statuses.ClearRunAsync(room);
+            await _statistics.FinishRunAsync(room, now, monster.Hp <= 0 ? "Victory" : "Defeat");
             var logs = new List<string>();
             if (aliveSlots.Count == 0) await rewardService.SettleAsync(room, false, now, logs);
             logs.Add(monster.Hp <= 0 ? "怪物已经被击败，请重置房间。" : "全队已经战败，无法继续战斗。");
@@ -462,6 +464,7 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         // The scope spans calculation, wave/reward changes and the one atomic save.
         using var statusSettlement = await Statuses.BeginSettlementAsync(room);
         using var recording = _events.Begin(room, monster, slots.OrderBy(entry => entry.Slot.SlotIndex).ToList());
+        var statistics = await _statistics.CaptureAsync(room, monster, slots, now);
         var autoCharacterIds = aliveSlots.Where(entry => !entry.Slot.IsTemporaryAuto &&
             IsSlotAuto(room, entry, clearedCharacterIds, slots)).Select(entry => entry.Character.Id).ToHashSet();
         var outcome = await Rounds.ExecuteAsync(room, monster, slots, autoCharacterIds, logs);
@@ -503,7 +506,9 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         }
         if (monsterCombatService is not null && room.Status != RoomStatus.BattleOver && monster.Hp > 0)
             await monsterCombatService.EnsureIntentAsync(room, monster);
-        return await SaveResultAsync(room, slots, monster, now, logs, resetLog);
+        statistics = statistics with { Outcome = room.Status == RoomStatus.BattleOver
+            ? outcome == BattleRoundOutcome.PartyDefeated ? "Defeat" : "Victory" : "InProgress" };
+        return await SaveResultAsync(room, slots, monster, now, logs, resetLog, statistics);
     }
 
     private async Task<bool> CanSkillApplyAsync(Room room, Monster monster, CharacterSkillDefinition skill,
@@ -514,12 +519,15 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         return SkillBattlePolicy.HasApplicableEffect(skill, snapshot, chosenTargetId);
     }
 
-    private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<BattleParticipant> slots, Monster monster, DateTime now, List<string> logs, bool resetLog = false)
+    private async Task<(BattleResult? Result, string? Error)> SaveResultAsync(Room room, List<BattleParticipant> slots, Monster monster, DateTime now, List<string> logs, bool resetLog = false,
+        BattleSettlementSnapshot? statistics = null)
     {
         room.Version++;
+        var events = _events.Snapshot(room);
+        if (statistics is not null)
+            await _statistics.ApplyAsync(room, statistics with { SettlementVersion = room.Version, Events = events });
         var save = await SaveAsync();
         if (!save.Success) return (null, save.Error);
-        var events = _events.Snapshot(room);
         var published = resetLog ? battleLogStore?.Replace(room.Id, logs, now, events) : battleLogStore?.Append(room.Id, logs, now, events);
         var result = BuildResult(room, slots, monster, now, logs);
         result.Events = published ?? events;
@@ -586,6 +594,21 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null) return (null, null, null, "NotFound");
         var slots = await BattlePartyReader.ReadAsync(dbContext, roomId);
+        if (loadoutIntegrity is not null)
+        {
+            var previousError = room.LoadoutIntegrityError;
+            var integrityError = await loadoutIntegrity.EnsureAsync(room, slots);
+            if (integrityError is not null)
+            {
+                if (previousError != integrityError)
+                {
+                    room.Version++;
+                    try { await dbContext.SaveChangesAsync(); }
+                    catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception)) { return (room, slots, null, "ConcurrencyConflict"); }
+                }
+                return (room, slots, null, integrityError);
+            }
+        }
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
         if (monster is not null)
             await _contextPreparation.PrepareAsync(room, monster, slots);

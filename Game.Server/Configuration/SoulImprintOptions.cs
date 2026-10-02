@@ -21,7 +21,7 @@ public sealed class SoulImprintDefinitionOptions
     public int PowerPercent { get; set; }
     public int SecondaryPowerPercent { get; set; }
     public int DurationRounds { get; set; }
-    public int AutoHpThresholdPercent { get; set; } = 100;
+    public string AutoCondition { get; set; } = "Always";
     public int InitialCooldownRounds { get; set; }
     public int CooldownRounds { get; set; }
     public int DismantleFragments { get; set; }

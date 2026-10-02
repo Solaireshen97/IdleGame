@@ -192,6 +192,8 @@ namespace Game.Server.Data.Migrations
                     b.Property<int>("CharacterId").HasColumnType("INTEGER");
                     b.Property<int?>("EquippedSlotIndex").HasColumnType("INTEGER");
                     b.Property<bool>("AutoUseEnabled").HasColumnType("INTEGER");
+                    b.Property<string>("AutoConditionOverride").HasColumnType("TEXT");
+                    b.Property<int>("AutoHpThresholdPercent").HasColumnType("INTEGER");
                     b.Property<bool>("IsLocked").HasColumnType("INTEGER");
                     b.Property<string>("SoulImprintCode").IsRequired().HasColumnType("TEXT");
                     b.Property<int>("Version").IsConcurrencyToken().HasColumnType("INTEGER");
@@ -964,6 +966,8 @@ namespace Game.Server.Data.Migrations
                     b.ToTable("DungeonRunParticipants", t => t.HasCheckConstraint("CK_DungeonRunParticipants_Mastery", "MasteryLevel BETWEEN 0 AND 4"));
                     b.HasOne("Game.Shared.Models.Room", null).WithMany().HasForeignKey("RoomId").OnDelete(DeleteBehavior.Cascade).IsRequired();
                 });
+            AddFormations(modelBuilder);
+            AddStatistics(modelBuilder);
 #pragma warning restore 612, 618
         }
     }

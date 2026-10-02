@@ -485,3 +485,4 @@ $RECYCLE.BIN/
 # Local SQLite runtime files
 *.db
 *.db-*
+/.codex-tmp

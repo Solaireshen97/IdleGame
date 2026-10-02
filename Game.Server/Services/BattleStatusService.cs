@@ -219,11 +219,12 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
             (await GetActiveAsync(room, targetType, targetIds)).Where(effect => codes.Contains(effect.EffectCode)), BattleStatusChange.Expired);
 
     public async Task<RemovedBattleStatus?> RemoveFirstAsync(Room room, string targetType,
-        IReadOnlyList<int> targetIds, bool positive)
+        IReadOnlyList<int> targetIds, bool positive, IReadOnlyCollection<string>? preferredCodes = null)
     {
         var order = targetIds.Select((id, index) => (id, index)).ToDictionary(entry => entry.id, entry => entry.index);
         var effect = (await GetActiveAsync(room, targetType, targetIds))
             .OrderBy(effect => order.GetValueOrDefault(effect.TargetId, int.MaxValue))
+            .ThenBy(effect => preferredCodes?.Contains(effect.EffectCode) == true ? 0 : 1)
             .ThenBy(effect => !positive && CatalogFor(room).Find(effect.EffectCode)?.Mechanic == BattleStatusMechanic.PlaguePoison ? 0 : 1)
             .ThenBy(effect => effect.Id)
             .FirstOrDefault(effect => CatalogFor(room).Find(effect.EffectCode) is { } definition &&

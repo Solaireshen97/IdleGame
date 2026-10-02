@@ -209,6 +209,10 @@ public sealed partial class WeaponServiceTests
     public async Task EquippedWeaponAttackIsUsedByBattleSettlement()
     {
         await using var test = await WeaponTestContext.CreateAsync();
+        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
+        var (_, equipError) = await test.Service.SetSlotAsync(test.Token, 1, 2,
+            new SetWeaponSlotRequest { WeaponId = water.Id });
+        Assert.Null(equipError);
         test.Db.AddRange(
             new Dungeon { Id = 1, Code = "slime-field", Name = "史莱姆平原", MonsterName = "Slime", MonsterMaxHp = 50, MonsterAttack = 8, MonsterDefense = 2, SlotCount = 5 },
             new Monster { Id = 1, Name = "Slime", Hp = 50, MaxHp = 50, Attack = 8, Defense = 2 },
@@ -216,9 +220,8 @@ public sealed partial class WeaponServiceTests
             new RoomSlot { RoomId = 1, SlotIndex = 1, UserId = 1, CharacterId = 1 },
             new UserDungeonClear { UserId = 1, DungeonId = 1, ClearedAtUtc = DateTime.UtcNow });
         await test.Db.SaveChangesAsync();
-        var water = test.Weapons.Single(weapon => weapon.WeaponCode == "tide-saber");
-        var (_, equipError) = await test.Service.SetSlotAsync(test.Token, 1, 2,
-            new SetWeaponSlotRequest { WeaponId = water.Id });
+        Assert.Equal("LoadoutLocked", (await test.Service.SetSlotAsync(test.Token, 1, 2,
+            new SetWeaponSlotRequest { WeaponId = water.Id })).Error);
         var progression = ProgressionTestFactory.Create();
         var skills = SkillTestFactory.Create();
         var battle = new BattleService(test.Db, new UserService(test.Db, progression, skills),

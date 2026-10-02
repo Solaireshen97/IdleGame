@@ -1,0 +1,281 @@
+@using Game.Shared.Dtos
+@using Game.Client.Services
+@inject ApiService ApiService
+@implements IDisposable
+
+<div class="battle-information">
+    <div class="information-tabs" role="tablist" aria-label="统计信息">
+        <button id="@(_id + "-statistics-tab")" type="button" role="tab" aria-selected="@(_tab == "statistics" ? "true" : "false")"
+                aria-controls="@(_id + "-statistics")" tabindex="@(_tab == "statistics" ? 0 : -1)"
+                @ref="_statisticsTab" @onclick='() => SelectTabAsync("statistics")' @onkeydown="HandleTabKeys">战斗统计</button>
+        <button id="@(_id + "-loot-tab")" type="button" role="tab" aria-selected="@(_tab == "loot" ? "true" : "false")"
+                aria-controls="@(_id + "-loot")" tabindex="@(_tab == "loot" ? 0 : -1)"
+                @ref="_lootTab" @onclick='() => SelectTabAsync("loot")' @onkeydown="HandleTabKeys">掉落物</button>
+    </div>
+    @if (_tab == "loot")
+    {
+        <section id="@(_id + "-loot")" role="tabpanel" aria-labelledby="@(_id + "-loot-tab")">
+            <p class="information-hint">我的房间累计收益 · 不受战斗统计范围影响</p>
+            @if (_rewards is { } rewards) { <RoomRewards Rewards="rewards" /> }
+            else if (_lootError is null) { <p role="status">正在读取累计掉落…</p> }
+            @if (_lootError is not null) { <p class="information-error" role="alert">@_lootError</p><button type="button" @onclick="RefreshLootAsync">重试读取掉落</button> }
+            @if (_lootLoading && _rewards is not null) { <p role="status">正在更新掉落…</p> }
+        </section>
+    }
+    else
+    {
+        <section id="@(_id + "-statistics")" role="tabpanel" aria-labelledby="@(_id + "-statistics-tab")">
+            <div class="information-filters">
+                <label>范围 <select value="@_scopeChoice" @onchange="ChangeScopeAsync">
+                    <option value="current">本次挑战</option>
+                    <option value="previous" disabled="@(Room.RunSequence <= 1 && _fixedRun is null)">上次挑战</option>
+                    <option value="room">房间累计</option>
+                </select></label>
+                @if (_scopeChoice != "room")
+                {
+                    <label>敌人 <select value="@(_monsterId?.ToString() ?? "")" @onchange="ChangeMonsterAsync">
+                        <option value="">全部敌人</option>
+                        @foreach (var encounter in _encounters)
+                        {
+                            <option value="@encounter.MonsterId">第 @encounter.WaveNumber 波 · @encounter.Name @(encounter.IsBoss ? "· Boss" : "")</option>
+                        }
+                    </select></label>
+                }
+            </div>
+            @if (_scopeChoice == "previous" && _fixedRun is int fixedRun)
+            {
+                <p class="information-hint">固定查看第 @fixedRun 次挑战 <button type="button" @onclick="FollowPreviousAsync" disabled="@(Room.RunSequence <= 1)">查看最新上次挑战</button></p>
+            }
+            @if (_statistics is { } data)
+            {
+                <p class="information-heading">@(data.Scope == "room" ? "房间累计" : $"第 {data.RunSequence} 次挑战") · 已记录 @data.RecordedRounds 回合 · @OutcomeText(data.Outcome)</p>
+                <p class="information-hint">@CoverageText(data)</p>
+                @if (data.Scope == "room") { <p class="information-hint">已完成 @data.CompletedRuns 次挑战 · 已记录 @data.RecordedRuns 次 · 缺失 @data.MissingRuns 次 · 部分记录 @data.PartialRuns 次</p> }
+                @if (data.Coverage != "Unrecorded")
+                {
+                    <div class="information-totals"><div><small>全队实际伤害</small><strong>@data.Totals.DamageDealt.ToString("N0")</strong></div><div><small>有效治疗</small><strong>@data.Totals.HealingDone.ToString("N0")</strong></div><div><small>阵亡</small><strong>@data.Totals.Deaths</strong></div></div>
+                    @if (data.UnattributedDamage > 0 || data.UnattributedHealing > 0) { <p class="information-hint">环境或未归属：伤害 @data.UnattributedDamage.ToString("N0") · 治疗 @data.UnattributedHealing.ToString("N0")</p> }
+                    <BattleStatisticsBoard Actors="data.Actors" Historical="@(data.Scope != "current" || data.IsClosed)" Mode="@_mode" ModeChanged="ChangeMode" SelectedCharacterId="_characterId" CharacterSelected="SelectCharacterAsync" />
+                    @if (data.Actors.Count == 0) { <p>当前范围没有已记录的参战角色。</p> }
+                    @if (_detail is { } detail) { <BattleActorStatisticsDetail Actor="detail" /><p class="information-hint">@(_scopeChoice == "room" ? $"角色明细累计覆盖 {_detailRecordedRounds} 回合" : $"角色明细截至第 {_detailRound} 回合结算")</p> }
+                    @if (_detailLoading) { <p role="status">正在读取角色来源明细…</p> }
+                    @if (_detailError is not null) { <p class="information-error" role="alert">@_detailError</p><button type="button" @onclick="LoadDetailAsync">重试角色明细</button> }
+                    <p class="information-hint">@(data.Scope == "room" ? $"累计已记录 {data.RecordedRounds} 回合 · 均伤按所有已记录回合计算" : $"数据截至第 {data.LastRoundNumber} 回合结算 · 均伤按此范围已记录回合计算")</p>
+                }
+            }
+            else if (_error is null) { <p role="status">正在读取战斗统计…</p> }
+            @if (_loading && _statistics is not null) { <p role="status">正在更新统计…</p> }
+            @if (_error is not null) { <p class="information-error" role="alert">@_error</p><button type="button" @onclick="RefreshStatisticsAsync">重试统计</button> }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RoomDetailResponse Room { get; set; } = new();
+    [Parameter] public bool Visible { get; set; }
+    private readonly string _id = "information-" + Guid.NewGuid().ToString("N");
+    private readonly BattleStatisticsLoadCoordinator _listCoordinator = new();
+    private readonly BattleStatisticsLoadCoordinator _detailCoordinator = new();
+    private CancellationTokenSource? _lootCancellation;
+    private ElementReference _statisticsTab, _lootTab;
+    private string _tab = "statistics", _scopeChoice = "current", _mode = "damage";
+    private int? _fixedRun, _monsterId, _characterId;
+    private BattleStatisticsResponse? _statistics;
+    private BattleStatisticsActorResponse? _detail;
+    private List<BattleStatisticsEncounterResponse> _encounters = [];
+    private RoomCumulativeRewardsResponse? _rewards;
+    private string? _error, _detailError, _lootError;
+    private bool _loading, _detailLoading, _lootLoading, _pending, _lootPending, _wasVisible, _disposed;
+    private bool _finalStatisticsRetry, _finalLootRetry;
+    private int _roomId, _observedVersion = -1, _observedRun, _lootVersion = -1, _detailRound;
+    private long _session = -1, _lootGeneration;
+    private long _detailRecordedRounds;
+    private bool IsActive => Visible && !_disposed;
+    private string RequestScope => _scopeChoice == "previous" ? "run" : _scopeChoice;
+    private int? SelectedRun => _scopeChoice == "room" ? null : _scopeChoice == "previous" ? _fixedRun : Room.RunSequence;
+    private BattleStatisticsRequestKey Key(int? characterId = null) => new(Room.RoomId, ApiService.SessionRevision,
+        characterId.HasValue && _scopeChoice == "current" ? "run" : RequestScope,
+        characterId.HasValue && _scopeChoice == "current" ? _statistics?.RunSequence ?? SelectedRun : SelectedRun, _monsterId, characterId);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var changedRoom = _roomId != Room.RoomId || _session != ApiService.SessionRevision;
+        var changedRun = _observedRun != Room.RunSequence;
+        var changedVersion = _observedVersion != Room.RoomVersion;
+        var opening = Visible && !_wasVisible;
+        if (changedRoom)
+        {
+            CancelAll();
+            _roomId = Room.RoomId; _session = ApiService.SessionRevision;
+            _scopeChoice = "current"; _fixedRun = null; _monsterId = _characterId = null;
+            _statistics = null; _detail = null; _encounters = []; _rewards = null;
+            _error = _detailError = _lootError = null; _lootVersion = -1;
+            _finalStatisticsRetry = _finalLootRetry = false;
+        }
+        if (changedRun && _scopeChoice == "current") { _monsterId = null; ClearScopeData(); }
+        _observedRun = Room.RunSequence; _observedVersion = Room.RoomVersion; _wasVisible = Visible;
+        if (!IsActive) { CancelAll(); return; }
+        if (_tab == "loot")
+        {
+            if (opening || changedRoom || _lootVersion != Room.RoomVersion) await RefreshLootAsync();
+        }
+        else if (opening || changedRoom || changedVersion || changedRun)
+        {
+            // Completed fixed history cannot change when the active challenge advances.
+            if (_scopeChoice == "previous" && _statistics is { Outcome: not "InProgress" } && !opening && !changedRoom) return;
+            await RefreshStatisticsAsync();
+        }
+    }
+
+    private async Task SelectTabAsync(string tab)
+    {
+        if (_tab == tab) return;
+        CancelAll(); _tab = tab;
+        if (tab == "loot") await RefreshLootAsync(); else await RefreshStatisticsAsync();
+    }
+
+    private async Task HandleTabKeys(KeyboardEventArgs args)
+    {
+        if (args.Key is not ("ArrowLeft" or "ArrowRight" or "Home" or "End")) return;
+        var target = args.Key == "Home" ? "statistics" : args.Key == "End" ? "loot" : _tab == "loot" ? "statistics" : "loot";
+        await SelectTabAsync(target);
+        if (target == "loot") await _lootTab.FocusAsync(); else await _statisticsTab.FocusAsync();
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs args)
+    {
+        _scopeChoice = args.Value?.ToString() ?? "current";
+        if (_scopeChoice == "previous") _fixedRun = Room.RunSequence - 1;
+        _monsterId = null; ClearScopeData(); await RefreshStatisticsAsync();
+    }
+    private async Task FollowPreviousAsync()
+    {
+        _fixedRun = Room.RunSequence - 1; _monsterId = null; ClearScopeData(); await RefreshStatisticsAsync();
+    }
+    private async Task ChangeMonsterAsync(ChangeEventArgs args)
+    {
+        _monsterId = int.TryParse(args.Value?.ToString(), out var value) ? value : null;
+        ClearScopeData(keepEncounters: true); await RefreshStatisticsAsync();
+    }
+    private void ChangeMode(string mode) => _mode = mode;
+    private void ClearScopeData(bool keepEncounters = false)
+    {
+        _listCoordinator.Cancel(); _detailCoordinator.Cancel();
+        _loading = _detailLoading = _pending = false;
+        _statistics = null; _detail = null; _error = _detailError = null; _characterId = null;
+        if (!keepEncounters) _encounters = [];
+    }
+
+    private async Task RefreshStatisticsAsync()
+    {
+        if (!IsActive || _tab != "statistics" || SelectedRun < 1) return;
+        var key = Key();
+        if (_loading && _listCoordinator.Current == key) { _pending = true; return; }
+        var request = _listCoordinator.Begin(key); _loading = true; _error = null; _pending = false;
+        try
+        {
+            var response = await ApiService.GetBattleStatisticsAsync(key.RoomId, key.Scope, key.Scope == "current" ? null : key.RunSequence, key.MonsterId, cancellationToken: request.Token);
+            if (!IsActive || _tab != "statistics" || ApiService.SessionRevision != key.SessionRevision || !_listCoordinator.IsCurrent(key, request.Generation)) return;
+            if (response is null) { _error = "统计读取失败。"; return; }
+            if (!_listCoordinator.Accept(key, request.Generation, response))
+            { _error = "统计正在同步，请重试。"; return; }
+            _statistics = response; _encounters = response.Encounters;
+            if (_characterId is int selected && !response.Actors.Any(actor => actor.CharacterId == selected))
+            { _characterId = null; _detail = null; _detailCoordinator.Cancel(); }
+            if (_characterId.HasValue) await LoadDetailAsync();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            if (_listCoordinator.IsCurrent(key, request.Generation) && !request.Token.IsCancellationRequested) _error = "统计更新失败，请重试。";
+        }
+        finally
+        {
+            if (_listCoordinator.IsCurrent(key, request.Generation))
+            {
+                _loading = false;
+                if (_pending && IsActive && _tab == "statistics") { _pending = false; await RefreshStatisticsAsync(); }
+                else if (_error is not null && Room.ClosedAtUtc.HasValue && !_finalStatisticsRetry && IsActive)
+                { _finalStatisticsRetry = true; await RefreshStatisticsAsync(); }
+            }
+        }
+    }
+
+    private async Task SelectCharacterAsync(int characterId)
+    {
+        if (_characterId != characterId) { _detail = null; _detailError = null; }
+        _characterId = characterId; await LoadDetailAsync();
+    }
+    private async Task LoadDetailAsync()
+    {
+        if (!IsActive || _tab != "statistics" || !_characterId.HasValue) return;
+        var key = Key(_characterId);
+        var request = _detailCoordinator.Begin(key); _detailLoading = true; _detailError = null;
+        try
+        {
+            var response = await ApiService.GetBattleStatisticsAsync(key.RoomId, key.Scope, key.RunSequence, key.MonsterId, key.CharacterId, request.Token);
+            if (!IsActive || ApiService.SessionRevision != key.SessionRevision || !_detailCoordinator.IsCurrent(key, request.Generation)) return;
+            if (response is null || !_detailCoordinator.Accept(key, request.Generation, response))
+            { _detailError = "角色明细更新失败，请重试。"; return; }
+            _detail = response.Actors.FirstOrDefault(actor => actor.CharacterId == key.CharacterId);
+            _detailRound = response.LastRoundNumber;
+            _detailRecordedRounds = response.RecordedRounds;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            if (_detailCoordinator.IsCurrent(key, request.Generation) && !request.Token.IsCancellationRequested) _detailError = "角色明细更新失败，请重试。";
+        }
+        finally { if (_detailCoordinator.IsCurrent(key, request.Generation)) _detailLoading = false; }
+    }
+
+    private async Task RefreshLootAsync()
+    {
+        if (!IsActive || _tab != "loot") return;
+        if (_lootLoading) { _lootPending = true; return; }
+        _lootCancellation?.Dispose(); _lootCancellation = new();
+        var token = _lootCancellation.Token; var generation = ++_lootGeneration;
+        var roomId = Room.RoomId; var session = ApiService.SessionRevision;
+        _lootLoading = true; _lootError = null; _lootPending = false;
+        try
+        {
+            var response = await ApiService.GetRoomRewardsAsync(roomId, token);
+            if (!IsActive || _tab != "loot" || generation != _lootGeneration || session != ApiService.SessionRevision || Room.RoomId != roomId) return;
+            if (response is null || response.RoomVersion < _lootVersion) { _lootError = "掉落更新失败，请重试。"; return; }
+            _rewards = response.CumulativeRewards; _lootVersion = response.RoomVersion;
+            if (response.RoomVersion < Room.RoomVersion) _lootPending = true;
+            if (_rewards is null) _lootError = "当前账号暂无可读取的累计掉落。";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        { if (generation == _lootGeneration && !token.IsCancellationRequested) _lootError = "掉落更新失败，请重试。"; }
+        finally
+        {
+            if (generation == _lootGeneration)
+            {
+                _lootLoading = false;
+                if (_lootPending && IsActive && _tab == "loot" && !(_finalLootRetry && Room.ClosedAtUtc.HasValue))
+                { if (Room.ClosedAtUtc.HasValue) _finalLootRetry = true; _lootPending = false; await RefreshLootAsync(); }
+                else if (_lootError is not null && Room.ClosedAtUtc.HasValue && !_finalLootRetry && IsActive && _tab == "loot")
+                { _finalLootRetry = true; await RefreshLootAsync(); }
+            }
+        }
+    }
+
+    private void CancelAll()
+    {
+        _listCoordinator.Cancel(); _detailCoordinator.Cancel(); _lootGeneration++;
+        _lootCancellation?.Cancel(); _lootCancellation?.Dispose(); _lootCancellation = null;
+        _loading = _detailLoading = _lootLoading = _pending = _lootPending = false;
+    }
+    private static string CoverageText(BattleStatisticsResponse data) => data.Coverage switch
+    {
+        "Unrecorded" => "未记录：本次挑战没有可用的完整统计，不能视为零贡献。",
+        "Partial" => data.Scope == "room" ? "部分记录：累计仅涵盖已记录的回合。" : $"部分记录：从第 {data.CoverageStartRound} 回合开始统计。",
+        "NotStarted" => "尚未结算首回合；均伤与占比显示为 —。",
+        _ => data.Outcome == "NoBattle" ? "未发生战斗。" : "完整记录"
+    };
+    private static string OutcomeText(string outcome) => outcome switch
+    {
+        "Victory" => "挑战胜利", "Defeat" => "挑战战败", "Stopped" => "已停止",
+        "Reset" => "已重置", "NoBattle" => "未发生战斗", "Aggregate" => "累计统计", "InProgress" => "战斗进行中", _ => "已结束"
+    };
+    public void Dispose() { _disposed = true; CancelAll(); _listCoordinator.Dispose(); _detailCoordinator.Dispose(); }
+}

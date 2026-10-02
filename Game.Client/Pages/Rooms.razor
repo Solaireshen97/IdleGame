@@ -337,6 +337,8 @@ else
             _isLoading = false;
             return;
         }
+        try
+        {
         var (roomDetail, errorMessage) = await ApiService.CreateRoomAsync(options);
         if (roomDetail is null)
         {
@@ -353,6 +355,9 @@ else
         {
             Navigation.NavigateTo($"/battle/{roomDetail.RoomId}");
         }
+        }
+        catch { _message = "连接中断，暂未确认创建结果；重试会查询同一次入场，请勿更换编队后重复创建。"; }
+        finally { _isLoading = false; }
     }
 
     private void EnterRoom(int roomId)

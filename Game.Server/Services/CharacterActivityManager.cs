@@ -56,6 +56,7 @@ public static class CharacterActivityManager
     public static async Task CloseBattleRoomAsync(GameDbContext db, Room room, DateTime now)
     {
         if (room.ClosedAtUtc.HasValue) return;
+        await new BattleStatisticsWriter(db).FinishRunAsync(room, now);
         room.ClosedAtUtc = now;
         room.IsOwnerAutoEnabled = false;
         room.Status = RoomStatus.BattleOver;
@@ -68,6 +69,11 @@ public static class CharacterActivityManager
             if (slot.CharacterId is { } id && db.Characters.Local.FirstOrDefault(c => c.Id == id) is { } character)
                 character.BattleMaxHpLimit = null;
             slot.CharacterId = null;
+            slot.SourceFormationId = null;
+            slot.SourceFormationVersion = null;
+            slot.SourceFormationName = null;
+            slot.AppliedLoadoutJson = null;
+            slot.AutoPolicyOverridesJson = null;
             slot.IsConfirmed = false;
             slot.IsAutoEnabled = false;
             slot.IsTemporaryAuto = false;

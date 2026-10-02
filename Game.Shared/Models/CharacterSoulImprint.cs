@@ -7,6 +7,8 @@ public sealed class CharacterSoulImprint
     public string SoulImprintCode { get; set; } = string.Empty;
     public int? EquippedSlotIndex { get; set; }
     public bool AutoUseEnabled { get; set; }
+    public string? AutoConditionOverride { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
     public bool IsLocked { get; set; }
     public DateTime AcquiredAtUtc { get; set; } = DateTime.UtcNow;
     public int Version { get; set; }

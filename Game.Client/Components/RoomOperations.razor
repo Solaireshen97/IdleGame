@@ -6,7 +6,7 @@
         @foreach (var operation in Operations.Where(item => item.Status == "Pending").OrderBy(item => item.Id))
         {
             <div class="room-operations__item" @key="operation.Id">
-                <div><strong>待执行</strong><span>@operation.Message</span></div>
+                <div><strong>待执行</strong><span>@operation.Message</span>@if (operation.SourceFormationName is not null) { <span>@operation.SourceFormationName / 预约版本 @operation.SourceFormationVersion</span> }</div>
                 <button type="button" class="button button--quiet" disabled="@IsBusy" aria-label="@($"取消预约：{operation.CharacterName}，{operation.SlotIndex} 号位")" @onclick="() => OnCancel.InvokeAsync(operation.Id)">取消</button>
             </div>
         }

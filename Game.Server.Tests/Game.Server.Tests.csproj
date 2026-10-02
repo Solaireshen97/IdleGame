@@ -17,6 +17,7 @@
 	<Compile Include="..\Game.Client\Services\BattleStatusPresentation.cs" Link="Client\BattleStatusPresentation.cs" />
 	<Compile Include="..\Game.Client\Services\BattleFeedbackPlanner.cs" Link="Client\BattleFeedbackPlanner.cs" />
 	<Compile Include="..\Game.Client\Services\BattleFeedbackCoordinator.cs" Link="Client\BattleFeedbackCoordinator.cs" />
+	<Compile Include="..\Game.Client\Services\BattleStatisticsLoadCoordinator.cs" Link="Client\BattleStatisticsLoadCoordinator.cs" />
 	<Compile Include="..\Game.Client\Services\MonsterArt.cs" Link="Client\MonsterArt.cs" />
 	<Compile Include="..\Game.Client\Services\WeaponArt.cs" Link="Client\WeaponArt.cs" />
 	<Compile Include="..\Game.Client\Services\ApiService*.cs" Link="Client\%(Filename)%(Extension)" />

@@ -23,6 +23,8 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
     public async Task<(CharacterSkillsResponse? Response, string? Error)> GetAsync(string? token, int characterId)
     {
         var (character, error) = await GetOwnedCharacterAsync(token, characterId);
+        if (error is null && await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId) is { } roomSlot &&
+            BattleAutoPolicyResolver.ValidationError(roomSlot) is { } snapshotError) return (null, snapshotError);
         return error is null ? (await BuildResponseAsync(character!), null) : (null, error);
     }
 
@@ -42,14 +44,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             return (null, "SkillNotLearned");
 
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
-        Room? room = null;
-        if (roomSlot is not null)
-        {
-            room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
-            if (room is not null && room.Status != RoomStatus.BattleOver &&
-                (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0))
-                return (null, "LoadoutLocked");
-        }
+        if (roomSlot is not null) return (null, "LoadoutLocked");
 
         var equipped = await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId).ToListAsync();
         if (skill is not null && equipped.Any(slot => slot.SlotIndex != slotIndex &&
@@ -72,13 +67,11 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         target.AutoConditionOverride = skill is null ? null : autoCondition;
         target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
         character!.Version++;
-        if (room is not null) room.Version++;
-        if (roomSlot is not null) SkillQueueRules.Clear(roomSlot, SkillRules.SlotMask(slotIndex));
 
         try
         {
             await dbContext.SaveChangesAsync();
-            return (await BuildResponseAsync(character), null);
+            return (await BuildResponseAsync(character!), null);
         }
         catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
@@ -104,16 +97,29 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         if (catalog.Resolve(character!, target.SkillCode, professionLevels) is null)
             return (null, "SkillNotLearned");
 
-        target.AutoUseEnabled = request.AutoUseEnabled;
-        target.AutoConditionOverride = autoCondition;
-        target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
-        target.Version++;
-        character!.Version++;
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
+        if (roomSlot is not null)
+        {
+            if (BattleAutoPolicyResolver.ValidationError(roomSlot) is { } snapshotError) return (null, snapshotError);
+            var room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
+            if (room is null) return (null, "NotFound");
+            roomSlot.AutoPolicyOverridesJson = BattleAutoPolicyResolver.WithSkill(roomSlot, slotIndex,
+                request.AutoUseEnabled, autoCondition, request.AutoHpThresholdPercent);
+            room.Version++;
+        }
+        else
+        {
+            target.AutoUseEnabled = request.AutoUseEnabled;
+            target.AutoConditionOverride = autoCondition;
+            target.AutoHpThresholdPercent = request.AutoHpThresholdPercent;
+            target.Version++;
+            character!.Version++;
+        }
 
         try
         {
             await dbContext.SaveChangesAsync();
-            return (await BuildResponseAsync(character), null);
+            return (await BuildResponseAsync(character!), null);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -130,13 +136,7 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
             request.ToSlotIndex is < 1 or > SkillRules.SlotCount) return (null, "InvalidSlotIndex");
         if (request.FromSlotIndex == request.ToSlotIndex) return (await BuildResponseAsync(character!), null);
         var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == characterId);
-        Room? room = null;
-        if (roomSlot is not null)
-        {
-            room = await dbContext.Rooms.FindAsync(roomSlot.RoomId);
-            if (room is not null && room.Status != RoomStatus.BattleOver &&
-                (room.Status != RoomStatus.NotStarted || room.RoundNumber > 0)) return (null, "LoadoutLocked");
-        }
+        if (roomSlot is not null) return (null, "LoadoutLocked");
 
         var entries = await dbContext.CharacterSkillSlots.Where(slot => slot.CharacterId == characterId &&
             (slot.SlotIndex == request.FromSlotIndex || slot.SlotIndex == request.ToSlotIndex)).ToListAsync();
@@ -157,13 +157,10 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         from.Version++;
         to.Version++;
         character!.Version++;
-        if (room is not null) room.Version++;
-        if (roomSlot is not null)
-            SkillQueueRules.Clear(roomSlot, SkillRules.SlotMask(request.FromSlotIndex) | SkillRules.SlotMask(request.ToSlotIndex));
         try
         {
             await dbContext.SaveChangesAsync();
-            return (await BuildResponseAsync(character), null);
+            return (await BuildResponseAsync(character!), null);
         }
         catch (DbUpdateException exception) when (DatabaseWriteErrors.IsConflict(exception))
         {
@@ -188,6 +185,9 @@ public sealed class SkillService(GameDbContext dbContext, UserService userServic
         professionLevels[profession.Code] = character.Level;
         var equipped = await dbContext.CharacterSkillSlots
             .Where(slot => slot.CharacterId == character.Id).ToDictionaryAsync(slot => slot.SlotIndex);
+        var roomSlot = await dbContext.RoomSlots.SingleOrDefaultAsync(slot => slot.CharacterId == character.Id);
+        if (roomSlot is not null)
+            equipped = equipped.ToDictionary(pair => pair.Key, pair => BattleAutoPolicyResolver.Skill(roomSlot, pair.Value));
         LearnedSkillResponse Describe(CharacterSkillDefinition skill, bool isShared) => new()
         {
             Code = skill.Code, Name = skill.Name, Description = _information.Description(skill),

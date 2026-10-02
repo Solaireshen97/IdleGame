@@ -127,8 +127,13 @@ public sealed class DungeonRunRulesTests
         await using var db = new GameDbContext(new DbContextOptionsBuilder<GameDbContext>().UseSqlite(connection).Options);
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20260930010000_AddBattleStatusOwnership");
-        db.Rooms.Add(new Room { Id = 1, DepthLevel = 4, RunSequence = 7, RoundNumber = 11, MonsterId = 9 });
-        await db.SaveChangesAsync();
+        // The historical schema must be seeded with historical columns, not the current Room model.
+        await db.Database.ExecuteSqlRawAsync("""
+            INSERT INTO Rooms(Id,DungeonId,MonsterId,OwnerUserId,SlotCount,Status,IsPreparationTimeoutEnabled,
+                IsRepeatBattle,RoundNumber,RunSequence,Version,CurrentWaveNumber,TotalWaveCount,DepthLevel,
+                IsPublic,IsOwnerAutoEnabled,ScalingPartySize)
+            VALUES(1,0,9,0,0,0,1,0,11,7,0,1,1,4,0,0,1);
+            """);
         await db.Database.MigrateAsync();
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Empty(await db.DungeonRunRuleSnapshots.ToListAsync());
@@ -136,7 +141,7 @@ public sealed class DungeonRunRulesTests
         var room = await db.Rooms.SingleAsync();
         Assert.Equal((4, 7, 11, 9), (room.DepthLevel, room.RunSequence, room.RoundNumber, room.MonsterId));
         await migrator.MigrateAsync("20260930010000_AddBattleStatusOwnership");
-        Assert.Single(await db.Rooms.ToListAsync());
+        Assert.Equal(1, await db.Rooms.CountAsync());
     }
 
     private static RewardCatalog NewRewards(int gold, bool includeFirstClear = true) => new(Options.Create(new RewardOptions

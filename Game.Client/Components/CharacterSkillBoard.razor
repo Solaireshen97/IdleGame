@@ -305,7 +305,7 @@
 
     private static string GetError(string error) => error.Trim().Trim('"') switch
     {
-        "LoadoutLocked" => "战斗进行时不能调整技能栏。",
+        "LoadoutLocked" => "角色已入场，请先离场或移出角色后再调整技能栏。",
         "SkillAlreadyEquipped" => "该技能已装备在其他槽位，可用箭头调整顺序。",
         "SkillNotLearned" => "该角色尚未学会这个技能。",
         "SharedSkillLimitReached" => "共享技能最多装备一格。请先卸下其他共享技能。",

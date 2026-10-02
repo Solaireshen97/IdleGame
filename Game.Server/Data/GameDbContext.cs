@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Game.Server.Data;
 
-public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(options)
+public partial class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<Character> Characters => Set<Character>();
@@ -49,6 +49,8 @@ public class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureFormations(modelBuilder);
+        ConfigureStatistics(modelBuilder);
         modelBuilder.Entity<DungeonRunRuleSnapshot>().HasKey(item => item.RoomId);
         modelBuilder.Entity<DungeonRunRuleSnapshot>().Property(item => item.RoomId).ValueGeneratedNever();
         modelBuilder.Entity<DungeonRunRuleSnapshot>().HasOne<Room>().WithMany()

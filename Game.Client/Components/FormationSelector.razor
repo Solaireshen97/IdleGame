@@ -1,0 +1,123 @@
+@using Game.Shared
+@using Game.Shared.Enums
+@using Game.Shared.Dtos.Formations
+@using Game.Client.Services
+@inject ApiService Api
+
+<section class="formation-selector" aria-label="出战编队">
+    <fieldset disabled="@Disabled">
+    <strong>出战编队</strong>
+    @if (_loading) { <p>正在读取角色编队…</p> }
+    else if (_error is not null) { <p role="alert">@_error</p><button type="button" class="button button--secondary" @onclick="ReloadAsync">重试</button> }
+    else if (_overview is not null)
+    {
+        <button type="button" class="button button--secondary" @onclick="() => _expanded = !_expanded">@SelectionLabel · 更换</button>
+        @if (_expanded)
+        {
+            <div class="formation-elements">
+                @foreach (var element in Enum.GetValues<ElementType>())
+                { <button type="button" class="button button--secondary" aria-pressed="@(_element == element)" @onclick="() => _element = element">@WeaponRules.ElementName(element)</button> }
+            </div>
+            <button type="button" class="button button--secondary" @onclick="() => ChooseAsync(null)">当前角色配置</button>
+            @foreach (var formation in _overview.Formations.Where(f => f.GroupElement == _element).OrderBy(f => f.Position))
+            {
+                <button type="button" class="button button--secondary" disabled="@(!formation.Preview.CanDeploy)" @onclick="() => ChooseAsync(formation)">
+                    @formation.Position · @formation.Name · @formation.Preview.ProfessionName Lv.@formation.Preview.Level · @(formation.Preview.CanDeploy ? "可出战" : "不可出战")
+                </button>
+                @if (!formation.Preview.CanDeploy) { <small>@string.Join("；", formation.Preview.Issues.Select(i => i.Message))</small> }
+            }
+            <a href="/formations">管理编队</a>
+        }
+        @if (_preview is not null)
+        {
+            <p>@_preview.ProfessionName Lv.@_preview.Level · 攻击 @_preview.Attack · 生命 @_preview.MaxHp</p>
+            @foreach (var issue in _preview.Issues) { <p role="status">@FormationPresentation.SectionName(issue.Section) @(issue.SlotIndex is int index ? $"{index}号位" : "")：@issue.Message</p> }
+        }
+        @foreach (var issue in _recommendationIssues) { <p role="status">@issue.Message</p> }
+        <label><input type="checkbox" @bind="_remember" @bind:after="NotifyAsync" /> 记住用于本挑战</label>
+        @if (!string.IsNullOrWhiteSpace(DungeonCode)) { <button type="button" class="button button--secondary" @onclick="ClearMemoryAsync">清除本挑战记忆</button> }
+    }
+    </fieldset>
+</section>
+
+@code {
+    [Parameter] public int CharacterId { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string DungeonCode { get; set; } = "";
+    [Parameter] public int DepthLevel { get; set; } = 1;
+    [Parameter] public EventCallback<LoadoutSelection> SelectionChanged { get; set; }
+    [Parameter] public EventCallback<bool> ValidityChanged { get; set; }
+    private FormationOverviewResponse? _overview;
+    private FormationPreviewResponse? _preview;
+    private List<FormationIssue> _recommendationIssues = [];
+    private LoadoutSelection _selection = new();
+    private ElementType _element;
+    private string? _key, _error;
+    private int _generation, _choiceGeneration;
+    private bool _loading, _expanded, _remember = true;
+    private string SelectionLabel => _overview?.Formations.FirstOrDefault(f => f.Id == _selection.FormationId) is { } f ? $"{WeaponRules.ElementName(f.GroupElement)} · {f.Name} / 版本 {f.Version}" : "当前角色配置";
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = $"{CharacterId}:{DungeonCode}:{DepthLevel}";
+        if (_key == key) return;
+        _key = key;
+        await ReloadAsync();
+    }
+    private async Task ReloadAsync()
+    {
+        var generation = ++_generation;
+        var characterId = CharacterId;
+        _loading = true; _overview = null; _preview = null; _error = null;
+        await ValidityChanged.InvokeAsync(false);
+        try
+        {
+            var (overview, error) = await Api.GetFormationsAsync(characterId);
+            if (generation != _generation) return;
+            _overview = overview; _error = error;
+            if (overview is null) return;
+            FormationRecommendationResponse? recommendation = null;
+            if (!string.IsNullOrWhiteSpace(DungeonCode))
+            {
+                var result = await Api.RecommendFormationAsync(characterId, DungeonCode, DepthLevel);
+                if (generation != _generation) return;
+                if (result.Response is null) { _error = result.ErrorMessage ?? "挑战记忆读取失败，请重试。"; return; }
+                recommendation = result.Response;
+            }
+            if (generation != _generation) return;
+            _recommendationIssues = recommendation?.Issues ?? [];
+            _selection = recommendation?.Selection ?? new();
+            _remember = true;
+            var chosen = overview.Formations.FirstOrDefault(f => f.Id == _selection.FormationId);
+            if (chosen is not null) _element = chosen.GroupElement;
+            _preview = chosen?.Preview ?? (await Api.PreviewFormationAsync(characterId, overview.CurrentLoadout, _element)).Response;
+            if (generation != _generation) return;
+            await NotifyAsync();
+        }
+        catch { if (generation == _generation) _error = "读取编队失败，请重试。"; }
+        finally { if (generation == _generation) _loading = false; }
+    }
+    private async Task ChooseAsync(FormationResponse? formation)
+    {
+        var generation = _generation;
+        var choiceGeneration = ++_choiceGeneration;
+        await ValidityChanged.InvokeAsync(false);
+        _selection = formation is null ? new() : new() { Mode = "SavedFormation", FormationId = formation.Id, ExpectedVersion = formation.Version };
+        _preview = formation?.Preview ?? (await Api.PreviewFormationAsync(CharacterId, _overview!.CurrentLoadout, _element)).Response;
+        if (generation != _generation || choiceGeneration != _choiceGeneration) return;
+        await NotifyAsync();
+    }
+    private async Task NotifyAsync()
+    {
+        _selection.RememberForEncounter = _remember;
+        await SelectionChanged.InvokeAsync(_selection);
+        await ValidityChanged.InvokeAsync(_preview?.CanDeploy == true);
+    }
+    private async Task ClearMemoryAsync()
+    {
+        var generation = _generation;
+        var (_, error) = await Api.ClearFormationMemoryAsync(CharacterId, DungeonCode, DepthLevel);
+        if (generation != _generation) return;
+        if (error is not null) _error = error;
+        else await ReloadAsync();
+    }
+}

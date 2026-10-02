@@ -51,7 +51,9 @@ public sealed class BattleEventCollector
             Sequence = recording.Events.Count + 1, RoomId = recording.RoomId, RunSequence = recording.Run,
             RoundNumber = recording.Round + 1, MonsterId = recording.MonsterId,
             ActionKind = _action?.Kind ?? fact.ActionKind, SkillCode = _action?.Code ?? fact.SkillCode,
-            Source = _action?.Source ?? fact.Source, Label = string.IsNullOrEmpty(fact.Label) ? _action?.Label ?? "" : fact.Label
+            // A removal's owner is the cleanser/dispeller, never the original status provider.
+            Source = fact.Kind is BattleEventKind.Cleanse or BattleEventKind.Dispel ? _action?.Source : _action?.Source ?? fact.Source,
+            Label = string.IsNullOrEmpty(fact.Label) ? _action?.Label ?? "" : fact.Label
         });
     }
 

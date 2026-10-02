@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Game.Server.Tests;
 
-public sealed class SoulImprintServiceTests
+public sealed partial class SoulImprintServiceTests
 {
     [Fact]
     public async Task AutoUseCanBeConfiguredPerOwnedSoulImprint()

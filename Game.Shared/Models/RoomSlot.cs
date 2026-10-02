@@ -17,4 +17,9 @@ public class RoomSlot
     public bool IsSoulImprintQueued { get; set; }
     public bool HasParticipatedInRun { get; set; }
     public int? LastParticipatedMonsterId { get; set; }
+    public int? SourceFormationId { get; set; }
+    public int? SourceFormationVersion { get; set; }
+    public string? SourceFormationName { get; set; }
+    public string? AppliedLoadoutJson { get; set; }
+    public string? AutoPolicyOverridesJson { get; set; }
 }

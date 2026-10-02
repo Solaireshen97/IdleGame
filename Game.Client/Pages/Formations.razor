@@ -1,0 +1,247 @@
+@page "/formations"
+@using System.Text.Json
+@using Game.Shared
+@using Game.Shared.Enums
+@using Game.Shared.Dtos.Characters
+@using Game.Shared.Dtos.Formations
+@using Game.Client.Services
+@inject ApiService Api
+@inject ActiveCharacterState Characters
+@inject IJSRuntime Js
+@implements IDisposable
+
+<PageTitle>角色编队</PageTitle>
+<NavigationLock ConfirmExternalNavigation="@HasUnsavedDrafts" OnBeforeInternalNavigation="BeforeNavigationAsync" />
+<div class="formations-page">
+    <a href="/rooms">← 返回大厅</a>
+    <h1>@Characters.Current?.Name 的编队</h1>
+    <p>保存只更新预设；应用会一次切换角色的完整配置。切换卡片时保留未保存草稿。</p>
+    @if (_message is not null) { <p role="status">@_message</p> }
+    @if (_overview is null) { <p>@(_loading ? "正在读取编队…" : "编队尚未载入。")</p>@if (!_loading) { <button type="button" @onclick="LoadAsync">重新载入</button> } }
+    else
+    {
+        @if (_overview.CurrentIsModified) { <p>当前配置已调整，可从当前角色复制到新编队。</p> }
+        @if (_overview.AppliedFormationId is int appliedId && _overview.Formations.FirstOrDefault(f => f.Id == appliedId) is { } applied && applied.Version != _overview.AppliedFormationVersion)
+        { <p>来源预设有新版本，当前角色仍使用入场或应用时的版本。</p> }
+        <div class="formation-elements">
+            @foreach (var element in Enum.GetValues<ElementType>())
+            { <button type="button" class="button button--secondary" aria-pressed="@(_element == element)" @onclick="() => _element = element">@WeaponRules.ElementName(element)</button> }
+        </div>
+        <div class="formation-cards">
+            @for (var index = 1; index <= _overview.PositionsPerElement; index++)
+            {
+                var position = index;
+                var formation = _overview.Formations.FirstOrDefault(f => f.GroupElement == _element && f.Position == position);
+                <button type="button" class="formation-card" disabled="@_busy" @onclick="() => EditAsync(formation, position)">
+                    <strong>@position · @(formation?.Name ?? "空位置 · 新建")</strong>
+                    @if (formation is not null)
+                    {
+                        <span>@formation.Preview.ProfessionName Lv.@formation.Preview.Level · @(formation.Preview.CanDeploy ? "可出战" : "配置有问题")</span>
+                        <span>攻击 @formation.Preview.Attack · 生命 @formation.Preview.MaxHp · 实际属性 @(formation.Preview.MainElement is { } actual ? WeaponRules.ElementName(actual) : "未配置")</span>
+                        <span>主武器 @WeaponName(formation.Loadout.Weapons.FirstOrDefault(w => w.SlotIndex == 1)?.WeaponId) · 魂印 @SoulName(formation.Loadout.SoulImprintId)</span>
+                        <span>@string.Join(" / ", formation.Loadout.Consumables.Where(c => c.ItemCode is not null).Select(c => SupplyLabel(c.ItemCode)))</span>
+                        @if (_overview.DefaultFormationId == formation.Id) { <span>默认编队</span> }
+                    }
+                </button>
+            }
+        </div>
+        @if (_draft is not null)
+        {
+            <section class="formation-editor" aria-label="编队草稿">
+                <fieldset disabled="@_busy">
+                <h2>编辑草稿 @(_dirty ? "· 尚未保存" : "")</h2>
+                <label>名称 <input @bind="_draft.Name" @bind:event="oninput" @bind:after="MarkDirty" maxlength="60" /></label>
+                <label>分组 <select @bind="_draft.GroupElement" @bind:after="MarkDirty">@foreach (var e in Enum.GetValues<ElementType>()) { <option value="@e">@WeaponRules.ElementName(e)</option> }</select></label>
+                <label>位置 <input type="number" min="1" max="@_overview.PositionsPerElement" @bind="_draft.Position" @bind:event="oninput" @bind:after="MarkDirty" /></label>
+                @if (_overview.Formations.FirstOrDefault(f => f.GroupElement == _draft.GroupElement && f.Position == _draft.Position && f.Id != _editingId) is { } occupied)
+                { <p role="alert">该位置已有“@occupied.Name”，请选择空位置。保存不会自动覆盖。</p> }
+                <button type="button" class="button button--secondary" @onclick="FromCurrentAsync">从当前角色复制</button>
+                <h3>职业与技能</h3>
+                <label>职业 <select @bind="_draft.Loadout.ProfessionCode" @bind:after="ProfessionChangedAsync">@foreach (var profession in _professions) { <option value="@profession.Code">@profession.Name · Lv.@profession.Level</option> }</select></label>
+                @foreach (var skill in _draft.Loadout.Skills.OrderBy(s => s.SlotIndex))
+                {
+                    <div class="formation-slot">
+                        <label>技能 @skill.SlotIndex <select @key="(_draft.Loadout.ProfessionCode, skill.SlotIndex, _preview?.ProfessionName)" @bind="skill.SkillCode" @bind:after="MarkDirty"><option value="">空槽</option>@if (skill.SkillCode is not null && !(_preview?.AvailableSkills.Any(s => s.Code == skill.SkillCode) ?? false)) { <option value="@skill.SkillCode">@skill.SkillCode · 当前职业不可用</option> }@foreach (var candidate in _preview?.AvailableSkills ?? []) { <option value="@candidate.Code">@candidate.Name @(candidate.IsShared ? "· 共享" : "")</option> }</select></label>
+                        <label><input type="checkbox" @bind="skill.AutoUseEnabled" @bind:after="MarkDirty" /> 自动使用</label>
+                        <label>条件 <select @bind="skill.AutoConditionOverride" @bind:after="MarkDirty"><option value="">技能默认</option>@foreach (var condition in SkillAutoRules.Conditions) { <option value="@condition">@SkillAutoRules.Label(condition)</option> }</select></label>
+                        <label>生命阈值 % <input type="number" min="1" max="100" @bind="skill.AutoHpThresholdPercent" @bind:event="oninput" @bind:after="MarkDirty" /></label>
+                    </div>
+                }
+                <h3>武器盘</h3>
+                @foreach (var weapon in _draft.Loadout.Weapons.OrderBy(w => w.SlotIndex))
+                {
+                    <label>@(weapon.SlotIndex == 1 ? "主武器" : $"武器 {weapon.SlotIndex}")
+                        <select @bind="weapon.WeaponId" @bind:after="MarkDirty"><option value="">空槽</option>@if (weapon.WeaponId is int missingId && !_weapons.Any(w => w.Id == missingId)) { <option value="@missingId">物品 @missingId · 已失效</option> }@foreach (var item in _weapons) { <option value="@item.Id">@item.Name · @item.QualityName · @WeaponRules.ElementName(item.Element) · 攻击 @item.Attack · #@item.Id</option> }</select>
+                    </label>
+                }
+                <h3>补给</h3>
+                @foreach (var supply in _draft.Loadout.Consumables.OrderBy(c => c.SlotIndex))
+                {
+                    <div class="formation-slot">
+                        <label>@(supply.SlotIndex == 1 ? "治疗药水" : supply.SlotIndex == 2 ? "强化药水" : "合剂") <select @bind="supply.ItemCode" @bind:after="MarkDirty"><option value="">空槽</option>@foreach (var item in _supplies.Where(i => SupplyFits(i, supply.SlotIndex))) { <option value="@item.Code">@item.Name · 库存 @item.Quantity</option> }</select></label>
+                        <label><input type="checkbox" @bind="supply.AutoUseEnabled" @bind:after="MarkDirty" /> 自动使用</label>
+                        <label>生命阈值 % <input type="number" min="1" max="100" @bind="supply.AutoHpThresholdPercent" @bind:event="oninput" @bind:after="MarkDirty" /></label>
+                    </div>
+                }
+                <h3>魂印</h3>
+                <label>魂印 <select @bind="_draft.Loadout.SoulImprintId" @bind:after="MarkDirty"><option value="">不装备</option>@foreach (var soul in _souls) { <option value="@soul.Id">@soul.Name</option> }</select></label>
+                <label><input type="checkbox" @bind="_draft.Loadout.SoulAutoUseEnabled" @bind:after="MarkDirty" /> 自动使用魂印</label>
+                @if (_souls.FirstOrDefault(s => s.Id == _draft.Loadout.SoulImprintId) is { } selectedSoul)
+                {
+                    <SkillAutoConditionPicker ConditionOverride="@_draft.Loadout.SoulAutoConditionOverride"
+                        DefaultCondition="@selectedSoul.DefaultAutoCondition" DefaultLabel="魂印默认"
+                        Threshold="@_draft.Loadout.SoulAutoHpThresholdPercent" Disabled="@_busy"
+                        OnConditionChanged="condition => { _draft.Loadout.SoulAutoConditionOverride = condition; MarkDirty(); }"
+                        OnThresholdChanged="threshold => { _draft.Loadout.SoulAutoHpThresholdPercent = threshold; MarkDirty(); }" />
+                }
+                <div class="formation-actions">
+                    <button type="button" class="button button--secondary" disabled="@_busy" @onclick="PreviewAsync">校验草稿与预览</button>
+                    <button type="button" class="button button--primary" disabled="@_busy" @onclick="SaveAsync">保存草稿</button>
+                    @if (_editingId is not null)
+                    {
+                        <button type="button" class="button button--secondary" disabled="@(_busy || _dirty || !_overview.CanApply || _preview?.CanDeploy != true)" @onclick="ApplyAsync">应用到角色</button>
+                        <button type="button" disabled="@(_busy || _dirty)" @onclick="DefaultAsync">设为默认</button>
+                        <button type="button" disabled="@_busy" @onclick="CopyAsync">复制到空位置</button>
+                        <button type="button" disabled="@_busy" @onclick="() => _confirmDelete = true">删除</button>
+                    }
+                </div>
+                @if (_confirmDelete)
+                { <p>删除“@_draft.Name”？已入场或已预约的配置不会撤回。</p><button type="button" @onclick="DeleteAsync">确认删除</button><button type="button" @onclick="() => _confirmDelete = false">取消</button> }
+                @if (_preview is not null)
+                {
+                    <p>@_preview.ProfessionName Lv.@_preview.Level · 攻击 @_preview.Attack · 生命 @_preview.MaxHp · @(_preview.CanDeploy ? "可出战" : "暂不可出战") @(_dirty ? "（上次校验结果，保存前会重新校验）" : "")</p>
+                    @foreach (var issue in _preview.Issues) { <p role="status">@FormationPresentation.SectionName(issue.Section) @(issue.SlotIndex is int slot ? $"{slot}号位" : "")：@issue.Message</p> }
+                }
+                </fieldset>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private FormationOverviewResponse? _overview;
+    private SaveFormationRequest? _draft;
+    private FormationPreviewResponse? _preview;
+    private List<CharacterCombatProfessionResponse> _professions = [];
+    private List<CharacterWeaponResponse> _weapons = [];
+    private List<ConsumableItemResponse> _supplies = [];
+    private List<CharacterSoulImprintResponse> _souls = [];
+    private readonly Dictionary<string, SaveFormationRequest> _drafts = [];
+    private string? _draftKey, _message, _applyRequestId;
+    private int? _editingId;
+    private int _generation, _characterId, _previewGeneration;
+    private ElementType _element;
+    private bool _busy, _dirty, _confirmDelete, _loading;
+    private bool HasUnsavedDrafts => _dirty || _drafts.Count > 0;
+    private async Task BeforeNavigationAsync(Microsoft.AspNetCore.Components.Routing.LocationChangingContext context)
+    {
+        if (HasUnsavedDrafts && !await Js.InvokeAsync<bool>("confirm", "编队草稿尚未保存，离开将丢弃草稿。确定离开？")) context.PreventNavigation();
+    }
+    protected override async Task OnInitializedAsync() { Characters.Changed += Changed; await Characters.EnsureLoadedAsync(); await LoadAsync(); }
+    private void Changed() => _ = InvokeAsync(async () => { if (_characterId != Characters.Current?.CharacterId) await LoadAsync(); StateHasChanged(); });
+    private async Task LoadAsync()
+    {
+        var discardedDrafts = HasUnsavedDrafts;
+        var generation = ++_generation;
+        _characterId = Characters.Current?.CharacterId ?? 0;
+        _overview = null; _draft = null; _drafts.Clear(); _draftKey = null; _editingId = null; _dirty = false;
+        if (_characterId == 0) return;
+        _loading = true;
+        try
+        {
+        var overviewTask = Api.GetFormationsAsync(_characterId);
+        var weaponsTask = Api.GetCharacterWeaponsAsync(_characterId);
+        var suppliesTask = Api.GetCharacterConsumablesAsync(_characterId);
+        var soulsTask = Api.GetCharacterSoulImprintsAsync(_characterId);
+        var professionsTask = Api.GetCharacterProfessionsAsync(_characterId);
+        await Task.WhenAll(overviewTask, weaponsTask, suppliesTask, soulsTask, professionsTask);
+        if (generation != _generation) return;
+        _overview = overviewTask.Result.Response; _message = overviewTask.Result.ErrorMessage ?? (discardedDrafts ? "角色编队已重新载入，未保存草稿已丢弃。" : null);
+        _weapons = weaponsTask.Result.Response?.Weapons ?? []; _supplies = suppliesTask.Result.Response?.Items ?? [];
+        _souls = soulsTask.Result.Response?.SoulImprints ?? []; _professions = professionsTask.Result.Response?.Professions ?? [];
+        }
+        catch { if (generation == _generation) _message = "读取编队失败，请重新载入。"; }
+        finally { if (generation == _generation) _loading = false; }
+    }
+    private static T Clone<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+    private async Task EditAsync(FormationResponse? formation, int position) { Edit(formation, position); await PreviewAsync(); }
+    private void Edit(FormationResponse? formation, int position)
+    {
+        if (_draft is not null && _dirty && _draftKey is not null) _drafts[_draftKey] = Clone(_draft);
+        _editingId = formation?.Id; _draftKey = formation is null ? $"new:{_element}:{position}" : formation.Id.ToString();
+        _dirty = _drafts.TryGetValue(_draftKey, out var cached) || formation is null;
+        _draft = cached ?? new SaveFormationRequest { Name = formation?.Name ?? "新编队", GroupElement = _element, Position = position, ExpectedVersion = formation?.Version, Loadout = Clone(formation?.Loadout ?? new CombatLoadoutDefinition { ProfessionCode = _overview!.CurrentLoadout.ProfessionCode }) };
+        Normalize(); _preview = formation?.Preview; _confirmDelete = false; _applyRequestId = null;
+    }
+    private void Normalize()
+    {
+        for (var i = 1; i <= 10; i++) if (!_draft!.Loadout.Weapons.Any(w => w.SlotIndex == i)) _draft.Loadout.Weapons.Add(new() { SlotIndex = i });
+        for (var i = 1; i <= 5; i++) if (!_draft!.Loadout.Skills.Any(s => s.SlotIndex == i)) _draft.Loadout.Skills.Add(new() { SlotIndex = i });
+        for (var i = 1; i <= 3; i++) if (!_draft!.Loadout.Consumables.Any(c => c.SlotIndex == i)) _draft.Loadout.Consumables.Add(new() { SlotIndex = i });
+    }
+    private void MarkDirty() { _dirty = true; _applyRequestId = null; }
+    private async Task ProfessionChangedAsync() { MarkDirty(); await PreviewAsync(); }
+    private async Task FromCurrentAsync()
+    {
+        var generation = _generation;
+        var (overview, error) = await Api.GetFormationsAsync(_characterId);
+        if (generation != _generation) return;
+        if (overview is null) { _message = error; return; }
+        _overview = overview;
+        var position = _editingId is null && _draft?.GroupElement == _element ? _draft.Position : Enumerable.Range(1, overview.PositionsPerElement).FirstOrDefault(p => !overview.Formations.Any(f => f.GroupElement == _element && f.Position == p));
+        if (position == 0) { _message = "本属性位置已满，请选择其他属性分组。"; return; }
+        Edit(null, position); _draft!.Name = "当前配置 副本"; _draft.Loadout = Clone(overview.CurrentLoadout); Normalize(); MarkDirty(); await PreviewAsync();
+    }
+    private async Task PreviewAsync()
+    {
+        if (_draft is null) return;
+        var generation = _generation; var previewGeneration = ++_previewGeneration; var draft = _draft;
+        var (preview, error) = await Api.PreviewFormationAsync(_characterId, Clone(draft.Loadout), draft.GroupElement);
+        if (generation != _generation || previewGeneration != _previewGeneration || !ReferenceEquals(draft, _draft)) return;
+        _preview = preview; _message = error;
+    }
+    private async Task SaveAsync() => await MutateAsync(async () =>
+    {
+        var generation = _generation; var characterId = _characterId;
+        var (saved, error) = await Api.SaveFormationAsync(_characterId, _editingId, Clone(_draft!));
+        if (generation != _generation || saved is null) return error;
+        if (_draftKey is not null) _drafts.Remove(_draftKey);
+        var overview = (await Api.GetFormationsAsync(characterId)).Response;
+        if (generation != _generation) return null;
+        _overview = overview ?? _overview;
+        _dirty = false; _element = saved.GroupElement; Edit(saved, saved.Position);
+        return "编队已保存。";
+    });
+    private async Task ApplyAsync() => await MutateAsync(async () =>
+    {
+        var generation = _generation;
+        _applyRequestId ??= Guid.NewGuid().ToString("N");
+        var (overview, error) = await Api.ApplyFormationAsync(_characterId, _editingId!.Value, new() { ExpectedVersion = _draft!.ExpectedVersion!.Value, ExpectedCharacterVersion = _overview!.CharacterVersion, RequestId = _applyRequestId });
+        if (generation != _generation || overview is null) return error;
+        _overview = overview; _applyRequestId = null; await Characters.RefreshAsync(); return "完整编队已应用到角色。";
+    });
+    private async Task DefaultAsync() => await MutateAsync(async () => { var generation = _generation; var (overview, error) = await Api.SetDefaultFormationAsync(_characterId, _editingId, _draft!.ExpectedVersion); if (generation == _generation && overview is not null) _overview = overview; return error ?? "已设为默认编队。"; });
+    private async Task CopyAsync() => await MutateAsync(async () =>
+    {
+        var generation = _generation; var characterId = _characterId;
+        var position = Enumerable.Range(1, _overview!.PositionsPerElement).FirstOrDefault(p => !_overview.Formations.Any(f => f.GroupElement == _element && f.Position == p));
+        if (position == 0) return "本属性位置已满，请先切换其他属性分组。";
+        var (copy, error) = await Api.CopyFormationAsync(_characterId, _editingId!.Value, new() { ExpectedVersion = _draft!.ExpectedVersion!.Value, Name = _draft.Name + " 副本", GroupElement = _element, Position = position });
+        if (generation != _generation || copy is null) return error;
+        var overview = (await Api.GetFormationsAsync(characterId)).Response; if (generation != _generation) return null; _overview = overview ?? _overview; Edit(copy, copy.Position); return "已复制编队。";
+    });
+    private async Task DeleteAsync() => await MutateAsync(async () => { var generation = _generation; var (overview, error) = await Api.DeleteFormationAsync(_characterId, _editingId!.Value, _draft!.ExpectedVersion!.Value); if (generation != _generation || overview is null) return error; _overview = overview; _drafts.Remove(_draftKey!); _draft = null; _confirmDelete = false; return "编队已删除，相关默认项与挑战记忆已清除。"; });
+    private async Task MutateAsync(Func<Task<string?>> action)
+    {
+        if (_busy) return;
+        var generation = _generation; _busy = true;
+        try { var message = await action(); if (generation == _generation) _message = message; }
+        catch { if (generation == _generation) _message = "连接中断，请重试或重新载入编队。"; }
+        finally { _busy = false; }
+    }
+    private string WeaponName(int? id) => _weapons.FirstOrDefault(w => w.Id == id)?.Name ?? (id.HasValue ? "物品已失效" : "未配置");
+    private string SoulName(int? id) => _souls.FirstOrDefault(s => s.Id == id)?.Name ?? (id.HasValue ? "物品已失效" : "未配置");
+    private string SupplyLabel(string? code) => _supplies.FirstOrDefault(s => s.Code == code) is { } s ? $"{s.Name} ×{s.Quantity}" : code ?? "";
+    private static bool SupplyFits(ConsumableItemResponse item, int slot) => ConsumableRules.CanEquip(slot, item.Kind);
+    public void Dispose() { ++_generation; Characters.Changed -= Changed; }
+}

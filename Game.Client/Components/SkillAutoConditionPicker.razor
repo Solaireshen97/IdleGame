@@ -4,7 +4,7 @@
     <label class="skill-auto-picker__condition">
         <span>Auto 释放条件</span>
         <select value="@_condition" disabled="@Disabled" @onchange="ChangeConditionAsync">
-            <option value="">技能默认</option>
+            <option value="">@DefaultLabel</option>
             @foreach (var condition in SkillAutoRules.Conditions)
             {
                 <option value="@condition">@SkillAutoRules.Label(condition)</option>
@@ -19,12 +19,13 @@
             <span>%</span>
         </label>
     }
-    <p class="skill-auto-picker__hint">仅选择一个释放条件，不改变技能目标；仍需冷却结束且有有效目标。手动释放不受此条件限制。</p>
+    <p class="skill-auto-picker__hint">仅选择一个释放条件，不改变作用目标；仍需冷却结束且有有效目标。手动释放不受此条件限制。</p>
 </div>
 
 @code {
     [Parameter] public string? ConditionOverride { get; set; }
     [Parameter] public string DefaultCondition { get; set; } = "Always";
+    [Parameter] public string DefaultLabel { get; set; } = "技能默认";
     [Parameter] public int Threshold { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public EventCallback<string?> OnConditionChanged { get; set; }

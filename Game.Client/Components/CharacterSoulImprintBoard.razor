@@ -64,6 +64,14 @@
                         <button type="button" @onclick="() => SetLockAsync(item)" disabled="@_busy">@(item.IsLocked ? "解锁" : "锁定")</button>
                         <button type="button" class="soul-card__danger" @onclick="() => DismantleAsync(item)" disabled="@(_busy || item.IsEquipped || item.IsLocked)">分解</button>
                     </div>
+                    <details>
+                        <summary>自动释放条件：@SkillAutoRules.Describe(item.AutoCondition, item.AutoHpThresholdPercent)</summary>
+                        <SkillAutoConditionPicker ConditionOverride="@item.AutoConditionOverride"
+                            DefaultCondition="@item.DefaultAutoCondition" DefaultLabel="魂印默认"
+                            Threshold="@item.AutoHpThresholdPercent" Disabled="@_busy"
+                            OnConditionChanged="condition => SaveAutoAsync(item, item.AutoUseEnabled, condition, item.AutoHpThresholdPercent)"
+                            OnThresholdChanged="threshold => SaveAutoAsync(item, item.AutoUseEnabled, item.AutoConditionOverride, threshold)" />
+                    </details>
                 </article>
             }
         </div>
@@ -105,9 +113,12 @@
         () => ApiService.SetSoulImprintLockAsync(CharacterId, item.Id, !item.IsLocked),
         item.IsLocked ? "魂印已解锁。" : "魂印已锁定。");
 
-    private Task SetAutoAsync(CharacterSoulImprintResponse item) => ChangeAsync(
-        () => ApiService.SetSoulImprintAutoAsync(CharacterId, item.Id, !item.AutoUseEnabled),
-        item.AutoUseEnabled ? "魂印 Auto 已关闭。" : "魂印 Auto 已开启。");
+    private Task SetAutoAsync(CharacterSoulImprintResponse item) =>
+        SaveAutoAsync(item, !item.AutoUseEnabled, item.AutoConditionOverride, item.AutoHpThresholdPercent);
+
+    private Task SaveAutoAsync(CharacterSoulImprintResponse item, bool enabled, string? condition, int threshold) => ChangeAsync(
+        () => ApiService.SetSoulImprintAutoAsync(CharacterId, item.Id, enabled, condition, threshold),
+        "魂印自动释放设置已保存。");
 
     private async Task DismantleAsync(CharacterSoulImprintResponse item)
     {
@@ -147,9 +158,9 @@
 
     private static string EffectName(SoulImprintEffectType effect) => effect switch
     {
-        SoulImprintEffectType.DamageArmorBreak => "伤害并削弱护甲",
+        SoulImprintEffectType.DamageArmorBreak => "伤害并施加易伤",
         SoulImprintEffectType.DamageEcho => "伤害并附加追击",
-        SoulImprintEffectType.CooldownReduction => "缩短技能冷却",
+        SoulImprintEffectType.CooldownReduction => "伤害并缩短技能冷却",
         SoulImprintEffectType.Interrupt => "打断首领技能",
         SoulImprintEffectType.HealCleanse => "治疗并净化",
         SoulImprintEffectType.GuardCounter => "减伤并反击",

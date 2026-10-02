@@ -1,0 +1,7 @@
+.formation-selector { padding:12px; border:1px solid #43546c; border-radius:10px; margin:10px 0; }
+.formation-selector button { margin:4px; }
+.formation-selector p { margin:8px 0; }
+.formation-selector small { display:block; }
+.formation-elements { display:flex; flex-wrap:wrap; gap:4px; }
+.formation-selector fieldset { border:0; padding:0; min-width:0; }
+.formation-elements button[aria-pressed=true] { outline:2px solid #d8a957; }

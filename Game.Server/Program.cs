@@ -37,6 +37,8 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ConsumableService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<CombatProfessionService>();
+builder.Services.AddFormationServices();
+builder.Services.Configure<FormationOptions>(builder.Configuration.GetSection("Formations"));
 builder.Services.AddScoped<WeaponService>();
 builder.Services.AddScoped<SoulImprintService>();
 builder.Services.AddScoped<ShopService>();
@@ -120,6 +122,7 @@ using (var scope = app.Services.CreateScope())
     _ = scope.ServiceProvider.GetRequiredService<PlantingCatalog>();
     _ = scope.ServiceProvider.GetRequiredService<ProductionCatalog>();
     await DbInitializer.InitializeAsync(dbContext, weapons, world, encounters);
+    await scope.ServiceProvider.GetRequiredService<FormationBackfillService>().BackfillAsync();
     // Finish the legacy cutover before background cycles or HTTP requests can claim a snapshot.
     while (true)
     {

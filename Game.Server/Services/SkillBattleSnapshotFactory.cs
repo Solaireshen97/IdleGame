@@ -14,6 +14,13 @@ public sealed class SkillBattleSnapshotFactory(GameDbContext db, SkillCatalog sk
         int casterId, IEnumerable<(RoomSlot Slot, Character Character)> participants,
         IReadOnlyDictionary<string, int>? professionLevels = null, IReadOnlyList<BattleSkillCooldown>? cooldowns = null,
         bool? canInterruptCurrentIntent = null)
+        => ForSkill(await CaptureAutoAsync(room, monster, casterId, participants, professionLevels, cooldowns,
+            canInterruptCurrentIntent), skill, mechanics);
+
+    public async Task<SkillBattleSnapshot> CaptureAutoAsync(Room room, Monster monster,
+        int casterId, IEnumerable<(RoomSlot Slot, Character Character)> participants,
+        IReadOnlyDictionary<string, int>? professionLevels = null, IReadOnlyList<BattleSkillCooldown>? cooldowns = null,
+        bool? canInterruptCurrentIntent = null)
     {
         var party = participants.OrderBy(entry => entry.Slot.SlotIndex).ToArray();
         var ids = party.Select(entry => entry.Character.Id).ToArray();
@@ -40,7 +47,7 @@ public sealed class SkillBattleSnapshotFactory(GameDbContext db, SkillCatalog sk
             monsters is not null && monster.Hp > 0 && room.Status != RoomStatus.BattleOver && room.ClosedAtUtc is null &&
                 (canInterruptCurrentIntent ?? await monsters.CanInterruptCurrentIntentAsync(room, monster)),
             monsters?.HasAnyInterruptibleSkill(monster, room) == true, damageSkills);
-        return ForSkill(snapshot, skill, mechanics);
+        return snapshot;
     }
 
     public static SkillBattleSnapshot ForSkill(SkillBattleSnapshot snapshot, CharacterSkillDefinition skill,

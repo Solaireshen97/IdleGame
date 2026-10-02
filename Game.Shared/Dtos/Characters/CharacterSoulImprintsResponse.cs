@@ -27,6 +27,10 @@ public sealed class CharacterSoulImprintResponse
     public int DismantleFragments { get; set; }
     public bool IsEquipped { get; set; }
     public bool AutoUseEnabled { get; set; }
+    public string AutoCondition { get; set; } = "Always";
+    public string DefaultAutoCondition { get; set; } = "Always";
+    public string? AutoConditionOverride { get; set; }
+    public int AutoHpThresholdPercent { get; set; } = SkillRules.DefaultAutoHpThresholdPercent;
     public bool IsLocked { get; set; }
 }
 
@@ -43,6 +47,9 @@ public sealed class SetSoulImprintLockRequest
 public sealed class SetSoulImprintAutoRequest
 {
     public bool AutoUseEnabled { get; set; }
+    public string? AutoConditionOverride { get; set; }
+    // Omitted by older clients when toggling Auto; preserve their existing condition and threshold.
+    public int? AutoHpThresholdPercent { get; set; }
 }
 
 public sealed class SoulImprintBatchRequest

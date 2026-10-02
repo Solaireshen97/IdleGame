@@ -9,6 +9,7 @@ public static class BattleServiceRegistration
         services.AddScoped<BattleService>();
         services.AddScoped<BattleContextPreparation>();
         services.AddScoped<BattleSynchronizationService>();
+        services.AddScoped<BattleStatisticsQuery>();
         services.AddScoped<DungeonRunService>();
         services.AddScoped<DungeonDepthProgressService>();
         services.AddScoped<DungeonRunRulesService>();
@@ -22,6 +23,15 @@ public static class BattleServiceRegistration
         services.AddScoped<BattleEffectExecutor>();
         services.AddScoped<RewardService>();
         services.AddScoped<BattleMilestoneService>();
+        return services;
+    }
+
+    public static IServiceCollection AddFormationServices(this IServiceCollection services)
+    {
+        services.AddScoped<CombatLoadoutService>();
+        services.AddScoped<BattleLoadoutIntegrityService>();
+        services.AddScoped<FormationService>();
+        services.AddScoped<FormationBackfillService>();
         return services;
     }
 }

@@ -4,6 +4,7 @@ namespace Game.Shared.Models;
 
 public class Room
 {
+    public string? LoadoutIntegrityError { get; set; }
     public int Id { get; set; }
     public int DungeonId { get; set; }
     public int DepthLevel { get; set; } = 1;

@@ -130,7 +130,11 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("魂印毒蚀") && log.Contains("无视防御"));
-        Assert.True(test.Monster.Hp < 950);
+        var hit = Assert.Single(result.Events, fact => fact.SkillCode == "plague-widow-essence" &&
+            fact.Kind == BattleEventKind.Damage && fact.ActionKind == BattleActionKind.SoulImprint);
+        var echo = Assert.Single(result.Events, fact => fact.SkillCode == "plague-widow-essence" &&
+            fact.Kind == BattleEventKind.Damage && fact.ActionKind == BattleActionKind.FollowUp);
+        Assert.Equal((int)decimal.Floor(hit.CalculatedAmount * 0.35m), echo.CalculatedAmount);
     }
 
     [Fact]
@@ -153,8 +157,8 @@ public partial class BattleServiceTests
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("沉岩督造者的震核") && log.Contains("土属性伤害"));
         var status = await test.Db.BattleStatusEffects.SingleAsync(effect =>
-            effect.TargetType == "Monster" && effect.EffectCode == "armor-break");
-        Assert.True(status.ExpiresAfterRound >= test.Room.RoundNumber);
+            effect.TargetType == "Monster" && effect.EffectCode == "soul-earth-vulnerability");
+        Assert.Equal(1, status.ExpiresAfterRound - status.AppliedRound);
     }
 
     [Fact]
@@ -170,18 +174,32 @@ public partial class BattleServiceTests
             CharacterId = test.Character.Id, SoulImprintCode = "storm-matriarch-plume",
             EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
         });
-        test.Db.BattleSkillCooldowns.Add(new BattleSkillCooldown
-        {
-            RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillCode = "sword-slash", ReadyAtRound = 10
-        });
+        test.Db.BattleSkillCooldowns.AddRange(
+            new BattleSkillCooldown
+            {
+                RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillCode = "sword-slash", ReadyAtRound = 10
+            },
+            new BattleSkillCooldown
+            {
+                RoomId = test.Room.Id, CharacterId = test.Character.Id, SkillCode = "knight-rebuke", ReadyAtRound = 10
+            },
+            new BattleSkillCooldown
+            {
+                RoomId = test.Room.Id, CharacterId = test.Character.Id,
+                SkillCode = SoulImprintRules.CooldownCode("plague-widow-essence"), ReadyAtRound = 20
+            });
         await test.Db.SaveChangesAsync();
 
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("剩余冷却缩短 2 回合"));
-        Assert.Equal(8, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
+        Assert.Contains(result!.Logs, log => log.Contains("剩余冷却缩短 1 回合"));
+        Assert.Equal(9, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
             cooldown.SkillCode == "sword-slash")).ReadyAtRound);
+        Assert.Equal(20, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
+            cooldown.SkillCode == SoulImprintRules.CooldownCode("plague-widow-essence"))).ReadyAtRound);
+        Assert.Contains(result.Events, fact => fact.SkillCode == "storm-matriarch-plume" &&
+            fact.Kind == BattleEventKind.Damage && fact.Element == ElementType.Wind);
         Assert.Equal(12, (await test.Db.BattleSkillCooldowns.SingleAsync(cooldown =>
             cooldown.SkillCode == SoulImprintRules.CooldownCode("storm-matriarch-plume"))).ReadyAtRound);
     }
@@ -205,7 +223,7 @@ public partial class BattleServiceTests
         var (result, error) = await service.StartPreparationAsync(test.Room.Id, test.Token);
 
         Assert.Null(error);
-        Assert.Contains(result!.Logs, log => log.Contains("恢复 24 点生命值"));
+        Assert.Contains(result!.Logs, log => log.Contains("恢复 10 点生命值"));
         Assert.Contains(result.Logs, log => log.Contains("移除了") && log.Contains("中毒"));
         Assert.True(test.Character.Hp > 40);
         Assert.Empty(await test.Db.BattleStatusEffects.Where(effect => effect.TargetType == "Character").ToListAsync());
@@ -235,7 +253,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task HealingSoulImprintCleansesOnlyTheConfiguredCountPerAlly()
+    public async Task HealingSoulImprintCleansesOnlyTheConfiguredCountOnOneAlly()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 40, characterAttack: 1, monsterAttack: 1);
         await test.EnableAutoForCharacterAsync(test.Character);
@@ -269,7 +287,7 @@ public partial class BattleServiceTests
         test.Db.CharacterSoulImprints.Add(new CharacterSoulImprint
         {
             CharacterId = test.Character.Id, SoulImprintCode = "frost-king-heart",
-            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true
+            EquippedSlotIndex = SoulImprintRules.SlotIndex, AutoUseEnabled = true, AutoConditionOverride = "Always"
         });
         await test.Db.SaveChangesAsync();
 
@@ -277,11 +295,11 @@ public partial class BattleServiceTests
 
         Assert.Null(error);
         Assert.Contains(result!.Logs, log => log.Contains("冻心屏障"));
-        Assert.Equal(90, test.Character.Hp);
+        Assert.Equal(86, test.Character.Hp);
     }
 
     [Fact]
-    public async Task GuardSoulImprintAutoWaitsUntilTheOwnerWillBeAttacked()
+    public async Task GuardSoulImprintDefaultAutoWaitsForOwnerHealthThreshold()
     {
         await using var test = await BattleTestContext.CreateAsync(characterAttack: 1, monsterAttack: 20);
         await test.EnableAutoForCharacterAsync(test.Character);
@@ -1148,6 +1166,9 @@ public partial class BattleServiceTests
     public async Task OperationPotionCannotBeEquippedOrQueuedAsOrdinaryConsumable()
     {
         await using var test = await BattleTestContext.CreateAsync();
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync();
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         var consumables = test.CreateConsumableService();
         var wrongOrdinary = await consumables.SetSlotAsync(test.Token, test.Character.Id, 1,
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "northshire-battle-draught" });
@@ -1155,6 +1176,8 @@ public partial class BattleServiceTests
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "minor-healing-potion" });
         var correct = await consumables.SetSlotAsync(test.Token, test.Character.Id, 3,
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "northshire-battle-draught" });
+        admissionSlot.CharacterId = test.Character.Id;
+        await test.Db.SaveChangesAsync();
         var queued = await test.Service.QueueConsumableAsync(new Game.Shared.Dtos.QueueConsumableRequest
         {
             RoomId = 1, CharacterId = test.Character.Id, ConsumableSlotIndex = 3, ExpectedRoundNumber = test.Room.RoundNumber, ExpectedRunSequence = test.Room.RunSequence
@@ -1357,8 +1380,13 @@ public partial class BattleServiceTests
         var userService = new UserService(test.Db, progression, skillCatalog);
         var skillService = new SkillService(test.Db, userService, skillCatalog);
 
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync();
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         var (configuration, swapError) = await skillService.SwapSlotsAsync(test.Token, 1,
             new Game.Shared.Dtos.Characters.SwapSkillSlotsRequest { FromSlotIndex = 1, ToSlotIndex = 2 });
+        admissionSlot.CharacterId = test.Character.Id;
+        await test.Db.SaveChangesAsync();
         var (round, battleError) = await test.Service.StartPreparationAsync(1, test.Token);
 
         Assert.Null(swapError);
@@ -1585,6 +1613,9 @@ public partial class BattleServiceTests
         await test.AddPotionAsync(test.Character, quantity: 3, autoUse: false);
         var service = test.CreateConsumableService();
 
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync(slot => slot.CharacterId == second.Id);
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         var (secondLoadout, setError) = await service.SetSlotAsync(test.Token, second.Id, 1,
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest
             {
@@ -1592,6 +1623,8 @@ public partial class BattleServiceTests
                 AutoUseEnabled = true,
                 AutoHpThresholdPercent = 70
             });
+        admissionSlot.CharacterId = second.Id;
+        await test.Db.SaveChangesAsync();
         var (firstLoadout, firstError) = await service.GetAsync(test.Token, test.Character.Id);
 
         Assert.Null(setError);
@@ -1606,10 +1639,15 @@ public partial class BattleServiceTests
     public async Task ConsumableLoadoutRejectsDuplicateItemAndChangesDuringBattle()
     {
         await using var test = await BattleTestContext.CreateAsync();
+        var admissionSlot = await test.Db.RoomSlots.SingleAsync();
+        admissionSlot.CharacterId = null;
+        await test.Db.SaveChangesAsync();
         var service = test.CreateConsumableService();
         var request = new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = "minor-healing-potion" };
         var (_, firstError) = await service.SetSlotAsync(test.Token, test.Character.Id, 1, request);
         var (_, duplicateError) = await service.SetSlotAsync(test.Token, test.Character.Id, 2, request);
+        admissionSlot.CharacterId = test.Character.Id;
+        await test.Db.SaveChangesAsync();
         await test.Service.StartPreparationAsync(1, test.Token);
         var (_, lockedError) = await service.SetSlotAsync(test.Token, test.Character.Id, 1, request);
 
@@ -1619,7 +1657,7 @@ public partial class BattleServiceTests
     }
 
     [Fact]
-    public async Task ChangingConsumableSlotClearsItsQueuedUse()
+    public async Task OccupiedRoomRejectsConsumableChangesAndPreservesQueuedUse()
     {
         await using var test = await BattleTestContext.CreateAsync(characterHp: 60);
         await test.AddPotionAsync(test.Character, quantity: 1, autoUse: false);
@@ -1636,8 +1674,9 @@ public partial class BattleServiceTests
         var (_, error) = await test.CreateConsumableService().SetSlotAsync(test.Token, test.Character.Id, 1,
             new Game.Shared.Dtos.Characters.SetConsumableSlotRequest { ItemCode = null });
 
-        Assert.Null(error);
-        Assert.Equal(0, roomSlot.PendingConsumableSlotMask);
+        Assert.Equal("LoadoutLocked", error);
+        Assert.Equal(1, roomSlot.PendingConsumableSlotMask);
+        Assert.Equal("minor-healing-potion", (await test.Db.CharacterConsumableSlots.SingleAsync()).ItemCode);
         Assert.Equal(1, (await test.Db.CharacterItemStacks.SingleAsync()).Quantity);
     }
 
