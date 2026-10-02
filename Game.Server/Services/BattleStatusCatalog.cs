@@ -20,6 +20,8 @@ public sealed class BattleStatusCatalog
                 status.MaxStacks is < 1 or > 10 ||
                 status.Stacking is not ("RefreshDuration" or "AddStack" or "ReplaceIfStronger") ||
                 !Enum.IsDefined(status.Lifetime) || !Enum.IsDefined(status.CounterKind) ||
+                !Enum.IsDefined(status.DamageScope) ||
+                status.DamageScope != BattleDamageScope.All && status.EffectType != "DamageTakenPercent" ||
                 !Enum.IsDefined(status.Mechanic) || !Enum.IsDefined(status.SnapshotRefresh) ||
                 !Enum.IsDefined(status.FamilyRefresh) || status.InitialStacks < 1 || status.InitialStacks > status.MaxStacks ||
                 status.MechanicLevel is < 0 or > 10 || status.MechanicPower is < 0 or > 1000 ||

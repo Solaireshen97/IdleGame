@@ -7,7 +7,7 @@ namespace Game.Server.Services;
 public sealed partial class MonsterPhaseService
 {
     public EarthArmorOptions? EarthArmorDefinition(Room room, Monster monster) =>
-        (runRules?.CombatFor(room) ?? catalog).FindProfile(monster.CombatProfileCode)?.EarthArmor;
+        Profile(room, monster)?.EarthArmor;
 
     public static long RequiredWindDamage(Monster monster, EarthArmorOptions armor) =>
         (long)decimal.Ceiling(monster.MaxHp * armor.BreakWindDamagePercent / 100m);
@@ -16,29 +16,17 @@ public sealed partial class MonsterPhaseService
     {
         if (monster.Hp <= 0) return;
         // The skill preview and phase preparation share the same persisted encounter clock.
-        await EncounterSkillRoundAsync(room, monster);
-        var state = (await FindAsync(room, monster))!;
-        if (state.LastPreparedRound == room.RoundNumber) return;
-        state.LastPreparedRound = room.RoundNumber;
+        var state = await EnsureStateAsync(room, monster);
+        if (!MonsterPhaseLifecycle.PrepareRound(state, room.RoundNumber)) return;
         if (state.RewardStartsAtRound == room.RoundNumber)
         {
             await statuses.ApplyAsync(room, "Monster", monster.Id, armor.RewardStatusCode, armor.RewardRounds - 1,
                 logs, monster.Name, source: new("Monster", monster.Id, "earth-armor-break"));
             state.RewardStartsAtRound = null;
         }
-        var localRound = room.RoundNumber - state.EncounterStartRound + 1;
-        var shouldActivate = armor.TriggerHpPercent is { } hp
-            ? state.ActivationCount == 0 && (long)monster.Hp * 100 <= (long)monster.MaxHp * hp
-            : localRound >= state.NextActivationRound;
-        if (!shouldActivate) return;
+        if (!MonsterPhaseLifecycle.ShouldActivate(armor, state, monster, room.RoundNumber)) return;
         // Keep the cadence after an early break. Old resonance survives until a successful break.
-        if (armor.TriggerHpPercent is null)
-            while (state.NextActivationRound <= localRound) state.NextActivationRound += armor.CycleRounds;
-        state.IsActive = true;
-        state.ElementDamage = 0;
-        state.ExpiresAfterRound = checked(room.RoundNumber + armor.WindowRounds - 1);
-        state.LastActivationRound = room.RoundNumber;
-        state.ActivationCount++;
+        MonsterPhaseLifecycle.Activate(armor, state, room.RoundNumber);
         await statuses.ApplyAsync(room, "Monster", monster.Id, armor.ArmorStatusCode, armor.WindowRounds - 1,
             logs, monster.Name, source: new("Monster", monster.Id, "earth-armor-activation"));
         logs.Add($"{monster.Name} 生成矿脉护甲：{armor.WindowRounds}回合内累计造成 {RequiredWindDamage(monster, armor)} 点风属性直接伤害可破甲。");
@@ -52,10 +40,7 @@ public sealed partial class MonsterPhaseService
         if (state is null || !state.IsActive || state.ExpiresAfterRound < battle.Room.RoundNumber) return;
         state.ElementDamage += actualDamage;
         if (state.ElementDamage < RequiredWindDamage(battle.Monster, armor)) return;
-        state.IsActive = false;
-        state.BreakCount++;
-        state.LastBreakRound = battle.Room.RoundNumber;
-        state.RewardStartsAtRound = checked(battle.Room.RoundNumber + 1);
+        MonsterPhaseLifecycle.Complete(state, battle.Room.RoundNumber);
         await statuses.RemoveAsync(battle.Room, "Monster", battle.Monster.Id, armor.ArmorStatusCode);
         if (!string.IsNullOrEmpty(armor.ResonanceStatusCode))
             await statuses.RemoveAsync(battle.Room, "Monster", battle.Monster.Id, armor.ResonanceStatusCode);

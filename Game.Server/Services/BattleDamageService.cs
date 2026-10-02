@@ -54,7 +54,8 @@ public sealed partial class BattleDamageService(BattleStatusService? statuses, B
             effect.AttackPowerPercent + attackPowerBonus);
         foreach (var multiplier in multipliers ?? [])
             damage = (int)Math.Min(int.MaxValue, decimal.Floor(damage * multiplier));
-        if (statuses is not null) damage = await statuses.AmplifyDamageAsync(battle.Room, monster.Id, damage);
+        if (statuses is not null)
+            damage = await statuses.AmplifyDamageAsync(battle.Room, monster.Id, damage, BattleDamageScope.Direct);
         if (statuses is not null && !isLegacyParry)
         {
             var dealt = await statuses.ModifierAsync(battle.Room, "Character", source.Id, "DamageDealtPercent");
@@ -75,19 +76,14 @@ public sealed partial class BattleDamageService(BattleStatusService? statuses, B
         int? sourceCharacterId = null) =>
         phases?.ObserveDirectDamageAsync(battle, element, actualDamage, sourceCharacterId) ?? Task.CompletedTask;
 
-    public async Task ObserveCleanseAsync(BattleExecutionContext battle, int characterId, string statusCode)
-    {
-        if (phases is null) return;
-        await phases.ObserveDeepColdCleanseAsync(battle, characterId, statusCode);
-        await phases.ObservePlagueCleanseAsync(battle, characterId, statusCode);
-    }
+    public Task ObserveCleanseAsync(BattleExecutionContext battle, int characterId, string statusCode) =>
+        phases?.ObserveCleanseAsync(battle, characterId, statusCode) ?? Task.CompletedTask;
 
     public Task ObserveDispelAsync(BattleExecutionContext battle, string statusCode) =>
-        phases?.ObserveReflectionMirrorDispelAsync(battle, statusCode) ?? Task.CompletedTask;
+        phases?.ObserveDispelAsync(battle, statusCode) ?? Task.CompletedTask;
 
     public async Task<bool> SuppressMonsterStatusAsync(BattleExecutionContext battle, int characterId, string statusCode) =>
-        phases is not null && (await phases.SuppressBasicColdAsync(battle.Room, battle.Monster, characterId, statusCode) ||
-            await phases.SuppressBasicPoisonAsync(battle.Room, battle.Monster, characterId, statusCode));
+        phases is not null && await phases.SuppressMonsterStatusAsync(battle.Room, battle.Monster, characterId, statusCode);
 
     public async Task<BattleDamageResult> MonsterDamageAsync(BattleExecutionContext battle, BattleActor target,
         BattleSkillEffect effect, bool areaAttack, decimal skillReduction = 0, int legacyReduction = 0,

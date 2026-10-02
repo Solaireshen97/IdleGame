@@ -12,9 +12,10 @@ using System.Text.Json;
 
 namespace Game.Server.Services;
 
-public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, DungeonDepthCatalog? depthCatalog = null, DungeonDepthProgressService? depthProgress = null, SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
+public partial class RoomService(GameDbContext dbContext, UserService userService, ProgressionService progressionService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonEncounterCatalog? encounterCatalog = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, WorldCatalog? worldCatalog = null, IOptions<ActivityOptions>? activityOptions = null, MaterialCatalog? materialCatalog = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, DungeonDepthCatalog? depthCatalog = null, DungeonDepthProgressService? depthProgress = null, SkillInformationService? skillInformation = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null, BattleContextPreparation? contextPreparation = null)
 {
     private readonly SkillInformationService _information = skillInformation ?? new(monsterCombatService?.Statuses.Catalog, mechanics);
+    private readonly BattleContextPreparation _contextPreparation = contextPreparation ?? new(runRules, monsterCombatService?.Phases);
     private readonly DungeonDepthCatalog _depthCatalog = depthCatalog ?? new(Options.Create(new DungeonDepthOptions()));
     private readonly DungeonDepthProgressService _depthProgress = depthProgress ?? new(dbContext, depthCatalog, runRules);
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default, runRules);
@@ -680,10 +681,9 @@ public partial class RoomService(GameDbContext dbContext, UserService userServic
                         equippedWeapons.Where(weapon => weapon.CharacterId == character.Id), levels));
             }
         }
-        if (monsterCombatService is not null)
-            await monsterCombatService.Phases.RefreshPlagueHealthAsync(room, monster, slots
-                .Where(s => s.CharacterId.HasValue && characters.ContainsKey(s.CharacterId.Value))
-                .Select(s => new BattleParticipant(s, characters[s.CharacterId!.Value])).ToList());
+        await _contextPreparation.PrepareAsync(room, monster, slots
+            .Where(s => s.CharacterId.HasValue && characters.ContainsKey(s.CharacterId.Value))
+            .Select(s => new BattleParticipant(s, characters[s.CharacterId!.Value])).ToList());
         var mainWeaponElements = await dbContext.CharacterWeapons
             .Where(weapon => characterIds.Contains(weapon.CharacterId) && weapon.EquippedSlotIndex == WeaponRules.MainSlotIndex)
             .ToDictionaryAsync(weapon => weapon.CharacterId, weapon => weapon.Element);

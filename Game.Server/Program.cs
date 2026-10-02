@@ -31,22 +31,7 @@ builder.Services.AddDbContext<GameDbContext>((services, options) =>
         services.GetRequiredService<RoomProjectionInvalidation>(),
         services.GetRequiredService<RoomProjectionTransactionInvalidation>()));
 
-builder.Services.AddScoped<RoomService>();
-builder.Services.AddScoped<BattleService>();
-builder.Services.AddScoped<BattleSynchronizationService>();
-builder.Services.AddScoped<DungeonRunService>();
-builder.Services.AddScoped<DungeonDepthProgressService>();
-builder.Services.AddScoped<DungeonRunRulesService>();
-builder.Services.AddScoped<PartyScalingService>();
-builder.Services.AddScoped<MonsterCombatService>();
-builder.Services.AddScoped<BattleEventCollector>();
-builder.Services.AddScoped<BattleStatusService>();
-builder.Services.AddScoped<MonsterPhaseService>();
-builder.Services.AddScoped<BattleGuardService>();
-builder.Services.AddScoped<BattleDamageService>();
-builder.Services.AddScoped<BattleEffectExecutor>();
-builder.Services.AddScoped<RewardService>();
-builder.Services.AddScoped<BattleMilestoneService>();
+builder.Services.AddBattleServices();
 builder.Services.AddScoped<RareSeedService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ConsumableService>();

@@ -25,6 +25,8 @@ public sealed class BattleStatusOptions
     public bool IsPositive { get; set; }
     public bool IsDispellable { get; set; } = true;
     public bool IsHidden { get; set; }
+    // Unspecified scope preserves existing general vulnerability, including frozen rooms.
+    public BattleDamageScope DamageScope { get; set; } = BattleDamageScope.All;
     public BattleStatusLifetime Lifetime { get; set; }
     public BattleStatusCounterKind CounterKind { get; set; }
     public BattleStatusMechanic Mechanic { get; set; }
@@ -73,9 +75,12 @@ public sealed class MonsterCombatProfileOptions
     public StaticFieldOptions? StaticField { get; set; }
     public ReflectionMirrorOptions? ReflectionMirror { get; set; }
     public PlaguePoisonOptions? PlaguePoison { get; set; }
+
+    internal IMonsterPhaseSchedule? Phase => (IMonsterPhaseSchedule?)FireCore ?? DeepCold ??
+        (IMonsterPhaseSchedule?)EarthArmor ?? StaticField ?? (IMonsterPhaseSchedule?)ReflectionMirror ?? PlaguePoison;
 }
 
-public sealed class PlaguePoisonOptions
+public sealed class PlaguePoisonOptions : IMonsterPhaseSchedule
 {
     // Frozen LV2/LV3 declarations keep their single HP trigger; LV4 uses a local schedule.
     public int? TriggerHpPercent { get; set; }
@@ -97,7 +102,7 @@ public sealed class PlaguePoisonOptions
     public int LethalStacks { get; set; }
 }
 
-public sealed class ReflectionMirrorOptions
+public sealed class ReflectionMirrorOptions : IMonsterPhaseSchedule
 {
     // LV2/LV3 keep one HP trigger; LV4 follows the persistent encounter-local schedule.
     public int? TriggerHpPercent { get; set; }
@@ -120,7 +125,7 @@ public sealed class ReflectionMirrorOptions
     public string AmplificationStatusCode { get; set; } = string.Empty;
 }
 
-public sealed class StaticFieldOptions
+public sealed class StaticFieldOptions : IMonsterPhaseSchedule
 {
     // LV2/LV3 retain a one-shot HP trigger; LV4 uses a fixed encounter-local schedule.
     public int? TriggerHpPercent { get; set; }
@@ -144,7 +149,7 @@ public sealed class StaticFieldOptions
     public string ThunderPendingStatusCode { get; set; } = string.Empty;
 }
 
-public sealed class EarthArmorOptions
+public sealed class EarthArmorOptions : IMonsterPhaseSchedule
 {
     // LV2/LV3: one HP trigger. LV4: a fixed encounter-local schedule instead.
     public int? TriggerHpPercent { get; set; }
@@ -159,7 +164,7 @@ public sealed class EarthArmorOptions
     public string ResonanceStatusCode { get; set; } = string.Empty;
 }
 
-public sealed class DeepColdOptions
+public sealed class DeepColdOptions : IMonsterPhaseSchedule
 {
     public int? TriggerHpPercent { get; set; }
     public int FirstActivationRound { get; set; }
@@ -184,7 +189,7 @@ public sealed class DeepColdOptions
     public string GrowthUsedStatusCode { get; set; } = string.Empty;
 }
 
-public sealed class FireCoreOptions
+public sealed class FireCoreOptions : IMonsterPhaseSchedule
 {
     // When set, activate once at the next player-round start at or below this HP percentage.
     public int? TriggerHpPercent { get; set; }

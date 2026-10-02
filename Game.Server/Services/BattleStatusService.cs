@@ -371,11 +371,17 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
         return consumed;
     }
 
-    public async Task<int> AmplifyDamageAsync(Room room, int monsterId, int damage)
+    public async Task<int> AmplifyDamageAsync(Room room, int monsterId, int damage,
+        BattleDamageScope damageKind = BattleDamageScope.Direct)
     {
+        if (damageKind is not (BattleDamageScope.Direct or BattleDamageScope.Periodic))
+            throw new ArgumentOutOfRangeException(nameof(damageKind));
         if (damage <= 0) return damage;
         var amplification = await MechanicPowerAsync(room, "Monster", monsterId, BattleStatusMechanic.HunterVulnerability);
-        amplification += await ModifierAsync(room, "Monster", monsterId, "DamageTakenPercent");
+        amplification += (await GetActiveAsync(room, "Monster", [monsterId])).Sum(effect =>
+            CatalogFor(room).Find(effect.EffectCode) is { EffectType: "DamageTakenPercent" } definition &&
+                (definition.DamageScope & damageKind) != 0
+                ? (effect.MagnitudeSnapshot ?? definition.ValuePerStack) * effect.Stacks : 0m);
         return amplification == 0 ? damage : (int)Math.Min(int.MaxValue,
             decimal.Floor(damage * (1m + amplification / 100m)));
     }
@@ -432,7 +438,7 @@ public sealed class BattleStatusService(GameDbContext db, BattleStatusCatalog ca
             }
             else if (effect.TargetType == "Monster" && effect.TargetId == monster.Id && monster.Hp > 0)
             {
-                damage = await AmplifyDamageAsync(room, monster.Id, damage);
+                damage = await AmplifyDamageAsync(room, monster.Id, damage, BattleDamageScope.Periodic);
                 var hpBefore = monster.Hp;
                 monster.Hp = Math.Max(0, monster.Hp - damage);
                 using var damageAction = Events.ActionScope(Source(effect), definition.Name, BattleActionKind.Periodic);

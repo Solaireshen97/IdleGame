@@ -1,0 +1,2089 @@
+{
+  "GeneratedAtUtc": "2026-10-02T03:06:01.705442+00:00",
+  "Status": "RuleDefinedNotCombatCalibrated",
+  "BattleSimulationPerformed": false,
+  "Purpose": "装备毕业后的自我测试与挑战；不保证通关或稳定Auto。",
+  "HpFormula": "ceil(LV4_HP * 1.15^(Depth-4))",
+  "AttackFormula": "ceil(LV4_ATK * 1.10^(Depth-4))",
+  "Rounding": "Full decimal precision, round upward once at the final monster stat.",
+  "Mechanics": "Reuse all LV4 encounter, skills, multipliers, windows, cycle timing and success rewards. Percentage-of-max-HP damage thresholds grow naturally with max HP.",
+  "Rewards": {
+    "FragmentCode": "weapon-breakthrough-fragment-t1",
+    "StoneCode": "weapon-breakthrough-stone-t1",
+    "FragmentsPerStone": 100,
+    "Tiers": [
+      {
+        "Depth": 5,
+        "HpMultiplierFromLv4": "1.15",
+        "AttackMultiplierFromLv4": "1.10",
+        "FixedFragmentsPerClear": 10,
+        "FirstClearStones": 1,
+        "CumulativeFirstClearStones": 1
+      },
+      {
+        "Depth": 6,
+        "HpMultiplierFromLv4": "1.3225",
+        "AttackMultiplierFromLv4": "1.2100",
+        "FixedFragmentsPerClear": 20,
+        "FirstClearStones": 1,
+        "CumulativeFirstClearStones": 2
+      },
+      {
+        "Depth": 7,
+        "HpMultiplierFromLv4": "1.520875",
+        "AttackMultiplierFromLv4": "1.331000",
+        "FixedFragmentsPerClear": 30,
+        "FirstClearStones": 1,
+        "CumulativeFirstClearStones": 3
+      },
+      {
+        "Depth": 8,
+        "HpMultiplierFromLv4": "1.74900625",
+        "AttackMultiplierFromLv4": "1.46410000",
+        "FixedFragmentsPerClear": 40,
+        "FirstClearStones": 2,
+        "CumulativeFirstClearStones": 5
+      },
+      {
+        "Depth": 9,
+        "HpMultiplierFromLv4": "2.0113571875",
+        "AttackMultiplierFromLv4": "1.6105100000",
+        "FixedFragmentsPerClear": 50,
+        "FirstClearStones": 2,
+        "CumulativeFirstClearStones": 7
+      },
+      {
+        "Depth": 10,
+        "HpMultiplierFromLv4": "2.313060765625",
+        "AttackMultiplierFromLv4": "1.771561000000",
+        "FixedFragmentsPerClear": 60,
+        "FirstClearStones": 3,
+        "CumulativeFirstClearStones": 10
+      }
+    ],
+    "FirstClaimIdentity": "CharacterId + DungeonCode + Depth",
+    "HigherClearGrantsUnclaimedLowerChallengeTiers": true,
+    "MasteryOrCoopExtraApplies": false,
+    "OnlyActualParticipants": true,
+    "FailureConsumesClaim": false,
+    "FirstClearStonesPerDungeon": 10,
+    "FirstClearStonesAllSix": 60
+  },
+  "ScopeChecks": {
+    "OnlySixChallengeDepthDefinitionsChanged": true,
+    "OnlySixWorldDescriptionsChanged": true,
+    "Lv1To4StatsAndAllMechanicsUnchanged": true,
+    "OrdinaryLootAndBreakthroughExchangeUnchanged": true
+  },
+  "Persistence": {
+    "ClaimTable": "CharacterBattleMilestones",
+    "Kind": "DungeonChallengeFirstClear",
+    "Target": "{DungeonCode}:LV{Depth}",
+    "NewSchemaMigration": false,
+    "AtomicWithVictoryAndInventory": true
+  },
+  "LegacyRooms": "Missing new fields retain prior shared growth and scalar fragment reward. Frozen full snapshots and repeated attempts remain unchanged; old victories do not consume new first-clear claims. Historical highest depth alone is not a claim; new-rule victory is required.",
+  "Verification": {
+    "Server": {
+      "total": 1378,
+      "passed": 1378,
+      "failed": 0,
+      "notExecuted": 0
+    },
+    "SimulatorTests": {
+      "total": 59,
+      "passed": 59,
+      "failed": 0,
+      "notExecuted": 0
+    },
+    "ClientBuild": "Passed, 0 warnings, 0 errors",
+    "NewChallengeTestCases": 23,
+    "RuntimeRestarted": false,
+    "PlayerDatabaseModified": false
+  },
+  "Dungeons": [
+    {
+      "Code": "ragefire-heart",
+      "Name": "燧渊裂隙·深层LV1",
+      "Revision": 8,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 500000,
+              "Attack": 190,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 580000,
+              "Attack": 230,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 700000,
+              "Attack": 270,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 740000,
+              "Attack": 310,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 1300000,
+              "Attack": 320,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 575000,
+              "Attack": 209,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 667000,
+              "Attack": 253,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 805000,
+              "Attack": 297,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 851000,
+              "Attack": 341,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 1495000,
+              "Attack": 352,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 661250,
+              "Attack": 230,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 767050,
+              "Attack": 279,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 925750,
+              "Attack": 327,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 978650,
+              "Attack": 376,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 1719250,
+              "Attack": 388,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 760438,
+              "Attack": 253,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 882108,
+              "Attack": 307,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 1064613,
+              "Attack": 360,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 1125448,
+              "Attack": 413,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 1977138,
+              "Attack": 426,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 874504,
+              "Attack": 279,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 1014424,
+              "Attack": 337,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 1224305,
+              "Attack": 396,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 1294265,
+              "Attack": 454,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 2273709,
+              "Attack": 469,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 1005679,
+              "Attack": 306,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 1166588,
+              "Attack": 371,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 1407951,
+              "Attack": 435,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 1488405,
+              "Attack": 500,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 2614765,
+              "Attack": 516,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "烬核火卫",
+              "MaxHp": 1156531,
+              "Attack": 337,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "焦砾蠕行者",
+              "MaxHp": 1341576,
+              "Attack": 408,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "灰炬狂信徒",
+              "MaxHp": 1619143,
+              "Attack": 479,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "燧渊熔甲卫",
+              "MaxHp": 1711665,
+              "Attack": 550,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "熔火督军",
+              "MaxHp": 3006979,
+              "Attack": 567,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Code": "frostspring-throne",
+      "Name": "镜泉冰窟·深层LV1",
+      "Revision": 8,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 500000,
+              "Attack": 210,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 610000,
+              "Attack": 270,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 710000,
+              "Attack": 315,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 820000,
+              "Attack": 360,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 1390000,
+              "Attack": 420,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 575000,
+              "Attack": 231,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 701500,
+              "Attack": 297,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 816500,
+              "Attack": 347,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 943000,
+              "Attack": 396,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 1598500,
+              "Attack": 462,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 661250,
+              "Attack": 255,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 806725,
+              "Attack": 327,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 938975,
+              "Attack": 382,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 1084450,
+              "Attack": 436,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 1838275,
+              "Attack": 509,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 760438,
+              "Attack": 280,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 927734,
+              "Attack": 360,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 1079822,
+              "Attack": 420,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 1247118,
+              "Attack": 480,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 2114017,
+              "Attack": 560,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 874504,
+              "Attack": 308,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 1066894,
+              "Attack": 396,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 1241795,
+              "Attack": 462,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 1434186,
+              "Attack": 528,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 2431119,
+              "Attack": 615,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 1005679,
+              "Attack": 339,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 1226928,
+              "Attack": 435,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 1428064,
+              "Attack": 508,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 1649313,
+              "Attack": 580,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 2795787,
+              "Attack": 677,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "镜泉冰咒师",
+              "MaxHp": 1156531,
+              "Attack": 373,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "冰碛守卫",
+              "MaxHp": 1410968,
+              "Attack": 479,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "霜纹唤岚者",
+              "MaxHp": 1642274,
+              "Attack": 559,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "霜冠铠兽",
+              "MaxHp": 1896710,
+              "Attack": 638,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "凝霜冠主",
+              "MaxHp": 3215155,
+              "Attack": 745,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Code": "kobold-mine-depths",
+      "Name": "烛井矿窟·深层LV1",
+      "Revision": 7,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 530000,
+              "Attack": 200,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 630000,
+              "Attack": 250,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 730000,
+              "Attack": 290,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 820000,
+              "Attack": 325,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 1350000,
+              "Attack": 350,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 609500,
+              "Attack": 220,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 724500,
+              "Attack": 275,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 839500,
+              "Attack": 319,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 943000,
+              "Attack": 358,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 1552500,
+              "Attack": 385,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 700925,
+              "Attack": 242,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 833175,
+              "Attack": 303,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 965425,
+              "Attack": 351,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 1084450,
+              "Attack": 394,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 1785375,
+              "Attack": 424,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 806064,
+              "Attack": 267,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 958152,
+              "Attack": 333,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 1110239,
+              "Attack": 386,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 1247118,
+              "Attack": 433,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 2053182,
+              "Attack": 466,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 926974,
+              "Attack": 293,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 1101874,
+              "Attack": 367,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 1276775,
+              "Attack": 425,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 1434186,
+              "Attack": 476,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 2361159,
+              "Attack": 513,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 1066020,
+              "Attack": 323,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 1267156,
+              "Attack": 403,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 1468291,
+              "Attack": 468,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 1649313,
+              "Attack": 524,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 2715333,
+              "Attack": 564,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "地脉巡守",
+              "MaxHp": 1225923,
+              "Attack": 355,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "炉膛看守",
+              "MaxHp": 1457229,
+              "Attack": 443,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "玄砾祭者",
+              "MaxHp": 1688535,
+              "Attack": 514,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "砾核石卫",
+              "MaxHp": 1896710,
+              "Attack": 576,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "沉岩督造者",
+              "MaxHp": 3122633,
+              "Attack": 621,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Code": "windfury-spire",
+      "Name": "裂翎高巢·深层LV1",
+      "Revision": 7,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 550000,
+              "Attack": 215,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 650000,
+              "Attack": 265,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 750000,
+              "Attack": 310,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 850000,
+              "Attack": 350,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 1500000,
+              "Attack": 390,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 632500,
+              "Attack": 237,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 747500,
+              "Attack": 292,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 862500,
+              "Attack": 341,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 977500,
+              "Attack": 385,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 1725000,
+              "Attack": 429,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 727375,
+              "Attack": 261,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 859625,
+              "Attack": 321,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 991875,
+              "Attack": 376,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 1124125,
+              "Attack": 424,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 1983750,
+              "Attack": 472,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 836482,
+              "Attack": 287,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 988569,
+              "Attack": 353,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 1140657,
+              "Attack": 413,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 1292744,
+              "Attack": 466,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 2281313,
+              "Attack": 520,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 961954,
+              "Attack": 315,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 1136855,
+              "Attack": 388,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 1311755,
+              "Attack": 454,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 1486656,
+              "Attack": 513,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 2623510,
+              "Attack": 571,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 1106247,
+              "Attack": 347,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 1307383,
+              "Attack": 427,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 1508518,
+              "Attack": 500,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 1709654,
+              "Attack": 564,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 3017036,
+              "Attack": 629,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "岚顶俯击者",
+              "MaxHp": 1272184,
+              "Attack": 381,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "旋纹柱卫",
+              "MaxHp": 1503490,
+              "Attack": 470,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "裂翎咏风者",
+              "MaxHp": 1734796,
+              "Attack": 550,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "电翎猎手",
+              "MaxHp": 1966102,
+              "Attack": 621,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "岚穹巢主",
+              "MaxHp": 3469592,
+              "Attack": 691,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Code": "dawn-core",
+      "Name": "琉辉旧庭·深层LV1",
+      "Revision": 7,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 510000,
+              "Attack": 200,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 610000,
+              "Attack": 245,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 710000,
+              "Attack": 290,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 800000,
+              "Attack": 320,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 1350000,
+              "Attack": 330,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 586500,
+              "Attack": 220,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 701500,
+              "Attack": 270,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 816500,
+              "Attack": 319,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 920000,
+              "Attack": 352,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 1552500,
+              "Attack": 363,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 674475,
+              "Attack": 242,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 806725,
+              "Attack": 297,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 938975,
+              "Attack": 351,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 1058000,
+              "Attack": 388,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 1785375,
+              "Attack": 400,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 775647,
+              "Attack": 267,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 927734,
+              "Attack": 327,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 1079822,
+              "Attack": 386,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 1216700,
+              "Attack": 426,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 2053182,
+              "Attack": 440,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 891994,
+              "Attack": 293,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 1066894,
+              "Attack": 359,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 1241795,
+              "Attack": 425,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 1399205,
+              "Attack": 469,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 2361159,
+              "Attack": 484,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 1025793,
+              "Attack": 323,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 1226928,
+              "Attack": 395,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 1428064,
+              "Attack": 468,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 1609086,
+              "Attack": 516,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 2715333,
+              "Attack": 532,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "棱核怨灵",
+              "MaxHp": 1179661,
+              "Attack": 355,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "护庭晶构体",
+              "MaxHp": 1410968,
+              "Attack": 435,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "失序光纹卫",
+              "MaxHp": 1642274,
+              "Attack": 514,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裂隙引流者",
+              "MaxHp": 1850449,
+              "Attack": 567,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "棱核守望者",
+              "MaxHp": 3122633,
+              "Attack": 585,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Code": "plague-crypt-depths",
+      "Name": "缄丝峡谷·深层LV1",
+      "Revision": 7,
+      "CalibratedDepths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "Levels": [
+        {
+          "Depth": 4,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 520000,
+              "Attack": 205,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 630000,
+              "Attack": 255,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 720000,
+              "Attack": 295,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 820000,
+              "Attack": 325,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 1400000,
+              "Attack": 330,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 5,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 598000,
+              "Attack": 226,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 724500,
+              "Attack": 281,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 828000,
+              "Attack": 325,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 943000,
+              "Attack": 358,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 1610000,
+              "Attack": 363,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 6,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 687700,
+              "Attack": 249,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 833175,
+              "Attack": 309,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 952200,
+              "Attack": 357,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 1084450,
+              "Attack": 394,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 1851500,
+              "Attack": 400,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 7,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 790855,
+              "Attack": 273,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 958152,
+              "Attack": 340,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 1095030,
+              "Attack": 393,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 1247118,
+              "Attack": 433,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 2129225,
+              "Attack": 440,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 8,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 909484,
+              "Attack": 301,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 1101874,
+              "Attack": 374,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 1259285,
+              "Attack": 432,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 1434186,
+              "Attack": 476,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 2448609,
+              "Attack": 484,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 9,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 1045906,
+              "Attack": 331,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 1267156,
+              "Attack": 411,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 1448178,
+              "Attack": 476,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 1649313,
+              "Attack": 524,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 2815901,
+              "Attack": 532,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        },
+        {
+          "Depth": 10,
+          "Monsters": [
+            {
+              "Wave": 1,
+              "Name": "蚀雾冢蛛",
+              "MaxHp": 1202792,
+              "Attack": 364,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 2,
+              "Name": "残网伏猎者",
+              "MaxHp": 1457229,
+              "Attack": 452,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 3,
+              "Name": "蚀痕墓卫",
+              "MaxHp": 1665404,
+              "Attack": 523,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 4,
+              "Name": "裹骸织丝者",
+              "MaxHp": 1896710,
+              "Attack": 576,
+              "Defense": 0,
+              "IsBoss": false
+            },
+            {
+              "Wave": 5,
+              "Name": "缄丝巢主",
+              "MaxHp": 3238286,
+              "Attack": 585,
+              "Defense": 0,
+              "IsBoss": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "SourceSha256NormalisedLf": {
+    "Game.Server/appsettings.json": "9f196b96f0b292b7fe41d9e90be7f355dee579da99ce0dbd3e5dfcae278a656a",
+    "Game.Server/world.json": "e590296dd1c8d72a2ecf21b689110b5d798468008d04ed69fa741485821c4982",
+    "Game.Server/Configuration/DungeonDepthOptions.cs": "d9c8517fb4674d04870b75843e0b9a639083128cba689e52d6169a8301870a19",
+    "Game.Server/Services/DungeonDepthCatalog.cs": "c87375ef026f431ad52a75d9d73e177c719f3325d1af9289952337a565a85f2f",
+    "Game.Server/Services/DungeonEncounterCatalog.cs": "28691aaf3688dd5fca9efebe6b49a48b11b44ffe4dad86fbd955a13d05074a10",
+    "Game.Server/Services/DungeonDepthProgressService.cs": "2ab23d851ba155467aa3dd7a9caa18622424bb9068e8a9ac850315ce53edc54c",
+    "Game.Server/Services/RewardService.cs": "ae44032971720eedcbb85dc050bcd95574193dc017ed3dae6133faf6fcf01441",
+    "Game.Server/Services/RewardService.Challenge.cs": "c1e679fd78d973d7bb0cc75ae1f3c73aefb2f14b9076df4fe9e713ea29bd063b",
+    "Game.Server/Services/DungeonRunService.cs": "a545c82a7f2bd282dfd6974f65734d10e0c29a7b7ceb4eaba0c063bbabc0b1bf",
+    "Game.Server/Services/RoomService.cs": "5d57398127fbe0aafd1c56be613c5d439693ccd03839f56da40eb65a34ce551b",
+    "Game.Shared/Dtos/DungeonSummaryResponse.cs": "00ea28ccabac75760a8d5fb99d1967e1786c3b7b83309b3caf66a1bc6f27ef80",
+    "Game.Client/Components/DungeonDepthPicker.razor": "9c540945ee12ebbab304974c235d2ebc5ed3b220f323876470fb757358176d75",
+    "Game.Server.Tests/DeepDungeonChallengeTests.cs": "32d451f1a7e0313d8d9c5fb87e004cf3da49750859c6da85b8cc29f43b36b814"
+  }
+}

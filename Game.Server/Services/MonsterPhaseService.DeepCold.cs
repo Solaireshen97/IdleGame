@@ -9,7 +9,7 @@ namespace Game.Server.Services;
 public sealed partial class MonsterPhaseService
 {
     public DeepColdOptions? DeepColdDefinition(Room room, Monster monster) =>
-        (runRules?.CombatFor(room) ?? catalog).FindProfile(monster.CombatProfileCode)?.DeepCold;
+        Profile(room, monster)?.DeepCold;
 
     private string DeepColdStatusName(Room room, string statusCode) =>
         (runRules?.CombatFor(room) ?? catalog).Statuses.Find(statusCode)!.Name;
@@ -18,14 +18,11 @@ public sealed partial class MonsterPhaseService
         List<string> logs, IReadOnlyList<BattleParticipant>? participants)
     {
         if (monster.Hp <= 0) return;
-        await EncounterSkillRoundAsync(room, monster);
-        var state = (await FindAsync(room, monster))!;
-        if (state.LastPreparedRound == room.RoundNumber) return;
-        state.LastPreparedRound = room.RoundNumber;
+        var state = await EnsureStateAsync(room, monster);
+        if (!MonsterPhaseLifecycle.PrepareRound(state, room.RoundNumber)) return;
         var characters = participants is not null
             ? participants.Select(p => p.Character).Where(c => c.Hp > 0).ToList()
-            : await (from slot in db.RoomSlots join character in db.Characters on slot.CharacterId equals character.Id
-                where slot.RoomId == room.Id && character.Hp > 0 orderby slot.SlotIndex select character).ToListAsync();
+            : (await BattlePartyReader.ReadAsync(db, room.Id)).Select(p => p.Character).Where(c => c.Hp > 0).ToList();
         foreach (var character in characters)
         {
             if (cold.FreezeAtStacks > 0 && await statuses.HasAsync(room, "Character", character.Id, cold.FreezePendingStatusCode))
@@ -46,24 +43,18 @@ public sealed partial class MonsterPhaseService
                 logs, character.Name, source: new("Monster", monster.Id, "deep-cold-reward"),
                 boundTargetType: "Monster", boundTargetId: monster.Id);
         }
-        var localRound = room.RoundNumber - state.EncounterStartRound + 1;
-        var shouldActivate = cold.TriggerHpPercent is { } hp
-            ? state.ActivationCount == 0 && (long)monster.Hp * 100 <= (long)monster.MaxHp * hp
-            : !state.IsActive && localRound >= state.NextActivationRound;
+        var shouldActivate = (cold.TriggerHpPercent is not null || !state.IsActive) &&
+            MonsterPhaseLifecycle.ShouldActivate(cold, state, monster, room.RoundNumber);
         if (characters.Count == 0 || !shouldActivate) return;
         // Clearing early preserves the original cadence. Personal success/freeze limits restart each cycle.
         if (cold.TriggerHpPercent is null)
         {
-            while (state.NextActivationRound <= localRound) state.NextActivationRound += cold.CycleRounds;
             await statuses.RemoveCodesAsync(room, "Character", characters.Select(c => c.Id).ToArray(),
                 new[] { cold.ColdStatusCode, cold.ClearedStatusCode, cold.PendingStatusCode, cold.MeltUsedStatusCode,
                     cold.FreezeStatusCode, cold.FreezePendingStatusCode, cold.FreezeUsedStatusCode }
                     .Where(code => code.Length > 0).ToArray());
         }
-        state.IsActive = true;
-        state.ActivationCount++;
-        state.LastActivationRound = room.RoundNumber;
-        state.ExpiresAfterRound = checked(room.RoundNumber + cold.WindowRounds - 1);
+        MonsterPhaseLifecycle.Activate(cold, state, room.RoundNumber);
         await statuses.ApplyAsync(room, "Monster", monster.Id, cold.FieldStatusCode, cold.WindowRounds - 1,
             logs, monster.Name, source: new("Monster", monster.Id, "deep-cold-activation"));
         foreach (var character in characters)
@@ -165,8 +156,7 @@ public sealed partial class MonsterPhaseService
         if (cold.GrowthStacksPerRound == 0 || await statuses.HasAsync(room, "Monster", monster.Id, cold.GrowthUsedStatusCode)) return;
         await statuses.ApplyAsync(room, "Monster", monster.Id, cold.GrowthUsedStatusCode, 0, [], "",
             boundTargetType: "Monster", boundTargetId: monster.Id);
-        var characters = await (from slot in db.RoomSlots join character in db.Characters on slot.CharacterId equals character.Id
-            where slot.RoomId == room.Id && character.Hp > 0 orderby slot.SlotIndex select character).ToListAsync();
+        var characters = (await BattlePartyReader.ReadAsync(db, room.Id)).Select(p => p.Character).Where(c => c.Hp > 0).ToList();
         foreach (var character in characters)
         {
             var stacks = await statuses.IncreaseStacksAsync(room, "Character", character.Id, cold.ColdStatusCode, cold.GrowthStacksPerRound);

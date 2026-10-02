@@ -10,15 +10,14 @@ namespace Game.Server.Services;
 public sealed partial class MonsterPhaseService
 {
     public PlaguePoisonOptions? PlaguePoisonDefinition(Room room, Monster monster) =>
-        (runRules?.CombatFor(room) ?? catalog).FindProfile(monster.CombatProfileCode)?.PlaguePoison;
+        Profile(room, monster)?.PlaguePoison;
 
     public static long RequiredLightDamage(Monster monster, PlaguePoisonOptions poison) =>
         (long)decimal.Ceiling(monster.MaxHp * poison.BreakLightDamagePercent / 100m);
 
     private async Task<IReadOnlyList<BattleParticipant>> PlaguePartyAsync(Room room,
         IReadOnlyList<BattleParticipant>? participants) => participants ??
-        await (from slot in db.RoomSlots join character in db.Characters on slot.CharacterId equals character.Id
-            where slot.RoomId == room.Id orderby slot.SlotIndex select new BattleParticipant(slot, character)).ToListAsync();
+        await BattlePartyReader.ReadAsync(db, room.Id);
 
     private async Task<int?> PlagueTargetAsync(Room room, Monster monster, PlaguePoisonOptions poison) =>
         (await statuses.GetActiveAsync(room, "Monster", [monster.Id]))
@@ -26,6 +25,7 @@ public sealed partial class MonsterPhaseService
 
     public async Task RefreshPlagueHealthAsync(Room room, Monster monster, IReadOnlyList<BattleParticipant> party)
     {
+        await PrepareDefinitionsAsync(room);
         if (PlaguePoisonDefinition(room, monster) is not { ErosionStartStacks: > 0 } poison) return;
         var effects = room.Status == RoomStatus.BattleOver || room.ClosedAtUtc.HasValue || monster.Hp <= 0 ? [] :
             await statuses.GetActiveAsync(room, "Character", party.Select(p => p.Character.Id).ToArray());
@@ -57,13 +57,11 @@ public sealed partial class MonsterPhaseService
     private async Task BeginPlagueRoundAsync(Room room, Monster monster, PlaguePoisonOptions poison,
         List<string> logs, IReadOnlyList<BattleParticipant>? participants)
     {
-        await EncounterSkillRoundAsync(room, monster);
-        var state = (await FindAsync(room, monster))!;
+        var state = await EnsureStateAsync(room, monster);
         var party = await PlaguePartyAsync(room, participants);
         await RefreshPlagueHealthAsync(room, monster, party);
         if (monster.Hp <= 0) { await ClearPlagueAsync(room, monster, poison, state, party, removeReward: true); return; }
-        if (state.LastPreparedRound == room.RoundNumber) return;
-        state.LastPreparedRound = room.RoundNumber;
+        if (!MonsterPhaseLifecycle.PrepareRound(state, room.RoundNumber)) return;
         if (state.RewardStartsAtRound is { } reward && reward <= room.RoundNumber)
         {
             var targetId = await PlagueTargetAsync(room, monster, poison);
@@ -77,24 +75,15 @@ public sealed partial class MonsterPhaseService
             }
             state.RewardStartsAtRound = null;
         }
-        var localRound = room.RoundNumber - state.EncounterStartRound + 1;
-        var shouldActivate = poison.TriggerHpPercent is { } hp
-            ? state.ActivationCount == 0 && (long)monster.Hp * 100 <= (long)monster.MaxHp * hp
-            : localRound >= state.NextActivationRound;
-        if (state.IsActive || !shouldActivate) return;
+        if (state.IsActive || !MonsterPhaseLifecycle.ShouldActivate(poison, state, monster, room.RoundNumber)) return;
         var front = party.Where(p => p.Character.Hp > 0).OrderBy(p => p.Slot.SlotIndex).FirstOrDefault();
         if (front is null) return;
         if (poison.TriggerHpPercent is null)
         {
             // Fixed cadence survives breaks/deaths; clear prior counters, bindings and rewards before the next cycle.
-            while (state.NextActivationRound <= localRound) state.NextActivationRound += poison.CycleRounds;
             await ClearPlagueAsync(room, monster, poison, state, party, removeReward: true);
         }
-        state.IsActive = true;
-        state.ActivationCount++;
-        state.ElementDamage = 0;
-        state.LastActivationRound = room.RoundNumber;
-        state.ExpiresAfterRound = checked(room.RoundNumber + poison.WindowRounds - 1);
+        MonsterPhaseLifecycle.Activate(poison, state, room.RoundNumber);
         var modifier = await statuses.ModifierAsync(room, "Monster", monster.Id, "AttackPercent");
         var unit = Math.Max(1, (int)Math.Min(int.MaxValue, decimal.Floor(monster.Attack *
             Math.Max(0, 1m + modifier / 100m) * poison.AttackPercentPerStack / 100m)));
@@ -139,10 +128,7 @@ public sealed partial class MonsterPhaseService
     private async Task BreakPlagueAsync(BattleExecutionContext battle, PlaguePoisonOptions poison,
         BattleMonsterPhaseState state, int targetId)
     {
-        state.IsActive = false;
-        state.BreakCount++;
-        state.LastBreakRound = battle.Room.RoundNumber;
-        state.RewardStartsAtRound = checked(battle.Room.RoundNumber + 1);
+        MonsterPhaseLifecycle.Complete(state, battle.Room.RoundNumber);
         await statuses.RemoveAsync(battle.Room, "Character", targetId, poison.PoisonStatusCode);
         await ClearPlagueErosionAsync(battle.Room, poison, battle.Party.Single(p => p.Character.Id == targetId));
         await statuses.RemoveAsync(battle.Room, "Monster", battle.Monster.Id, poison.TickUsedStatusCode);

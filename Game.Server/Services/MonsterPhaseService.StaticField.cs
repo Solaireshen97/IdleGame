@@ -8,36 +8,25 @@ namespace Game.Server.Services;
 public sealed partial class MonsterPhaseService
 {
     public StaticFieldOptions? StaticFieldDefinition(Room room, Monster monster) =>
-        (runRules?.CombatFor(room) ?? catalog).FindProfile(monster.CombatProfileCode)?.StaticField;
+        Profile(room, monster)?.StaticField;
 
     private async Task BeginStaticFieldRoundAsync(Room room, Monster monster, StaticFieldOptions field, List<string> logs)
     {
         if (monster.Hp <= 0) return;
-        await EncounterSkillRoundAsync(room, monster);
-        var state = (await FindAsync(room, monster))!;
-        if (state.LastPreparedRound == room.RoundNumber) return;
-        state.LastPreparedRound = room.RoundNumber;
+        var state = await EnsureStateAsync(room, monster);
+        if (!MonsterPhaseLifecycle.PrepareRound(state, room.RoundNumber)) return;
         if (state.RewardStartsAtRound == room.RoundNumber)
         {
             await statuses.ApplyAsync(room, "Monster", monster.Id, field.RewardStatusCode, field.RewardRounds - 1,
                 logs, monster.Name, source: new("Monster", monster.Id, "static-field-break"));
             state.RewardStartsAtRound = null;
         }
-        var localRound = room.RoundNumber - state.EncounterStartRound + 1;
-        var shouldActivate = field.TriggerHpPercent is { } hp
-            ? state.ActivationCount == 0 && (long)monster.Hp * 100 <= (long)monster.MaxHp * hp
-            : localRound >= state.NextActivationRound;
-        if (!shouldActivate) return;
+        if (!MonsterPhaseLifecycle.ShouldActivate(field, state, monster, room.RoundNumber)) return;
         // Success, timeout and discharge never move the fixed next activation.
-        if (field.TriggerHpPercent is null)
-            while (state.NextActivationRound <= localRound) state.NextActivationRound += field.CycleRounds;
         await statuses.RemoveAsync(room, "Monster", monster.Id, field.StaticStatusCode);
         await statuses.RemoveAsync(room, "Monster", monster.Id, field.GrowthUsedStatusCode);
         await RemoveStaticThunderPreviewAsync(room, monster, field);
-        state.IsActive = true;
-        state.ActivationCount++;
-        state.LastActivationRound = room.RoundNumber;
-        state.ExpiresAfterRound = checked(room.RoundNumber + field.WindowRounds - 1);
+        MonsterPhaseLifecycle.Activate(field, state, room.RoundNumber);
         await statuses.ApplyAsync(room, "Monster", monster.Id, field.StaticStatusCode, field.WindowRounds - 1,
             logs, monster.Name, source: new("Monster", monster.Id, "static-field-activation"),
             boundTargetType: "Monster", boundTargetId: monster.Id, counterCount: field.InitialStacks);
@@ -59,10 +48,7 @@ public sealed partial class MonsterPhaseService
         var remaining = await statuses.StacksAsync(battle.Room, "Monster", battle.Monster.Id, field.StaticStatusCode);
         battle.Logs.Add($"{WeaponRules.ElementName(element!.Value)}属性命中消除一层静电，剩余{remaining}层。");
         if (remaining > 0) return;
-        state.IsActive = false;
-        state.BreakCount++;
-        state.LastBreakRound = battle.Room.RoundNumber;
-        state.RewardStartsAtRound = checked(battle.Room.RoundNumber + 1);
+        MonsterPhaseLifecycle.Complete(state, battle.Room.RoundNumber);
         await statuses.RemoveAsync(battle.Room, "Monster", battle.Monster.Id, field.GrowthUsedStatusCode);
         await RemoveStaticThunderPreviewAsync(battle.Room, battle.Monster, field);
         battle.Logs.Add($"{battle.Monster.Name} 的静电被主动清空，领域立即结束；下一完整回合起获得{field.RewardRounds}回合风暴失衡反攻窗口。");

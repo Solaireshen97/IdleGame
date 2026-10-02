@@ -9,9 +9,10 @@ using Microsoft.Extensions.Options;
 
 namespace Game.Server.Services;
 
-public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null)
+public partial class BattleService(GameDbContext dbContext, UserService userService, ConsumableCatalog consumableCatalog, SkillCatalog skillCatalog, RewardService rewardService, DungeonRunService? dungeonRunService = null, MonsterCombatService? monsterCombatService = null, BattleLogStore? battleLogStore = null, Random? random = null, BattleMilestoneService? battleMilestones = null, WeaponCatalog? weaponCatalog = null, SoulImprintCatalog? soulImprintCatalog = null, PartyScalingService? partyScalingService = null, RoomService? roomService = null, BattleEffectExecutor? battleEffects = null, ProfessionMechanicCatalog? mechanics = null, DungeonRunRulesService? runRules = null, BattleContextPreparation? contextPreparation = null)
 {
     private readonly PartyScalingService _partyScaling = partyScalingService ?? new(dbContext, PartyScalingCatalog.Default, runRules);
+    private readonly BattleContextPreparation _contextPreparation = contextPreparation ?? new(runRules, monsterCombatService?.Phases);
     private readonly SkillBattleSnapshotFactory _skillSnapshots = new(dbContext, skillCatalog, monsterCombatService, mechanics);
     private readonly BattleEventCollector _events = battleEffects?.Events ?? monsterCombatService?.Statuses.Events ?? new();
     private BattleStatusService? _statusService;
@@ -584,13 +585,10 @@ public partial class BattleService(GameDbContext dbContext, UserService userServ
         if (roomService is not null) await roomService.ProcessPendingOperationsAsync(roomId);
         var room = await dbContext.Rooms.FirstOrDefaultAsync(x => x.Id == roomId);
         if (room is null) return (null, null, null, "NotFound");
-        var slotRows = await dbContext.RoomSlots.Where(x => x.RoomId == roomId && x.CharacterId.HasValue).OrderBy(x => x.SlotIndex).ToListAsync();
-        var ids = slotRows.Select(x => x.CharacterId!.Value).ToList();
-        var characters = await dbContext.Characters.Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
-        var slots = slotRows.Where(x => characters.ContainsKey(x.CharacterId!.Value)).Select(x => new BattleParticipant(x, characters[x.CharacterId!.Value])).ToList();
+        var slots = await BattlePartyReader.ReadAsync(dbContext, roomId);
         var monster = await dbContext.Monsters.FindAsync(room.MonsterId);
-        if (monster is not null && monsterCombatService is not null)
-            await monsterCombatService.Phases.RefreshPlagueHealthAsync(room, monster, slots);
+        if (monster is not null)
+            await _contextPreparation.PrepareAsync(room, monster, slots);
         return monster is null ? (room, slots, null, "MonsterNotFound") : (room, slots, monster, null);
     }
 }

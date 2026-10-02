@@ -7,37 +7,26 @@ namespace Game.Server.Services;
 public sealed partial class MonsterPhaseService
 {
     public ReflectionMirrorOptions? ReflectionMirrorDefinition(Room room, Monster monster) =>
-        (runRules?.CombatFor(room) ?? catalog).FindProfile(monster.CombatProfileCode)?.ReflectionMirror;
+        Profile(room, monster)?.ReflectionMirror;
 
     private async Task BeginReflectionMirrorRoundAsync(Room room, Monster monster, ReflectionMirrorOptions mirror,
         List<string> logs, IReadOnlyList<BattleParticipant>? participants)
     {
         if (monster.Hp <= 0) return;
-        await EncounterSkillRoundAsync(room, monster);
-        var state = (await FindAsync(room, monster))!;
-        if (state.LastPreparedRound == room.RoundNumber) return;
-        state.LastPreparedRound = room.RoundNumber;
+        var state = await EnsureStateAsync(room, monster);
+        if (!MonsterPhaseLifecycle.PrepareRound(state, room.RoundNumber)) return;
         if (state.RewardStartsAtRound == room.RoundNumber)
         {
             await statuses.ApplyAsync(room, "Monster", monster.Id, mirror.RewardStatusCode, mirror.RewardRounds - 1,
                 logs, monster.Name, source: new("Monster", monster.Id, "reflection-mirror-break"));
             state.RewardStartsAtRound = null;
         }
-        var localRound = room.RoundNumber - state.EncounterStartRound + 1;
-        var shouldActivate = mirror.TriggerHpPercent is { } hp
-            ? state.ActivationCount == 0 && (long)monster.Hp * 100 <= (long)monster.MaxHp * hp
-            : localRound >= state.NextActivationRound;
-        if (shouldActivate)
+        if (MonsterPhaseLifecycle.ShouldActivate(mirror, state, monster, room.RoundNumber))
         {
             // A break or natural end never moves the next fixed activation.
-            if (mirror.TriggerHpPercent is null)
-                while (state.NextActivationRound <= localRound) state.NextActivationRound += mirror.CycleRounds;
             await statuses.RemoveAsync(room, "Monster", monster.Id, mirror.MirrorStatusCode);
             await RemoveMirrorAmplificationAsync(room, monster, mirror);
-            state.IsActive = true;
-            state.ActivationCount++;
-            state.LastActivationRound = room.RoundNumber;
-            state.ExpiresAfterRound = checked(room.RoundNumber + mirror.WindowRounds - 1);
+            MonsterPhaseLifecycle.Activate(mirror, state, room.RoundNumber);
             await statuses.ApplyAsync(room, "Monster", monster.Id, mirror.MirrorStatusCode, mirror.WindowRounds - 1,
                 logs, monster.Name, source: new("Monster", monster.Id, "reflection-mirror-activation"),
                 boundTargetType: "Monster", boundTargetId: monster.Id, counterCount: mirror.InitialStacks);
@@ -90,10 +79,7 @@ public sealed partial class MonsterPhaseService
     private async Task BreakReflectionMirrorAsync(BattleExecutionContext battle, ReflectionMirrorOptions mirror,
         BattleMonsterPhaseState state)
     {
-        state.IsActive = false;
-        state.BreakCount++;
-        state.LastBreakRound = battle.Room.RoundNumber;
-        state.RewardStartsAtRound = checked(battle.Room.RoundNumber + 1);
+        MonsterPhaseLifecycle.Complete(state, battle.Room.RoundNumber);
         await statuses.RemoveAsync(battle.Room, "Monster", battle.Monster.Id, mirror.MirrorStatusCode);
         await RemoveMirrorAmplificationAsync(battle.Room, battle.Monster, mirror);
         battle.Logs.Add($"{battle.Monster.Name} 的琉辉反镜被主动解除；下一完整回合起获得{mirror.RewardRounds}回合棱核失衡反攻窗口。");

@@ -336,20 +336,13 @@ public sealed class MonsterCombatService(GameDbContext dbContext, MonsterCombatC
 
     private async Task<int?> FindRandomAliveCharacterIdAsync(int roomId)
     {
-        var candidates = await (from slot in dbContext.RoomSlots
-            join character in dbContext.Characters on slot.CharacterId equals character.Id
-            where slot.RoomId == roomId && character.Hp > 0
-            orderby slot.SlotIndex
-            select character.Id).ToListAsync();
+        var candidates = (await BattlePartyReader.ReadAsync(dbContext, roomId))
+            .Where(p => p.Character.Hp > 0).Select(p => p.Character.Id).ToList();
         return candidates.Count == 0 ? null : candidates[(random ?? Random.Shared).Next(candidates.Count)];
     }
 
-    private async Task<int?> FindFrontCharacterIdAsync(int roomId) => await (
-        from slot in dbContext.RoomSlots
-        join character in dbContext.Characters on slot.CharacterId equals character.Id
-        where slot.RoomId == roomId && character.Hp > 0
-        orderby slot.SlotIndex
-        select (int?)character.Id).FirstOrDefaultAsync();
+    private async Task<int?> FindFrontCharacterIdAsync(int roomId) =>
+        (await BattlePartyReader.ReadAsync(dbContext, roomId)).FirstOrDefault(p => p.Character.Hp > 0)?.Character.Id;
 
     private async Task<string> GetCharacterTargetLabelAsync(int roomId, int? characterId)
     {
